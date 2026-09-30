@@ -1,0 +1,22 @@
+{
+  "name": "hearth",
+  "private": true,
+  "license": "AGPL-3.0-only",
+  "workspaces": [
+    "packages/*",
+    "apps/client",
+    "apps/desktop"
+  ],
+  "scripts": {
+    "dev": "npm run dev -w @hearth/client",
+    "build": "npm run build -w @hearth/client",
+    "typecheck": "npm run typecheck --workspaces --if-present",
+    "lint": "npm run lint --workspaces --if-present",
+    "desktop:dev": "npm run tauri -w @hearth/desktop -- dev",
+    "desktop:build": "npm run tauri -w @hearth/desktop -- build",
+    "verify": "npm run typecheck && npm run lint && npm run build"
+  },
+  "engines": {
+    "node": ">=22"
+  }
+}

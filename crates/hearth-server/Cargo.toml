@@ -1,0 +1,20 @@
+[package]
+name = "hearth-server"
+description = "Hearth home server: REST API, real-time gateway, MLS delivery service, and federation."
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+rust-version.workspace = true
+
+[dependencies]
+hearth-proto.workspace = true
+hearth-crypto.workspace = true
+anyhow.workspace = true
+axum.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+sqlx.workspace = true
+tokio.workspace = true
+tower-http.workspace = true
+tracing.workspace = true
+tracing-subscriber.workspace = true

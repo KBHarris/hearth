@@ -1,0 +1,11 @@
+target
+**/target
+**/node_modules
+**/dist
+.git
+docs
+packages
+apps/client
+apps/desktop/src-tauri/icons
+apps/desktop/src-tauri/gen
+deploy/.env

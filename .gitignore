@@ -1,0 +1,25 @@
+# Rust
+/target/
+**/src-tauri/target/
+**/src-tauri/gen/
+
+# Node
+node_modules/
+dist/
+*.tsbuildinfo
+.vite/
+
+# wasm-pack output
+crates/hearth-wasm/pkg/
+
+# Env / secrets
+.env
+deploy/.env
+deploy/data/
+
+# OS / editor
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/*
+!.vscode/extensions.json

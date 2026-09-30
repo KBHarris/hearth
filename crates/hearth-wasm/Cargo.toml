@@ -1,0 +1,20 @@
+[package]
+name = "hearth-wasm"
+description = "WebAssembly bindings of hearth-client-core for the web client."
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+rust-version.workspace = true
+
+[lib]
+crate-type = ["cdylib", "rlib"]
+
+[dependencies]
+hearth-client-core.workspace = true
+hearth-proto.workspace = true
+serde_json.workspace = true
+wasm-bindgen.workspace = true
+
+[target.'cfg(target_arch = "wasm32")'.dependencies]
+# Route OsRng to crypto.getRandomValues in the browser.
+getrandom = { workspace = true, features = ["js"] }

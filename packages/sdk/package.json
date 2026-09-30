@@ -1,0 +1,16 @@
+{
+  "name": "@hearth/sdk",
+  "version": "0.1.0",
+  "private": true,
+  "license": "(Apache-2.0 OR MIT)",
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "scripts": {
+    "typecheck": "tsc -p tsconfig.json"
+  },
+  "devDependencies": {
+    "typescript": "~6.0.2"
+  }
+}

@@ -1,0 +1,11 @@
+[package]
+name = "hearth-client-core"
+description = "Platform-independent Hearth client logic, shared by the desktop (native) and web (WASM) builds."
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+rust-version.workspace = true
+
+[dependencies]
+hearth-proto.workspace = true
+hearth-crypto.workspace = true
