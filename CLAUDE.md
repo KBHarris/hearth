@@ -12,7 +12,11 @@ npm run verify
 cargo fmt --all --check && cargo clippy --all-targets -- -D warnings && cargo test
 ```
 
-This Windows machine has **no local Rust toolchain**. Run the cargo commands in Docker:
+Rust (via rustup) and the MSVC Build Tools are installed on this Windows machine. If
+`cargo` isn't on PATH in a shell, prepend `%USERPROFILE%\.cargo\bin`. The desktop crate
+builds natively: `npm run desktop:build -- --debug --no-bundle`.
+
+Fallback (Linux build, same as CI) in Docker:
 
 ```bash
 MSYS_NO_PATHCONV=1 docker run --rm -v "$(pwd -W):/src" -v hearth-cargo:/usr/local/cargo/registry -v hearth-target:/target -v hearth-rustup:/usr/local/rustup -e CARGO_TARGET_DIR=/target -w /src rust:1-bookworm bash -c "cargo fmt --all --check && cargo clippy --all-targets -- -D warnings && cargo test"
