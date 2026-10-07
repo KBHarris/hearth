@@ -30,6 +30,6 @@ try {
   if (process.env.HEARTH_SPIKE_ORIGIN) assert.equal(report.checks.hearth_health_and_discovery, true)
   console.log(JSON.stringify({ runtime: `${browser} (${process.platform})`, ...report }, null, 2))
 } finally {
-  await driver?.quit()
-  await fixture.stop()
+  try { await driver?.quit() }
+  finally { await fixture.stop() }
 }

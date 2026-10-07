@@ -45,3 +45,11 @@ test('invalid ports fail before Compose starts and preserve secrets', (t) => {
   assert.throws(() => initializeConfig(directory), /TCP port/)
   assert.equal(readFileSync(join(directory, '.env'), 'utf8'), text)
 })
+
+test('duplicate password entries cannot hide an unsafe effective Compose value', (t) => {
+  const directory = fixture(t)
+  const text = `HEARTH_PORT=8080\nPOSTGRES_PASSWORD=${'a'.repeat(64)}\nPOSTGRES_PASSWORD=change-me\n`
+  writeFileSync(join(directory, '.env'), text)
+  assert.throws(() => initializeConfig(directory), /exactly one/)
+  assert.equal(readFileSync(join(directory, '.env'), 'utf8'), text)
+})
