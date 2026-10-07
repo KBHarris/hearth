@@ -16,22 +16,42 @@ P4 and P5 can run in parallel once P3's permission model is stable.
 
 **Goal:** a repo that builds everywhere, and answers to the three riskiest questions.
 
-- Set up the monorepo: Cargo workspace (`hearth-proto`, `hearth-crypto`,
+Current progress (2026-10-07): the monorepo and build scaffold exist. The web client now
+supports server selection, validated public discovery, health and protocol checks, setup
+readiness, retry, cancellation, and remembering a working address. SDK integration tests
+and server discovery tests run in the standard npm and Cargo checks. Local Rust/WASM checks,
+the web build, a Windows desktop build, and browser connection to a real PostgreSQL-backed
+server have passed. Rust-to-TypeScript generation and drift checks are complete. The MLS
+scenario passes natively, in Node/browser WASM, and through a headless Windows Tauri
+executable; [ADR 0002](adr/0002-mls-feasibility.md) records the receive-transaction finding
+and remaining platform gates. Fresh Compose startup, migrations, storage reachability,
+and restart persistence pass. The OPAQUE WASM/native-process spike passes registration,
+login, and adversarial checks; [ADR 0003](adr/0003-opaque-feasibility.md) records its scope.
+The synthetic LiveKit media harness passes in Windows in-app Chromium, including wrong-key
+and stale-key rejection; [ADR 0004](adr/0004-media-feasibility.md) records the measured scope.
+Phase 0 remains open: the media platform matrix and hosted desktop matrix remain. See [PROGRESS.md](PROGRESS.md)
+for dated evidence. This is not an encrypted chat implementation.
+
+- [x] Set up the monorepo: Cargo workspace (`hearth-proto`, `hearth-crypto`,
   `hearth-client-core`, `hearth-wasm`, `hearth-server`), the React client, the Tauri shell,
   and the TS SDK package.
-- Set up CI: fmt, clippy, cargo tests, the `wasm32` build, TS typecheck/lint/build, and a
+- [x] Set up CI: fmt, clippy, cargo tests, the `wasm32` build, TS typecheck/lint/build, and a
   Tauri build matrix (Windows, macOS, Linux).
-- Add the Compose stack: Postgres, SeaweedFS (S3), `hearth-server`, with a healthcheck.
-- Serve `/health` and `/.well-known/hearth` from the server. Add sqlx migrations.
-- Set up protocol type generation (Rust → TS) so that client types never drift.
-- **Spike A, OpenMLS in WASM and in Tauri:** create a group, add a member, and
+- [x] Add the Compose stack: Postgres, SeaweedFS (S3), `hearth-server`, with a healthcheck.
+  Fresh local Docker build/start and restart validation pass; Podman unverified.
+- [x] Serve `/health` and `/.well-known/hearth` from the server. Add sqlx migrations.
+- [x] Set up protocol type generation (Rust → TS) so that client types never drift.
+- [ ] **Spike A, OpenMLS in WASM and in Tauri:** create a group, add a member, and
   encrypt/decrypt in both builds.
-- **Spike B, E2EE media per platform:** LiveKit + encoded transforms in WebView2, WKWebView,
+  Local acceptance scenario passes; other desktop platforms and webview integration pending.
+- [ ] **Spike B, E2EE media per platform:** LiveKit + encoded transforms in WebView2, WKWebView,
   WebKitGTK, and Chrome/Firefox/Safari. Record the results in an ADR and pick the Linux
   strategy.
-- **Spike C, OPAQUE:** registration and login round trip, with the client in WASM and the
+  Local Chromium audio/video and key-rotation checks pass; the other runtime gates remain.
+- [x] **Spike C, OPAQUE:** registration and login round trip, with the client in WASM and the
   server in Rust.
-- Draft the first threat model: assets, adversaries, and the metadata inventory.
+  Local WASM/native-process scenario passes; product authentication is not implemented.
+- [x] Draft the first threat model: assets, adversaries, and the metadata inventory.
 
 **Exit:** `docker compose up` gives a healthy server. The desktop and web shells both load
 and call `/health`. The spike ADRs are merged.

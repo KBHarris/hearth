@@ -53,7 +53,7 @@ an onboarding admin UI, optional federation, and an opt-in public directory.
 | Home server | Rust (axum, tokio, sqlx) | REST + WebSocket gateway, MLS delivery service, permissions, federation. |
 | Database | PostgreSQL | Encrypted event envelopes, membership, roles, operational metadata. |
 | Object storage | S3-compatible (SeaweedFS bundled; any S3 supported) | Opaque encrypted blobs only. |
-| Media | LiveKit SFU + coturn (bundled) | SFU forwards SFrame-encrypted frames and cannot decrypt them. |
+| Media | LiveKit SFU + coturn (planned bundle) | Client-encrypted frames; SFrame profile and interoperability remain a validation gate. |
 | Deployment | Compose file (Docker or Podman) | `hearth-server` + Postgres + S3 + LiveKit + coturn + reverse proxy. |
 
 **Decision: use an existing SFU and don't build one.** Revision 1 implied writing our own
@@ -96,7 +96,8 @@ events. Clients display safety numbers and warn on unexpected key changes.
   chunked for streaming). It uploads to S3 through a presigned URL, and the file key travels
   inside the MLS message. Thumbnails and previews are generated locally and encrypted in
   the same way.
-- **Voice, video, and screen share**: SFrame via WebRTC encoded transforms. Media keys are
+- **Voice, video, and screen share**: planned SFrame profile via WebRTC encoded transforms,
+  with interoperability still to validate (see [ADR 0004](docs/adr/0004-media-feasibility.md)). Media keys are
   derived from the voice channel's MLS group through the MLS exporter, and rotate on every
   membership change.
 - **Reports**: MLS application messages carry the sender's signature over the framed
@@ -201,7 +202,7 @@ A permissive crate must never depend on an AGPL one.
 
 | Risk | Impact | Mitigation |
 |---|---|---|
-| **Linux WebKitGTK has weak WebRTC support**, and encoded transforms are largely unavailable | E2EE voice may not work in the Linux desktop app | Phase 0 spike. Fallbacks: run the media stack natively in Rust (LiveKit Rust SDK) from the Tauri side, or ship Linux voice through the web client until it is resolved. |
+| **Linux WebKitGTK encrypted media support is unverified** | E2EE voice may not work in the Linux desktop app | Run the actual runtime acceptance harness. Provisionally use a supported browser until it passes; a native Rust path needs separate interoperability and performance evidence (ADR 0004). |
 | MLS commit cost and conflicts in large, busy channels | Latency, failed commits | The server sequences commits; commits are batched; external-commit joins; load tests start in Phase 2. |
 | History sharing leaks past content to people who shouldn't have it | Privacy violation | Policy enforced client-side, plus server roster checks; dedicated tests; threat-model entry. |
 | Scope: Discord parity is enormous | Nothing ships | Vertical-slice phases, each with an exit bar; stage and forum channels come after the core. |

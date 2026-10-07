@@ -1,29 +1,33 @@
-// Mirrors crates/hearth-proto. Phase 0 replaces this hand-written file with types
-// generated from the Rust definitions so the two can never drift.
+// Generated from hearth-proto. Do not edit by hand.
+// Regenerate: npm run protocol:generate
+// SPDX-License-Identifier: Apache-2.0 OR MIT
 
-export const PROTOCOL_VERSION = 1
+export const PROTOCOL_VERSION = 1 as const
 
-export interface Health {
-  status: 'ok' | 'degraded'
-  version: string
-  protocol: number
-}
+export type HealthStatus = "ok" | "degraded";
 
-export interface WellKnown {
-  server_name: string
-  protocols: number[]
-  server_key: string
-  federation: boolean
-}
+export type Health = { status: HealthStatus, version: string, protocol: number, };
 
-export type ClientFrame =
-  | { op: 'identify'; d: { protocol: number; token: string } }
-  | { op: 'heartbeat'; d: { last_seq: number | null } }
-  | { op: 'resume'; d: { session_id: string; last_seq: number } }
+export type WellKnown = {
+/**
+ * Public domain of this server.
+ */
+server_name: string,
+/**
+ * Supported protocol versions, newest first.
+ */
+protocols: Array<number>,
+/**
+ * Hex-encoded Ed25519 server signing key.
+ */
+server_key: string,
+/**
+ * Whether this server accepts federation traffic at all.
+ */
+federation: boolean, };
 
-export type ServerFrame =
-  | { op: 'hello'; d: { protocol: number; heartbeat_interval_ms: number } }
-  | { op: 'heartbeat_ack' }
-  | { op: 'ready'; d: { session_id: string } }
-  | { op: 'event'; d: { seq: number; event: unknown } }
-  | { op: 'invalid_session'; d: { reason: string } }
+export type SetupStatus = { setup_complete: boolean, };
+
+export type ClientFrame = { "op": "identify", "d": { protocol: number, token: string, } } | { "op": "heartbeat", "d": { last_seq: number | null, } } | { "op": "resume", "d": { session_id: string, last_seq: number, } };
+
+export type ServerFrame = { "op": "hello", "d": { protocol: number, heartbeat_interval_ms: number, } } | { "op": "heartbeat_ack" } | { "op": "ready", "d": { session_id: string, } } | { "op": "event", "d": { seq: number, event: unknown, } } | { "op": "invalid_session", "d": { reason: string, } };

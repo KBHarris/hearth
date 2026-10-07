@@ -9,9 +9,14 @@ rust-version.workspace = true
 [lib]
 crate-type = ["cdylib", "rlib"]
 
+[features]
+mls-spike = ["hearth-crypto/mls-spike"]
+opaque-spike = ["hearth-crypto/opaque-spike"]
+
 [dependencies]
 hearth-client-core.workspace = true
 hearth-proto.workspace = true
+hearth-crypto.workspace = true
 serde_json.workspace = true
 wasm-bindgen.workspace = true
 

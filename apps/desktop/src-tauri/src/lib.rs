@@ -1,6 +1,9 @@
 //! Desktop shell. The UI is the shared React client (`apps/client`); this crate adds the
 //! native pieces: OS keystore, SQLCipher store, notifications, and auto-update (Phase 1+).
 
+#[cfg(feature = "phase0-spike")]
+pub mod phase0;
+
 /// Protocol version compiled into the native core, so the UI can detect a mismatched build.
 #[tauri::command]
 fn protocol_version() -> u32 {

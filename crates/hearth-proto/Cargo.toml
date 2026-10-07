@@ -6,6 +6,14 @@ edition.workspace = true
 license = "Apache-2.0 OR MIT"
 rust-version.workspace = true
 
+[features]
+typescript = ["dep:ts-rs"]
+
+[[bin]]
+name = "generate-protocol"
+required-features = ["typescript"]
+
 [dependencies]
 serde.workspace = true
 serde_json.workspace = true
+ts-rs = { version = "12.0.1", optional = true }

@@ -1,7 +1,6 @@
 # Hearth self-hosted stack. Works with `docker compose` and `podman compose`.
 #
-#   cp deploy/.env.example deploy/.env   # then edit secrets
-#   docker compose -f deploy/compose.yaml up -d --build
+#   node deploy/setup.mjs
 #
 # Phase 4 adds LiveKit (SFU) and coturn; Phase 6 adds the reverse proxy with automatic TLS.
 
@@ -13,12 +12,14 @@ services:
       context: ..
       dockerfile: crates/hearth-server/Dockerfile
     restart: unless-stopped
-    env_file: .env
     environment:
       DATABASE_URL: postgres://hearth:${POSTGRES_PASSWORD}@postgres:5432/hearth
       HEARTH_S3_ENDPOINT: http://storage:8333
+      HEARTH_SERVER_NAME: ${HEARTH_SERVER_NAME:-localhost}
+      HEARTH_FEDERATION: ${HEARTH_FEDERATION:-false}
+      RUST_LOG: ${RUST_LOG:-info}
     ports:
-      - "${HEARTH_PORT:-8080}:8080"
+      - "${HEARTH_HOST:-127.0.0.1}:${HEARTH_PORT:-8080}:8080"
     volumes:
       - server-data:/var/lib/hearth
     depends_on:

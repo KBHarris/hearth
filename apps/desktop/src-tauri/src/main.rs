@@ -2,5 +2,24 @@
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
 fn main() {
+    #[cfg(feature = "phase0-spike")]
+    if std::env::args().any(|arg| arg == "--phase0-spike") {
+        hearth_desktop_lib::phase0::run();
+        return;
+    }
+    #[cfg(feature = "mls-spike")]
+    if std::env::args().any(|arg| arg == "--mls-spike") {
+        match hearth_crypto::mls_spike::run() {
+            Ok(report) => println!(
+                "{}",
+                serde_json::to_string(&report).expect("report serializes")
+            ),
+            Err(error) => {
+                eprintln!("{error}");
+                std::process::exit(1);
+            }
+        }
+        return;
+    }
     hearth_desktop_lib::run()
 }

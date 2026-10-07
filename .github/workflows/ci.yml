@@ -4,6 +4,7 @@ on:
   push:
     branches: [main]
   pull_request:
+  workflow_dispatch:
 
 env:
   CARGO_TERM_COLOR: always
@@ -19,9 +20,26 @@ jobs:
           targets: wasm32-unknown-unknown
       - uses: Swatinem/rust-cache@v2
       - run: cargo fmt --all --check
-      - run: cargo clippy --all-targets -- -D warnings
-      - run: cargo test
+      - run: cargo clippy --all-targets --features hearth-proto/typescript,hearth-crypto/mls-spike,hearth-server/opaque-spike,hearth-wasm/opaque-spike -- -D warnings
+      - run: cargo test --features hearth-proto/typescript,hearth-crypto/mls-spike,hearth-server/opaque-spike,hearth-wasm/opaque-spike
+      - run: cargo run -p hearth-proto --features typescript --bin generate-protocol -- --check
       - run: cargo check -p hearth-wasm --target wasm32-unknown-unknown
+      - run: cargo check -p hearth-wasm --target wasm32-unknown-unknown --features mls-spike,opaque-spike
+
+  crypto-wasm:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: wasm32-unknown-unknown
+      - uses: Swatinem/rust-cache@v2
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - run: npm run spike:tools
+      - run: npm run spike:mls:wasm
+      - run: npm run spike:opaque:wasm
 
   web:
     runs-on: ubuntu-latest
@@ -33,6 +51,7 @@ jobs:
           cache: npm
       - run: npm ci
       - run: npm run verify
+      - run: npm run spike:media:build
 
   desktop:
     needs: [rust, web]
@@ -53,16 +72,110 @@ jobs:
         if: runner.os == 'Linux'
         run: |
           sudo apt-get update
-          sudo apt-get install -y libwebkit2gtk-4.1-dev libappindicator3-dev librsvg2-dev patchelf
+          sudo apt-get install -y libwebkit2gtk-4.1-dev libappindicator3-dev librsvg2-dev patchelf xvfb gstreamer1.0-plugins-good gstreamer1.0-plugins-bad gstreamer1.0-nice
       - run: npm ci
-      - run: npm run desktop:build -- --no-bundle
+      - run: npm run desktop:build -- --debug --no-bundle
+      - run: npm run spike:media:build
+      - run: cargo build -p hearth-desktop --features phase0-spike
+      - run: node scripts/verify-desktop-mls.mjs
+      - if: runner.os != 'macOS'
+        run: node scripts/install-livekit-spike.mjs
+      - if: runner.os == 'macOS'
+        uses: actions/setup-go@v5
+        with:
+          go-version: '1.26'
+          cache: false
+      - name: Build official macOS SFU fixture
+        if: runner.os == 'macOS'
+        run: |
+          git clone --depth 1 --branch v1.13.8 https://github.com/livekit/livekit.git target/livekit-source
+          mkdir -p target/livekit-spike
+          cd target/livekit-source
+          go build -o ../livekit-spike/livekit-server ./cmd/server
+      - name: Windows WebView2 acceptance
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          $env:LIVEKIT_BINARY = Join-Path $PWD 'target/livekit-spike/livekit-server.exe'
+          npm run spike:desktop:webview
+      - name: macOS WKWebView acceptance
+        if: runner.os == 'macOS'
+        run: LIVEKIT_BINARY="$PWD/target/livekit-spike/livekit-server" npm run spike:desktop:webview
+      - name: Linux WebKitGTK acceptance and capability gate
+        if: runner.os == 'Linux'
+        run: LIVEKIT_BINARY="$PWD/target/livekit-spike/livekit-server" xvfb-run -a npm run spike:desktop:webview -- --allow-unsupported-media
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: phase0-webview-${{ matrix.os }}
+          path: target/phase0-evidence/
+
+  media-browser:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { os: ubuntu-latest, browser: chrome }
+          - { os: ubuntu-latest, browser: firefox }
+          - { os: macos-latest, browser: safari }
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - if: runner.os != 'macOS'
+        run: node scripts/install-livekit-spike.mjs
+      - if: runner.os == 'macOS'
+        uses: actions/setup-go@v5
+        with:
+          go-version: '1.26'
+          cache: false
+      - name: Prepare official macOS SFU and Safari driver
+        if: runner.os == 'macOS'
+        run: |
+          git clone --depth 1 --branch v1.13.8 https://github.com/livekit/livekit.git target/livekit-source
+          mkdir -p target/livekit-spike
+          cd target/livekit-source
+          go build -o ../livekit-spike/livekit-server ./cmd/server
+          sudo safaridriver --enable
+      - run: LIVEKIT_BINARY="$PWD/target/livekit-spike/livekit-server" HEARTH_TEST_BROWSER=${{ matrix.browser }} npm run spike:media:browser
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: phase0-browser-${{ matrix.browser }}
+          path: target/phase0-evidence/
 
   compose:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - run: cp deploy/.env.example deploy/.env
-      - run: docker compose -f deploy/compose.yaml up -d --build --wait
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - run: node deploy/setup.mjs
       - run: curl -fsS http://localhost:8080/health
       - if: failure()
         run: docker compose -f deploy/compose.yaml logs
+      - if: always()
+        run: docker compose -f deploy/compose.yaml down --volumes
+
+  podman:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - run: sudo apt-get update && sudo apt-get install -y podman
+      - run: systemctl --user start podman.socket
+      - run: node deploy/setup.mjs --podman
+        env:
+          PODMAN_COMPOSE_PROVIDER: /usr/libexec/docker/cli-plugins/docker-compose
+          BUILDAH_FORMAT: docker
+      - if: always()
+        run: podman compose -f deploy/compose.yaml down --volumes
+        env:
+          PODMAN_COMPOSE_PROVIDER: /usr/libexec/docker/cli-plugins/docker-compose

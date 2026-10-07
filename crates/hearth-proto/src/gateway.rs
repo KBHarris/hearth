@@ -6,28 +6,30 @@
 use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[cfg_attr(feature = "typescript", derive(ts_rs::TS))]
 #[serde(tag = "op", content = "d", rename_all = "snake_case")]
 pub enum ClientFrame {
     /// First frame after connecting.
-    Identify {
-        protocol: u32,
-        token: String,
-    },
+    Identify { protocol: u32, token: String },
     Heartbeat {
+        #[cfg_attr(feature = "typescript", ts(type = "number | null"))]
         last_seq: Option<u64>,
     },
     Resume {
         session_id: String,
+        #[cfg_attr(feature = "typescript", ts(type = "number"))]
         last_seq: u64,
     },
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[cfg_attr(feature = "typescript", derive(ts_rs::TS))]
 #[serde(tag = "op", content = "d", rename_all = "snake_case")]
 pub enum ServerFrame {
     /// Sent immediately on connect.
     Hello {
         protocol: u32,
+        #[cfg_attr(feature = "typescript", ts(type = "number"))]
         heartbeat_interval_ms: u64,
     },
     HeartbeatAck,
@@ -36,7 +38,9 @@ pub enum ServerFrame {
     },
     /// Opaque, already-encrypted event for this client.
     Event {
+        #[cfg_attr(feature = "typescript", ts(type = "number"))]
         seq: u64,
+        #[cfg_attr(feature = "typescript", ts(type = "unknown"))]
         event: serde_json::Value,
     },
     InvalidSession {

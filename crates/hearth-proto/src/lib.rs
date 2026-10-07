@@ -6,6 +6,9 @@
 
 pub mod gateway;
 
+#[cfg(feature = "typescript")]
+pub mod typescript;
+
 use serde::{Deserialize, Serialize};
 
 /// Major protocol version. Clients and peers reject mismatched majors.
@@ -13,6 +16,7 @@ pub const PROTOCOL_VERSION: u32 = 1;
 
 /// Response body of `GET /health`.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[cfg_attr(feature = "typescript", derive(ts_rs::TS))]
 pub struct Health {
     pub status: HealthStatus,
     pub version: String,
@@ -20,6 +24,7 @@ pub struct Health {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[cfg_attr(feature = "typescript", derive(ts_rs::TS))]
 #[serde(rename_all = "snake_case")]
 pub enum HealthStatus {
     Ok,
@@ -28,6 +33,7 @@ pub enum HealthStatus {
 
 /// Response body of `GET /.well-known/hearth`, used for discovery and federation.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[cfg_attr(feature = "typescript", derive(ts_rs::TS))]
 pub struct WellKnown {
     /// Public domain of this server.
     pub server_name: String,
@@ -37,6 +43,13 @@ pub struct WellKnown {
     pub server_key: String,
     /// Whether this server accepts federation traffic at all.
     pub federation: bool,
+}
+
+/// Public readiness response for `GET /api/v1/setup`.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[cfg_attr(feature = "typescript", derive(ts_rs::TS))]
+pub struct SetupStatus {
+    pub setup_complete: bool,
 }
 
 #[cfg(test)]
