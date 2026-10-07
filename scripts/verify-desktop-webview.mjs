@@ -1,11 +1,15 @@
 import assert from 'node:assert/strict'
 import { spawn } from 'node:child_process'
-import { mkdirSync, writeFileSync } from 'node:fs'
+import { mkdirSync, rmSync, writeFileSync } from 'node:fs'
 import { fileURLToPath } from 'node:url'
 import { join } from 'node:path'
 import { startMediaFixture } from './serve-media-spike.mjs'
 
 const root = fileURLToPath(new URL('../', import.meta.url))
+const output = join(root, 'target', 'phase0-evidence')
+const reportPath = join(output, `webview-${process.platform}.json`)
+// A failed startup must never upload a previous cached report as current evidence.
+rmSync(reportPath, { force: true })
 const fixture = await startMediaFixture({ nativeBinary: process.env.LIVEKIT_BINARY, hearthOrigin: process.env.HEARTH_SPIKE_ORIGIN })
 const binary = join(root, 'target', 'debug', process.platform === 'win32' ? 'hearth-desktop.exe' : 'hearth-desktop')
 let child
@@ -25,9 +29,8 @@ try {
   const line = stdout.split(/\r?\n/).find((line) => line.startsWith('HEARTH_PHASE0_REPORT='))
   assert.ok(line, 'Native webview did not return a report')
   const report = JSON.parse(line.slice('HEARTH_PHASE0_REPORT='.length))
-  const output = join(root, 'target', 'phase0-evidence')
   mkdirSync(output, { recursive: true })
-  writeFileSync(join(output, `webview-${process.platform}.json`), JSON.stringify({ runtime: `Tauri system webview (${process.platform})`, ...report }, null, 2) + '\n')
+  writeFileSync(reportPath, JSON.stringify({ runtime: `Tauri system webview (${process.platform})`, ...report }, null, 2) + '\n')
   const blockedMedia = report.outcome === 'fail' && report.failedStage === 'runtime capabilities' &&
     report.checks.native_mls_over_webview_ipc === true && report.capabilities.sdkE2eeSupported === false
   if (process.argv.includes('--allow-unsupported-media') && blockedMedia) {

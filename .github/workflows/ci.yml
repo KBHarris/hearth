@@ -95,10 +95,10 @@ jobs:
       - name: Build official macOS SFU fixture
         if: runner.os == 'macOS'
         run: |
-          git clone --depth 1 --branch v1.13.8 https://github.com/livekit/livekit.git target/livekit-source
+          git clone --depth 1 --branch v1.13.8 https://github.com/livekit/livekit.git "$RUNNER_TEMP/hearth-livekit-source"
           mkdir -p target/livekit-spike
-          cd target/livekit-source
-          go build -o ../livekit-spike/livekit-server ./cmd/server
+          cd "$RUNNER_TEMP/hearth-livekit-source"
+          go build -o "$GITHUB_WORKSPACE/target/livekit-spike/livekit-server" ./cmd/server
       - name: Windows WebView2 acceptance
         if: runner.os == 'Windows'
         shell: pwsh
@@ -151,10 +151,10 @@ jobs:
       - name: Prepare official macOS SFU and Safari driver
         if: runner.os == 'macOS'
         run: |
-          git clone --depth 1 --branch v1.13.8 https://github.com/livekit/livekit.git target/livekit-source
+          git clone --depth 1 --branch v1.13.8 https://github.com/livekit/livekit.git "$RUNNER_TEMP/hearth-livekit-source"
           mkdir -p target/livekit-spike
-          cd target/livekit-source
-          go build -o ../livekit-spike/livekit-server ./cmd/server
+          cd "$RUNNER_TEMP/hearth-livekit-source"
+          go build -o "$GITHUB_WORKSPACE/target/livekit-spike/livekit-server" ./cmd/server
           sudo safaridriver --enable
       - run: LIVEKIT_BINARY="$PWD/target/livekit-spike/livekit-server" HEARTH_TEST_BROWSER=${{ matrix.browser }} npm run spike:media:browser
       - uses: actions/upload-artifact@v4

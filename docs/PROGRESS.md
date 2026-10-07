@@ -188,3 +188,15 @@ Phase 0 is in progress. Accounts and encrypted messaging are not usable yet.
   and failures include aggregate SDP candidate counts without addresses or transcripts.
   The revised profile passes locally on WebView2 154 in 8.698 seconds. Hosted WebView2
   153 is being rerun; its failure is not counted as a media pass.
+
+- The hosted mDNS-disabled Windows run still fails before publication. Its SDP counts
+  show no local loopback candidate and four remote loopback candidates; mDNS alone does
+  not explain the failure. The diagnostic now explicitly permits loopback candidates,
+  and records that requested test policy. Normal product browser arguments are unaffected.
+- A later macOS job failed before acceptance because the Cargo cache restored an SFU
+  source directory that collided with a fresh clone. CI now builds that source in the
+  runner's temporary directory. Verifiers also remove their own previous JSON/PNG output
+  before starting, preventing cached reports from being uploaded as new evidence.
+- The loopback-enabled WebView2 154 profile passes locally in 8.957 seconds with 64
+  decoded frames, recovered audio, native MLS IPC, and wrong/stale-key rejection. Standard
+  verification passes all 15 JavaScript and 11 Rust tests, plus desktop lint/build.

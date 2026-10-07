@@ -27,6 +27,7 @@ fn phase0_finish(app: tauri::AppHandle, mut report: serde_json::Value) {
             serde_json::json!({
                 "generatedAudioAutoplay": true,
                 "windowsMdnsObfuscationDisabled": cfg!(target_os = "windows"),
+                "windowsLoopbackCandidatesAllowed": cfg!(target_os = "windows"),
                 "macosBackgroundSuspensionDisabled": cfg!(target_os = "macos"),
             }),
         );
@@ -59,9 +60,9 @@ pub fn run() {
             // policy does not validate normal autoplay or device permissions.
             #[cfg(target_os = "windows")]
             let builder = builder.additional_browser_args(
-                // The disposable loopback SFU cannot rely on mDNS resolution in
-                // hosted Windows. This affects only the diagnostic's ICE profile.
-                "--autoplay-policy=no-user-gesture-required --disable-features=WebRtcHideLocalIpsWithMdns",
+                // The disposable SFU advertises loopback. Hosted Windows must
+                // gather a compatible local candidate in this diagnostic only.
+                "--autoplay-policy=no-user-gesture-required --disable-features=WebRtcHideLocalIpsWithMdns --allow-loopback-in-peer-connection",
             );
             // The diagnostic is hidden. Keep WKWebView's timers/worker tasks active;
             // normal application visibility and background behavior are separate gates.

@@ -60,7 +60,11 @@ The hosted Windows WebView2 153 fixture subsequently connected signaling but sta
 in ICE checking before publication. The isolated diagnostic now disables mDNS candidate
 obfuscation to test whether candidate address resolution is responsible; product builds
 retain their normal browser privacy policy. A local WebView2 154 run with this test profile
-passes. The hosted result for this profile is pending. New native reports record requested
+passes. The hosted mDNS-disabled run still failed: its SDP candidate counts contained no
+local loopback candidate, while all four remote candidates were loopback and no local
+mDNS candidate was present. The next diagnostic also explicitly permits loopback ICE
+candidates. This is a fixture policy, not evidence about normal networking or NAT/TURN.
+Its hosted result is pending. New native reports record requested
 test policies explicitly; failure diagnostics count SDP candidates without recording their
 addresses or SDP text.
 
