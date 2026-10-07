@@ -8,6 +8,8 @@ const discovery = { server_name: 'test.hearth', protocols: [1], server_key: 'a'.
 
 async function withServer(overrides, run) {
   const calls = []
+  const sockets = new Set()
+  let closing = false
   const server = createServer((request, response) => {
     calls.push(request.url)
     const defaults = { '/health': health, '/.well-known/hearth': discovery, '/api/v1/setup': { setup_complete: false } }
@@ -16,6 +18,12 @@ async function withServer(overrides, run) {
     response.setHeader('Content-Type', 'application/json')
     response.end(JSON.stringify(value))
   })
+  server.on('connection', (socket) => {
+    // Include preconnected/raw sockets, not just sockets with an HTTP request.
+    if (closing) { socket.destroy(); return }
+    sockets.add(socket)
+    socket.once('close', () => sockets.delete(socket))
+  })
   await new Promise((resolve) => server.listen(0, '127.0.0.1', resolve))
   try {
     await run(new HearthClient(`http://127.0.0.1:${server.address().port}`), calls)
@@ -23,8 +31,9 @@ async function withServer(overrides, run) {
     await new Promise((resolve) => {
       // Stop accepting first so a pending discovery request cannot reconnect
       // between closing existing sockets and closing the listening server.
+      closing = true
       server.close(resolve)
-      server.closeAllConnections()
+      for (const socket of sockets) socket.destroy()
     })
   }
 }

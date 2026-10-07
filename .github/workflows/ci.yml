@@ -133,6 +133,14 @@ jobs:
           node-version: 22
           cache: npm
       - run: npm ci
+      - name: Silent audio backend for headless Firefox
+        if: matrix.browser == 'firefox'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y pulseaudio
+          pulseaudio --start --exit-idle-time=-1
+          pactl load-module module-null-sink sink_name=hearth_spike
+          pactl set-default-sink hearth_spike
       - if: runner.os != 'macOS'
         run: node scripts/install-livekit-spike.mjs
       - if: runner.os == 'macOS'
