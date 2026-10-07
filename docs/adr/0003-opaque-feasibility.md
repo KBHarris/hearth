@@ -1,6 +1,6 @@
 # ADR 0003: OPAQUE feasibility across WASM and Rust
 
-- Status: provisional; local WASM-client/native-server scenario passes
+- Status: proposed for acceptance; local and hosted WASM-client/native-server scenarios pass
 - Date: 2026-10-07
 
 ## Context
@@ -66,8 +66,8 @@ The password file is checked inside Rust and never exported by the test process.
 
 Run `npm run spike:tools` once, then `npm run spike:opaque:wasm`. The script builds the
 optional native process and WASM client, drives the checks, and stops the child process.
-No test records survive process exit. CI includes this check and the native unit scenario;
-hosted CI results remain unconfirmed.
+No test records survive process exit. Hosted CI passes this check and the native unit
+scenario on the Phase 0 validation branch.
 
 Primary API reference checked on 2026-10-07:
 [opaque-ke 4.0.1](https://docs.rs/opaque-ke/4.0.1/opaque_ke/).

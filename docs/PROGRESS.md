@@ -9,14 +9,14 @@ Phase 0 is in progress. Accounts and encrypted messaging are not usable yet.
 
 | Todo | Implementation | Validation |
 |---|---|---|
-| Monorepo and client/server shells | Complete | Web, Rust/WASM, and Windows desktop builds pass locally; hosted matrix not confirmed |
-| CI and Compose definitions | Complete locally; hosted gates open | Fresh Compose build/start, migrations, healthy server, S3 reachability, and restart key persistence pass; hosted CI unconfirmed |
+| Monorepo and client/server shells | Complete | Local web/Rust/WASM and hosted desktop builds on Windows/macOS/Linux pass |
+| CI and Compose definitions | Complete | Fresh Compose startup, migrations, health, S3 reachability and restart key persistence pass; hosted Docker and Podman pass |
 | Public discovery and health | Complete | SDK/server tests and browser connection to a real PostgreSQL-backed server pass |
 | Server selection and retry | Complete | Browser checked success, bad address, unreachable server, reload, and forgetting an address |
 | Rust to TypeScript protocol generation | Complete | Generation, committed-output test, typecheck, and deliberate drift rejection pass |
-| Spike A: OpenMLS | Local feasibility complete; hosted gates open | Native Rust, Node/browser WASM, Windows Tauri executable and actual WebView2 IPC pass; macOS/Linux pending |
-| Spike B: encrypted media | Local harness and WebView2 complete; hosted gates open | Windows Chromium and actual WebView2 decode audio/video, reject wrong/stale keys; other runtimes pending |
-| Spike C: OPAQUE | Local feasibility complete | WASM client + separate Rust process pass registration/login and adversarial checks; browser/webview and product account integration pending |
+| Spike A: OpenMLS | Feasibility complete | Native Rust, Node/browser WASM, and native MLS through Windows/macOS/Linux Tauri webview IPC pass |
+| Spike B: encrypted media | Feasibility complete | Local and hosted WebView2, hosted WKWebView and Chrome/Firefox/Safari pass; Linux native capability block selects browser media |
+| Spike C: OPAQUE | Feasibility complete | WASM client + separate Rust process pass registration/login and adversarial checks locally and in CI; product account integration remains Phase 1 |
 | Threat model | Draft maintained | Discovery exposure and saved server address documented; no independent security audit |
 
 ## Iteration log
@@ -124,11 +124,10 @@ Phase 0 is in progress. Accounts and encrypted messaging are not usable yet.
 
 ### Remaining work (updated after hosted results below)
 
-- Resolve hosted Windows media acceptance and record its final outcome. WKWebView,
-  WebKitGTK capability gating, all browser media scenarios, Podman, and the desktop
-  build/MLS IPC matrix pass. Production MLS media keys and SFU packet canaries are
-  Phase 4 integration work, beyond this feasibility spike.
-- Merge the reviewed spike ADRs after the remaining hosted gate passes.
+- Merge the reviewed spike ADRs after the final validation run completes. WebView2,
+  WKWebView, WebKitGTK capability gating, all browser media scenarios, Podman, and the
+  desktop build/MLS IPC matrix have passed. Production MLS media keys and SFU packet
+  canaries are Phase 4 integration work, beyond this feasibility spike.
 - Start Phase 1 only after the Phase 0 gates and ADR decisions are resolved.
 
 ### 2026-10-07: hosted validation results
@@ -200,3 +199,15 @@ Phase 0 is in progress. Accounts and encrypted messaging are not usable yet.
 - The loopback-enabled WebView2 154 profile passes locally in 8.957 seconds with 64
   decoded frames, recovered audio, native MLS IPC, and wrong/stale-key rejection. Standard
   verification passes all 15 JavaScript and 11 Rust tests, plus desktop lint/build.
+
+- Hosted WebView2 153 now passes the complete media scenario in 8.058 seconds with 57
+  decoded frames, recovered audio (peak 0.101), native MLS IPC and all key-change checks.
+  Saved the report under `docs/evidence`. Explicit loopback candidate permission resolves
+  the disposable Windows fixture's ICE failure. Spike B is checked off; the Linux browser
+  strategy remains selected, and a custom WebKitGTK runtime remains an optional experiment.
+- Validation run [37668608690](https://github.com/KBHarris/hearth/actions/runs/37668608690)
+  includes passing Windows/macOS/Linux native acceptance, Chrome/Firefox/Safari, web,
+  Rust, crypto WASM and Compose. Podman's runner package installation stalled even though
+  the official runner image already includes Podman. CI now uses the installed executable
+  and installs only if missing. Final validation is being rerun. Phase 0's final exit
+  criterion is merging the reviewed spike ADRs; this branch is still a draft PR.

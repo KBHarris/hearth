@@ -119,7 +119,7 @@ also requests cleanup; hosts that forcibly terminate the process may require sto
 printed test container manually. `npm run spike:media:build` verifies the separate harness
 bundle. This experiment is not part of the application build. Windows in-app Chromium
 passes locally; [ADR 0004](docs/adr/0004-media-feasibility.md) records the evidence and
-remaining platform and production gates.
+remaining production integration gates.
 
 To test inside Tauri's system webview, first build the separate media bundle, then run
 `cargo build -p hearth-desktop --features phase0-spike` and `npm run spike:desktop:webview`.
@@ -131,11 +131,12 @@ on Windows/Linux. CI builds the same tagged source on macOS. Runtime reports go 
 `target/phase0-evidence`; successful and capability-blocked reports are kept separately.
 
 The hosted matrix also exercises actual Chrome, Firefox, and Safari through Selenium.
-Windows WebView2 has passed locally, including native MLS IPC. Hosted Chrome, Firefox and Safari,
+Windows WebView2 has passed locally and in CI, including native MLS IPC. Hosted Chrome, Firefox and Safari,
 Docker Compose, Podman, and the Linux desktop build/MLS IPC pass. The tested Linux WebKitGTK
 blocks encrypted media because the required APIs are absent; use a supported browser.
-Native WKWebView media passes. Hosted Windows media completion remains open. Real device permissions and production
-media key distribution are later integration gates.
+Native WKWebView media passes. The synthetic Windows CI profile explicitly permits
+loopback candidates; native reports record the requested test policies. Real device
+permissions, default networking and production media key distribution are later gates.
 
 ## Security
 

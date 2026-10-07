@@ -24,15 +24,15 @@ the web build, a Windows desktop build, and browser connection to a real Postgre
 server have passed. Rust-to-TypeScript generation and drift checks are complete. The MLS
 scenario passes natively, in Node/browser WASM, and through a headless Windows Tauri
 executable; [ADR 0002](adr/0002-mls-feasibility.md) records the receive-transaction finding
-and remaining platform gates. Fresh Compose startup, migrations, storage reachability,
+and production integration gates. Fresh Compose startup, migrations, storage reachability,
 and restart persistence pass. The OPAQUE WASM/native-process spike passes registration,
 login, and adversarial checks; [ADR 0003](adr/0003-opaque-feasibility.md) records its scope.
 The synthetic LiveKit media harness passes in Windows in-app Chromium, including wrong-key
 and stale-key rejection; [ADR 0004](adr/0004-media-feasibility.md) records the measured scope.
 Hosted Rust, web, crypto WASM, Docker Compose, Podman, Chrome, Safari, and Linux desktop
 checks pass, as does Firefox. Linux media requires a supported browser because the tested WebKitGTK lacks
-WebRTC/encoded transforms. Native WKWebView also passes. Phase 0 remains open: hosted Windows media
-acceptance remain, followed by merging the spike ADRs. See [PROGRESS.md](PROGRESS.md)
+WebRTC/encoded transforms. Native WKWebView and hosted Windows WebView2 also pass.
+Phase 0 remains open until the reviewed spike ADRs are merged. See [PROGRESS.md](PROGRESS.md)
 for dated evidence. This is not an encrypted chat implementation.
 
 - [x] Set up the monorepo: Cargo workspace (`hearth-proto`, `hearth-crypto`,
@@ -47,12 +47,12 @@ for dated evidence. This is not an encrypted chat implementation.
 - [x] **Spike A, OpenMLS in WASM and in Tauri:** create a group, add a member, and
   encrypt/decrypt in both builds.
   Native/Node/browser WASM and Windows/macOS/Linux headless and webview IPC scenarios pass.
-- [ ] **Spike B, E2EE media per platform:** LiveKit + encoded transforms in WebView2, WKWebView,
+- [x] **Spike B, E2EE media per platform:** LiveKit + encoded transforms in WebView2, WKWebView,
   WebKitGTK, and Chrome/Firefox/Safari. Record the results in an ADR and pick the Linux
   strategy.
   Local WebView2 and hosted Chrome/Firefox/Safari audio/video and key-rotation checks pass.
-  Linux WebKitGTK blocks media and requires a supported browser. Hosted
-  Windows webview acceptance remains; WKWebView passes.
+  Hosted WebView2 and WKWebView pass. Linux WebKitGTK blocks media and requires a
+  supported browser; the optional custom-runtime experiment is not a release dependency.
 - [x] **Spike C, OPAQUE:** registration and login round trip, with the client in WASM and the
   server in Rust.
   Local WASM/native-process scenario passes; product authentication is not implemented.

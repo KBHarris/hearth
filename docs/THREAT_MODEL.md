@@ -74,13 +74,14 @@ The separate [media experiment](adr/0004-media-feasibility.md) uses generated au
 and client-only random keys. The local SFU sees signaling, participant identities, timing,
 packet sizes, and transport addresses. It receives no media key through bootstrap or
 signaling. Wrong/stale-key rejection has been measured in local Chromium/WebView2 and
-hosted Chrome/Firefox/Safari/WKWebView; SFU packet inspection, MLS participant authentication, exporter
-binding, and hosted Windows media completion remain gates. The
+hosted Chrome/Firefox/Safari/WKWebView/WebView2; SFU packet inspection, MLS participant
+authentication and exporter binding remain product integration gates. The
 saved reports include runtime capabilities and the browser user agent, but exclude tokens,
 keys, SDP, and media content. Failure diagnostics contain numeric connection reasons and
 ICE state enums and aggregate SDP candidate counts. Native stage markers are numeric;
 they accept no arbitrary text. The Windows diagnostic disables mDNS candidate obfuscation
-only for its isolated loopback fixture; this profile is excluded from product builds.
+and permits loopback ICE candidates only for its isolated fixture; this profile is
+excluded from product builds.
 Production transport requires TLS; loopback WS is test-only.
 
 The opt-in Tauri diagnostic mode serves bundled test code with a separate CSP and command

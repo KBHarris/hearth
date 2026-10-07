@@ -1,6 +1,6 @@
 # ADR 0004: encrypted media feasibility and platform gates
 
-- Status: provisional; browsers, local WebView2 and hosted WKWebView pass; hosted Windows media gate open
+- Status: proposed; platform feasibility gates pass with supported-browser media on Linux
 - Date: 2026-10-07
 
 ## Decision
@@ -30,6 +30,7 @@ a silent 440 Hz audio source; no camera, microphone, screen, or real account was
 |---|---|---|
 | Windows, in-app Chromium 154 | Pass | Worker encryption, decoded audio/video, wrong key, fresh-key replacement, stale key |
 | Windows Tauri WebView2 154 | Pass | Bundled harness, native MLS IPC, real Hearth discovery, encrypted audio/video and key changes |
+| Hosted Windows Tauri WebView2 153 | Pass | Bundled harness and native MLS IPC; synthetic encrypted media with explicit loopback/autoplay test profile |
 | macOS Safari 26.6.2 | Pass | Actual browser; encrypted audio/video and wrong/fresh/stale keys |
 | macOS WKWebView | Pass | Bundled native Tauri harness; MLS IPC, encrypted audio/video and wrong/fresh/stale keys |
 | Linux WebKitGTK 2.50.4, Ubuntu 22.04 | Media blocked | Native MLS IPC passes; WebRTC/encoded transforms unavailable; use a supported browser |
@@ -64,7 +65,10 @@ passes. The hosted mDNS-disabled run still failed: its SDP candidate counts cont
 local loopback candidate, while all four remote candidates were loopback and no local
 mDNS candidate was present. The next diagnostic also explicitly permits loopback ICE
 candidates. This is a fixture policy, not evidence about normal networking or NAT/TURN.
-Its hosted result is pending. New native reports record requested
+That profile passed on hosted WebView2 153. The
+[saved hosted report](../evidence/media-webview2-windows-hosted-2026-10-07.json) records an
+8.058-second pass with 57 decoded frames, recovered audio PCM (peak 0.101), native MLS
+IPC, wrong-key rejection, fresh-key continuation and stale-key rejection. New native reports record requested
 test policies explicitly; failure diagnostics count SDP candidates without recording their
 addresses or SDP text.
 
@@ -137,6 +141,18 @@ found `processTransformedFrame()` unimplemented; the
 also has unimplemented frame callback wiring. Enabling WebRTC in that build would not
 complete the encryption pipeline. This supports evaluating the new upstream LibWebRTC
 backend first rather than committing to maintain the older GStreamer implementation.
+
+If pursued, the experiment should pin an upstream revision and document the patch set,
+build dependencies and reproducible build instructions. The current Tauri dependency
+expects WebKitGTK's GTK3/4.1 API; upstream currently defaults to GTK4/6.0, while still
+providing the GTK3 build option in
+[OptionsGTK.cmake](https://github.com/WebKit/WebKit/blob/main/Source/cmake/OptionsGTK.cmake).
+Verify that ABI and subprocess/library packaging before attempting the existing native
+acceptance harness. Keep the candidate runtime local to the application, preserve its
+sandbox, and test both sender and receiver transforms, wrong-key rejection and key
+rotation. A successful prototype must also define security-update turnaround and supported
+Linux distributions before replacing the browser strategy. API presence alone is not an
+acceptance result.
 
 ### Product integration
 
