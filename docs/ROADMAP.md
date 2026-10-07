@@ -31,7 +31,7 @@ The synthetic LiveKit media harness passes in Windows in-app Chromium, including
 and stale-key rejection; [ADR 0004](adr/0004-media-feasibility.md) records the measured scope.
 Hosted Rust, web, crypto WASM, Docker Compose, Podman, Chrome, Safari, and Linux desktop
 checks pass, as does Firefox. Linux media requires a supported browser because the tested WebKitGTK lacks
-WebRTC/encoded transforms. Phase 0 remains open: Windows/macOS desktop media
+WebRTC/encoded transforms. Native WKWebView also passes. Phase 0 remains open: hosted Windows media
 acceptance remain, followed by merging the spike ADRs. See [PROGRESS.md](PROGRESS.md)
 for dated evidence. This is not an encrypted chat implementation.
 
@@ -44,16 +44,15 @@ for dated evidence. This is not an encrypted chat implementation.
   Fresh local Docker build/start and restart validation pass; hosted Docker and Podman pass.
 - [x] Serve `/health` and `/.well-known/hearth` from the server. Add sqlx migrations.
 - [x] Set up protocol type generation (Rust → TS) so that client types never drift.
-- [ ] **Spike A, OpenMLS in WASM and in Tauri:** create a group, add a member, and
+- [x] **Spike A, OpenMLS in WASM and in Tauri:** create a group, add a member, and
   encrypt/decrypt in both builds.
-  Native/Node/browser WASM, Windows headless/IPC, and Linux headless/IPC scenarios pass;
-  the macOS webview completion gate remains.
+  Native/Node/browser WASM and Windows/macOS/Linux headless and webview IPC scenarios pass.
 - [ ] **Spike B, E2EE media per platform:** LiveKit + encoded transforms in WebView2, WKWebView,
   WebKitGTK, and Chrome/Firefox/Safari. Record the results in an ADR and pick the Linux
   strategy.
   Local WebView2 and hosted Chrome/Firefox/Safari audio/video and key-rotation checks pass.
   Linux WebKitGTK blocks media and requires a supported browser. Hosted
-  Windows/macOS webview acceptance remain.
+  Windows webview acceptance remains; WKWebView passes.
 - [x] **Spike C, OPAQUE:** registration and login round trip, with the client in WASM and the
   server in Rust.
   Local WASM/native-process scenario passes; product authentication is not implemented.

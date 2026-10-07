@@ -18,9 +18,19 @@ fn phase0_stage(stage: u8) {
 }
 
 #[tauri::command]
-fn phase0_finish(app: tauri::AppHandle, report: serde_json::Value) {
+fn phase0_finish(app: tauri::AppHandle, mut report: serde_json::Value) {
     // The bundled harness prints outcomes only, never keys, tokens, or transcripts.
     let pass = report["outcome"] == "pass";
+    if let Some(object) = report.as_object_mut() {
+        object.insert(
+            "testProfile".into(),
+            serde_json::json!({
+                "generatedAudioAutoplay": true,
+                "windowsMdnsObfuscationDisabled": cfg!(target_os = "windows"),
+                "macosBackgroundSuspensionDisabled": cfg!(target_os = "macos"),
+            }),
+        );
+    }
     println!("HEARTH_PHASE0_REPORT={report}");
     app.state::<AtomicBool>().store(true, Ordering::SeqCst);
     app.exit(if pass { 0 } else { 1 });
@@ -48,8 +58,11 @@ pub fn run() {
             // Generated audio has no human click in the CLI harness. This test-only
             // policy does not validate normal autoplay or device permissions.
             #[cfg(target_os = "windows")]
-            let builder =
-                builder.additional_browser_args("--autoplay-policy=no-user-gesture-required");
+            let builder = builder.additional_browser_args(
+                // The disposable loopback SFU cannot rely on mDNS resolution in
+                // hosted Windows. This affects only the diagnostic's ICE profile.
+                "--autoplay-policy=no-user-gesture-required --disable-features=WebRtcHideLocalIpsWithMdns",
+            );
             // The diagnostic is hidden. Keep WKWebView's timers/worker tasks active;
             // normal application visibility and background behavior are separate gates.
             #[cfg(target_os = "macos")]

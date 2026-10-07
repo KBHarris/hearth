@@ -122,12 +122,13 @@ Phase 0 is in progress. Accounts and encrypted messaging are not usable yet.
 - Added a Podman hosted job. Local Podman is not installed; its compatibility result is
   pending. The application preview is kept separate from disposable test stacks.
 
-### Remaining work
+### Remaining work (updated after hosted results below)
 
-- Run the hosted WKWebView, WebKitGTK, and Chrome/Firefox/Safari scenarios; record results
-  and finalize the Linux decision. Production MLS media keys and SFU packet canaries are
+- Resolve hosted Windows media acceptance and record its final outcome. WKWebView,
+  WebKitGTK capability gating, all browser media scenarios, Podman, and the desktop
+  build/MLS IPC matrix pass. Production MLS media keys and SFU packet canaries are
   Phase 4 integration work, beyond this feasibility spike.
-- Validate Podman and the hosted desktop build/IPC matrix.
+- Merge the reviewed spike ADRs after the remaining hosted gate passes.
 - Start Phase 1 only after the Phase 0 gates and ADR decisions are resolved.
 
 ### 2026-10-07: hosted validation results
@@ -171,3 +172,19 @@ Phase 0 is in progress. Accounts and encrypted messaging are not usable yet.
   frame backend contains unimplemented processing/callback paths, so a build flag alone
   would not complete media encryption. Prefer investigating the new upstream backend
   for the optional custom-runtime experiment.
+
+- Hosted WKWebView now passes encrypted synthetic audio/video and all key-change checks
+  in 29.120 seconds with 28 decoded frames. Saved its report. Disabling suspension in the
+  hidden diagnostic fixed its timeout. Native MLS over IPC now passes on all desktop OSes;
+  Spike A is checked off. The corrected hosted web deadline tests also pass.
+- The current validation run is
+  [37664117421](https://github.com/KBHarris/hearth/actions/runs/37664117421).
+  Rust, crypto WASM, web, Chrome, Firefox, Safari, Linux desktop, and macOS desktop pass.
+  Windows desktop media acceptance is the remaining runtime gate.
+
+- The Windows hosted result connects signaling, runs audio, and passes native MLS IPC,
+  but ICE remains in checking until timeout before publication. Its diagnostic profile
+  now disables mDNS candidate obfuscation; native reports record that requested policy,
+  and failures include aggregate SDP candidate counts without addresses or transcripts.
+  The revised profile passes locally on WebView2 154 in 8.698 seconds. Hosted WebView2
+  153 is being rerun; its failure is not counted as a media pass.

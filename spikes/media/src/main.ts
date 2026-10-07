@@ -77,6 +77,7 @@ async function run() {
   status.textContent = 'Checking runtime and connecting to local LiveKit…'
   const rooms: Room[] = []
   const connectionStates: Record<string, { publisher: string[]; subscriber: string[] }> = {}
+  const candidateCounts: Record<string, { local: number; localMdns: number; localLoopback: number; remote: number; remoteLoopback: number }> = {}
   const workers: Worker[] = []
   const streams: MediaStream[] = []
   let audio: AudioContext | undefined
@@ -139,6 +140,18 @@ async function run() {
       for (const [index, room] of rooms.entries()) {
         const states = connectionStates[['publisher', 'receiver', 'wrong-key'][index]]
         const manager = room.engine.pcManager
+        const local = manager?.publisher.getLocalDescription()?.sdp?.split('\n').filter((line) => line.startsWith('a=candidate:'))
+        const remote = manager?.publisher.getRemoteDescription()?.sdp?.split('\n').filter((line) => line.startsWith('a=candidate:'))
+        if (local || remote) {
+          const isLoopback = (line: string) => /^(127\.|::1$)/.test(line.split(' ')[4] ?? '')
+          candidateCounts[['publisher', 'receiver', 'wrong-key'][index]] = {
+            local: local?.length ?? 0,
+            localMdns: local?.filter((line) => line.split(' ')[4]?.endsWith('.local')).length ?? 0,
+            localLoopback: local?.filter(isLoopback).length ?? 0,
+            remote: remote?.length ?? 0,
+            remoteLoopback: remote?.filter(isLoopback).length ?? 0,
+          }
+        }
         for (const [side, state] of [['publisher', manager?.publisher.getICEConnectionState()],
           ['subscriber', manager?.subscriber?.getICEConnectionState()]] as const) {
           if (state && !states[side].includes(state)) states[side].push(state)
@@ -282,7 +295,7 @@ async function run() {
     status.textContent = 'PASS · Encrypted synthetic media through local LiveKit'
   } catch (error) {
     // Stage only: never echo JWTs, keys, SDK errors, SDP, or protocol transcripts.
-    reportElement.textContent = JSON.stringify({ outcome: 'fail', measuredAt: new Date().toISOString(), capabilities, failedStage: stage, errorClass: error instanceof Error ? error.name : typeof error, checks, diagnostics: { connectionStates, connectionReason: error instanceof ConnectionError ? error.reason : undefined, connectionStatus: error instanceof ConnectionError ? error.status : undefined, matchingVideo: await frameStats(matchedVideo), wrongVideo: await frameStats(wrongVideo), matchingAudio: await audioStats(matchedAudio), audioSubscribed: Boolean(matchedAudio), audioContextState: audio?.state, sourcePeak, receivePeak, matchingKeyErrors, wrongKeyErrors }, durationMs: Math.round(performance.now() - started) }, null, 2)
+    reportElement.textContent = JSON.stringify({ outcome: 'fail', measuredAt: new Date().toISOString(), capabilities, failedStage: stage, errorClass: error instanceof Error ? error.name : typeof error, checks, diagnostics: { candidateCounts, connectionStates, connectionReason: error instanceof ConnectionError ? error.reason : undefined, connectionStatus: error instanceof ConnectionError ? error.status : undefined, matchingVideo: await frameStats(matchedVideo), wrongVideo: await frameStats(wrongVideo), matchingAudio: await audioStats(matchedAudio), audioSubscribed: Boolean(matchedAudio), audioContextState: audio?.state, sourcePeak, receivePeak, matchingKeyErrors, wrongKeyErrors }, durationMs: Math.round(performance.now() - started) }, null, 2)
     status.textContent = `FAIL · ${stage}`
   } finally {
     if (animation) clearInterval(animation)

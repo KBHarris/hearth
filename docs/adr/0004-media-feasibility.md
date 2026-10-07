@@ -1,6 +1,6 @@
 # ADR 0004: encrypted media feasibility and platform gates
 
-- Status: provisional; all browser scenarios and local WebView2 pass; hosted desktop media gates open
+- Status: provisional; browsers, local WebView2 and hosted WKWebView pass; hosted Windows media gate open
 - Date: 2026-10-07
 
 ## Decision
@@ -31,7 +31,7 @@ a silent 440 Hz audio source; no camera, microphone, screen, or real account was
 | Windows, in-app Chromium 154 | Pass | Worker encryption, decoded audio/video, wrong key, fresh-key replacement, stale key |
 | Windows Tauri WebView2 154 | Pass | Bundled harness, native MLS IPC, real Hearth discovery, encrypted audio/video and key changes |
 | macOS Safari 26.6.2 | Pass | Actual browser; encrypted audio/video and wrong/fresh/stale keys |
-| macOS WKWebView | Pending | Requires actual execution |
+| macOS WKWebView | Pass | Bundled native Tauri harness; MLS IPC, encrypted audio/video and wrong/fresh/stale keys |
 | Linux WebKitGTK 2.50.4, Ubuntu 22.04 | Media blocked | Native MLS IPC passes; WebRTC/encoded transforms unavailable; use a supported browser |
 | Linux Chrome 154 | Pass | Actual headless browser; encrypted audio/video and wrong/fresh/stale keys |
 | Linux Firefox 157 | Pass | Actual headless browser with loopback/autoplay profile and a silent PulseAudio output; encrypted audio/video and wrong/fresh/stale keys |
@@ -56,6 +56,14 @@ test-only mode loads bundled assets with its own CSP in a hidden window. It perm
 generated audio autoplay; this does not validate real device permissions or normal user
 activation behavior. Its commands are excluded from the normal application entrypoint.
 
+The hosted Windows WebView2 153 fixture subsequently connected signaling but stalled
+in ICE checking before publication. The isolated diagnostic now disables mDNS candidate
+obfuscation to test whether candidate address resolution is responsible; product builds
+retain their normal browser privacy policy. A local WebView2 154 run with this test profile
+passes. The hosted result for this profile is pending. New native reports record requested
+test policies explicitly; failure diagnostics count SDP candidates without recording their
+addresses or SDP text.
+
 Hosted [Chrome](../evidence/media-chrome-linux-2026-10-07.json) and
 [Safari](../evidence/media-safari-macos-2026-10-07.json) passed in 9.763 and 7.970 seconds,
 respectively, decoding 66 and 64 frames and recovering audio PCM. Both passed wrong-key
@@ -68,6 +76,12 @@ decoding 49 frames, recovering audio PCM, and rejecting wrong/stale keys. Its he
 runner needed a clocked PulseAudio null output in addition to the test autoplay policy.
 The null output discards playback; encrypted transport and decoded PCM assertions still
 execute normally. No physical capture or speaker device is used.
+
+The [native WKWebView report](../evidence/media-wkwebview-macos-2026-10-07.json) records
+a 29.120-second pass with 28 decoded frames, recovered audio PCM, and native MLS through
+IPC. The hidden macOS diagnostic disables background suspension to keep its timers and
+workers active. This establishes feasibility, not foreground interaction, background-call
+behavior, or a performance target.
 
 ## Fixture and reproduction
 
