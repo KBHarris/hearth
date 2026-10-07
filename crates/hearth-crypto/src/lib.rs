@@ -9,6 +9,9 @@
 
 pub mod identity;
 
+#[cfg(feature = "auth")]
+pub mod auth;
+
 #[cfg(feature = "mls-spike")]
 pub mod mls_spike;
 

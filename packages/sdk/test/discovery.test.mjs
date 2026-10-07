@@ -1,10 +1,43 @@
 import assert from 'node:assert/strict'
 import { createServer } from 'node:http'
 import { test } from 'node:test'
-import { HearthClient, HearthError, normalizeServerUrl } from '../src/index.ts'
+import { AUTH_PROFILE, HearthClient, HearthError, normalizeServerUrl } from '../src/index.ts'
 
 const health = { status: 'ok', version: '0.1.0', protocol: 1 }
 const discovery = { server_name: 'test.hearth', protocols: [1], server_key: 'a'.repeat(64), federation: false }
+
+test('authentication uses explicit bearer authorization and handles empty logout responses', async () => {
+  const token = 'b'.repeat(64)
+  const account = { id: 'c'.repeat(64), username: 'owner', owner: true }
+  await withServer({
+    '/api/v1/auth/session': (request, response) => {
+      assert.equal(request.headers.authorization, `Bearer ${token}`)
+      assert.equal(request.headers.cookie, undefined)
+      response.setHeader('Content-Type', 'application/json')
+      response.end(JSON.stringify(account))
+    },
+    '/api/v1/auth/logout': (request, response) => {
+      assert.equal(request.method, 'POST')
+      assert.equal(request.headers.authorization, `Bearer ${token}`)
+      response.writeHead(204).end()
+    },
+  }, async (client, calls) => {
+    assert.deepEqual(await client.session(token), account)
+    await client.logout(token)
+    assert.deepEqual(calls, ['/api/v1/auth/session', '/api/v1/auth/logout'])
+  })
+})
+
+test('authentication rejects unknown profiles and malformed session tokens', async () => {
+  for (const profile of [AUTH_PROFILE + '-other', null]) {
+    await withServer({ '/api/v1/auth/login/start': { message: 'ab'.repeat(32), exchange_id: 'a'.repeat(64), profile } }, async (client) => {
+      await assert.rejects(client.loginStart({ username: 'owner', message: 'ab' }), (error) => error.kind === 'invalid_response')
+    })
+  }
+  await withServer({ '/api/v1/auth/login/finish': { token: 'unsafe', expires_in_seconds: 86400, account: { id: 'a'.repeat(64), username: 'owner', owner: true } } }, async (client) => {
+    await assert.rejects(client.loginFinish({ exchange_id: 'b'.repeat(64), message: 'ab' }), (error) => error.kind === 'invalid_response')
+  })
+})
 
 async function withServer(overrides, run) {
   const calls = []

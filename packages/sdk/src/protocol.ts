@@ -4,6 +4,22 @@
 
 export const PROTOCOL_VERSION = 1 as const
 
+export type OwnerRegistrationStart = { username: string, message: string, setup_code: string, };
+
+export type OwnerRegistrationFinish = { username: string, message: string, setup_code: string, };
+
+export type LoginStart = { username: string, message: string, };
+
+export type LoginFinish = { exchange_id: string, message: string, };
+
+export type AuthResponse = { message: string, profile: string, };
+
+export type LoginResponse = { message: string, profile: string, exchange_id: string, };
+
+export type Account = { id: string, username: string, owner: boolean, };
+
+export type Session = { token: string, expires_in_seconds: number, account: Account, };
+
 export type HealthStatus = "ok" | "degraded";
 
 export type Health = { status: HealthStatus, version: string, protocol: number, };

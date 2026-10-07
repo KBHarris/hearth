@@ -4,12 +4,12 @@ Hearth is a privacy-first, self-hostable community chat platform in early develo
 goal is end-to-end encrypted communication and federation, without ads, subscriptions, or
 tracking. The application is licensed AGPLv3.
 
-The current build connects to a server and checks its health, protocol compatibility, and
-owner setup status. Accounts, encrypted messaging, media, and federation are not implemented
-yet.
+The current build connects to a server, creates its first owner account, and supports
+OPAQUE sign-in and sign-out with persistent, expiring server sessions. Encrypted messaging,
+device linking, recovery, media, and federation remain on the roadmap.
 
 - **What we're building and why:** [PLAN.md](PLAN.md)
-- **Phased build plan:** [docs/ROADMAP.md](docs/ROADMAP.md). We are currently in **Phase 0**.
+- **Phased build plan:** [docs/ROADMAP.md](docs/ROADMAP.md). **Phase 1 is in progress**; Phase 0 is complete.
 - **Threat model (draft):** [docs/THREAT_MODEL.md](docs/THREAT_MODEL.md)
 - **Implementation and verification notes:** [docs/PROGRESS.md](docs/PROGRESS.md)
 
@@ -18,7 +18,7 @@ yet.
 ```
 crates/
   hearth-proto/        versioned wire types (REST, gateway, federation, bots)
-  hearth-crypto/       identity keys + device cross-signing + opt-in MLS/OPAQUE spikes
+  hearth-crypto/       identity keys + product OPAQUE + opt-in MLS/OPAQUE spikes
   hearth-client-core/  I/O-free client logic, shared by native and WASM
   hearth-wasm/         wasm-bindgen bindings for the web client
   hearth-server/       axum server: REST, WebSocket gateway, Postgres, migrations
@@ -47,6 +47,7 @@ docs/                  roadmap, threat model, ADRs
 
 ```bash
 npm install
+npm run spike:tools # installs the wasm-bindgen CLI version matching Cargo.lock
 npm run setup
 npm run dev
 ```
@@ -59,13 +60,35 @@ configuration, starts Compose, and checks health. An unsafe placeholder password
 without overwriting the file. The default published address is loopback; public hosting
 needs explicit `HEARTH_HOST` configuration and TLS. Use `npm run setup -- --init-only` to
 generate configuration without starting services, or `--podman` with a Compose v2 provider.
-This is a Phase 0 bootstrap; owner account creation is part of Phase 1.
+Retrieve the owner setup code with `npm run setup -- --show-setup-code` (add `--podman`
+for Podman). Connect the client to the server, enter that code, and create the owner.
+Registration closes after the first successful claim. A native server operator can use
+`cargo run -p hearth-server -- --setup-code` with the same environment as the running server.
+The code is a secret; it is never exposed by discovery or ordinary server logs.
+
+For a hosted web client, set `HEARTH_CLIENT_ORIGINS` to its exact HTTPS origin(s), separated
+by commas, then restart the server. Authenticated routes allow only those origins. Default
+origins cover local Vite and Tauri clients. Native servers also bind to loopback by default.
+Public hosting requires TLS; this build is an early prototype without a security audit.
+
+Back up PostgreSQL together with the matching server data directory (`server.key`,
+`opaque.setup`, and `setup.code`). Losing the OPAQUE setup or signing key prevents existing
+accounts from signing in; startup refuses to generate replacements for an existing account
+database. Secret files use owner-only permissions on Unix; protect the directory ACL on Windows.
 
 The connection screen accepts a server origin such as `https://chat.example.org`. Addresses
 without a scheme default to HTTPS; localhost, `127.0.0.1`, and `[::1]` support HTTP for
 development. Only the last successfully checked address is saved in browser local storage,
 and **Forget address** removes it. A failed check never overwrites it. Public discovery
-requests omit credentials and time out after eight seconds per request.
+requests omit credentials and time out after eight seconds per request. Authentication pins
+the advertised signing key per origin on first use and refuses subsequent changes. Verify
+the initial key with the operator when needed; first-use pinning cannot authenticate a
+compromised first connection. Clearing site data removes these pins.
+
+Passwords are processed in a WASM worker and are never sent to the server. Session tokens
+stay in client memory, while the server stores only their hashes. Reloading or switching
+servers requires sign-in again; server sessions expire after 24 hours and Sign out revokes
+the current session. Account/device recovery and password changes are not implemented yet.
 
 For a different local backend, set `HEARTH_DEV_SERVER` before starting Vite. Packaged desktop
 builds default to `http://localhost:8080`; set `VITE_HEARTH_SERVER_URL` at build time to change
@@ -75,12 +98,13 @@ Useful commands:
 
 | Command | What it does |
 |---|---|
-| `npm run verify` | TS typecheck + lint + SDK discovery tests + client build |
+| `npm run verify` | TS typecheck + lint + SDK discovery/auth tests + client/WASM build |
 | `cargo fmt --all --check && cargo clippy --all-targets -- -D warnings && cargo test` | Rust checks |
 | `cargo check -p hearth-wasm --target wasm32-unknown-unknown` | WASM build of the client core |
 | `npm run desktop:dev` | Run the Tauri desktop app against the Vite dev server |
 | `cargo run -p hearth-server` | Run the server natively (needs `DATABASE_URL`) |
 | `npm run protocol:generate` / `npm run protocol:check` | Generate Rust wire types into the SDK / reject drift |
+| `node scripts/verify-auth.mjs` | Disposable PostgreSQL + real HTTP/WASM owner, session and adversarial checks |
 | `npm run spike:compose -- --desktop` | Fresh disposable Compose server, restart-key check, and real desktop webview discovery/media/MLS |
 
 ## Phase 0 crypto experiments

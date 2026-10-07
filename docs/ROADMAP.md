@@ -32,7 +32,8 @@ and stale-key rejection; [ADR 0004](adr/0004-media-feasibility.md) records the m
 Hosted Rust, web, crypto WASM, Docker Compose, Podman, Chrome, Safari, and Linux desktop
 checks pass, as does Firefox. Linux media requires a supported browser because the tested WebKitGTK lacks
 WebRTC/encoded transforms. Native WKWebView and hosted Windows WebView2 also pass.
-Phase 0 remains open until the reviewed spike ADRs are merged. See [PROGRESS.md](PROGRESS.md)
+Phase 0 is complete: all 11 final CI checks pass and the spike ADRs were merged in
+[PR #1](https://github.com/KBHarris/hearth/pull/1) on 2026-10-07. See [PROGRESS.md](PROGRESS.md)
 for dated evidence. This is not an encrypted chat implementation.
 
 - [x] Set up the monorepo: Cargo workspace (`hearth-proto`, `hearth-crypto`,
@@ -55,7 +56,7 @@ for dated evidence. This is not an encrypted chat implementation.
   supported browser; the optional custom-runtime experiment is not a release dependency.
 - [x] **Spike C, OPAQUE:** registration and login round trip, with the client in WASM and the
   server in Rust.
-  Local WASM/native-process scenario passes; product authentication is not implemented.
+  Local WASM/native-process scenario passes; product authentication follows in Phase 1.
 - [x] Draft the first threat model: assets, adversaries, and the metadata inventory.
 
 **Exit:** `docker compose up` gives a healthy server. The desktop and web shells both load
@@ -65,6 +66,18 @@ and call `/health`. The spike ADRs are merged.
 
 **Goal:** two people on one server can exchange E2EE DMs from the desktop app or the
 browser.
+
+Current progress (2026-10-07): the first owner/account milestone is implemented and locally
+validated. A setup code authorizes exactly one owner claim; WASM-worker OPAQUE registration
+and login use persistent PostgreSQL accounts and expiring/revocable sessions. Real HTTP,
+PostgreSQL and browser checks pass. [ADR 0005](adr/0005-owner-authentication.md) records the
+profile, bootstrap, session and storage decisions. Hosted validation is pending. This
+milestone does not yet implement DMs or complete the phase exit criteria.
+
+- [x] Guided first-run owner creation, closed registration, OPAQUE owner login/logout,
+  and PostgreSQL sessions. Test concurrent claims, replay, expiry, restart and revocation.
+- [ ] Next: account identity and device registration with protected local key storage;
+  then a second-account registration path and authenticated MLS delivery.
 
 - Accounts: OPAQUE register/login, sessions, and device registration.
 - Identity: the user identity key, cross-signed device keys, and key-change warnings in the

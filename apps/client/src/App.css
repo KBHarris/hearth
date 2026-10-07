@@ -256,6 +256,14 @@ h1 {
   margin: 0 0 30px;
 }
 
+.auth-panel { margin-top: 24px; padding: 24px 26px 12px; border-top: 1px solid var(--border); text-align: left; }
+.auth-panel h2 { margin: 0 0 8px; font-size: 19px; }
+.auth-panel p { line-height: 1.5; color: var(--text-muted); }
+.auth-panel fieldset { border: 0; padding: 0; margin: 0; display: grid; gap: 10px; }
+.auth-panel input { width: 100%; min-height: 44px; padding: 10px 12px; border: 1px solid var(--border); border-radius: 8px; background: var(--bg-main); color: inherit; font: inherit; }
+.auth-panel small { display: block; color: var(--text-muted); line-height: 1.5; margin-bottom: 12px; }
+.auth-panel .primary-button { justify-self: start; margin: 8px 0; }
+.auth-panel fieldset:disabled { opacity: .65; }
 .connection-card {
   background: #1e201f;
   border: 1px solid #3a3b36;

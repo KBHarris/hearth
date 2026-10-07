@@ -1,6 +1,6 @@
 # Threat Model (draft)
 
-> Phase 0 draft. It is updated with every phase, and every new server-side field must be
+> Phase 1 draft. It is updated with every phase, and every new server-side field must be
 > added to the metadata inventory below.
 
 ## Assets
@@ -28,11 +28,17 @@
 |---|---|---|
 | `instance_settings` | Operator configuration | Until changed |
 | Server signing key | Federation identity | Life of the server |
+| `accounts`: random ID, username, owner flag, profile version, creation time | Account lookup, authorization and credential compatibility; usernames are server-visible | Account lifetime; account deletion is not implemented yet |
+| `accounts.password_file` | Sensitive OPAQUE registration record; never a plaintext password | Account lifetime, including database backups |
+| `opaque.setup` | Sensitive persistent OPAQUE server secrets; required for existing credentials | Life of the account database, including matching backups |
+| `setup.code` and its in-memory digest | Operator-only random owner bootstrap capability; routes close after successful claim | Server data lifetime; unusable for another claim after setup completion |
+| `auth_login_exchanges`: hashed exchange ID, nullable account ID, username, secret OPAQUE state, expiry | Bind and atomically consume a pending login; dummy records conceal unknown usernames at the protocol layer | Consumed on any submitted proof; otherwise 2 minutes plus cleanup delay, and possible database backup retention |
+| `auth_sessions`: hashed token, account ID, creation and expiry times | Authenticate and revoke a 256-bit bearer session | Logout or 24-hour expiry plus cleanup delay, and possible database backup retention |
 | OPAQUE spike setup, password file, and pending login state | Opt-in, fixed-user feasibility test only; no product auth endpoint | Test process lifetime; memory only |
 | Media spike API secret, scoped JWTs, room/participant IDs, signaling, and RTP metadata | Loopback synthetic fixture only; no product media API | Fixture lifetime; generated secret configuration removed on normal shutdown |
 
-Phase 1 adds accounts, device public keys, MLS KeyPackages, ciphertext envelopes, and
-delivery timestamps. Each gets a row here, with its justification.
+Later Phase 1 milestones add device public keys, MLS KeyPackages, ciphertext envelopes,
+and delivery timestamps. Each gets a row here, with its justification.
 
 ## Phase 0 discovery and client storage
 
@@ -44,13 +50,47 @@ This CORS policy is scoped to those routes, not the gateway or future authentica
 An unavailable database returns an unavailable setup response rather than claiming setup
 is incomplete. Federation preference is configuration, not proof of working federation.
 
-The browser saves only the last successfully checked server origin in `hearth.server-url`
+The discovery flow saves the last successfully checked server origin in `hearth.server-url`
 local storage until the user forgets it or clears site data. This is unencrypted local
 metadata that can reveal the user's chosen server to someone with access to the browser
 profile. It contains no credentials, identity keys, or message content. Discovery uses HTTPS
 except for loopback development origins, omits credentials, rejects redirects, validates
 response shapes, and requires compatible protocol advertisements. The displayed signing key
-is server-advertised; this build does not pin or independently authenticate it.
+is server-advertised. Authentication now pins it on first use; initial independent
+authentication still requires an operator comparison.
+
+## Phase 1 owner authentication
+
+[ADR 0005](adr/0005-owner-authentication.md) specifies the versioned OPAQUE profile. A WASM
+worker processes passwords locally. Only OPAQUE protocol messages go to the server; client
+session/export keys are discarded for now. Username and advertised Ed25519 server identity
+are bound into the exchange. OPAQUE password records and server setup remain sensitive:
+compromise of matching server secrets and records enables offline password guessing. No
+claim of password immunity after a full server compromise is made.
+
+The browser stores public signing-key pins in `hearth.server-key:<origin>` until site data
+is cleared. A changed key blocks sign-in. This protects subsequent connections, not a
+malicious first server or compromised web client code. Passwords and bearer tokens are not
+persisted by the application. Tokens remain in React memory; JavaScript strings and browser
+form/password-manager handling cannot promise memory erasure. Reloading drops the local
+token without revoking its server session. Logout revokes the current token; no session
+listing, device revocation, password change or recovery is implemented yet.
+
+Auth routes use explicit origin allowlists, no credentialed cookies, 16 KiB body limits,
+no-store responses, a 16-operation admission bound and process-local request budgets
+(120/minute globally, 10/minute per username). Pending exchanges have a capacity check.
+These are prototype safeguards, not distributed abuse protection; server restarts reset
+the budgets, and unknown-user response timing has not been audited. Public deployment
+requires TLS and further review of edge/distributed limits. Native binding and Compose
+publication default to loopback. Discovery's permissive CORS is not applied to auth routes.
+
+Server key files are created with Unix mode 0600 before writing; existing permissive Unix
+files and malformed key files fail closed. Windows relies on directory ACLs. Startup with
+existing accounts refuses to create missing signing/OPAQUE keys. Operators must protect
+the database and its backups, including short-lived secret pending-login state, and keep
+matching server-data backups. Authentication request bodies, tokens, setup codes and
+password files are not logged by the application; deployment proxies must avoid capturing
+these bodies and authorization headers. No independent security audit has occurred.
 
 ## Phase 0 crypto experiments
 

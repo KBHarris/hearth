@@ -1,4 +1,4 @@
-// Local Phase 0 bootstrap: generates configuration, never creates product accounts.
+// Operator bootstrap: generates configuration and retrieves the protected owner code.
 import { randomBytes } from 'node:crypto'
 import { readFileSync, writeFileSync, existsSync } from 'node:fs'
 import { spawnSync } from 'node:child_process'
@@ -29,10 +29,15 @@ export function initializeConfig(directory) {
 
 if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
   const args = process.argv.slice(2)
-  if (args.some((arg) => !['--init-only', '--podman'].includes(arg))) throw new Error('Usage: node deploy/setup.mjs [--init-only] [--podman]')
+  if (args.some((arg) => !['--init-only', '--podman', '--show-setup-code'].includes(arg))) throw new Error('Usage: node deploy/setup.mjs [--init-only] [--podman] [--show-setup-code]')
   const { port, created } = initializeConfig(deploy)
   if (created) console.log('Created deploy/.env with a random database password. Secrets are not printed.')
-  if (args.includes('--init-only')) {
+  if (args.includes('--show-setup-code')) {
+    const engine = args.includes('--podman') ? 'podman' : 'docker'
+    const result = spawnSync(engine, ['compose', '-f', join(deploy, 'compose.yaml'), 'exec', '-T', 'server', 'hearth-server', '--setup-code'], { cwd: deploy, stdio: 'inherit', windowsHide: true })
+    if (result.error || result.status !== 0) throw new Error('Start the stack first, then retrieve the code from this server.')
+    console.log('\nUse this code only to create the first owner account. Do not share it.')
+  } else if (args.includes('--init-only')) {
     console.log('Configuration ready. Existing configuration was preserved.')
   } else {
     const engine = args.includes('--podman') ? 'podman' : 'docker'
@@ -42,6 +47,6 @@ if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.ur
     const origin = `http://127.0.0.1:${port}`
     const response = await fetch(origin + '/health', { signal: AbortSignal.timeout(8000) })
     if (!response.ok || (await response.json()).status !== 'ok') throw new Error('Stack is running but Hearth health did not pass')
-    console.log(`Hearth is healthy at ${origin}. Phase 0 supports discovery only; owner accounts arrive in Phase 1.`)
+    console.log(`Hearth is healthy at ${origin}. Connect your Hearth client to this address. If owner setup is incomplete, run this installer with --show-setup-code and enter that code in the client.`)
   }
 }

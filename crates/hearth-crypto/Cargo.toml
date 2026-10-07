@@ -10,6 +10,7 @@ rust-version.workspace = true
 # In-memory feasibility experiment, never enabled by the server.
 mls-spike = ["dep:openmls", "dep:openmls_rust_crypto", "dep:openmls_basic_credential", "dep:getrandom04"]
 opaque-spike = ["dep:opaque-ke", "dep:argon2", "dep:sha2", "dep:zeroize"]
+auth = ["dep:opaque-ke", "dep:argon2", "dep:sha2", "dep:zeroize"]
 
 [dependencies]
 ed25519-dalek.workspace = true

@@ -4,6 +4,9 @@
   "version": "0.1.0",
   "type": "module",
   "scripts": {
+    "predev": "node ../../scripts/build-auth-wasm.mjs",
+    "prebuild": "node ../../scripts/build-auth-wasm.mjs",
+    "pretypecheck": "node ../../scripts/build-auth-wasm.mjs",
     "dev": "vite",
     "build": "tsc -b && vite build",
     "lint": "oxlint",

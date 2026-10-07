@@ -5,7 +5,12 @@ full product backlog and phase exit criteria are in [ROADMAP.md](ROADMAP.md).
 
 ## Current phase
 
-Phase 0 is in progress. Accounts and encrypted messaging are not usable yet.
+Phase 0 is complete. [PR #1](https://github.com/KBHarris/hearth/pull/1) merged the verified
+foundations and spike ADRs into `main` on 2026-10-07 (commit `8f6db29`). All 11 final
+[CI checks](https://github.com/KBHarris/hearth/actions/runs/37670086516) passed before merge.
+Phase 1 is in progress. The first owner can now register, sign in and sign out with
+product OPAQUE and PostgreSQL sessions. Identity/device enrollment and encrypted messaging
+remain unimplemented; the full Phase 1 exit criteria are still open.
 
 | Todo | Implementation | Validation |
 |---|---|---|
@@ -16,7 +21,8 @@ Phase 0 is in progress. Accounts and encrypted messaging are not usable yet.
 | Rust to TypeScript protocol generation | Complete | Generation, committed-output test, typecheck, and deliberate drift rejection pass |
 | Spike A: OpenMLS | Feasibility complete | Native Rust, Node/browser WASM, and native MLS through Windows/macOS/Linux Tauri webview IPC pass |
 | Spike B: encrypted media | Feasibility complete | Local and hosted WebView2, hosted WKWebView and Chrome/Firefox/Safari pass; Linux native capability block selects browser media |
-| Spike C: OPAQUE | Feasibility complete | WASM client + separate Rust process pass registration/login and adversarial checks locally and in CI; product account integration remains Phase 1 |
+| Spike C: OPAQUE | Feasibility complete | WASM client + separate Rust process pass registration/login and adversarial checks locally and in CI |
+| Phase 1 owner/account slice | Implemented | Real PostgreSQL, native HTTP/product WASM and browser setup/sign-in checks pass locally; hosted validation pending |
 | Threat model | Draft maintained | Discovery exposure and saved server address documented; no independent security audit |
 
 ## Iteration log
@@ -122,13 +128,14 @@ Phase 0 is in progress. Accounts and encrypted messaging are not usable yet.
 - Added a Podman hosted job. Local Podman is not installed; its compatibility result is
   pending. The application preview is kept separate from disposable test stacks.
 
-### Remaining work (updated after hosted results below)
+### Next work
 
-- Merge the reviewed spike ADRs after the final validation run completes. WebView2,
-  WKWebView, WebKitGTK capability gating, all browser media scenarios, Podman, and the
-  desktop build/MLS IPC matrix have passed. Production MLS media keys and SFU packet
-  canaries are Phase 4 integration work, beyond this feasibility spike.
-- Start Phase 1 only after the Phase 0 gates and ADR decisions are resolved.
+- Continue Phase 1 with protected local identity/device keys and device enrollment, then
+  a second-account registration path and authenticated MLS delivery. Owner accounts and
+  sessions are implemented; recovery, device linking and encrypted DMs remain open.
+- Production MLS media keys, SFU packet canaries and real-device/NAT/TURN validation
+  remain Phase 4 integration work. The optional custom WebKitGTK prototype is documented
+  in ADR 0004 and is not required to begin Phase 1.
 
 ### 2026-10-07: hosted validation results
 
@@ -211,3 +218,49 @@ Phase 0 is in progress. Accounts and encrypted messaging are not usable yet.
   the official runner image already includes Podman. CI now uses the installed executable
   and installs only if missing. Final validation is being rerun. Phase 0's final exit
   criterion is merging the reviewed spike ADRs; this branch is still a draft PR.
+
+### 2026-10-07: Phase 0 complete
+
+- All 11 checks in final run `37670086516` pass: Rust, web, crypto WASM, Docker Compose,
+  Podman, Chrome/Firefox/Safari media, and Windows/macOS/Linux desktop acceptance.
+- Following the user's instruction to continue, marked PR #1 ready and squash-merged
+  the exact verified head `d4cbe9d` into `main` as `8f6db29`. Updated the clean local main
+  checkout. The spike ADRs are accepted and the Phase 0 merge exit criterion is met.
+- Selected first-run owner setup plus product OPAQUE accounts/sessions as the next
+  Phase 1 milestone. No product authentication or encrypted messaging is claimed yet.
+
+### 2026-10-07: Phase 1 owner accounts and sessions
+
+- Added the product OPAQUE profile and typed owner/login/session APIs. The client runs
+  Argon2id/OPAQUE in a WASM worker and pins the advertised server identity on first use.
+  Passwords and session tokens are not saved in application browser storage. Public
+  registration is closed; only the first owner can register with the operator's setup code.
+- Added persistent PostgreSQL accounts, two-minute one-use pending proofs and 24-hour
+  revocable sessions. Token/exchange IDs are stored as hashes. An atomic owner transaction
+  and unique constraint prevent competing claims from creating two owners.
+- Server data persists the OPAQUE setup and bootstrap code. Unix files are created with
+  owner-only permissions; Windows requires a protected directory ACL. Existing account
+  databases refuse startup if matching signing/OPAQUE keys are missing. The operator can
+  retrieve the code with `npm run setup -- --show-setup-code`.
+- Local PostgreSQL acceptance passes concurrent claims/proofs, expiry, invalid-proof
+  consumption, hashed-token storage, restart, wrong passwords, unknown users, logout,
+  exact CORS, body rejection and request budgets. The product WASM also passes against the
+  real HTTP server; its [report](evidence/auth-wasm-native-2026-10-07.json) records eight
+  successful outcomes, including missing-key startup rejection. Disposable resources and
+  their secret files were removed after validation.
+- Browser validation passes owner creation and automatic sign-in, sign-out, incorrect
+  password rejection with cleared fields, fresh sign-in and reload. Reload requires
+  sign-in while preserving server account state. Refreshed the existing development
+  backend at port 18087, preserving and verifying its signing key and PostgreSQL data.
+  The preview is connected to that updated backend; it has no test owner account. Its
+  protected operator code is in ignored `deploy/data/setup.code`.
+- Updated the metadata inventory and [ADR 0005](adr/0005-owner-authentication.md). Added a
+  hosted PostgreSQL/product-WASM auth job and current-run WASM artifact sharing for the
+  desktop matrix. Hosted results and packaged native auth runtime are not yet claimed.
+- Standard npm verification passes 17 JavaScript tests, typecheck, lint and web/WASM build.
+  Rust fmt/clippy and all 14 baseline tests pass; the real PostgreSQL test also passes
+  separately. Combined CI features pass clippy and 17 Rust tests. Generated protocol drift
+  checks, baseline WASM compilation and the Windows desktop debug build pass. Packaged
+  desktop authentication runtime remains unverified.
+- Next: identity/device enrollment and protected local storage. Password change/recovery,
+  session management, second-user registration, gateway delivery and encrypted DMs remain.

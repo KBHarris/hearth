@@ -2,6 +2,58 @@
 
 use wasm_bindgen::prelude::*;
 
+#[cfg(feature = "auth")]
+#[wasm_bindgen(js_name = OpaqueAuthClient)]
+#[derive(Default)]
+pub struct AuthClient {
+    inner: hearth_crypto::auth::Client,
+}
+
+#[cfg(feature = "auth")]
+#[wasm_bindgen(js_class = OpaqueAuthClient)]
+impl AuthClient {
+    #[wasm_bindgen(constructor)]
+    pub fn new() -> Self {
+        Self::default()
+    }
+    #[wasm_bindgen(js_name = registrationStart)]
+    pub fn registration_start(&mut self, password: &str) -> Result<String, JsValue> {
+        self.inner
+            .registration_start(password)
+            .map_err(|e| JsValue::from_str(&e))
+    }
+    #[wasm_bindgen(js_name = registrationFinish)]
+    pub fn registration_finish(
+        &mut self,
+        password: &str,
+        response: &str,
+        username: &str,
+        server_id: &str,
+    ) -> Result<String, JsValue> {
+        self.inner
+            .registration_finish(password, response, username, server_id)
+            .map_err(|e| JsValue::from_str(&e))
+    }
+    #[wasm_bindgen(js_name = loginStart)]
+    pub fn login_start(&mut self, password: &str) -> Result<String, JsValue> {
+        self.inner
+            .login_start(password)
+            .map_err(|e| JsValue::from_str(&e))
+    }
+    #[wasm_bindgen(js_name = loginFinish)]
+    pub fn login_finish(
+        &mut self,
+        password: &str,
+        response: &str,
+        username: &str,
+        server_id: &str,
+    ) -> Result<String, JsValue> {
+        self.inner
+            .login_finish(password, response, username, server_id)
+            .map_err(|e| JsValue::from_str(&e))
+    }
+}
+
 #[wasm_bindgen(js_name = protocolVersion)]
 pub fn protocol_version() -> u32 {
     hearth_proto::PROTOCOL_VERSION

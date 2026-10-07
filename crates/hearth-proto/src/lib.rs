@@ -4,6 +4,7 @@
 //! events, bot events) is defined here so every implementation shares one schema.
 //! Breaking changes bump [`PROTOCOL_VERSION`].
 
+pub mod auth;
 pub mod gateway;
 
 #[cfg(feature = "typescript")]

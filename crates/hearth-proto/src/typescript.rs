@@ -10,6 +10,14 @@ use crate::{
 pub fn generate() -> String {
     let config = Config::new();
     let declarations = [
+        crate::auth::OwnerRegistrationStart::decl(&config),
+        crate::auth::OwnerRegistrationFinish::decl(&config),
+        crate::auth::LoginStart::decl(&config),
+        crate::auth::LoginFinish::decl(&config),
+        crate::auth::AuthResponse::decl(&config),
+        crate::auth::LoginResponse::decl(&config),
+        crate::auth::Account::decl(&config),
+        crate::auth::Session::decl(&config),
         HealthStatus::decl(&config),
         Health::decl(&config),
         WellKnown::decl(&config),

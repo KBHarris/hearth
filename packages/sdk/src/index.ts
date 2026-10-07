@@ -1,4 +1,5 @@
 import { PROTOCOL_VERSION, type Health, type SetupStatus, type WellKnown } from './protocol.ts'
+import type { Account, AuthResponse, LoginResponse, Session, OwnerRegistrationStart, OwnerRegistrationFinish, LoginStart, LoginFinish } from './protocol.ts'
 
 export * from './protocol.ts'
 
@@ -50,7 +51,7 @@ export interface ServerInfo {
   setup: SetupStatus
 }
 
-/** Public discovery client. Authenticated calls and the gateway arrive in Phase 1. */
+/** Public discovery and owner authentication. Gateway delivery is a later milestone. */
 export class HearthClient {
   readonly baseUrl: string
 
@@ -70,6 +71,25 @@ export class HearthClient {
     return this.get('/api/v1/setup', isSetupStatus, options)
   }
 
+  ownerStart(body: OwnerRegistrationStart, options?: RequestOptions): Promise<AuthResponse> {
+    return this.get('/api/v1/auth/owner/start', isAuthResponse, options, { method: 'POST', body: JSON.stringify(body), headers: { 'Content-Type': 'application/json' } })
+  }
+  ownerFinish(body: OwnerRegistrationFinish, options?: RequestOptions): Promise<Account> {
+    return this.get('/api/v1/auth/owner/finish', isAccount, options, { method: 'POST', body: JSON.stringify(body), headers: { 'Content-Type': 'application/json' } })
+  }
+  loginStart(body: LoginStart, options?: RequestOptions): Promise<LoginResponse> {
+    return this.get('/api/v1/auth/login/start', isLoginResponse, options, { method: 'POST', body: JSON.stringify(body), headers: { 'Content-Type': 'application/json' } })
+  }
+  loginFinish(body: LoginFinish, options?: RequestOptions): Promise<Session> {
+    return this.get('/api/v1/auth/login/finish', isSession, options, { method: 'POST', body: JSON.stringify(body), headers: { 'Content-Type': 'application/json' } })
+  }
+  session(token: string, options?: RequestOptions): Promise<Account> {
+    return this.get('/api/v1/auth/session', isAccount, options, { headers: { Authorization: `Bearer ${token}` } })
+  }
+  async logout(token: string, options?: RequestOptions): Promise<void> {
+    await this.get('/api/v1/auth/logout', (value): value is null => value === null, options, { method: 'POST', headers: { Authorization: `Bearer ${token}` } })
+  }
+
   async inspect(options?: RequestOptions): Promise<ServerInfo> {
     const [health, wellKnown] = await Promise.all([this.health(options), this.wellKnown(options)])
     if (health.protocol !== PROTOCOL_VERSION || !wellKnown.protocols.includes(PROTOCOL_VERSION)) {
@@ -82,7 +102,7 @@ export class HearthClient {
     return { health, wellKnown, setup }
   }
 
-  private async get<T>(path: string, validate: (value: unknown) => value is T, options: RequestOptions = {}): Promise<T> {
+  private async get<T>(path: string, validate: (value: unknown) => value is T, options: RequestOptions = {}, init: RequestInit = {}): Promise<T> {
     const controller = new AbortController()
     let timedOut = false
     let rejectAbort: (reason: unknown) => void = () => {}
@@ -102,17 +122,20 @@ export class HearthClient {
       // Bound settlement as well as requesting transport cancellation: some fetch
       // implementations can stall a response reader after aborting its connection.
       const res = await Promise.race([fetch(this.baseUrl + path, {
+        ...init,
         signal: controller.signal,
         credentials: 'omit',
         cache: 'no-store',
         redirect: 'error',
       }), aborted])
-      if (!res.ok) throw new HearthError(res.status, res.status === 503 ?
+      if (!res.ok) throw new HearthError(res.status, res.status === 401 ? 'The setup code or authentication exchange was rejected.' :
+        res.status === 409 ? 'Owner setup is already complete. Sign in with the owner account.' :
+        res.status === 429 ? 'Too many attempts. Wait one minute and try again.' : res.status === 503 ?
         'This server is temporarily unavailable. Try again soon.' :
         'The server could not complete the connection check. Check the address or contact its operator.')
       let value: unknown
       try {
-        value = await Promise.race([res.json(), aborted])
+        value = res.status === 204 ? null : await Promise.race([res.json(), aborted])
       } catch (error) {
         if (controller.signal.aborted) throw error
         throw new HearthError(0, 'This address did not return a valid Hearth response.', 'invalid_response')
@@ -153,4 +176,20 @@ function isWellKnown(value: unknown): value is WellKnown {
 
 function isSetupStatus(value: unknown): value is SetupStatus {
   return isRecord(value) && typeof value.setup_complete === 'boolean'
+}
+
+export const AUTH_PROFILE = 'hearth-opaque-r255-sha512-argon2id-m19456-t2-p1-v1'
+function isAuthResponse(value: unknown): value is AuthResponse {
+  return isRecord(value) && typeof value.message === 'string' && /^[a-f0-9]{2,4096}$/.test(value.message) && value.message.length % 2 === 0 && value.profile === AUTH_PROFILE
+}
+function isLoginResponse(value: unknown): value is LoginResponse {
+  if (!isRecord(value)) return false
+  const id = value.exchange_id
+  return isAuthResponse(value) && typeof id === 'string' && /^[a-f0-9]{64}$/.test(id)
+}
+function isAccount(value: unknown): value is Account {
+  return isRecord(value) && typeof value.id === 'string' && /^[a-f0-9]{64}$/.test(value.id) && typeof value.username === 'string' && /^[a-z0-9_]{3,32}$/.test(value.username) && typeof value.owner === 'boolean'
+}
+function isSession(value: unknown): value is Session {
+  return isRecord(value) && typeof value.token === 'string' && /^[a-f0-9]{64}$/.test(value.token) && Number.isInteger(value.expires_in_seconds) && (value.expires_in_seconds as number) > 0 && (value.expires_in_seconds as number) <= 86400 && isAccount(value.account)
 }
