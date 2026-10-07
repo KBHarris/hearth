@@ -21,7 +21,10 @@ try {
     .setFirefoxOptions(new firefox.Options().addArguments('-headless')
       .setPreference('media.peerconnection.ice.loopback', true)
       .setPreference('media.peerconnection.ice.default_address_only', false)
-      .setPreference('media.peerconnection.ice.obfuscate_host_addresses', false))
+      .setPreference('media.peerconnection.ice.obfuscate_host_addresses', false)
+      // Synthetic silent audio has no real device interaction in headless CI.
+      .setPreference('media.autoplay.default', 0)
+      .setPreference('media.autoplay.block-webaudio', false))
     .build()
   await driver.get(fixture.url)
   await driver.findElement(By.id('run')).click()

@@ -20,8 +20,12 @@ async function withServer(overrides, run) {
   try {
     await run(new HearthClient(`http://127.0.0.1:${server.address().port}`), calls)
   } finally {
-    server.closeAllConnections()
-    await new Promise((resolve) => server.close(resolve))
+    await new Promise((resolve) => {
+      // Stop accepting first so a pending discovery request cannot reconnect
+      // between closing existing sockets and closing the listening server.
+      server.close(resolve)
+      server.closeAllConnections()
+    })
   }
 }
 

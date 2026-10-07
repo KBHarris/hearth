@@ -202,7 +202,7 @@ A permissive crate must never depend on an AGPL one.
 
 | Risk | Impact | Mitigation |
 |---|---|---|
-| **Linux WebKitGTK encrypted media support is unverified** | E2EE voice may not work in the Linux desktop app | Run the actual runtime acceptance harness. Provisionally use a supported browser until it passes; a native Rust path needs separate interoperability and performance evidence (ADR 0004). |
+| **Tested Linux WebKitGTK lacks encrypted media APIs** | Ubuntu 22.04's desktop runtime cannot host E2EE voice | Use a supported browser for Linux media; block publication when encryption is unavailable. Retest newer webviews before enabling them. A native Rust path needs separate interoperability and performance evidence (ADR 0004). |
 | MLS commit cost and conflicts in large, busy channels | Latency, failed commits | The server sequences commits; commits are batched; external-commit joins; load tests start in Phase 2. |
 | History sharing leaks past content to people who shouldn't have it | Privacy violation | Policy enforced client-side, plus server roster checks; dedicated tests; threat-model entry. |
 | Scope: Discord parity is enormous | Nothing ships | Vertical-slice phases, each with an exit bar; stage and forum channels come after the core. |
@@ -239,4 +239,4 @@ What changed from revision 1, and why:
    distribution is no longer a reliable default. SeaweedFS is bundled, and any S3-compatible
    store works.
 7. **Password handling is specified.** OPAQUE means the server never sees passwords.
-8. **Decisions are called out.** SDK licensing is now settled in ADR 0001. The Linux media strategy is still open (Spike B).
+8. **Decisions are called out.** SDK licensing is settled in ADR 0001. ADR 0004 selects a supported browser for Linux media after the tested WebKitGTK runtime failed its capability gate; the remaining Spike B platform checks are still open.

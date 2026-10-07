@@ -55,6 +55,7 @@ jobs:
           cache: npm
       - run: npm ci
       - run: npm run verify
+        timeout-minutes: 2
       - run: npm run spike:media:build
 
   desktop:

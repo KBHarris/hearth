@@ -85,11 +85,28 @@ The report excludes JWTs, secrets, SDP, and cryptographic transcripts.
 also typechecks and lints it. CI now includes native webview and actual Chrome/Firefox/Safari
 acceptance scenarios with saved artifacts. Firefox's disposable CI profile permits
 loopback ICE, disables default-address-only candidate filtering, and disables candidate
-hostname obfuscation for this single-host fixture. These settings do not validate default
-Firefox networking or real NAT/TURN behavior. The Linux capability gate records encryption
+hostname obfuscation for this single-host fixture. It permits generated audio autoplay,
+as the Chrome and native diagnostic paths do. These settings do not validate default
+Firefox networking, normal user activation, or real NAT/TURN behavior. The Linux capability gate records encryption
 as unavailable, requiring a browser fallback, after passing native MLS through IPC.
 
 ## Remaining gates
+
+### Optional Linux runtime experiment
+
+On 2026-10-07 the user proposed shipping a patched WebKitGTK runtime. Keep this as a
+bounded follow-up experiment, not a selected release dependency. Upstream's
+[2.54 release notes](https://www.webkitgtk.org/2026/09/16/webkitgtk-2.54-highlights.html)
+state that WebRTC is disabled during the transition from GStreamer to LibWebRTC, expected
+in the next release cycle. Earlier releases required experimental builds. Our capability
+report identifies the tested distribution configuration, not the absence of all upstream
+implementation. A candidate build must provide working WebRTC and encoded transforms,
+pass this same encryption scenario, preserve sandboxing, and have a practical packaging
+and security-update process. Prefer a small patch set against upstream to an independent
+engine fork. No custom runtime has been built or validated, and the browser fallback stays
+the current Linux strategy.
+
+### Product integration
 
 - Run and record the matrix above with actual desktop webviews and browser versions.
 - Bind authenticated participants and media epochs to MLS exporter material; test join,

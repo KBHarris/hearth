@@ -147,3 +147,13 @@ Phase 0 is in progress. Accounts and encrypted messaging are not usable yet.
   candidate filtering/hostname obfuscation; safe numeric connection diagnostics were added.
   No Firefox media pass is claimed yet. Phase 0 remains open until the remaining runtime
   results are recorded and the spike ADRs are merged.
+
+- Follow-up diagnostics show Firefox now connects all three encrypted rooms; generated
+  audio remains suspended in headless CI. The disposable profile permits synthetic audio
+  autoplay, matching the Chrome/native diagnostic policy. Normal activation and device
+  permissions remain product gates.
+- A web job stalled in verification. Test cleanup now closes the listener before destroying
+  sockets, preventing late-request reconnection; SDK tests and the CI verification step
+  have bounded timeouts. All 14 JavaScript tests and local Rust checks pass after the change.
+- Recorded the user's custom WebKitGTK idea as an optional upstream-based experiment in
+  ADR 0004. No custom engine build or release commitment has been made.

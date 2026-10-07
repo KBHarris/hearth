@@ -99,7 +99,8 @@ node scripts/verify-desktop-mls.mjs
 
 Normal client and server builds do not enable this experiment. CI exercises the native
 scenario, Node WebAssembly, and the headless desktop executable on its OS matrix. Browser
-WebAssembly is also checked locally; desktop webview integration remains a later gate.
+WebAssembly is also checked locally. Native MLS invoked through Windows and Linux webview
+IPC passes; macOS completion remains under investigation.
 
 Run `npm run spike:opaque:wasm` after installing the same tools to test OPAQUE registration
 and login between a WASM client and a separate native Rust process. It checks Argon2
@@ -130,8 +131,10 @@ on Windows/Linux. CI builds the same tagged source on macOS. Runtime reports go 
 `target/phase0-evidence`; successful and capability-blocked reports are kept separately.
 
 The hosted matrix also exercises actual Chrome, Firefox, and Safari through Selenium.
-Windows WebView2 has passed locally, including native MLS IPC. Other hosted runtime results
-are pending until the validation branch finishes CI. Real device permissions and production
+Windows WebView2 has passed locally, including native MLS IPC. Hosted Chrome and Safari,
+Docker Compose, Podman, and the Linux desktop build/MLS IPC pass. The tested Linux WebKitGTK
+blocks encrypted media because the required APIs are absent; use a supported browser.
+Firefox and hosted Windows/macOS media completion remain open. Real device permissions and production
 media key distribution are later integration gates.
 
 ## Security

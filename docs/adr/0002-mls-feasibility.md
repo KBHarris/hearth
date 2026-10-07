@@ -1,6 +1,6 @@
 # ADR 0002: OpenMLS feasibility and receive transactions
 
-- Status: provisional; local Windows and WebAssembly scenario passes
+- Status: provisional; Windows, Linux and WebAssembly scenarios pass; macOS IPC completion open
 - Date: 2026-10-07
 
 ## Context
@@ -30,7 +30,8 @@ The same fresh in-memory scenario passed in each locally available execution pat
 | Node WebAssembly | Pass | Built WASM and matching wasm-bindgen bindings, OS-backed randomness |
 | In-app Chromium browser WebAssembly | Pass | Web bindings, browser randomness, no console errors |
 | Windows Tauri executable | Pass | Headless `--mls-spike` entrypoint; no webview IPC exercised |
-| macOS / Linux desktop | Pending | CI build and headless execution steps added; hosted results not available |
+| Linux desktop | Pass | Hosted product build, headless MLS, and native MLS invoked through WebKitGTK IPC |
+| macOS desktop | Partial | Hosted product build and headless MLS pass; hidden webview reaches native MLS but times out before the final frontend report |
 | Windows Tauri WebView2 IPC | Pass | Bundled diagnostic UI invokes the native MLS scenario; separate media/discovery checks also pass |
 
 Checks: two-member join from a serialized Welcome, messages in both directions, private
@@ -56,7 +57,7 @@ application messages and commits before integrating the delivery service.
   readiness, security review, cross-platform webview support, or load performance.
 - Implement durable encrypted storage, authenticated device credentials, KeyPackage
   lifecycle, ordered commits, crash recovery, and multi-device handling in Phase 1.
-- Run the desktop OS matrix and actual webview integration tests. Browser evidence here
+- Finish the macOS webview completion check. Browser MLS evidence here
   covers one Chromium runtime, not Firefox or Safari.
 - Keep content/key debug features disabled. The test exports only boolean results and a
   member count; keys and message content stay within the scenario.
