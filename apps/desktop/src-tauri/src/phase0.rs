@@ -6,7 +6,15 @@ use tauri::{Manager, WebviewUrl, WebviewWindowBuilder};
 #[tauri::command]
 fn phase0_mls() -> Result<hearth_crypto::mls_spike::MlsSpikeReport, String> {
     println!("Phase 0: native MLS invoked from webview");
-    hearth_crypto::mls_spike::run()
+    let result = hearth_crypto::mls_spike::run();
+    println!("Phase 0: native MLS completed ({})", result.is_ok());
+    result
+}
+
+#[tauri::command]
+fn phase0_stage(stage: u8) {
+    // Numeric bundled-harness progress only; never arbitrary page text or SDK errors.
+    println!("Phase 0: frontend stage {stage}");
 }
 
 #[tauri::command]
@@ -21,7 +29,11 @@ fn phase0_finish(app: tauri::AppHandle, report: serde_json::Value) {
 pub fn run() {
     tauri::Builder::default()
         .manage(AtomicBool::new(false))
-        .invoke_handler(tauri::generate_handler![phase0_mls, phase0_finish])
+        .invoke_handler(tauri::generate_handler![
+            phase0_mls,
+            phase0_stage,
+            phase0_finish
+        ])
         .setup(|app| {
             let builder =
                 WebviewWindowBuilder::new(app, "phase0", WebviewUrl::App("index.html".into()))
@@ -38,6 +50,11 @@ pub fn run() {
             #[cfg(target_os = "windows")]
             let builder =
                 builder.additional_browser_args("--autoplay-policy=no-user-gesture-required");
+            // The diagnostic is hidden. Keep WKWebView's timers/worker tasks active;
+            // normal application visibility and background behavior are separate gates.
+            #[cfg(target_os = "macos")]
+            let builder = builder
+                .background_throttling(tauri::utils::config::BackgroundThrottlingPolicy::Disabled);
             builder.build()?;
             let handle = app.handle().clone();
             std::thread::spawn(move || {

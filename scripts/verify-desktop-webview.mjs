@@ -34,11 +34,11 @@ try {
     if (process.env.HEARTH_SPIKE_ORIGIN) assert.equal(report.checks.hearth_health_and_discovery, true)
     console.log(JSON.stringify({ runtime: `Tauri system webview (${process.platform})`, decision: 'Encrypted media blocked; supported browser required', ...report }, null, 2))
   } else {
-  assert.equal(code, 0, `Webview failed during ${report.failedStage ?? 'acceptance'}`)
-  assert.equal(report.outcome, 'pass')
-  assert.equal(report.checks.native_mls_over_webview_ipc, true)
-  if (process.env.HEARTH_SPIKE_ORIGIN) assert.equal(report.checks.hearth_health_and_discovery, true)
-  console.log(JSON.stringify({ runtime: `Tauri system webview (${process.platform})`, ...report }, null, 2))
+    assert.equal(code, 0, `Webview failed during ${report.failedStage ?? 'acceptance'}`)
+    assert.equal(report.outcome, 'pass')
+    assert.equal(report.checks.native_mls_over_webview_ipc, true)
+    if (process.env.HEARTH_SPIKE_ORIGIN) assert.equal(report.checks.hearth_health_and_discovery, true)
+    console.log(JSON.stringify({ runtime: `Tauri system webview (${process.platform})`, ...report }, null, 2))
   }
 } finally {
   child?.kill()
