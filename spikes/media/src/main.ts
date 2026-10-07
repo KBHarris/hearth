@@ -1,4 +1,4 @@
-import { ExternalE2EEKeyProvider, Room, RoomEvent, Track, isE2EESupported } from 'livekit-client'
+import { ConnectionError, ExternalE2EEKeyProvider, Room, RoomEvent, Track, isE2EESupported } from 'livekit-client'
 import type { RemoteTrack } from 'livekit-client'
 import EncryptionWorker from 'livekit-client/e2ee-worker?worker'
 import { invoke } from '@tauri-apps/api/core'
@@ -115,6 +115,7 @@ async function run() {
     const wrongKey = crypto.getRandomValues(new Uint8Array(32)).buffer
     const keyProviders: ExternalE2EEKeyProvider[] = []
     for (const identity of ['publisher', 'receiver', 'wrong-key']) {
+      stage = `encryption worker setup ${identity}`
       const provider = new ExternalE2EEKeyProvider()
       const worker = new EncryptionWorker()
       workers.push(worker)
@@ -248,7 +249,7 @@ async function run() {
     status.textContent = 'PASS · Encrypted synthetic media through local LiveKit'
   } catch (error) {
     // Stage only: never echo JWTs, keys, SDK errors, SDP, or protocol transcripts.
-    reportElement.textContent = JSON.stringify({ outcome: 'fail', measuredAt: new Date().toISOString(), capabilities, failedStage: stage, errorClass: error instanceof Error ? error.name : typeof error, checks, diagnostics: { matchingVideo: await frameStats(matchedVideo), wrongVideo: await frameStats(wrongVideo), matchingAudio: await audioStats(matchedAudio), audioSubscribed: Boolean(matchedAudio), audioContextState: audio?.state, sourcePeak, receivePeak, matchingKeyErrors, wrongKeyErrors }, durationMs: Math.round(performance.now() - started) }, null, 2)
+    reportElement.textContent = JSON.stringify({ outcome: 'fail', measuredAt: new Date().toISOString(), capabilities, failedStage: stage, errorClass: error instanceof Error ? error.name : typeof error, checks, diagnostics: { connectionReason: error instanceof ConnectionError ? error.reason : undefined, connectionStatus: error instanceof ConnectionError ? error.status : undefined, matchingVideo: await frameStats(matchedVideo), wrongVideo: await frameStats(wrongVideo), matchingAudio: await audioStats(matchedAudio), audioSubscribed: Boolean(matchedAudio), audioContextState: audio?.state, sourcePeak, receivePeak, matchingKeyErrors, wrongKeyErrors }, durationMs: Math.round(performance.now() - started) }, null, 2)
     status.textContent = `FAIL · ${stage}`
   } finally {
     if (animation) clearInterval(animation)

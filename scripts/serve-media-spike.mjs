@@ -50,15 +50,14 @@ logging:
     } finally {
       try {
         if (native) {
-        if (native.exitCode === null && native.signalCode === null) {
-          await new Promise((resolve, reject) => {
-            const timer = setTimeout(() => reject(new Error('Native test SFU did not stop')), 5000)
-            native.once('exit', () => { clearTimeout(timer); resolve() })
-            native.kill()
-          })
-        }
-        }
-        else if (started) docker(['stop', name], true)
+          if (native.exitCode === null && native.signalCode === null) {
+            await new Promise((resolve, reject) => {
+              const timer = setTimeout(() => reject(new Error('Native test SFU did not stop')), 5000)
+              native.once('exit', () => { clearTimeout(timer); resolve() })
+              native.kill()
+            })
+          }
+        } else if (started) docker(['stop', name], true)
       } finally {
         rmSync(configPath, { force: true })
       }

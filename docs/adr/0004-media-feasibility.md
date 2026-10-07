@@ -1,6 +1,6 @@
 # ADR 0004: encrypted media feasibility and platform gates
 
-- Status: provisional; Chromium and Windows WebView2 pass, hosted matrix open
+- Status: provisional; WebView2, Chrome and Safari pass; Firefox and WKWebView gates open
 - Date: 2026-10-07
 
 ## Decision
@@ -10,9 +10,10 @@ Keep the experiment separate from the product UI. Require encryption capability 
 worker's enabled acknowledgement before publishing. A missing capability must block media;
 there is no plaintext fallback.
 
-For Linux, provisionally offer media through a supported browser until WebKitGTK passes
-the same encrypted acceptance scenario. This is a release gate, not a finding that every
-WebKitGTK version lacks support. A native media implementation would need its own framing,
+For Linux, offer media through a supported browser. The tested Ubuntu 22.04 WebKitGTK
+runtime passed native MLS IPC but has no `RTCPeerConnection` or encoded transform API,
+so the diagnostic blocks media before publication. Retest newer runtimes before enabling
+desktop media. This result does not cover every WebKitGTK version. A native media implementation would need its own framing,
 key-distribution, interoperability, and performance checks before selection.
 
 The plan's SFrame profile remains an architectural intent. LiveKit SDK encryption passing
@@ -29,9 +30,11 @@ a silent 440 Hz audio source; no camera, microphone, screen, or real account was
 |---|---|---|
 | Windows, in-app Chromium 154 | Pass | Worker encryption, decoded audio/video, wrong key, fresh-key replacement, stale key |
 | Windows Tauri WebView2 154 | Pass | Bundled harness, native MLS IPC, real Hearth discovery, encrypted audio/video and key changes |
-| macOS WKWebView and Safari | Pending | Requires actual execution |
-| Linux WebKitGTK | Pending | Requires actual execution and a release strategy |
-| Chrome and Firefox standalone | Pending | In-app Chromium does not cover these releases |
+| macOS Safari 26.6.2 | Pass | Actual browser; encrypted audio/video and wrong/fresh/stale keys |
+| macOS WKWebView | Pending | Requires actual execution |
+| Linux WebKitGTK, Ubuntu 22.04 | Media blocked | Native MLS IPC passes; WebRTC/encoded transforms unavailable; use a supported browser |
+| Linux Chrome 154 | Pass | Actual headless browser; encrypted audio/video and wrong/fresh/stale keys |
+| Linux Firefox 157 | Pending | Connection to the loopback SFU fails; fixture investigation in progress |
 
 The matching receiver decoded 61 video frames and recovered nonzero audio PCM (peak 0.1,
 matching the generated source). The wrong-key receiver received forwarded RTP, decoded zero
@@ -53,6 +56,13 @@ test-only mode loads bundled assets with its own CSP in a hidden window. It perm
 generated audio autoplay; this does not validate real device permissions or normal user
 activation behavior. Its commands are excluded from the normal application entrypoint.
 
+Hosted [Chrome](../evidence/media-chrome-linux-2026-10-07.json) and
+[Safari](../evidence/media-safari-macos-2026-10-07.json) passed in 9.763 and 7.970 seconds,
+respectively, decoding 66 and 64 frames and recovering audio PCM. Both passed wrong-key
+and stale-key rejection. The [WebKitGTK report](../evidence/media-webkitgtk-linux-2026-10-07.json)
+records the capability block and successful native MLS IPC. These reports came from
+CI runs on the validation branch, not the merged default branch.
+
 ## Fixture and reproduction
 
 Run `npm install`, then `npm run spike:media` with Docker available. Open
@@ -73,9 +83,11 @@ The report excludes JWTs, secrets, SDP, and cryptographic transcripts.
 
 `npm run spike:media:build` typechecks and bundles the separate harness. `npm run verify`
 also typechecks and lints it. CI now includes native webview and actual Chrome/Firefox/Safari
-acceptance scenarios with saved artifacts. Results on the validation branch are pending;
-no new hosted pass is claimed yet. The Linux capability gate may record encryption as
-unavailable, requiring a browser fallback, but must first pass native MLS through IPC.
+acceptance scenarios with saved artifacts. Firefox's disposable CI profile permits
+loopback ICE, disables default-address-only candidate filtering, and disables candidate
+hostname obfuscation for this single-host fixture. These settings do not validate default
+Firefox networking or real NAT/TURN behavior. The Linux capability gate records encryption
+as unavailable, requiring a browser fallback, after passing native MLS through IPC.
 
 ## Remaining gates
 

@@ -18,7 +18,10 @@ try {
     .setChromeOptions(new chrome.Options().addArguments('--headless=new', '--autoplay-policy=no-user-gesture-required'))
     // Firefox excludes loopback ICE candidates by default. This preference is
     // confined to the disposable local test profile; encryption remains required.
-    .setFirefoxOptions(new firefox.Options().addArguments('-headless').setPreference('media.peerconnection.ice.loopback', true))
+    .setFirefoxOptions(new firefox.Options().addArguments('-headless')
+      .setPreference('media.peerconnection.ice.loopback', true)
+      .setPreference('media.peerconnection.ice.default_address_only', false)
+      .setPreference('media.peerconnection.ice.obfuscate_host_addresses', false))
     .build()
   await driver.get(fixture.url)
   await driver.findElement(By.id('run')).click()

@@ -114,7 +114,7 @@ Phase 0 is in progress. Accounts and encrypted messaging are not usable yet.
   Hosted results are pending.
 - Added first-run configuration with random URL-safe database secrets, preservation of
   existing settings, placeholder rejection, loopback publication, and health checks.
-  Three configuration safety tests pass. Owner creation remains in Phase 1.
+  Four configuration safety tests pass. Owner creation remains in Phase 1.
 - Added a fresh Compose acceptance command with restart-key persistence, optional real
   desktop discovery/media checks, and cleanup scoped to its generated project.
   The fresh stack, restart, actual WebView2 health/discovery, MLS IPC, and media checks pass
@@ -129,3 +129,21 @@ Phase 0 is in progress. Accounts and encrypted messaging are not usable yet.
   Phase 4 integration work, beyond this feasibility spike.
 - Validate Podman and the hosted desktop build/IPC matrix.
 - Start Phase 1 only after the Phase 0 gates and ADR decisions are resolved.
+
+### 2026-10-07: hosted validation results
+
+- The private [draft PR](https://github.com/KBHarris/hearth/pull/1) is open. Hosted Rust,
+  web, MLS/OPAQUE WASM, Docker Compose, and Podman checks pass on the validation branch.
+- Chrome 154 on Linux and Safari 26.6.2 on macOS pass encrypted synthetic audio/video,
+  wrong-key rejection, fresh-key continuation, and stale-key rejection. Saved their
+  reports under `docs/evidence`.
+- Ubuntu 22.04's desktop build, headless MLS, and native MLS invoked through webview IPC
+  pass. Its WebKitGTK lacks WebRTC/encoded transforms; media is blocked before publication.
+  ADR 0004 selects a supported browser for Linux media and records the measured limitation.
+- Fixed the macOS diagnostic build's duplicate embedded plist and the WASM CLI installer's
+  oversized metadata output. Windows/macOS desktop acceptance is running again.
+- Firefox can expose encoded transforms but still fails to connect to the loopback SFU.
+  The disposable test profile now explicitly permits loopback candidates and disables
+  candidate filtering/hostname obfuscation; safe numeric connection diagnostics were added.
+  No Firefox media pass is claimed yet. Phase 0 remains open until the remaining runtime
+  results are recorded and the spike ADRs are merged.
