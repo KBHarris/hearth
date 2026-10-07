@@ -157,3 +157,17 @@ Phase 0 is in progress. Accounts and encrypted messaging are not usable yet.
   have bounded timeouts. All 14 JavaScript tests and local Rust checks pass after the change.
 - Recorded the user's custom WebKitGTK idea as an optional upstream-based experiment in
   ADR 0004. No custom engine build or release commitment has been made.
+
+- Firefox 157 now passes the entire encrypted-media scenario in 11.050 seconds with a
+  silent PulseAudio backend: 49 decoded video frames, recovered audio, wrong-key rejection,
+  fresh-key continuation, and stale-key rejection. Saved its runtime report. All three
+  hosted browser families have passed; Windows/macOS desktop media acceptance remains.
+- The CI timeout test still stalled after fixture cleanup changes. SDK requests now race
+  transport/body settlement against explicit cancellation and deadline rejection, while
+  still aborting the connection. A regression test covers a reader that ignores abort.
+  All 11 SDK tests and 4 configuration tests pass locally and in a disposable Node 22
+  container with read-only source. Hosted verification is being rerun.
+- Confirmed the tested Ubuntu WebKitGTK package is 2.50.4. Its upstream GStreamer encoded
+  frame backend contains unimplemented processing/callback paths, so a build flag alone
+  would not complete media encryption. Prefer investigating the new upstream backend
+  for the optional custom-runtime experiment.

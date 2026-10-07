@@ -85,26 +85,34 @@ export class HearthClient {
   private async get<T>(path: string, validate: (value: unknown) => value is T, options: RequestOptions = {}): Promise<T> {
     const controller = new AbortController()
     let timedOut = false
-    const abort = () => controller.abort(options.signal?.reason)
+    let rejectAbort: (reason: unknown) => void = () => {}
+    const aborted = new Promise<never>((_resolve, reject) => { rejectAbort = reject })
+    const abort = () => {
+      controller.abort(options.signal?.reason)
+      rejectAbort(controller.signal.reason)
+    }
     if (options.signal?.aborted) abort()
     else options.signal?.addEventListener('abort', abort, { once: true })
     const timer = setTimeout(() => {
       timedOut = true
       controller.abort()
+      rejectAbort(controller.signal.reason)
     }, options.timeoutMs ?? 8_000)
     try {
-      const res = await fetch(this.baseUrl + path, {
+      // Bound settlement as well as requesting transport cancellation: some fetch
+      // implementations can stall a response reader after aborting its connection.
+      const res = await Promise.race([fetch(this.baseUrl + path, {
         signal: controller.signal,
         credentials: 'omit',
         cache: 'no-store',
         redirect: 'error',
-      })
+      }), aborted])
       if (!res.ok) throw new HearthError(res.status, res.status === 503 ?
         'This server is temporarily unavailable. Try again soon.' :
         'The server could not complete the connection check. Check the address or contact its operator.')
       let value: unknown
       try {
-        value = await res.json()
+        value = await Promise.race([res.json(), aborted])
       } catch (error) {
         if (controller.signal.aborted) throw error
         throw new HearthError(0, 'This address did not return a valid Hearth response.', 'invalid_response')

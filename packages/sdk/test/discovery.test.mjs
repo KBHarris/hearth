@@ -123,6 +123,20 @@ test('caller cancellation survives without being converted into a network error'
   })
 })
 
+test('deadline settles a stalled response reader even when transport ignores abort', async () => {
+  const originalFetch = globalThis.fetch
+  let streamController
+  globalThis.fetch = async () => new Response(new ReadableStream({
+    start(controller) { streamController = controller; controller.enqueue(new TextEncoder().encode('{')) },
+  }))
+  try {
+    await assert.rejects(new HearthClient('http://127.0.0.1').health({ timeoutMs: 40 }), errorKind('timeout'))
+  } finally {
+    globalThis.fetch = originalFetch
+    streamController?.error(new DOMException('Fixture closed', 'AbortError'))
+  }
+})
+
 test('redirects are rejected instead of discovering a different origin', async () => {
   await withServer({ '/health': (_request, response) => { response.writeHead(302, { Location: '/api/v1/setup' }); response.end() } }, async (client, calls) => {
     await assert.rejects(client.health(), errorKind('network'))

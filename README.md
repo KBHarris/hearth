@@ -131,10 +131,10 @@ on Windows/Linux. CI builds the same tagged source on macOS. Runtime reports go 
 `target/phase0-evidence`; successful and capability-blocked reports are kept separately.
 
 The hosted matrix also exercises actual Chrome, Firefox, and Safari through Selenium.
-Windows WebView2 has passed locally, including native MLS IPC. Hosted Chrome and Safari,
+Windows WebView2 has passed locally, including native MLS IPC. Hosted Chrome, Firefox and Safari,
 Docker Compose, Podman, and the Linux desktop build/MLS IPC pass. The tested Linux WebKitGTK
 blocks encrypted media because the required APIs are absent; use a supported browser.
-Firefox and hosted Windows/macOS media completion remain open. Real device permissions and production
+Hosted Windows/macOS media completion remains open. Real device permissions and production
 media key distribution are later integration gates.
 
 ## Security

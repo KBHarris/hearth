@@ -30,8 +30,8 @@ login, and adversarial checks; [ADR 0003](adr/0003-opaque-feasibility.md) record
 The synthetic LiveKit media harness passes in Windows in-app Chromium, including wrong-key
 and stale-key rejection; [ADR 0004](adr/0004-media-feasibility.md) records the measured scope.
 Hosted Rust, web, crypto WASM, Docker Compose, Podman, Chrome, Safari, and Linux desktop
-checks pass. Linux media requires a supported browser because the tested WebKitGTK lacks
-WebRTC/encoded transforms. Phase 0 remains open: Firefox and Windows/macOS desktop media
+checks pass, as does Firefox. Linux media requires a supported browser because the tested WebKitGTK lacks
+WebRTC/encoded transforms. Phase 0 remains open: Windows/macOS desktop media
 acceptance remain, followed by merging the spike ADRs. See [PROGRESS.md](PROGRESS.md)
 for dated evidence. This is not an encrypted chat implementation.
 
@@ -51,8 +51,8 @@ for dated evidence. This is not an encrypted chat implementation.
 - [ ] **Spike B, E2EE media per platform:** LiveKit + encoded transforms in WebView2, WKWebView,
   WebKitGTK, and Chrome/Firefox/Safari. Record the results in an ADR and pick the Linux
   strategy.
-  Local WebView2 and hosted Chrome/Safari audio/video and key-rotation checks pass.
-  Linux WebKitGTK blocks media and requires a supported browser. Firefox and hosted
+  Local WebView2 and hosted Chrome/Firefox/Safari audio/video and key-rotation checks pass.
+  Linux WebKitGTK blocks media and requires a supported browser. Hosted
   Windows/macOS webview acceptance remain.
 - [x] **Spike C, OPAQUE:** registration and login round trip, with the client in WASM and the
   server in Rust.

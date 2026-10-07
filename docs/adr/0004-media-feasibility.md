@@ -1,6 +1,6 @@
 # ADR 0004: encrypted media feasibility and platform gates
 
-- Status: provisional; WebView2, Chrome and Safari pass; Firefox and WKWebView gates open
+- Status: provisional; all browser scenarios and local WebView2 pass; hosted desktop media gates open
 - Date: 2026-10-07
 
 ## Decision
@@ -32,9 +32,9 @@ a silent 440 Hz audio source; no camera, microphone, screen, or real account was
 | Windows Tauri WebView2 154 | Pass | Bundled harness, native MLS IPC, real Hearth discovery, encrypted audio/video and key changes |
 | macOS Safari 26.6.2 | Pass | Actual browser; encrypted audio/video and wrong/fresh/stale keys |
 | macOS WKWebView | Pending | Requires actual execution |
-| Linux WebKitGTK, Ubuntu 22.04 | Media blocked | Native MLS IPC passes; WebRTC/encoded transforms unavailable; use a supported browser |
+| Linux WebKitGTK 2.50.4, Ubuntu 22.04 | Media blocked | Native MLS IPC passes; WebRTC/encoded transforms unavailable; use a supported browser |
 | Linux Chrome 154 | Pass | Actual headless browser; encrypted audio/video and wrong/fresh/stale keys |
-| Linux Firefox 157 | Pending | Connection to the loopback SFU fails; fixture investigation in progress |
+| Linux Firefox 157 | Pass | Actual headless browser with loopback/autoplay profile and a silent PulseAudio output; encrypted audio/video and wrong/fresh/stale keys |
 
 The matching receiver decoded 61 video frames and recovered nonzero audio PCM (peak 0.1,
 matching the generated source). The wrong-key receiver received forwarded RTP, decoded zero
@@ -62,6 +62,12 @@ respectively, decoding 66 and 64 frames and recovering audio PCM. Both passed wr
 and stale-key rejection. The [WebKitGTK report](../evidence/media-webkitgtk-linux-2026-10-07.json)
 records the capability block and successful native MLS IPC. These reports came from
 CI runs on the validation branch, not the merged default branch.
+
+[Firefox 157](../evidence/media-firefox-linux-2026-10-07.json) passed in 11.050 seconds,
+decoding 49 frames, recovering audio PCM, and rejecting wrong/stale keys. Its headless
+runner needed a clocked PulseAudio null output in addition to the test autoplay policy.
+The null output discards playback; encrypted transport and decoded PCM assertions still
+execute normally. No physical capture or speaker device is used.
 
 ## Fixture and reproduction
 
@@ -105,6 +111,14 @@ pass this same encryption scenario, preserve sandboxing, and have a practical pa
 and security-update process. Prefer a small patch set against upstream to an independent
 engine fork. No custom runtime has been built or validated, and the browser fallback stays
 the current Linux strategy.
+
+The tested Ubuntu package is `2.50.4-0ubuntu0.22.04.1`. Source inspection of upstream
+[`webkitgtk-2.50.4`](https://github.com/WebKit/WebKit/blob/webkitgtk-2.50.4/Source/WebCore/Modules/mediastream/gstreamer/GStreamerRtpTransformBackend.cpp)
+found `processTransformedFrame()` unimplemented; the
+[sender backend](https://github.com/WebKit/WebKit/blob/webkitgtk-2.50.4/Source/WebCore/Modules/mediastream/gstreamer/GStreamerRtpSenderTransformBackend.cpp)
+also has unimplemented frame callback wiring. Enabling WebRTC in that build would not
+complete the encryption pipeline. This supports evaluating the new upstream LibWebRTC
+backend first rather than committing to maintain the older GStreamer implementation.
 
 ### Product integration
 

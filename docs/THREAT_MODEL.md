@@ -74,8 +74,8 @@ The separate [media experiment](adr/0004-media-feasibility.md) uses generated au
 and client-only random keys. The local SFU sees signaling, participant identities, timing,
 packet sizes, and transport addresses. It receives no media key through bootstrap or
 signaling. Wrong/stale-key rejection has been measured in local Chromium/WebView2 and
-hosted Chrome/Safari; SFU packet inspection, MLS participant authentication, exporter
-binding, Firefox, and hosted desktop media completion remain gates. The
+hosted Chrome/Firefox/Safari; SFU packet inspection, MLS participant authentication, exporter
+binding, and hosted desktop media completion remain gates. The
 saved reports include runtime capabilities and the browser user agent, but exclude tokens,
 keys, SDP, and media content. Failure diagnostics contain numeric connection reasons and
 ICE state enums only. Native stage markers are numeric; they accept no arbitrary text.
