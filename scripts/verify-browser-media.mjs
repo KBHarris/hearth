@@ -16,7 +16,9 @@ let driver
 try {
   driver = await new Builder().forBrowser(browser)
     .setChromeOptions(new chrome.Options().addArguments('--headless=new', '--autoplay-policy=no-user-gesture-required'))
-    .setFirefoxOptions(new firefox.Options().addArguments('-headless'))
+    // Firefox excludes loopback ICE candidates by default. This preference is
+    // confined to the disposable local test profile; encryption remains required.
+    .setFirefoxOptions(new firefox.Options().addArguments('-headless').setPreference('media.peerconnection.ice.loopback', true))
     .build()
   await driver.get(fixture.url)
   await driver.findElement(By.id('run')).click()

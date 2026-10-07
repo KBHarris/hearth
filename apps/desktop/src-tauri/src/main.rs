@@ -21,5 +21,11 @@ fn main() {
         }
         return;
     }
-    hearth_desktop_lib::run()
+    #[cfg(not(feature = "phase0-spike"))]
+    hearth_desktop_lib::run();
+    #[cfg(feature = "phase0-spike")]
+    {
+        eprintln!("This diagnostic build requires --phase0-spike or --mls-spike.");
+        std::process::exit(2);
+    }
 }

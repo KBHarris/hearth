@@ -6,11 +6,13 @@ pub mod phase0;
 
 /// Protocol version compiled into the native core, so the UI can detect a mismatched build.
 #[tauri::command]
+#[cfg(not(feature = "phase0-spike"))]
 fn protocol_version() -> u32 {
     hearth_proto::PROTOCOL_VERSION
 }
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
+#[cfg(not(feature = "phase0-spike"))]
 pub fn run() {
     tauri::Builder::default()
         .invoke_handler(tauri::generate_handler![protocol_version])
