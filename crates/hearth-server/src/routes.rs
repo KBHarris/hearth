@@ -1,6 +1,6 @@
-use axum::{Json, Router, extract::State, routing::get};
-use hearth_proto::{Health, HealthStatus, PROTOCOL_VERSION, WellKnown};
-use serde_json::{Value, json};
+use axum::{Json, Router, extract::State, http::StatusCode, routing::get};
+use hearth_proto::{Health, HealthStatus, PROTOCOL_VERSION, SetupStatus, WellKnown};
+use tower_http::cors::{Any, CorsLayer};
 
 use crate::SharedState;
 
@@ -28,16 +28,26 @@ pub async fn well_known(State(state): State<SharedState>) -> Json<WellKnown> {
 
 /// Client REST API. Phase 1 adds accounts, devices, key packages, and DMs here.
 pub fn api_v1() -> Router<SharedState> {
-    Router::new().route("/setup", get(setup_status))
+    Router::new().route("/setup", get(setup_status).layer(discovery_cors()))
+}
+
+/// Only public discovery GETs are readable by alternative web clients. Never apply
+/// this policy to authenticated API routes, and never allow credentials here.
+pub fn discovery_cors() -> CorsLayer {
+    CorsLayer::new()
+        .allow_origin(Any)
+        .allow_methods([axum::http::Method::GET])
 }
 
 /// Whether the first-run admin setup has been completed.
-async fn setup_status(State(state): State<SharedState>) -> Json<Value> {
+async fn setup_status(State(state): State<SharedState>) -> Result<Json<SetupStatus>, StatusCode> {
     let complete: bool = sqlx::query_scalar(
         "SELECT EXISTS (SELECT 1 FROM instance_settings WHERE key = 'setup_complete')",
     )
     .fetch_one(&state.db)
     .await
-    .unwrap_or(false);
-    Json(json!({ "setup_complete": complete }))
+    .map_err(|_| StatusCode::SERVICE_UNAVAILABLE)?;
+    Ok(Json(SetupStatus {
+        setup_complete: complete,
+    }))
 }

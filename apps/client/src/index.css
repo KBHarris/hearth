@@ -1,26 +1,47 @@
 :root {
-  --bg-rail: #1e1f22;
-  --bg-sidebar: #2b2d31;
-  --bg-main: #313338;
-  --text: #dbdee1;
-  --text-muted: #949ba4;
-  --accent: #ea580c;
-  --ok: #23a55a;
-  --warn: #f0b232;
-  --err: #f23f43;
-  font: 15px/1.4 system-ui, 'Segoe UI', Roboto, sans-serif;
+  --bg-rail: #121513;
+  --bg-sidebar: #181c19;
+  --bg-main: #191d1a;
+  --bg-hover: #222822;
+  --text: #e5e4db;
+  --text-muted: #969c91;
+  --accent: #e8b681;
+  --ok: #8ab996;
+  --err: #e5a391;
+  --border: #a8b49b18;
+  font: 15px/1.4 'Segoe UI', system-ui, sans-serif;
   color: var(--text);
   background: var(--bg-main);
   color-scheme: dark;
+  font-synthesis: none;
+  text-rendering: optimizeLegibility;
 }
 
 * {
   box-sizing: border-box;
 }
 
-html,
-body,
-#root {
+html, body, #root {
   margin: 0;
-  height: 100%;
+  min-height: 100%;
+}
+
+button, input {
+  font: inherit;
+}
+
+button {
+  cursor: pointer;
+}
+
+button, input, summary {
+  outline-offset: 4px;
+}
+
+:focus-visible {
+  outline: 2px solid var(--accent);
+}
+
+::selection {
+  background: #e8b68135;
 }

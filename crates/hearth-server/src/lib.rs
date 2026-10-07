@@ -24,8 +24,14 @@ pub type SharedState = Arc<AppState>;
 
 pub fn router(state: SharedState) -> Router {
     Router::new()
-        .route("/health", get(routes::health))
-        .route("/.well-known/hearth", get(routes::well_known))
+        .route(
+            "/health",
+            get(routes::health).layer(routes::discovery_cors()),
+        )
+        .route(
+            "/.well-known/hearth",
+            get(routes::well_known).layer(routes::discovery_cors()),
+        )
         .route("/gateway", get(gateway::upgrade))
         .nest("/api/v1", routes::api_v1())
         .layer(TraceLayer::new_for_http())

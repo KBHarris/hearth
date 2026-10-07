@@ -1,0 +1,25 @@
+{
+  "name": "@hearth/media-spike",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "license": "AGPL-3.0-only",
+  "scripts": {
+    "typecheck": "tsc --noEmit",
+    "lint": "oxlint",
+    "build": "tsc --noEmit && vite build"
+  },
+  "dependencies": {
+    "@hearth/sdk": "*",
+    "@tauri-apps/api": "^2.11.1",
+    "livekit-client": "2.22.3"
+  },
+  "devDependencies": {
+    "@types/node": "^24.13.3",
+    "livekit-server-sdk": "2.19.1",
+    "oxlint": "^1.81.0",
+    "selenium-webdriver": "^4.41.0",
+    "typescript": "~6.0.2",
+    "vite": "^8.3.0"
+  }
+}

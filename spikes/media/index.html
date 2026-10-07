@@ -1,0 +1,31 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Hearth encrypted media feasibility</title>
+  </head>
+  <body>
+    <main>
+      <p class="eyebrow">HEARTH · PHASE 0</p>
+      <h1>Encrypted media feasibility</h1>
+      <p>Local LiveKit fixture, generated picture and audio tone. No camera, microphone,
+        screen capture, or real account. Keys stay in this page and its encryption workers.</p>
+      <button id="run">Run encrypted media check</button>
+      <p id="status" role="status">Ready</p>
+      <div class="previews">
+        <figure><canvas id="source" width="320" height="180"></canvas><figcaption>Generated source</figcaption></figure>
+        <figure><video id="received" autoplay muted playsinline></video><figcaption>Receiver with the matching key</figcaption></figure>
+        <figure><video id="wrong" autoplay muted playsinline></video><figcaption>Wrong-key receiver, then stale-key receiver after rotation</figcaption></figure>
+      </div>
+      <audio id="received-audio" autoplay muted hidden></audio>
+      <h2>Measured result</h2>
+      <pre id="report">No test run yet.</pre>
+      <details><summary>Runtime capabilities</summary><pre id="capabilities"></pre></details>
+      <p class="note">A pass is local feasibility evidence. It does not validate production
+        key distribution, SFrame interoperability, screen sharing, SFU packet inspection, or
+        every desktop/browser platform.</p>
+    </main>
+    <script type="module" src="/src/main.ts"></script>
+  </body>
+</html>

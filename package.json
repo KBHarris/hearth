@@ -5,16 +5,30 @@
   "workspaces": [
     "packages/*",
     "apps/client",
-    "apps/desktop"
+    "apps/desktop",
+    "spikes/*"
   ],
   "scripts": {
+    "protocol:generate": "cargo run -p hearth-proto --features typescript --bin generate-protocol",
+    "protocol:check": "cargo run -p hearth-proto --features typescript --bin generate-protocol -- --check",
+    "spike:tools": "node scripts/install-wasm-tools.mjs",
+    "spike:mls:wasm": "node scripts/verify-mls.mjs",
+    "spike:mls:browser": "node scripts/serve-mls-spike.mjs",
+    "spike:opaque:wasm": "node scripts/verify-opaque.mjs",
+    "spike:media": "node scripts/serve-media-spike.mjs",
+    "spike:media:build": "npm run build -w @hearth/media-spike",
+    "spike:desktop:webview": "node scripts/verify-desktop-webview.mjs",
+    "spike:media:browser": "node scripts/verify-browser-media.mjs",
+    "setup": "node deploy/setup.mjs",
+    "spike:compose": "node scripts/verify-compose.mjs",
     "dev": "npm run dev -w @hearth/client",
     "build": "npm run build -w @hearth/client",
     "typecheck": "npm run typecheck --workspaces --if-present",
     "lint": "npm run lint --workspaces --if-present",
+    "test": "npm run test --workspaces --if-present && node --test deploy/test/*.test.mjs",
     "desktop:dev": "npm run tauri -w @hearth/desktop -- dev",
     "desktop:build": "npm run tauri -w @hearth/desktop -- build",
-    "verify": "npm run typecheck && npm run lint && npm run build"
+    "verify": "npm run typecheck && npm run lint && npm run test && npm run build"
   },
   "engines": {
     "node": ">=22"
