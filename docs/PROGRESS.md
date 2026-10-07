@@ -22,7 +22,7 @@ remain unimplemented; the full Phase 1 exit criteria are still open.
 | Spike A: OpenMLS | Feasibility complete | Native Rust, Node/browser WASM, and native MLS through Windows/macOS/Linux Tauri webview IPC pass |
 | Spike B: encrypted media | Feasibility complete | Local and hosted WebView2, hosted WKWebView and Chrome/Firefox/Safari pass; Linux native capability block selects browser media |
 | Spike C: OPAQUE | Feasibility complete | WASM client + separate Rust process pass registration/login and adversarial checks locally and in CI |
-| Phase 1 owner/account slice | Implemented | Real PostgreSQL, native HTTP/product WASM and browser setup/sign-in checks pass locally; hosted validation pending |
+| Phase 1 owner/account slice | Implemented | Local PostgreSQL, native HTTP/product WASM and browser checks pass; hosted auth/web and Windows/macOS builds pass; Linux desktop pending |
 | Threat model | Draft maintained | Discovery exposure and saved server address documented; no independent security audit |
 
 ## Iteration log
@@ -256,7 +256,7 @@ remain unimplemented; the full Phase 1 exit criteria are still open.
   protected operator code is in ignored `deploy/data/setup.code`.
 - Updated the metadata inventory and [ADR 0005](adr/0005-owner-authentication.md). Added a
   hosted PostgreSQL/product-WASM auth job and current-run WASM artifact sharing for the
-  desktop matrix. Hosted results and packaged native auth runtime are not yet claimed.
+  desktop matrix. Packaged native auth runtime is not yet claimed.
 - Standard npm verification passes 17 JavaScript tests, typecheck, lint and web/WASM build.
   Rust fmt/clippy and all 14 baseline tests pass; the real PostgreSQL test also passes
   separately. Combined CI features pass clippy and 17 Rust tests. Generated protocol drift
@@ -264,3 +264,19 @@ remain unimplemented; the full Phase 1 exit criteria are still open.
   desktop authentication runtime remains unverified.
 - Next: identity/device enrollment and protected local storage. Password change/recovery,
   session management, second-user registration, gateway delivery and encrypted DMs remain.
+
+### 2026-10-07: Phase 1 hosted checks
+
+- Opened [draft PR #2](https://github.com/KBHarris/hearth/pull/2) from
+  `codex/phase1-owner-auth`. Implementation commit `085fa19` passes the hosted PostgreSQL
+  and real HTTP/product-WASM auth scenario; saved the
+  [hosted report](evidence/auth-wasm-native-hosted-2026-10-07.json).
+- At the last snapshot of [run 37682030457](https://github.com/KBHarris/hearth/actions/runs/37682030457),
+  11 of 12 jobs pass: auth, Rust, web, crypto WASM, Docker Compose, Podman, three media
+  browsers and Windows/macOS desktop builds/Phase 0 acceptance. Linux desktop remains
+  in dependency installation; it is not counted as passing. The evidence/progress-only
+  follow-up commit triggers a fresh CI run. No Phase 1 merge or full-phase completion is claimed.
+- These desktop results cover packaging and the existing Phase 0 diagnostic scenarios,
+  not the new account flow inside native webviews. Product authentication has real browser
+  runtime evidence; native auth runtime, independent review and the remaining Phase 1
+  product features still need validation.

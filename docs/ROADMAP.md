@@ -71,7 +71,8 @@ Current progress (2026-10-07): the first owner/account milestone is implemented 
 validated. A setup code authorizes exactly one owner claim; WASM-worker OPAQUE registration
 and login use persistent PostgreSQL accounts and expiring/revocable sessions. Real HTTP,
 PostgreSQL and browser checks pass. [ADR 0005](adr/0005-owner-authentication.md) records the
-profile, bootstrap, session and storage decisions. Hosted validation is pending. This
+profile, bootstrap, session and storage decisions. Hosted auth/web and Windows/macOS
+desktop checks pass; Linux desktop remains pending. This
 milestone does not yet implement DMs or complete the phase exit criteria.
 
 - [x] Guided first-run owner creation, closed registration, OPAQUE owner login/logout,
