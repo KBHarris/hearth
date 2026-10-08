@@ -169,7 +169,11 @@ jobs:
       - name: Linux Secret Service, SQLCipher and packaged client acceptance
         if: runner.os == 'Linux'
         timeout-minutes: 5
-        run: xvfb-run -a dbus-run-session -- bash scripts/verify-linux-key-store.sh
+        run: |
+          for attempt in 1 2 3 4 5; do
+            echo "Linux packaged acceptance repetition $attempt"
+            xvfb-run -a dbus-run-session -- bash scripts/verify-linux-key-store.sh
+          done
       - uses: actions/upload-artifact@v4
         if: always()
         with:
