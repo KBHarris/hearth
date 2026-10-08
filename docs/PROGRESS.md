@@ -71,6 +71,11 @@ acceptance and still needs hosted verification. Full Phase 1 closure remains ope
 - Added the [two-PC test guide](TWO_PC_DM_TEST.md). No public listener, firewall rule or
   router forwarding was enabled by these checks; test proxy containers were loopback-only
   and removed afterward. The existing local development server/data were preserved.
+- Prebuilt the local `hearth-server` image for the manual test. Docker build contexts now
+  exclude `deploy/data`, environment secrets and private fixtures; inspection of the
+  actual builder confirms their absence. The verification image tag was removed.
+- Run 37795943918 finishes with all three full desktop jobs passing; Safari is the only
+  failed job. Its startup-readiness correction is queued for the next full CI run.
 
 ### 2026-10-08: hosted platform validation and fixture fixes
 
