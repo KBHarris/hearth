@@ -59,6 +59,12 @@ Full Phase 1 closure remains open while this failure is investigated.
   removed afterward; it passes locally and runs on all three CI desktop platforms.
   Cleanup reports only static booleans for drained calls, credentials and files.
   Native feature clippy, formatting and default Rust tests pass. Hosted rerun pending.
+- The first isolated Linux repetition in run 37805727608 passes all seven product
+  checks and all three cleanup outcomes. Its second repetition fails during account
+  setup, while native cleanup still passes. macOS passes product and cleanup acceptance.
+  Diagnostics now distinguish individual registration/login/storage steps and static
+  failure classes; raw error strings remain private. This broader intermittent Linux
+  failure remains under investigation.
 
 ### 2026-10-08: cross-platform messaging and two-PC test preparation
 

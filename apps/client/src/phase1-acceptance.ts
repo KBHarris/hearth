@@ -1,6 +1,6 @@
 // Opt-in bundled harness: uses the product worker, SDK, session and storage commands.
 import {invoke,isTauri} from '@tauri-apps/api/core'
-import {HearthClient,type Session,type DeviceEnrollment} from '@hearth/sdk'
+import {HearthClient,HearthError,type Session,type DeviceEnrollment} from '@hearth/sdk'
 import {AuthCrypto} from './crypto/client'
 import {createIdentity,readIdentity,identityScope} from './crypto/vault-store'
 import {messageScope,readMessages,writeMessages} from './crypto/message-store'
@@ -24,25 +24,38 @@ async function run(){
   async function register(username:string,owner=false){
     const crypto=new AuthCrypto()
     try{
+      stage=`${username} registration crypto start`
       const message=await crypto.request('registrationStart',password)
+      stage=`${username} registration server start`
       const response=owner?await client.ownerStart({username,message,setup_code:config.setupCode}):await client.registerStart({username,message,invite_code:null})
+      stage=`${username} registration crypto finish`
       const upload=await crypto.request('registrationFinish',password,response.message,username,server)
+      stage=`${username} registration server finish`
       if(owner)await client.ownerFinish({username,message:upload,setup_code:config.setupCode})
       else await client.registerFinish({username,message:upload,invite_code:null})
     }finally{crypto.close()}
   }
   async function login(username:string):Promise<Install>{
     const crypto=new AuthCrypto()
+    stage=`${username} login crypto start`
     const message=await crypto.request('loginStart',password)
+    stage=`${username} login server start`
     const response=await client.loginStart({username,message})
+    stage=`${username} login crypto finish`
     const proof=await crypto.request('loginFinish',password,response.message,username,server)
+    stage=`${username} login server finish`
     const session=await client.loginFinish({exchange_id:response.exchange_id,message:proof})
     const scope=identityScope(session.account.id,server)
+    stage=`${username} identity store read`
     const saved=await readIdentity(scope)
+    stage=`${username} identity prepare`
     const prepared=JSON.parse(await crypto.request('prepareIdentity','',saved ?? undefined,session.account.id,server)) as {envelope:string;enrollment:DeviceEnrollment}
+    stage=`${username} identity store create`
     const durable=await createIdentity(scope,prepared.envelope)
     require(durable===prepared.envelope)
+    stage=`${username} device enrollment`
     await client.enrollFirstDevice(session.token,prepared.enrollment)
+    stage=`${username} identity commit`
     await crypto.request('commitIdentity','')
     const install={crypto,session,device:prepared.enrollment,state:initialChat}
     installs.push(install);return install
@@ -55,6 +68,7 @@ async function run(){
   stage='owner authentication'
   await register('alice',true)
   const alice=await login('alice')
+  stage='owner server settings'
   await client.configureServer(alice.session.token,{server_name:'Packaged acceptance',registration_mode:'open'})
   await register('bob')
   const bob=await login('bob')
@@ -86,7 +100,9 @@ async function run(){
   await alice.service!.send(id,{kind:'text',text:canary+' offline',reply_to:null})
   const resumed=await login('bob')
   require(resumed.device.device_key===bob.device.device_key)
+  stage='offline messaging resume'
   await start(resumed)
+  stage='offline backlog receive'
   await until(()=>resumed.state.messages.some(message=>message.text===canary+' offline'))
   require(resumed.state.messages.some(message=>message.id===original.id && message.deleted))
   checks.fresh_worker_restores_native_keys_sqlcipher_history_and_offline_backlog=true
@@ -126,8 +142,28 @@ async function run(){
   await pause(200)
   await invoke('phase1_finish',{report:{outcome:'pass',checks}})
 }
-void run().catch(async()=>{
+void run().catch(async(error:unknown)=>{
   for(const install of installs){install.service?.close();install.crypto.close()}
   checks[stage.replaceAll(' ','_')]=false
+  // Enumerated failure classes only: never forward SDK/native error text.
+  let failure='unclassified'
+  if(error instanceof HearthError){
+    const statuses:Record<number,string>={400:'bad_request',401:'unauthorized',403:'forbidden',404:'not_found',409:'conflict',429:'rate_limited',503:'unavailable'}
+    failure=error.kind==='http'?(statuses[error.status] ?? 'http_other'):error.kind
+  }else{
+    const message=error instanceof Error?error.message:typeof error==='string'?error:''
+    const known:Record<string,string>={
+      'Acceptance assertion failed':'assertion',
+      'Acceptance timed out':'acceptance_timeout',
+      'Authentication was interrupted. Please try again.':'worker_interrupted',
+      'The password or authentication exchange could not be verified.':'auth_crypto',
+      'The identity operation could not be verified. Check your kit, passphrase, account and server; existing keys were preserved.':'identity_crypto',
+      'Your system key store is unavailable or locked. Unlock it and try again.':'key_store',
+      'Encrypted storage failed':'encrypted_storage',
+      'The message was rejected after an encryption or permission update. Retry after updates arrive.':'message_epoch_conflict',
+    }
+    failure=known[message] ?? failure
+  }
+  checks[`failure_${failure}`]=false
   try{await invoke('phase1_finish',{report:{outcome:'fail',checks}})}catch{document.getElementById('stage')!.textContent='Packaged acceptance failed.'}
 })
