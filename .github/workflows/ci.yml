@@ -168,11 +168,12 @@ jobs:
           node scripts/verify-auth.mjs --desktop --native-postgres
       - name: Linux Secret Service, SQLCipher and packaged client acceptance
         if: runner.os == 'Linux'
-        timeout-minutes: 5
+        timeout-minutes: 7
         run: |
-          for attempt in 1 2 3 4 5; do
+          for attempt in 1 2 3 4 5 6 7 8 9 10; do
             echo "Linux packaged acceptance repetition $attempt"
             xvfb-run -a dbus-run-session -- bash scripts/verify-linux-key-store.sh
+            cp target/phase1-evidence/packaged-linux.json "target/phase1-evidence/packaged-linux-repetition-$attempt.json"
           done
       - uses: actions/upload-artifact@v4
         if: always()

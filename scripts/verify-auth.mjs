@@ -30,8 +30,8 @@ function command(name, args, quiet = false, env = process.env) {
 command('cargo', ['build', '--locked', '-p', 'hearth-server'])
 let wasm
 if(!process.argv.includes('--desktop') && !process.argv.includes('--serve')) {
-  command('cargo', ['build', '--locked', '-p', 'hearth-wasm', '--features', 'auth', '--target', 'wasm32-unknown-unknown'])
-  command('wasm-bindgen', [join(root, 'target/wasm32-unknown-unknown/debug/hearth_wasm.wasm'), '--target', 'nodejs', '--out-dir', join(directory, 'wasm')])
+  command('cargo', ['build', '--locked', '--release', '-p', 'hearth-wasm', '--features', 'auth', '--target', 'wasm32-unknown-unknown'])
+  command('wasm-bindgen', [join(root, 'target/wasm32-unknown-unknown/release/hearth_wasm.wasm'), '--target', 'nodejs', '--out-dir', join(directory, 'wasm')])
   wasm = createRequire(import.meta.url)(join(directory, 'wasm/hearth_wasm.js'))
 }
 const lease = createServer()

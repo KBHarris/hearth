@@ -11,8 +11,8 @@ if (process.env.HEARTH_PREBUILT_WASM === '1') {
   }
 } else {
   for (const [command, args] of [
-    ['cargo', ['build', '--locked', '-p', 'hearth-wasm', '--target', 'wasm32-unknown-unknown', '--features', 'auth']],
-    ['wasm-bindgen', [join(root, 'target/wasm32-unknown-unknown/debug/hearth_wasm.wasm'), '--target', 'web', '--out-dir', output]],
+    ['cargo', ['build', '--locked', '--release', '-p', 'hearth-wasm', '--target', 'wasm32-unknown-unknown', '--features', 'auth']],
+    ['wasm-bindgen', [join(root, 'target/wasm32-unknown-unknown/release/hearth_wasm.wasm'), '--target', 'web', '--out-dir', output]],
   ]) {
     const result = spawnSync(command, args, { cwd: root, stdio: 'inherit', windowsHide: true })
     if (result.error || result.status !== 0) throw new Error(`${command} failed; install the wasm32 target and run npm run spike:tools`)

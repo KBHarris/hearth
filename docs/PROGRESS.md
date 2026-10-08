@@ -65,6 +65,14 @@ Full Phase 1 closure remains open while this failure is investigated.
   Diagnostics now distinguish individual registration/login/storage steps and static
   failure classes; raw error strings remain private. This broader intermittent Linux
   failure remains under investigation.
+- Classified Linux diagnostics narrow the failure to WASM OPAQUE registration finish,
+  before OS storage. The worker now distinguishes fixed runtime-trap classes from
+  protocol rejection without exporting exception text. A separate diagnostic branch
+  retains debug WASM for a controlled comparison. The product build now emits optimized
+  WASM (2.96 MB versus 15.42 MB), preserving the exact OPAQUE/Argon2 profile. Optimized
+  WASM passes required npm verification and all 22 real HTTP/WASM outcomes locally.
+  The product CI run will repeat isolated Linux acceptance ten times and preserve each
+  successful report. Hosted comparison and full closure remain pending.
 
 ### 2026-10-08: cross-platform messaging and two-PC test preparation
 
