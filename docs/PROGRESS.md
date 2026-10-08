@@ -52,6 +52,13 @@ Full Phase 1 closure remains open while this failure is investigated.
   checks new-device rekeying, new-message delivery, old-history exclusion, preserved
   original identity, server canary absence and fixture cleanup. Required npm verification
   and the diagnostic desktop build pass. This does not resolve the Linux failure yet.
+- The Windows rerun passes all seven product checks but fails disposable fixture cleanup.
+  Fixture storage calls now hold native operation leases through their blocking work;
+  finishing rejects new calls and waits for existing calls before deleting credentials
+  or files. A regression test verifies files survive while a lease is active and are
+  removed afterward; it passes locally and runs on all three CI desktop platforms.
+  Cleanup reports only static booleans for drained calls, credentials and files.
+  Native feature clippy, formatting and default Rust tests pass. Hosted rerun pending.
 
 ### 2026-10-08: cross-platform messaging and two-PC test preparation
 

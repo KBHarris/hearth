@@ -3,7 +3,7 @@ use std::{
     collections::HashSet,
     path::PathBuf,
     sync::{
-        Mutex,
+        Arc, Condvar, Mutex,
         atomic::{AtomicBool, Ordering},
     },
 };
@@ -14,15 +14,39 @@ pub struct Fixture {
     directory: PathBuf,
     scopes: Mutex<HashSet<(String, String)>>,
     finished: AtomicBool,
+    operations: Arc<(Mutex<usize>, Condvar)>,
+}
+// A dropped page promise does not cancel a native blocking storage call. Keep
+// fixture credentials/files alive until every such call has actually returned.
+pub struct StorageLease(Arc<(Mutex<usize>, Condvar)>);
+impl Drop for StorageLease {
+    fn drop(&mut self) {
+        let (count, changed) = &*self.0;
+        if let Ok(mut count) = count.lock() {
+            *count -= 1;
+            changed.notify_all();
+        }
+    }
 }
 pub fn storage_context(
     window: &tauri::WebviewWindow,
     scope: &str,
     kind: &str,
-) -> Result<Option<(PathBuf, &'static str)>, String> {
+) -> Result<Option<(PathBuf, &'static str, StorageLease)>, String> {
     let Some(fixture) = window.app_handle().try_state::<Fixture>() else {
         return Ok(None);
     };
+    let mut count = fixture
+        .operations
+        .0
+        .lock()
+        .map_err(|_| "Fixture lock failed")?;
+    if fixture.finished.load(Ordering::SeqCst) {
+        return Err("Fixture has finished".into());
+    }
+    *count += 1;
+    let lease = StorageLease(Arc::clone(&fixture.operations));
+    drop(count);
     let server = fixture.config["serverKey"]
         .as_str()
         .ok_or("Invalid fixture")?;
@@ -44,9 +68,24 @@ pub fn storage_context(
         }
         scopes.insert(key);
     }
-    Ok(Some((fixture.directory.join(kind), service)))
+    Ok(Some((fixture.directory.join(kind), service, lease)))
 }
-fn cleanup(fixture: &Fixture) -> bool {
+fn cleanup(fixture: &Fixture) -> (bool, bool, bool) {
+    let (count, changed) = &*fixture.operations;
+    let Ok(count) = count.lock() else {
+        return (false, false, false);
+    };
+    let Ok((count, timeout)) =
+        changed.wait_timeout_while(count, std::time::Duration::from_secs(20), |count| {
+            *count != 0
+        })
+    else {
+        return (false, false, false);
+    };
+    if timeout.timed_out() && *count != 0 {
+        return (false, false, false);
+    }
+    drop(count);
     let mut clean = true;
     if let Ok(scopes) = fixture.scopes.lock() {
         for (service, scope) in scopes.iter() {
@@ -63,7 +102,42 @@ fn cleanup(fixture: &Fixture) -> bool {
         clean = false;
     }
     // This fresh directory is generated and created here, never supplied by a page.
-    clean & std::fs::remove_dir_all(&fixture.directory).is_ok()
+    (
+        true,
+        clean,
+        std::fs::remove_dir_all(&fixture.directory).is_ok(),
+    )
+}
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn cleanup_preserves_files_until_native_storage_returns() {
+        let directory = std::env::temp_dir().join(format!(
+            "hearth-fixture-drain-{}",
+            hearth_crypto::IdentityKey::generate().public().to_hex()
+        ));
+        std::fs::create_dir(&directory).unwrap();
+        let operations = Arc::new((Mutex::new(1), Condvar::new()));
+        let fixture = Fixture {
+            config: serde_json::Value::Null,
+            directory: directory.clone(),
+            scopes: Mutex::new(HashSet::new()),
+            finished: AtomicBool::new(true),
+            operations: Arc::clone(&operations),
+        };
+        let worker = std::thread::spawn(move || {
+            let lease = StorageLease(operations);
+            std::thread::sleep(std::time::Duration::from_millis(50));
+            let preserved = directory.is_dir();
+            drop(lease);
+            preserved
+        });
+        assert_eq!(cleanup(&fixture), (true, true, true));
+        assert!(worker.join().unwrap());
+        assert!(!fixture.directory.exists());
+    }
 }
 #[tauri::command]
 fn phase1_config(window: tauri::WebviewWindow) -> Result<serde_json::Value, String> {
@@ -88,12 +162,13 @@ fn phase1_finish(window: tauri::WebviewWindow, report: serde_json::Value) -> Res
     {
         return Err("Invalid report".into());
     }
-    let cleaned = cleanup(&fixture);
+    let (drained, credentials_removed, files_removed) = cleanup(&fixture);
+    let cleaned = drained && credentials_removed && files_removed;
     let pass = report["outcome"] == "pass" && checks.values().all(|value| value == true) && cleaned;
     // Only enumerated outcomes, never page error strings or credential data.
     println!(
         "HEARTH_PHASE1_REPORT={}",
-        serde_json::json!({"outcome":if pass {"pass"}else{"fail"},"checks":checks,"fixture_storage_cleaned":cleaned})
+        serde_json::json!({"outcome":if pass {"pass"}else{"fail"},"checks":checks,"fixture_storage_cleaned":cleaned,"fixture_cleanup":{"native_calls_drained":drained,"credentials_removed":credentials_removed,"files_removed":files_removed}})
     );
     window.app_handle().exit(if pass { 0 } else { 1 });
     Ok(())
@@ -133,6 +208,7 @@ pub fn run() {
             directory,
             scopes: Mutex::new(HashSet::new()),
             finished: AtomicBool::new(false),
+            operations: Arc::new((Mutex::new(0), Condvar::new())),
         })
         .invoke_handler(tauri::generate_handler![
             phase1_config,

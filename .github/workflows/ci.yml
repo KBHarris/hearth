@@ -157,6 +157,8 @@ jobs:
           HEARTH_PHASE1_HARNESS: '1'
       - run: cargo build -p hearth-server
       - run: cargo build -p hearth-desktop --features phase1-storage-test,phase1-acceptance
+      - name: Fixture shutdown barrier
+        run: cargo test -p hearth-desktop --features phase1-storage-test,phase1-acceptance cleanup_preserves_files_until_native_storage_returns
       - name: Windows/macOS encrypted storage and packaged client acceptance
         if: runner.os != 'Linux'
         timeout-minutes: 5

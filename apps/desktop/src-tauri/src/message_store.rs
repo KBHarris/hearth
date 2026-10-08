@@ -183,11 +183,18 @@ pub async fn message_store_read(
         .join("messages-v1");
     let (directory, service) = (directory, SERVICE);
     #[cfg(feature = "phase1-acceptance")]
-    let (directory, service) = crate::phase1::storage_context(&window, &scope, "messages")?
-        .unwrap_or((directory, service));
-    tauri::async_runtime::spawn_blocking(move || store(&directory, service, &scope, None))
-        .await
-        .map_err(|_| ERROR)?
+    let (directory, service, lease) =
+        match crate::phase1::storage_context(&window, &scope, "messages")? {
+            Some((directory, service, lease)) => (directory, service, Some(lease)),
+            None => (directory, service, None),
+        };
+    tauri::async_runtime::spawn_blocking(move || {
+        #[cfg(feature = "phase1-acceptance")]
+        let _lease = lease;
+        store(&directory, service, &scope, None)
+    })
+    .await
+    .map_err(|_| ERROR)?
 }
 #[tauri::command]
 pub async fn message_store_write(
@@ -205,9 +212,14 @@ pub async fn message_store_write(
         .join("messages-v1");
     let (directory, service) = (directory, SERVICE);
     #[cfg(feature = "phase1-acceptance")]
-    let (directory, service) = crate::phase1::storage_context(&window, &scope, "messages")?
-        .unwrap_or((directory, service));
+    let (directory, service, lease) =
+        match crate::phase1::storage_context(&window, &scope, "messages")? {
+            Some((directory, service, lease)) => (directory, service, Some(lease)),
+            None => (directory, service, None),
+        };
     tauri::async_runtime::spawn_blocking(move || {
+        #[cfg(feature = "phase1-acceptance")]
+        let _lease = lease;
         store(&directory, service, &scope, Some((revision, &envelope)))
     })
     .await

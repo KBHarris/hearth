@@ -95,11 +95,18 @@ pub async fn identity_vault_read(
         .join("identity-locks");
     let (directory, service) = (directory, SERVICE);
     #[cfg(feature = "phase1-acceptance")]
-    let (directory, service) = crate::phase1::storage_context(&window, &scope, "identity")?
-        .unwrap_or((directory, service));
-    tauri::async_runtime::spawn_blocking(move || store(&directory, service, &scope, None))
-        .await
-        .map_err(|_| UNAVAILABLE)?
+    let (directory, service, lease) =
+        match crate::phase1::storage_context(&window, &scope, "identity")? {
+            Some((directory, service, lease)) => (directory, service, Some(lease)),
+            None => (directory, service, None),
+        };
+    tauri::async_runtime::spawn_blocking(move || {
+        #[cfg(feature = "phase1-acceptance")]
+        let _lease = lease;
+        store(&directory, service, &scope, None)
+    })
+    .await
+    .map_err(|_| UNAVAILABLE)?
 }
 #[tauri::command]
 pub async fn identity_vault_create(
@@ -116,9 +123,14 @@ pub async fn identity_vault_create(
         .join("identity-locks");
     let (directory, service) = (directory, SERVICE);
     #[cfg(feature = "phase1-acceptance")]
-    let (directory, service) = crate::phase1::storage_context(&window, &scope, "identity")?
-        .unwrap_or((directory, service));
+    let (directory, service, lease) =
+        match crate::phase1::storage_context(&window, &scope, "identity")? {
+            Some((directory, service, lease)) => (directory, service, Some(lease)),
+            None => (directory, service, None),
+        };
     tauri::async_runtime::spawn_blocking(move || {
+        #[cfg(feature = "phase1-acceptance")]
+        let _lease = lease;
         store(&directory, service, &scope, Some(&envelope))
     })
     .await
