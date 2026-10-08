@@ -71,14 +71,18 @@ Current progress (2026-10-07): the first owner/account milestone is implemented 
 validated. A setup code authorizes exactly one owner claim; WASM-worker OPAQUE registration
 and login use persistent PostgreSQL accounts and expiring/revocable sessions. Real HTTP,
 PostgreSQL and browser checks pass. [ADR 0005](adr/0005-owner-authentication.md) records the
-profile, bootstrap, session and storage decisions. Hosted auth/web and Windows/macOS
-desktop checks pass; Linux desktop remains pending. This
-milestone does not yet implement DMs or complete the phase exit criteria.
+profile, bootstrap, session and storage decisions. All 12 hosted checks pass for the owner
+milestone. First-device enrollment now binds immutable account/device public keys, with
+an encrypted local vault in browser IndexedDB or the native OS store. [ADR 0006](adr/0006-first-device-vault.md)
+records its scope and local acceptance. Hosted checks for the new vault work are pending;
+DMs and the full phase exit criteria remain open.
 
 - [x] Guided first-run owner creation, closed registration, OPAQUE owner login/logout,
   and PostgreSQL sessions. Test concurrent claims, replay, expiry, restart and revocation.
-- [ ] Next: account identity and device registration with protected local key storage;
-  then a second-account registration path and authenticated MLS delivery.
+- [x] Account identity, cross-signed first-device registration and encrypted local key vault;
+  preserve existing keys and warn on roster changes. Local browser/Windows storage checks pass.
+- [ ] Device linking and recovery/export; validate native packaged auth and Linux Secret Service.
+- [ ] Second-account registration and authenticated MLS delivery.
 
 - Accounts: OPAQUE register/login, sessions, and device registration.
 - Identity: the user identity key, cross-signed device keys, and key-change warnings in the

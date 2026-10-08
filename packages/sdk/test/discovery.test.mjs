@@ -6,6 +6,43 @@ import { AUTH_PROFILE, HearthClient, HearthError, normalizeServerUrl } from '../
 const health = { status: 'ok', version: '0.1.0', protocol: 1 }
 const discovery = { server_name: 'test.hearth', protocols: [1], server_key: 'a'.repeat(64), federation: false }
 
+const enrollment = { identity_key: 'a'.repeat(64), device_key: 'b'.repeat(64), certificate: 'c'.repeat(128), account_signature: 'd'.repeat(128), device_signature: 'e'.repeat(128) }
+
+test('device enrollment sends only public proofs with bearer authorization', async () => {
+  await withServer({
+    '/api/v1/auth/device/first': (request, response) => {
+      assert.equal(request.method, 'POST')
+      assert.equal(request.headers.authorization, `Bearer ${'f'.repeat(64)}`)
+      assert.equal(request.headers.cookie, undefined)
+      let body = ''
+      request.on('data', chunk => { body += chunk })
+      request.on('end', () => {
+        assert.deepEqual(JSON.parse(body), enrollment)
+        response.setHeader('Content-Type', 'application/json')
+        response.end(JSON.stringify(enrollment))
+      })
+    },
+    '/api/v1/auth/identity': { identity_key: enrollment.identity_key, devices: [enrollment] },
+  }, async client => {
+    assert.deepEqual(await client.enrollFirstDevice('f'.repeat(64), enrollment), enrollment)
+    assert.deepEqual(await client.identity('f'.repeat(64)), { identity_key: enrollment.identity_key, devices: [enrollment] })
+  })
+})
+
+test('identity responses reject inconsistent or malformed first-device rosters', async () => {
+  for (const identity of [
+    { identity_key: null, devices: [enrollment] },
+    { identity_key: enrollment.identity_key, devices: [] },
+    { identity_key: 'f'.repeat(64), devices: [enrollment] },
+    { identity_key: enrollment.identity_key, devices: [{ ...enrollment, device_signature: 'invalid' }] },
+    { identity_key: enrollment.identity_key, devices: [enrollment, enrollment] },
+  ]) {
+    await withServer({ '/api/v1/auth/identity': identity }, async client => {
+      await assert.rejects(client.identity('f'.repeat(64)), error => error.kind === 'invalid_response')
+    })
+  }
+})
+
 test('authentication uses explicit bearer authorization and handles empty logout responses', async () => {
   const token = 'b'.repeat(64)
   const account = { id: 'c'.repeat(64), username: 'owner', owner: true }

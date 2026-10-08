@@ -74,7 +74,7 @@ impl AuthState {
         }
         Ok(())
     }
-    fn limit(&self, username: &str) -> Result<(), StatusCode> {
+    pub(crate) fn limit(&self, username: &str) -> Result<(), StatusCode> {
         let mut budget = self
             .budget
             .lock()
@@ -95,7 +95,7 @@ impl AuthState {
         }
         Ok(())
     }
-    fn admit(&self) -> Result<tokio::sync::SemaphorePermit<'_>, StatusCode> {
+    pub(crate) fn admit(&self) -> Result<tokio::sync::SemaphorePermit<'_>, StatusCode> {
         self.admission
             .try_acquire()
             .map_err(|_| StatusCode::TOO_MANY_REQUESTS)
@@ -193,6 +193,8 @@ pub fn routes(origins: &[String]) -> Router<SharedState> {
         .route("/login/finish", post(login_finish))
         .route("/session", get(session))
         .route("/logout", post(logout))
+        .route("/identity", get(crate::device::identity))
+        .route("/device/first", post(crate::device::enroll_first))
         .layer(DefaultBodyLimit::max(16384))
         .layer(
             CorsLayer::new()
@@ -373,7 +375,7 @@ async fn login_finish(
         account: account(&row),
     }))
 }
-fn bearer(headers: &HeaderMap) -> Result<Vec<u8>, StatusCode> {
+pub(crate) fn bearer(headers: &HeaderMap) -> Result<Vec<u8>, StatusCode> {
     let token = headers
         .get(header::AUTHORIZATION)
         .and_then(|value| value.to_str().ok())

@@ -697,3 +697,7 @@ form label {
     animation: none;
   }
 }
+.device-status { margin: 14px 0; padding: 14px 16px; border: 1px solid var(--border); border-radius: 8px; }
+.device-status .device-ready { margin: 0 0 6px; color: #92b59b; }
+.device-status details { margin-top: 12px; }
+.device-status code { display: block; overflow-wrap: anywhere; margin: 12px 0; font-size: 12px; }

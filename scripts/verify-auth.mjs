@@ -64,7 +64,7 @@ async function request(path, body, token) {
   const text = await response.text()
   return { status: response.status, value: text ? JSON.parse(text) : null, headers: response.headers }
 }
-async function login(password, serverId) {
+async function login(password, serverId, retainClient) {
   const client = new wasm.OpaqueAuthClient()
   try {
     const message = client.loginStart(password)
@@ -72,7 +72,7 @@ async function login(password, serverId) {
     assert.equal(response.status, 200)
     const proof = client.loginFinish(password, response.value.message, 'owner', serverId)
     return { exchange_id: response.value.exchange_id, message: proof }
-  } finally { client.free() }
+  } finally { if (!retainClient) client.free(); else retainClient(client) }
 }
 try {
   if (!databaseUrl) {
@@ -88,7 +88,7 @@ try {
       if (result.status === 0) break
       await pause(250)
     }
-    if (!process.argv.includes('--serve')) command('cargo', ['test', '--locked', '-p', 'hearth-server', '--test', 'auth', '--', '--ignored'], false, { ...process.env, DATABASE_URL: databaseUrl })
+    if (!process.argv.includes('--serve')) command('cargo', ['test', '--locked', '-p', 'hearth-server', '--test', 'auth', '--test', 'device', '--', '--ignored'], false, { ...process.env, DATABASE_URL: databaseUrl })
   }
   start()
   await healthy()
@@ -116,20 +116,48 @@ try {
       assert.deepEqual(finishes.map((r) => r.status).sort(), [200, 409])
       checks.one_owner_under_concurrent_claims = true
       assert.equal((await request('/api/v1/setup')).value.setup_complete, true)
-      const proof = await login(password, serverId)
+      let vaultClient
+      const proof = await login(password, serverId, (client) => { vaultClient = client })
       const finishesLogin = await Promise.all([request('/api/v1/auth/login/finish', proof), request('/api/v1/auth/login/finish', proof)])
       assert.deepEqual(finishesLogin.map((r) => r.status).sort(), [200, 401])
       response = finishesLogin.find((r) => r.status === 200)
       assert.equal(response.headers.get('cache-control'), 'no-store')
       const token = response.value.token
+      const accountId = response.value.account.id
       checks.one_use_login_proof = true
       assert.equal((await request('/api/v1/auth/session', undefined, token)).status, 200)
+      assert.deepEqual((await request('/api/v1/auth/identity', undefined, token)).value, { identity_key: null, devices: [] })
+      const prepared = JSON.parse(vaultClient.prepareIdentity(undefined, accountId, serverId))
+      const enrollment = prepared.enrollment
+      assert.equal(prepared.envelope.length, 274)
+      assert.equal((await request('/api/v1/auth/device/first', { ...enrollment, device_signature: '00'.repeat(64) }, token)).status, 400)
+      const deviceClaims = await Promise.all([request('/api/v1/auth/device/first', enrollment, token), request('/api/v1/auth/device/first', enrollment, token)])
+      assert.deepEqual(deviceClaims.map((r) => r.status), [200, 200])
+      assert.equal((await request('/api/v1/auth/identity', undefined, token)).value.devices.length, 1)
+      vaultClient.commitIdentity()
+      assert.throws(() => vaultClient.prepareIdentity(prepared.envelope, accountId, serverId))
+      vaultClient.free()
+      checks.cross_signed_device_bound_to_account_and_server = true
+      checks.encrypted_vault_only_client_side = true
       const pending = await login(password, serverId)
       await stop(); start(); await healthy()
       assert.equal((await request('/.well-known/hearth')).value.server_key, serverId)
       assert.equal((await request('/api/v1/auth/session', undefined, token)).status, 200)
       assert.equal((await request('/api/v1/auth/login/finish', pending)).status, 200)
       checks.credentials_pending_proofs_and_sessions_survive_restart = true
+      assert.equal((await request('/api/v1/auth/identity', undefined, token)).value.identity_key, enrollment.identity_key)
+      let restoredClient
+      const newProof = await login(password, serverId, (client) => { restoredClient = client })
+      const newSession = await request('/api/v1/auth/login/finish', newProof)
+      const restored = JSON.parse(restoredClient.prepareIdentity(prepared.envelope, accountId, serverId))
+      assert.deepEqual(restored.enrollment, enrollment)
+      assert.equal((await request('/api/v1/auth/device/first', restored.enrollment, newSession.value.token)).status, 200)
+      assert.throws(() => restoredClient.prepareIdentity('02' + prepared.envelope.slice(2), accountId, serverId))
+      const otherIdentity = JSON.parse(restoredClient.prepareIdentity(undefined, accountId, serverId))
+      assert.equal((await request('/api/v1/auth/device/first', otherIdentity.enrollment, newSession.value.token)).status, 409)
+      restoredClient.free()
+      checks.vault_unlock_after_fresh_login_and_identity_replacement_rejected = true
+      assert.ok(frames.every((frame) => !frame.includes(prepared.envelope)))
       await stop()
       const setupPath = join(directory, 'opaque.setup')
       const savedPath = join(directory, 'opaque.setup.saved')

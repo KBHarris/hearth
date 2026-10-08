@@ -5,7 +5,8 @@ goal is end-to-end encrypted communication and federation, without ads, subscrip
 tracking. The application is licensed AGPLv3.
 
 The current build connects to a server, creates its first owner account, and supports
-OPAQUE sign-in and sign-out with persistent, expiring server sessions. Encrypted messaging,
+OPAQUE sign-in and sign-out with persistent, expiring server sessions. It enrolls the first
+cross-signed device and saves an encrypted local identity vault. Encrypted messaging,
 device linking, recovery, media, and federation remain on the roadmap.
 
 - **What we're building and why:** [PLAN.md](PLAN.md)
@@ -42,6 +43,8 @@ docs/                  roadmap, threat model, ADRs
 - Docker or Podman, for Postgres and the self-host stack.
 - Desktop builds need the [Tauri 2 prerequisites](https://v2.tauri.app/start/prerequisites/)
   (WebView2 on Windows, Xcode CLT on macOS, and `libwebkit2gtk-4.1-dev` et al. on Linux).
+- Linux desktop identity storage needs a running, unlocked Secret Service, such as GNOME
+  Keyring. An unavailable system store blocks enrollment; there is no file fallback.
 
 ## Quick start
 
@@ -90,6 +93,15 @@ stay in client memory, while the server stores only their hashes. Reloading or s
 servers requires sign-in again; server sessions expire after 24 hours and Sign out revokes
 the current session. Account/device recovery and password changes are not implemented yet.
 
+The first successful sign-in creates an identity and device key in WASM, saves their
+password-wrapped vault, then enrolls only their public keys and signatures. Browser vaults
+use IndexedDB; desktop vaults use the OS credential store. Signing out locks the keys;
+signing in on the same install unlocks the same identity. A fresh install can authenticate
+but remains unlinked until device linking or recovery is implemented. **Do not clear site
+data or delete the saved OS credential if you need to retain this prototype identity.**
+The password alone cannot restore a lost local vault. There is no vault export UI yet.
+See [ADR 0006](docs/adr/0006-first-device-vault.md) for the format and remaining gates.
+
 For a different local backend, set `HEARTH_DEV_SERVER` before starting Vite. Packaged desktop
 builds default to `http://localhost:8080`; set `VITE_HEARTH_SERVER_URL` at build time to change
 that default, or choose an address in the app.
@@ -104,7 +116,7 @@ Useful commands:
 | `npm run desktop:dev` | Run the Tauri desktop app against the Vite dev server |
 | `cargo run -p hearth-server` | Run the server natively (needs `DATABASE_URL`) |
 | `npm run protocol:generate` / `npm run protocol:check` | Generate Rust wire types into the SDK / reject drift |
-| `node scripts/verify-auth.mjs` | Disposable PostgreSQL + real HTTP/WASM owner, session and adversarial checks |
+| `node scripts/verify-auth.mjs` | Disposable PostgreSQL + real HTTP/WASM owner, session, device and vault checks |
 | `npm run spike:compose -- --desktop` | Fresh disposable Compose server, restart-key check, and real desktop webview discovery/media/MLS |
 
 ## Phase 0 crypto experiments

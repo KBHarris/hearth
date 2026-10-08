@@ -39,11 +39,14 @@ fn identifiers<'a>(username: &'a str, server_id: &'a str) -> Identifiers<'a> {
 pub struct Client {
     registration: Option<ClientRegistration<Suite>>,
     login: Option<ClientLogin<Suite>>,
+    // Client-only, retained until the local vault is opened. Never serialized or exported.
+    export_key: Option<zeroize::Zeroizing<Vec<u8>>>,
 }
 impl Client {
     pub fn registration_start(&mut self, password: &str) -> Result<String, String> {
         self.registration = None;
         self.login = None;
+        self.export_key = None;
         let result = ClientRegistration::<Suite>::start(&mut OsRng, password.as_bytes())
             .map_err(|_| ERROR)?;
         self.registration = Some(result.state);
@@ -74,6 +77,7 @@ impl Client {
     }
     pub fn login_start(&mut self, password: &str) -> Result<String, String> {
         self.login = None;
+        self.export_key = None;
         let result =
             ClientLogin::<Suite>::start(&mut OsRng, password.as_bytes()).map_err(|_| ERROR)?;
         self.login = Some(result.state);
@@ -100,10 +104,38 @@ impl Client {
                 ),
             )
             .map_err(|_| ERROR)?;
-        // Identity wrapping and authenticated channel derivation are later milestones.
+        self.export_key = Some(zeroize::Zeroizing::new(result.export_key.to_vec()));
         result.export_key.zeroize();
         result.session_key.zeroize();
         Ok(hex::encode(result.message.serialize()))
+    }
+    #[cfg(feature = "local-vault")]
+    pub(crate) fn export_key(&self) -> Result<&[u8], String> {
+        self.export_key
+            .as_deref()
+            .map(|key| key.as_slice())
+            .ok_or_else(|| ERROR.into())
+    }
+    pub fn lock_export_key(&mut self) {
+        self.export_key = None;
+    }
+    #[cfg(feature = "local-vault")]
+    pub fn prepare_identity(
+        &self,
+        envelope: Option<&str>,
+        account: &str,
+        server: &str,
+    ) -> Result<(crate::vault::LocalIdentity, String), String> {
+        let key = self.export_key()?;
+        let identity = match envelope {
+            Some(envelope) => crate::vault::LocalIdentity::open(envelope, key, account, server)?,
+            None => crate::vault::LocalIdentity::new(),
+        };
+        let sealed = match envelope {
+            Some(envelope) => envelope.to_owned(),
+            None => identity.seal(key, account, server)?,
+        };
+        Ok((identity, sealed))
     }
 }
 

@@ -11,12 +11,14 @@
     "build": "tsc -b && vite build",
     "lint": "oxlint",
     "preview": "vite preview",
-    "typecheck": "tsc -b"
+    "typecheck": "tsc -b",
+    "test": "node --experimental-strip-types --test --test-timeout=10000 test/*.test.mjs"
   },
   "dependencies": {
+    "@hearth/sdk": "*",
+    "@tauri-apps/api": "^2.12.1",
     "react": "^19.2.8",
-    "react-dom": "^19.2.8",
-    "@hearth/sdk": "*"
+    "react-dom": "^19.2.8"
   },
   "devDependencies": {
     "@types/node": "^24.13.3",

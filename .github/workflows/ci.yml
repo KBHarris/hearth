@@ -24,8 +24,8 @@ jobs:
           targets: wasm32-unknown-unknown
       - uses: Swatinem/rust-cache@v2
       - run: cargo fmt --all --check
-      - run: cargo clippy --all-targets --features hearth-proto/typescript,hearth-crypto/mls-spike,hearth-server/opaque-spike,hearth-wasm/opaque-spike -- -D warnings
-      - run: cargo test --features hearth-proto/typescript,hearth-crypto/mls-spike,hearth-server/opaque-spike,hearth-wasm/opaque-spike
+      - run: cargo clippy --all-targets --features hearth-proto/typescript,hearth-crypto/mls-spike,hearth-server/opaque-spike,hearth-wasm/opaque-spike,hearth-wasm/auth -- -D warnings
+      - run: cargo test --features hearth-proto/typescript,hearth-crypto/mls-spike,hearth-server/opaque-spike,hearth-wasm/opaque-spike,hearth-wasm/auth
       - run: cargo run -p hearth-proto --features typescript --bin generate-protocol -- --check
       - run: cargo check -p hearth-wasm --target wasm32-unknown-unknown
       - run: cargo check -p hearth-wasm --target wasm32-unknown-unknown --features mls-spike,opaque-spike
@@ -71,7 +71,7 @@ jobs:
         with:
           node-version: 22
       - run: npm run spike:tools
-      - run: cargo test -p hearth-server --test auth -- --ignored
+      - run: cargo test -p hearth-server --test auth --test device -- --ignored
       - run: node scripts/verify-auth.mjs
         timeout-minutes: 5
       - uses: actions/upload-artifact@v4
@@ -135,6 +135,16 @@ jobs:
           name: product-auth-wasm
           path: apps/client/src/crypto/generated/
       - run: npm run desktop:build -- --debug --no-bundle
+      - run: cargo build -p hearth-desktop --features phase1-storage-test
+      - name: Windows/macOS credential store acceptance
+        if: runner.os != 'Linux'
+        timeout-minutes: 2
+        run: node scripts/verify-local-vault.mjs
+      - uses: actions/upload-artifact@v4
+        if: runner.os != 'Linux'
+        with:
+          name: phase1-vault-${{ matrix.os }}
+          path: target/phase1-evidence/
       - run: npm run spike:media:build
       - run: cargo build -p hearth-desktop --features phase0-spike
       - run: node scripts/verify-desktop-mls.mjs

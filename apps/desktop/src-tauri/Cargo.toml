@@ -9,6 +9,7 @@ rust-version.workspace = true
 [features]
 mls-spike = ["hearth-crypto/mls-spike"]
 phase0-spike = ["mls-spike"]
+phase1-storage-test = []
 
 [lib]
 name = "hearth_desktop_lib"
@@ -24,3 +25,10 @@ hearth-proto.workspace = true
 serde.workspace = true
 serde_json.workspace = true
 tauri = { version = "2", features = [] }
+
+[target.'cfg(target_os = "windows")'.dependencies]
+keyring = { version = "=3.6.3", features = ["windows-native"] }
+[target.'cfg(target_os = "macos")'.dependencies]
+keyring = { version = "=3.6.3", features = ["apple-native"] }
+[target.'cfg(target_os = "linux")'.dependencies]
+keyring = { version = "=3.6.3", features = ["sync-secret-service", "crypto-rust", "vendored"] }

@@ -1,5 +1,6 @@
 import { PROTOCOL_VERSION, type Health, type SetupStatus, type WellKnown } from './protocol.ts'
 import type { Account, AuthResponse, LoginResponse, Session, OwnerRegistrationStart, OwnerRegistrationFinish, LoginStart, LoginFinish } from './protocol.ts'
+import type { AccountIdentity, DeviceEnrollment } from './protocol.ts'
 
 export * from './protocol.ts'
 
@@ -57,6 +58,12 @@ export class HearthClient {
 
   constructor(baseUrl: string) {
     this.baseUrl = normalizeServerUrl(baseUrl)
+  }
+  identity(token: string, options?: RequestOptions): Promise<AccountIdentity> {
+    return this.get('/api/v1/auth/identity', isAccountIdentity, options, { headers: { Authorization: `Bearer ${token}` } })
+  }
+  enrollFirstDevice(token: string, enrollment: DeviceEnrollment, options?: RequestOptions): Promise<DeviceEnrollment> {
+    return this.get('/api/v1/auth/device/first', isDeviceEnrollment, options, { method: 'POST', headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' }, body: JSON.stringify(enrollment) })
   }
 
   health(options?: RequestOptions): Promise<Health> {
@@ -129,7 +136,7 @@ export class HearthClient {
         redirect: 'error',
       }), aborted])
       if (!res.ok) throw new HearthError(res.status, res.status === 401 ? 'The setup code or authentication exchange was rejected.' :
-        res.status === 409 ? 'Owner setup is already complete. Sign in with the owner account.' :
+        res.status === 409 ? path.includes('/device/') ? 'This account already has an identity. Link an approved device or restore your existing keys.' : 'Owner setup is already complete. Sign in with the owner account.' :
         res.status === 429 ? 'Too many attempts. Wait one minute and try again.' : res.status === 503 ?
         'This server is temporarily unavailable. Try again soon.' :
         'The server could not complete the connection check. Check the address or contact its operator.')
@@ -192,4 +199,12 @@ function isAccount(value: unknown): value is Account {
 }
 function isSession(value: unknown): value is Session {
   return isRecord(value) && typeof value.token === 'string' && /^[a-f0-9]{64}$/.test(value.token) && Number.isInteger(value.expires_in_seconds) && (value.expires_in_seconds as number) > 0 && (value.expires_in_seconds as number) <= 86400 && isAccount(value.account)
+}
+function isDeviceEnrollment(value: unknown): value is DeviceEnrollment {
+  return isRecord(value) && ['identity_key', 'device_key'].every(key => typeof value[key] === 'string' && /^[a-f0-9]{64}$/.test(value[key])) &&
+    ['certificate', 'account_signature', 'device_signature'].every(key => typeof value[key] === 'string' && /^[a-f0-9]{128}$/.test(value[key]))
+}
+function isAccountIdentity(value: unknown): value is AccountIdentity {
+  if (!isRecord(value) || !Array.isArray(value.devices) || !value.devices.every(isDeviceEnrollment)) return false
+  return value.identity_key === null ? value.devices.length === 0 : typeof value.identity_key === 'string' && /^[a-f0-9]{64}$/.test(value.identity_key) && value.devices.length === 1 && value.devices.every(device => device.identity_key === value.identity_key)
 }

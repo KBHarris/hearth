@@ -19,8 +19,9 @@ an explicit migration; silently changing stretching parameters would break crede
 
 The React client uses a separate WASM worker. It sends only serialized protocol messages,
 and retains no application password or token in browser storage. Session and export keys
-from OPAQUE are discarded in this milestone; future identity wrapping needs a separately
-reviewed design. Tokens are independent 256-bit random bearer secrets, sent in an
+from OPAQUE were discarded in this initial milestone. [ADR 0006](0006-first-device-vault.md)
+now specifies short-lived export-key retention for local identity wrapping. Tokens are
+independent 256-bit random bearer secrets, sent in an
 Authorization header over HTTPS (HTTP only for loopback development). PostgreSQL stores
 SHA-256 token hashes, with 24-hour expiry and explicit logout revocation.
 
@@ -61,6 +62,6 @@ password strength remains relevant.
 
 Client sessions are memory-only, so reload requires another sign-in while the earlier
 server token remains valid until expiry. There is no password change, recovery, session
-management, second-user registration, device registration or encrypted messaging yet.
-Next implement protected local identity/device storage and device enrollment, followed by
-the second-account and MLS delivery paths. The full Phase 1 exit criteria remain open.
+management, second-user registration or encrypted messaging yet. First-device enrollment
+and protected local vaults are implemented in ADR 0006; linking, recovery, second-account
+registration and MLS delivery remain open. The full Phase 1 exit criteria remain open.

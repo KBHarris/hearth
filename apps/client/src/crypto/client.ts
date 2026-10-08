@@ -13,7 +13,7 @@ export class AuthCrypto {
     }
     this.worker.onerror = () => this.close()
   }
-  request(operation: 'registrationStart' | 'registrationFinish' | 'loginStart' | 'loginFinish', password: string, response?: string, username?: string, serverId?: string): Promise<string> {
+  request(operation: 'registrationStart' | 'registrationFinish' | 'loginStart' | 'loginFinish' | 'prepareIdentity' | 'commitIdentity', password: string, response?: string, username?: string, serverId?: string): Promise<string> {
     const id = ++this.sequence
     return new Promise((resolve, reject) => {
       const timer = setTimeout(() => this.close(), 30000)

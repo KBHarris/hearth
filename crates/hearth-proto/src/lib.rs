@@ -5,6 +5,7 @@
 //! Breaking changes bump [`PROTOCOL_VERSION`].
 
 pub mod auth;
+pub mod device;
 pub mod gateway;
 
 #[cfg(feature = "typescript")]

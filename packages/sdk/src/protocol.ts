@@ -20,6 +20,10 @@ export type Account = { id: string, username: string, owner: boolean, };
 
 export type Session = { token: string, expires_in_seconds: number, account: Account, };
 
+export type DeviceEnrollment = { identity_key: string, device_key: string, certificate: string, account_signature: string, device_signature: string, };
+
+export type AccountIdentity = { identity_key: string | null, devices: Array<DeviceEnrollment>, };
+
 export type HealthStatus = "ok" | "degraded";
 
 export type Health = { status: HealthStatus, version: string, protocol: number, };

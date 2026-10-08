@@ -5,6 +5,7 @@
 
 pub mod auth;
 pub mod config;
+pub mod device;
 pub mod gateway;
 pub mod keys;
 pub mod routes;

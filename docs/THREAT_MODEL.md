@@ -34,10 +34,12 @@
 | `setup.code` and its in-memory digest | Operator-only random owner bootstrap capability; routes close after successful claim | Server data lifetime; unusable for another claim after setup completion |
 | `auth_login_exchanges`: hashed exchange ID, nullable account ID, username, secret OPAQUE state, expiry | Bind and atomically consume a pending login; dummy records conceal unknown usernames at the protocol layer | Consumed on any submitted proof; otherwise 2 minutes plus cleanup delay, and possible database backup retention |
 | `auth_sessions`: hashed token, account ID, creation and expiry times | Authenticate and revoke a 256-bit bearer session | Logout or 24-hour expiry plus cleanup delay, and possible database backup retention |
+| `accounts.identity_key` | Public Ed25519 account identity, immutable after its first enrollment | Account lifetime, including backups; deletion is not implemented yet |
+| `account_devices`: account ID, device public key, certificate, account/device enrollment signatures, creation time | Validate account/server-bound first-device ownership and return the public roster | Account lifetime, including backups; linking and revocation are not implemented yet |
 | OPAQUE spike setup, password file, and pending login state | Opt-in, fixed-user feasibility test only; no product auth endpoint | Test process lifetime; memory only |
 | Media spike API secret, scoped JWTs, room/participant IDs, signaling, and RTP metadata | Loopback synthetic fixture only; no product media API | Fixture lifetime; generated secret configuration removed on normal shutdown |
 
-Later Phase 1 milestones add device public keys, MLS KeyPackages, ciphertext envelopes,
+Later Phase 1 milestones add MLS KeyPackages, ciphertext message envelopes,
 and delivery timestamps. Each gets a row here, with its justification.
 
 ## Phase 0 discovery and client storage
@@ -63,7 +65,8 @@ authentication still requires an operator comparison.
 
 [ADR 0005](adr/0005-owner-authentication.md) specifies the versioned OPAQUE profile. A WASM
 worker processes passwords locally. Only OPAQUE protocol messages go to the server; client
-session/export keys are discarded for now. Username and advertised Ed25519 server identity
+session keys are discarded. The export key is retained inside WASM only until the local
+identity vault is unlocked and its enrollment accepted, then zeroized. Username and advertised Ed25519 server identity
 are bound into the exchange. OPAQUE password records and server setup remain sensitive:
 compromise of matching server secrets and records enables offline password guessing. No
 claim of password immunity after a full server compromise is made.
@@ -92,6 +95,37 @@ matching server-data backups. Authentication request bodies, tokens, setup codes
 password files are not logged by the application; deployment proxies must avoid capturing
 these bodies and authorization headers. No independent security audit has occurred.
 
+## Phase 1 first-device identity and local vault
+
+[ADR 0006](adr/0006-first-device-vault.md) specifies client-only XChaCha20-Poly1305 vaults,
+with a wrapping key derived from the OPAQUE export key. Account ID, server signing key,
+format version and a domain context bind the ciphertext. Private identity/device keys and
+the reserved local storage key stay inside WASM; the server receives only public enrollment
+proofs. A fresh password login cannot replace an established identity or add a device.
+The first enrollment still trusts password authentication and first-use server pinning;
+independent fingerprint comparison remains necessary for authenticating that initial trust.
+
+The browser stores an encrypted envelope in IndexedDB `hearth-identity-v1`, keyed by the
+public server/account IDs. The desktop stores the same encrypted envelope in its OS
+credential store under `chat.hearth.identity.v1`; a filesystem lock containing no envelope
+serializes multiple processes. Those identifiers and displayed fingerprints are local
+metadata. Envelopes remain until site data or OS credentials are deleted; product deletion,
+export and recovery are not implemented. Missing, damaged or locked storage fails closed
+and never overwrites an existing vault. Local backups still contain sensitive ciphertext.
+Browser profile deletion loses the identity even when password authentication still works.
+Linux requires an unlocked Secret Service; the desktop never falls back to unprotected files.
+
+The client persists the vault before requesting enrollment. IndexedDB transactions and
+native cross-process locks preserve the first saved envelope; a losing creator reopens it.
+The server serializes first enrollment and permits only exact retries. The client compares
+its saved identity and device proof against the roster and warns on changes. Sign-out,
+expiry, reload or server switching terminate the worker holding unlocked keys. Cancellation
+and storage deadlines settle the UI even if an OS prompt remains pending; an already-started
+store operation may finish afterward, but no enrollment is submitted after cancellation.
+This is identity storage, not SQLCipher, MLS state or encrypted message storage. A compromised
+client or same-origin script can access unlocked secrets; browser/JS memory erasure is not
+guaranteed. The native command origin guard is not a defense against compromised bundled code.
+
 ## Phase 0 crypto experiments
 
 Optional `mls-spike` and `opaque-spike` features exercise fresh, ephemeral state. Neither
@@ -100,7 +134,8 @@ account security or encrypted chat. See [ADR 0002](adr/0002-mls-feasibility.md) 
 [ADR 0003](adr/0003-opaque-feasibility.md).
 
 The MLS experiment uses test-device BasicCredentials and requires rollback after rejected
-ciphertexts. Product identity binding and atomic encrypted storage are not implemented.
+ciphertexts. Its integration with product device credentials and atomic encrypted message
+storage is not implemented.
 The OPAQUE experiment uses a fixed test password, client WASM state, and a separate Rust
 stdio process accepting only protocol messages. Its password file and server setup are
 sensitive even though plaintext password bytes are absent. Product transport still needs

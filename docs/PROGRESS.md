@@ -9,8 +9,9 @@ Phase 0 is complete. [PR #1](https://github.com/KBHarris/hearth/pull/1) merged t
 foundations and spike ADRs into `main` on 2026-10-07 (commit `8f6db29`). All 11 final
 [CI checks](https://github.com/KBHarris/hearth/actions/runs/37670086516) passed before merge.
 Phase 1 is in progress. The first owner can now register, sign in and sign out with
-product OPAQUE and PostgreSQL sessions. Identity/device enrollment and encrypted messaging
-remain unimplemented; the full Phase 1 exit criteria are still open.
+product OPAQUE and PostgreSQL sessions. First-device enrollment and encrypted local identity
+vaults are implemented; linking, recovery, second-account registration and encrypted messaging
+remain open. The full Phase 1 exit criteria are still open.
 
 | Todo | Implementation | Validation |
 |---|---|---|
@@ -22,7 +23,8 @@ remain unimplemented; the full Phase 1 exit criteria are still open.
 | Spike A: OpenMLS | Feasibility complete | Native Rust, Node/browser WASM, and native MLS through Windows/macOS/Linux Tauri webview IPC pass |
 | Spike B: encrypted media | Feasibility complete | Local and hosted WebView2, hosted WKWebView and Chrome/Firefox/Safari pass; Linux native capability block selects browser media |
 | Spike C: OPAQUE | Feasibility complete | WASM client + separate Rust process pass registration/login and adversarial checks locally and in CI |
-| Phase 1 owner/account slice | Implemented | Local PostgreSQL, native HTTP/product WASM and browser checks pass; hosted auth/web and Windows/macOS builds pass; Linux desktop pending |
+| Phase 1 owner/account slice | Implemented | Local PostgreSQL, native HTTP/product WASM and browser checks pass; all 12 hosted jobs pass for commit 074ab7e |
+| Phase 1 identity/first-device vault | Implemented | Local crypto, PostgreSQL, WASM/HTTP, browser repeat-login and Windows OS-store acceptance pass; new hosted checks pending |
 | Threat model | Draft maintained | Discovery exposure and saved server address documented; no independent security audit |
 
 ## Iteration log
@@ -271,12 +273,45 @@ remain unimplemented; the full Phase 1 exit criteria are still open.
   `codex/phase1-owner-auth`. Implementation commit `085fa19` passes the hosted PostgreSQL
   and real HTTP/product-WASM auth scenario; saved the
   [hosted report](evidence/auth-wasm-native-hosted-2026-10-07.json).
-- At the last snapshot of [run 37682030457](https://github.com/KBHarris/hearth/actions/runs/37682030457),
-  11 of 12 jobs pass: auth, Rust, web, crypto WASM, Docker Compose, Podman, three media
-  browsers and Windows/macOS desktop builds/Phase 0 acceptance. Linux desktop remains
-  in dependency installation; it is not counted as passing. The evidence/progress-only
-  follow-up commit triggers a fresh CI run. No Phase 1 merge or full-phase completion is claimed.
+- [Run 37683819094](https://github.com/KBHarris/hearth/actions/runs/37683819094) passes all
+  12 jobs for follow-up commit `074ab7e`, including Linux desktop. The earlier run's Linux
+  dependency installation was canceled by that follow-up; it was not a product failure.
+  This evidence covers owner/authentication before the new first-device changes.
+  No Phase 1 merge or full-phase completion is claimed.
 - These desktop results cover packaging and the existing Phase 0 diagnostic scenarios,
   not the new account flow inside native webviews. Product authentication has real browser
   runtime evidence; native auth runtime, independent review and the remaining Phase 1
   product features still need validation.
+
+### 2026-10-07: immutable first-device enrollment and local identity vault
+
+- Added account/server-bound Ed25519 enrollment, strict signatures and weak-key rejection.
+  PostgreSQL serializes first claims, accepts exact retries, and rejects replacement keys
+  or additional devices. Public wire types are generated from Rust.
+- WASM creates identity/device keys and a reserved storage key, encrypted with
+  XChaCha20-Poly1305 and an HKDF-derived OPAQUE export key. Private keys stay inside the
+  worker; accepted enrollment discards wrapping material. The reserved key is not yet
+  connected to SQLCipher or message storage.
+- Browser IndexedDB transactions and native OS credentials preserve existing envelopes.
+  Native storage uses a cross-process filesystem lock and never falls back to files.
+  Missing, damaged or locked stores fail closed. A fresh install authenticates but cannot
+  replace an established identity. Cancellation and deadlines settle pending storage UI.
+- Browser checks observed first enrollment, the same fingerprint after sign-out/sign-in,
+  and an unlinked fresh origin. Browser access changed before the final screenshot and
+  post-reload sign-in check; those are not counted as passing. The disposable backend,
+  database and generated secret files were cleaned up.
+- Standard npm verification passes 21 JavaScript tests, typecheck, lint and web/WASM build.
+  Rust fmt/clippy, 14 baseline tests, 18 combined-feature tests, WASM checks and protocol
+  drift checks pass. Both isolated PostgreSQL tests and all 11 real HTTP/product-WASM
+  acceptance outcomes pass in the [vault report](evidence/identity-vault-wasm-native-2026-10-07.json).
+  The Windows desktop debug build and native clippy pass. Windows Credential Manager
+  passes create/read, fresh-process persistence, existing/damaged-entry preservation and
+  cleanup in the [OS-store report](evidence/local-vault-windows-2026-10-07.json).
+- Updated the threat model and [ADR 0006](adr/0006-first-device-vault.md). CI now runs
+  device acceptance, combined product-vault crypto tests, and Windows/macOS OS-store
+  acceptance. Linux Secret Service runtime and packaged native auth remain unverified.
+- Restored the local preview at port 5173 and updated its native backend at port 18087.
+  The original signing key and PostgreSQL data were preserved; the development server
+  remains unclaimed, with no disposable test owner installed.
+- Next: recovery/linking and a second-account registration path, then authenticated MLS
+  delivery, the gateway and encrypted DMs. Phase 1 remains in progress.

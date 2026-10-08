@@ -7,6 +7,7 @@ use wasm_bindgen::prelude::*;
 #[derive(Default)]
 pub struct AuthClient {
     inner: hearth_crypto::auth::Client,
+    identity: Option<hearth_crypto::vault::LocalIdentity>,
 }
 
 #[cfg(feature = "auth")]
@@ -36,6 +37,7 @@ impl AuthClient {
     }
     #[wasm_bindgen(js_name = loginStart)]
     pub fn login_start(&mut self, password: &str) -> Result<String, JsValue> {
+        self.identity = None;
         self.inner
             .login_start(password)
             .map_err(|e| JsValue::from_str(&e))
@@ -51,6 +53,30 @@ impl AuthClient {
         self.inner
             .login_finish(password, response, username, server_id)
             .map_err(|e| JsValue::from_str(&e))
+    }
+    /// Returns only an encrypted envelope and public proof. Secrets remain in WASM.
+    #[wasm_bindgen(js_name = prepareIdentity)]
+    pub fn prepare_identity(
+        &mut self,
+        envelope: Option<String>,
+        account: &str,
+        server: &str,
+    ) -> Result<String, JsValue> {
+        self.identity = None;
+        let (identity, envelope) = self
+            .inner
+            .prepare_identity(envelope.as_deref(), account, server)
+            .map_err(|e| JsValue::from_str(&e))?;
+        let enrollment = identity
+            .enrollment(account, server)
+            .map_err(|e| JsValue::from_str(&e))?;
+        self.identity = Some(identity);
+        serde_json::to_string(&serde_json::json!({"envelope":envelope,"enrollment":enrollment}))
+            .map_err(|_| JsValue::from_str("Local identity encoding failed"))
+    }
+    #[wasm_bindgen(js_name = commitIdentity)]
+    pub fn commit_identity(&mut self) {
+        self.inner.lock_export_key();
     }
 }
 

@@ -18,6 +18,8 @@ pub fn generate() -> String {
         crate::auth::LoginResponse::decl(&config),
         crate::auth::Account::decl(&config),
         crate::auth::Session::decl(&config),
+        crate::device::DeviceEnrollment::decl(&config),
+        crate::device::AccountIdentity::decl(&config),
         HealthStatus::decl(&config),
         Health::decl(&config),
         WellKnown::decl(&config),
