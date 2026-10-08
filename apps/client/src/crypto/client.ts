@@ -1,3 +1,11 @@
+export type CryptoFailure='auth_protocol'|'wasm_stack'|'wasm_memory'|'wasm_runtime'|'wasm_range'|'crypto_unknown'
+export class AuthCryptoError extends Error {
+  readonly failure:CryptoFailure
+  constructor(message:string,failure:unknown){
+    super(message)
+    this.failure=typeof failure==='string' && ['auth_protocol','wasm_stack','wasm_memory','wasm_runtime','wasm_range'].includes(failure)?failure as CryptoFailure:'crypto_unknown'
+  }
+}
 export class AuthCrypto {
   private worker = new Worker(new URL('./worker.ts', import.meta.url), { type: 'module' })
   private sequence = 0
@@ -8,7 +16,7 @@ export class AuthCrypto {
       if (!request) return
       clearTimeout(request.timer)
       this.pending.delete(data.id)
-      if (data.error) request.reject(new Error(data.error))
+      if (data.error) request.reject(new AuthCryptoError(data.error,data.failure))
       else request.resolve(data.result)
     }
     this.worker.onerror = () => this.close()

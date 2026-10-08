@@ -1,7 +1,7 @@
 // Opt-in bundled harness: uses the product worker, SDK, session and storage commands.
 import {invoke,isTauri} from '@tauri-apps/api/core'
 import {HearthClient,HearthError,type Session,type DeviceEnrollment} from '@hearth/sdk'
-import {AuthCrypto} from './crypto/client'
+import {AuthCrypto,AuthCryptoError} from './crypto/client'
 import {createIdentity,readIdentity,identityScope} from './crypto/vault-store'
 import {messageScope,readMessages,writeMessages} from './crypto/message-store'
 import {MessagingSession,initialChat,type ChatState} from './crypto/messaging-session'
@@ -147,7 +147,8 @@ void run().catch(async(error:unknown)=>{
   checks[stage.replaceAll(' ','_')]=false
   // Enumerated failure classes only: never forward SDK/native error text.
   let failure='unclassified'
-  if(error instanceof HearthError){
+  if(error instanceof AuthCryptoError)failure=error.failure
+  else if(error instanceof HearthError){
     const statuses:Record<number,string>={400:'bad_request',401:'unauthorized',403:'forbidden',404:'not_found',409:'conflict',429:'rate_limited',503:'unavailable'}
     failure=error.kind==='http'?(statuses[error.status] ?? 'http_other'):error.kind
   }else{

@@ -1,5 +1,6 @@
 import init, { OpaqueAuthClient } from './generated/hearth_wasm.js'
 import wasmUrl from './generated/hearth_wasm_bg.wasm?url'
+import type {CryptoFailure} from './client'
 
 const ready = init({ module_or_path: wasmUrl })
 let client: OpaqueAuthClient
@@ -21,8 +22,14 @@ self.onmessage = async ({ data }: MessageEvent<Request>) => {
         operation === 'registrationStart' || operation === 'loginStart' ? client[operation](password) :
           client[operation](password, data.response!, data.username!, data.serverId!)
     self.postMessage({ id: data.id, result })
-  } catch {
-    if (['messaging','openMessaging'].includes(data.operation)) { self.postMessage({id:data.id,error:'Encrypted message or device verification failed. Existing data was preserved; sign in again to retry.'});return }
-    self.postMessage({ id: data.id, error: ['prepareIdentity','restoreIdentity','exportRecovery','linkOffer','linkId'].includes(data.operation) ? 'The identity operation could not be verified. Check your kit, passphrase, account and server; existing keys were preserved.' : 'The password or authentication exchange could not be verified.' })
+  } catch (error) {
+    // Only fixed classes cross the worker boundary; exception text can contain secrets.
+    const message=error instanceof Error?error.message:''
+    let failure:CryptoFailure=error==='Authentication exchange rejected'?'auth_protocol':'crypto_unknown'
+    if(error instanceof WebAssembly.RuntimeError || error instanceof RangeError){
+      failure=/stack/i.test(message)?'wasm_stack':/memory|bounds/i.test(message)?'wasm_memory':error instanceof RangeError?'wasm_range':'wasm_runtime'
+    }
+    if (['messaging','openMessaging'].includes(data.operation)) { self.postMessage({id:data.id,failure,error:'Encrypted message or device verification failed. Existing data was preserved; sign in again to retry.'});return }
+    self.postMessage({ id: data.id, failure, error: ['prepareIdentity','restoreIdentity','exportRecovery','linkOffer','linkId'].includes(data.operation) ? 'The identity operation could not be verified. Check your kit, passphrase, account and server; existing keys were preserved.' : 'The password or authentication exchange could not be verified.' })
   } finally { data.password = '' }
 }
