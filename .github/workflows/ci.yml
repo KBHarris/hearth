@@ -71,10 +71,11 @@ jobs:
         with:
           node-version: 22
       - run: npm run spike:tools
-      - run: sudo apt-get update && sudo apt-get install -y postgresql-client
       - run: cargo test -p hearth-server --test auth --test device --test delivery -- --ignored
       - run: node scripts/verify-auth.mjs
         timeout-minutes: 5
+        env:
+          HEARTH_TEST_POSTGRES_CONTAINER: ${{ job.services.postgres.id }}
       - uses: actions/upload-artifact@v4
         if: always()
         with:

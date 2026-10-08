@@ -13,7 +13,7 @@ import { verifyMessaging } from './phase1-messaging-acceptance.mjs'
 const root = fileURLToPath(new URL('../', import.meta.url))
 if(process.env.PGBIN)process.env.PATH=process.env.PGBIN+delimiter+process.env.PATH
 const reportPath = join(root, 'target/phase1-evidence/auth.json')
-if (!process.argv.includes('--serve')) rmSync(reportPath, { force: true })
+if (!process.argv.includes('--serve') && !process.argv.includes('--desktop')) rmSync(reportPath, { force: true })
 if(process.argv.includes('--desktop'))rmSync(join(root,'target/phase1-evidence',`packaged-${process.platform}.json`),{force:true})
 const id = randomUUID()
 const directory = join(root, 'target/auth-acceptance', id)
@@ -267,8 +267,9 @@ try {
       checks.owner_only_registration_settings_survive_restart = true
       await verifyMessaging({wasm,request,login,origin,serverId,owner:token,password,prepared,linked,start,stop,healthy,checks,
         scanDatabase:async canary=>{
-          if (container) {
-            const dump=command('docker',['exec',container,'pg_dump','-U','hearth','-d','hearth','--data-only'],true)
+          const dumpContainer=container ?? process.env.HEARTH_TEST_POSTGRES_CONTAINER
+          if (dumpContainer) {
+            const dump=command('docker',['exec',dumpContainer,'pg_dump','-U','hearth','-d','hearth','--data-only'],true)
             assert.ok(!dump.includes(canary))
           } else {
             const db=new URL(databaseUrl)
