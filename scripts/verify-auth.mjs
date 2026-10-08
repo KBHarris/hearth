@@ -29,10 +29,15 @@ function command(name, args, quiet = false, env = process.env) {
 }
 command('cargo', ['build', '--locked', '-p', 'hearth-server'])
 let wasm
+let legacyWasm
 if(!process.argv.includes('--desktop') && !process.argv.includes('--serve')) {
   command('cargo', ['build', '--locked', '--release', '-p', 'hearth-wasm', '--features', 'auth', '--target', 'wasm32-unknown-unknown'])
   command('wasm-bindgen', [join(root, 'target/wasm32-unknown-unknown/release/hearth_wasm.wasm'), '--target', 'nodejs', '--out-dir', join(directory, 'wasm')])
   wasm = createRequire(import.meta.url)(join(directory, 'wasm/hearth_wasm.js'))
+  // Existing credentials/vaults must remain readable when switching build profiles.
+  command('cargo', ['build', '--locked', '-p', 'hearth-wasm', '--features', 'auth', '--target', 'wasm32-unknown-unknown'])
+  command('wasm-bindgen', [join(root, 'target/wasm32-unknown-unknown/debug/hearth_wasm.wasm'), '--target', 'nodejs', '--out-dir', join(directory, 'wasm-legacy-debug')])
+  legacyWasm = createRequire(import.meta.url)(join(directory, 'wasm-legacy-debug/hearth_wasm.js'))
 }
 const lease = createServer()
 await new Promise((resolve) => lease.listen(0, '127.0.0.1', resolve))
@@ -76,8 +81,8 @@ async function request(path, body, token) {
   const text = await response.text()
   return { status: response.status, value: text ? JSON.parse(text) : null, headers: response.headers }
 }
-async function login(password, serverId, retainClient, username = 'owner') {
-  const client = new wasm.OpaqueAuthClient()
+async function login(password, serverId, retainClient, username = 'owner', implementation = wasm) {
+  const client = new implementation.OpaqueAuthClient()
   try {
     const message = client.loginStart(password)
     const response = await request('/api/v1/auth/login/start', { username, message })
@@ -159,7 +164,7 @@ try {
     const serverId = (await request('/.well-known/hearth')).value.server_key
     const code = readFileSync(join(directory, 'setup.code'), 'utf8')
     assert.equal((await request('/api/v1/setup')).value.setup_complete, false)
-    const client = new wasm.OpaqueAuthClient()
+    const client = new legacyWasm.OpaqueAuthClient()
     let response
     try {
       const message = client.registrationStart(password)
@@ -175,7 +180,7 @@ try {
       checks.one_owner_under_concurrent_claims = true
       assert.equal((await request('/api/v1/setup')).value.setup_complete, true)
       let vaultClient
-      const proof = await login(password, serverId, (client) => { vaultClient = client })
+      const proof = await login(password, serverId, (client) => { vaultClient = client }, 'owner', legacyWasm)
       const finishesLogin = await Promise.all([request('/api/v1/auth/login/finish', proof), request('/api/v1/auth/login/finish', proof)])
       assert.deepEqual(finishesLogin.map((r) => r.status).sort(), [200, 401])
       response = finishesLogin.find((r) => r.status === 200)
@@ -212,6 +217,7 @@ try {
       const newSession = await request('/api/v1/auth/login/finish', newProof)
       const restored = JSON.parse(restoredClient.prepareIdentity(prepared.envelope, accountId, serverId))
       assert.deepEqual(restored.enrollment, enrollment)
+      checks.optimized_client_unlocks_debug_build_credentials_and_vault = true
       assert.equal((await request('/api/v1/auth/device/first', restored.enrollment, newSession.value.token)).status, 200)
       assert.throws(() => restoredClient.prepareIdentity('02' + prepared.envelope.slice(2), accountId, serverId))
       const otherIdentity = JSON.parse(restoredClient.prepareIdentity(undefined, accountId, serverId))

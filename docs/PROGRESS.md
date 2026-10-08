@@ -73,6 +73,10 @@ Full Phase 1 closure remains open while this failure is investigated.
   WASM passes required npm verification and all 22 real HTTP/WASM outcomes locally.
   The product CI run will repeat isolated Linux acceptance ten times and preserve each
   successful report. Hosted comparison and full closure remain pending.
+- Added an upgrade-compatibility gate: optimized WASM authenticates credentials created
+  by the debug build and opens its original encrypted identity vault with the same
+  cross-signed device. All 23 HTTP/WASM outcomes pass locally, including this gate;
+  [report](evidence/optimized-wasm-auth-2026-10-08.json). No profile migration is needed.
 
 ### 2026-10-08: cross-platform messaging and two-PC test preparation
 
