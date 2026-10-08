@@ -13,8 +13,10 @@ product OPAQUE and PostgreSQL sessions. First-device enrollment and encrypted lo
 vaults, linking, recovery and second-account registration are implemented. The product MLS
 engine, PostgreSQL delivery service, gateway and encrypted DM/group-DM client are implemented.
 Local HTTP/WASM, browser and packaged Windows acceptance pass, including encrypted storage,
-offline delivery and recovery/new-device messages. Hosted platform gates are pending, so
-Phase 1 exit criteria remain open.
+offline delivery and recovery/new-device messages. The first full Phase 1 hosted run has
+nine passing jobs, including HTTP/WASM acceptance. Linux Secret Service and SQLCipher
+runtime checks pass; packaged Linux/macOS gates need fixture/build fixes and Windows is
+still running. Phase 1 exit criteria remain open.
 
 | Todo | Implementation | Validation |
 |---|---|---|
@@ -30,10 +32,29 @@ Phase 1 exit criteria remain open.
 | Phase 1 identity/first-device vault | Implemented | All 12 hosted jobs pass for ba9b21e, including Windows/macOS OS stores; Linux runtime remains open |
 | Recovery, device linking and second-account onboarding | Implemented | Local SQL/HTTP/WASM, browser link flow and packaged Windows recovery acceptance pass; hosted gates pending |
 | MLS delivery, authenticated gateway, DMs and group DMs | Implemented | Actual PostgreSQL, 22 HTTP/WASM outcomes, browser text/reply/edit/offline checks and packaged Windows acceptance pass |
-| Encrypted message store | Implemented | Browser IndexedDB and real Windows SQLCipher/OS-store CAS, new-process, canary and missing-key checks pass; Linux/macOS gates pending |
+| Encrypted message store | Implemented | Browser IndexedDB and Windows/Linux SQLCipher/OS-store CAS, new-process, canary and missing-key checks pass; macOS gate pending |
 | Threat model | Draft maintained | Discovery exposure and saved server address documented; no independent security audit |
 
 ## Iteration log
+
+### 2026-10-08: hosted platform validation and fixture fixes
+
+- [Run 37788432871](https://github.com/KBHarris/hearth/actions/runs/37788432871) passes
+  Rust, web, crypto WASM, full HTTP/WASM auth/messaging acceptance, Docker, Podman and
+  Chrome/Firefox/Safari media jobs. Windows desktop remains running at this checkpoint.
+- Linux's [Secret Service](evidence/local-vault-linux-2026-10-08.json) and
+  [SQLCipher](evidence/sqlcipher-linux-2026-10-08.json) runtime checks pass. Packaged
+  acceptance stops during its owned PostgreSQL startup; the fixture now disables Unix
+  sockets and uses loopback TCP, independently verified in a disposable Linux container.
+  Startup errors preserve the initial diagnostic. The private keyring readiness check
+  no longer requires ripgrep and reports a startup timeout explicitly; ShellCheck passes.
+- macOS finds duplicate embedded plist symbols because the acceptance build includes
+  both product and diagnostic Tauri contexts. The contexts are now mutually excluded.
+  Windows feature clippy/build and [packaged acceptance](evidence/encrypted-messaging-packaged-windows-2026-10-08.json)
+  pass with the entrypoint fix. Hosted macOS/Linux acceptance still requires a rerun.
+- Required npm verification, Rust formatting/clippy/tests and the normal Windows desktop
+  debug build pass after these fixes.
+- Phase 1 remains open until all required hosted platform gates pass.
 
 ### 2026-10-07: encrypted messaging vertical slice
 

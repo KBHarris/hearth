@@ -75,11 +75,11 @@ fn main() {
         }
         return;
     }
-    #[cfg(not(feature = "phase0-spike"))]
+    #[cfg(not(any(feature = "phase0-spike", feature = "phase1-acceptance")))]
     hearth_desktop_lib::run();
-    #[cfg(feature = "phase0-spike")]
+    #[cfg(any(feature = "phase0-spike", feature = "phase1-acceptance"))]
     {
-        eprintln!("This diagnostic build requires --phase0-spike or --mls-spike.");
+        eprintln!("This diagnostic build requires its explicit acceptance argument.");
         std::process::exit(2);
     }
 }

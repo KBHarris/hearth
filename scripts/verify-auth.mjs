@@ -39,6 +39,7 @@ const binary = join(root, 'target/debug', process.platform === 'win32' ? 'hearth
 let child
 let container
 let postgresDirectory
+let postgresStarted=false
 let logs = ''
 let databaseUrl = process.env.HEARTH_TEST_DATABASE_URL
 const pause = (ms) => new Promise((resolve) => setTimeout(resolve, ms))
@@ -87,7 +88,16 @@ try {
     command('initdb',['-D',postgresDirectory,'--username=hearth','--auth=trust','--encoding=UTF8','--no-locale'],true)
     const dbLease=createServer();await new Promise(resolve=>dbLease.listen(0,'127.0.0.1',resolve))
     const dbPort=dbLease.address().port;await new Promise(resolve=>dbLease.close(resolve))
-    command('pg_ctl',['-D',postgresDirectory,'-l',join(directory,'postgres.log'),'-o',`-h 127.0.0.1 -p ${dbPort}`,'-w','start'],true)
+    // Debian's default socket directory belongs to the postgres OS user. This
+    // fixture uses only loopback TCP and must not depend on system directories.
+    const postgresLog=join(directory,'postgres.log')
+    try {
+      command('pg_ctl',['-D',postgresDirectory,'-l',postgresLog,'-o',`-h 127.0.0.1 -p ${dbPort} -c unix_socket_directories=`,'-w','start'],true)
+    } catch (error) {
+      // Startup precedes accounts or application secrets; preserve its diagnostic.
+      throw new Error(`PostgreSQL fixture startup failed:\n${existsSync(postgresLog)?readFileSync(postgresLog,'utf8'):'No startup log was created.'}`,{cause:error})
+    }
+    postgresStarted=true
     command('createdb',['-h','127.0.0.1','-p',String(dbPort),'-U','hearth','hearth'],true)
     databaseUrl=`postgres://hearth@127.0.0.1:${dbPort}/hearth`
   }
@@ -310,7 +320,7 @@ try {
   await stop()
   if (container) command('docker', ['stop', container], true)
   if(postgresDirectory){
-    command('pg_ctl',['-D',postgresDirectory,'-m','fast','-w','stop'],true)
+    if(postgresStarted)command('pg_ctl',['-D',postgresDirectory,'-m','fast','-w','stop'],true)
     assert.equal(resolve(postgresDirectory),resolve(root,'target/auth-acceptance',id,'postgres'))
     rmSync(postgresDirectory,{recursive:true,force:true})
   }

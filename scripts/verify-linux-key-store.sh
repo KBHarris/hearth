@@ -17,11 +17,14 @@ trap cleanup EXIT
 printf 'disposable-phase1-keyring-only\n' | gnome-keyring-daemon --foreground --unlock --components=secrets > "$fixture_root/keyring.log" 2>&1 &
 daemon_pid=$!
 # Wait for the private service owner rather than racing D-Bus autoactivation.
-for attempt in $(seq 1 100); do
-  if dbus-send --session --print-reply --dest=org.freedesktop.DBus /org/freedesktop/DBus org.freedesktop.DBus.NameHasOwner string:org.freedesktop.secrets | tail -n 1 | rg -q true; then break; fi
+service_ready=false
+for ((attempt=0; attempt<100; attempt++)); do
+  service_reply="$(dbus-send --session --print-reply --dest=org.freedesktop.DBus /org/freedesktop/DBus org.freedesktop.DBus.NameHasOwner string:org.freedesktop.secrets)"
+  if [[ "$service_reply" == *'boolean true'* ]]; then service_ready=true; break; fi
   kill -0 "$daemon_pid"
   sleep 0.1
 done
+if [[ "$service_ready" != true ]]; then echo 'Private Secret Service startup timed out.' >&2; exit 1; fi
 node scripts/verify-local-vault.mjs
 node scripts/verify-message-store.mjs
 node scripts/verify-auth.mjs --desktop --native-postgres
