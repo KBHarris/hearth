@@ -18,7 +18,7 @@ use std::{
     fs::OpenOptions,
     io::Write,
     path::Path,
-    sync::Mutex,
+    sync::{Arc, Mutex},
     time::{Duration, Instant},
 };
 use subtle::ConstantTimeEq;
@@ -34,10 +34,12 @@ struct Budget {
     users: HashMap<String, u32>,
 }
 pub struct AuthState {
-    server: Server,
+    pub(crate) server: Server,
     setup_digest: [u8; 32],
     budget: Mutex<Budget>,
+    delivery_budget: Mutex<Budget>,
     admission: tokio::sync::Semaphore,
+    gateway_admission: Arc<tokio::sync::Semaphore>,
 }
 impl AuthState {
     pub fn new(server: Server, setup_code: &[u8]) -> Self {
@@ -45,7 +47,13 @@ impl AuthState {
             server,
             setup_digest: Sha256::digest(setup_code).into(),
             admission: tokio::sync::Semaphore::new(16),
+            gateway_admission: Arc::new(tokio::sync::Semaphore::new(64)),
             budget: Mutex::new(Budget {
+                since: Instant::now(),
+                total: 0,
+                users: HashMap::new(),
+            }),
+            delivery_budget: Mutex::new(Budget {
                 since: Instant::now(),
                 total: 0,
                 users: HashMap::new(),
@@ -100,9 +108,42 @@ impl AuthState {
             .try_acquire()
             .map_err(|_| StatusCode::TOO_MANY_REQUESTS)
     }
+    pub(crate) fn limit_delivery(&self, account: &str) -> Result<(), StatusCode> {
+        let mut budget = self
+            .delivery_budget
+            .lock()
+            .map_err(|_| StatusCode::SERVICE_UNAVAILABLE)?;
+        if budget.since.elapsed() >= Duration::from_secs(60) {
+            budget.since = Instant::now();
+            budget.total = 0;
+            budget.users.clear();
+        }
+        if budget.total >= 600 || budget.users.get(account).copied().unwrap_or(0) >= 120 {
+            return Err(StatusCode::TOO_MANY_REQUESTS);
+        }
+        budget.total += 1;
+        *budget.users.entry(account.into()).or_default() += 1;
+        Ok(())
+    }
+    pub(crate) fn admit_gateway(&self) -> Result<tokio::sync::OwnedSemaphorePermit, StatusCode> {
+        self.gateway_admission
+            .clone()
+            .try_acquire_owned()
+            .map_err(|_| StatusCode::TOO_MANY_REQUESTS)
+    }
 }
 
 pub async fn cleanup_expired(db: &sqlx::PgPool) -> Result<(), sqlx::Error> {
+    sqlx::query("DELETE FROM mls_key_packages WHERE expires_at <= now()")
+        .execute(db)
+        .await?;
+    sqlx::query("UPDATE delivery_events SET data='{\"kind\":\"redacted\"}'::jsonb WHERE ephemeral AND created_at < now()-interval '10 seconds' AND data->>'kind'<>'redacted'").execute(db).await?;
+    sqlx::query("DELETE FROM account_invites WHERE expires_at <= now()")
+        .execute(db)
+        .await?;
+    sqlx::query("DELETE FROM device_link_offers WHERE expires_at <= now()")
+        .execute(db)
+        .await?;
     sqlx::query("DELETE FROM auth_login_exchanges WHERE expires_at <= now()")
         .execute(db)
         .await?;
@@ -149,7 +190,7 @@ pub(crate) fn secret_file(
         Err(error) => Err(error.into()),
     }
 }
-fn random_token() -> String {
+pub(crate) fn random_token() -> String {
     let mut bytes = [0u8; 32];
     OsRng.fill_bytes(&mut bytes);
     hex::encode(bytes)
@@ -160,7 +201,7 @@ fn hash_token(value: &str) -> Result<Vec<u8>, StatusCode> {
     }
     Ok(Sha256::digest(value.as_bytes()).to_vec())
 }
-fn username(value: &str) -> Result<(), StatusCode> {
+pub(crate) fn username(value: &str) -> Result<(), StatusCode> {
     if !(3..=32).contains(&value.len())
         || !value
             .bytes()
@@ -189,12 +230,23 @@ pub fn routes(origins: &[String]) -> Router<SharedState> {
     Router::new()
         .route("/owner/start", post(owner_start))
         .route("/owner/finish", post(owner_finish))
+        .route("/registration", get(crate::registration::status))
+        .route("/register/start", post(crate::registration::start))
+        .route("/register/finish", post(crate::registration::finish))
+        .route(
+            "/admin/settings",
+            get(crate::registration::settings).post(crate::registration::configure),
+        )
+        .route("/admin/invite", post(crate::registration::invite))
         .route("/login/start", post(login_start))
         .route("/login/finish", post(login_finish))
         .route("/session", get(session))
         .route("/logout", post(logout))
         .route("/identity", get(crate::device::identity))
         .route("/device/first", post(crate::device::enroll_first))
+        .route("/device/restore", post(crate::device::restore))
+        .route("/device/link", post(crate::device::link_offer))
+        .route("/device/link/{id}", get(crate::device::link_envelope))
         .layer(DefaultBodyLimit::max(16384))
         .layer(
             CorsLayer::new()
@@ -204,7 +256,7 @@ pub fn routes(origins: &[String]) -> Router<SharedState> {
         )
         .layer(middleware::map_response(no_store))
 }
-async fn no_store(mut response: Response) -> Response {
+pub(crate) async fn no_store(mut response: Response) -> Response {
     response
         .headers_mut()
         .insert(header::CACHE_CONTROL, HeaderValue::from_static("no-store"));

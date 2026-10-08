@@ -35,12 +35,22 @@
 | `auth_login_exchanges`: hashed exchange ID, nullable account ID, username, secret OPAQUE state, expiry | Bind and atomically consume a pending login; dummy records conceal unknown usernames at the protocol layer | Consumed on any submitted proof; otherwise 2 minutes plus cleanup delay, and possible database backup retention |
 | `auth_sessions`: hashed token, account ID, creation and expiry times | Authenticate and revoke a 256-bit bearer session | Logout or 24-hour expiry plus cleanup delay, and possible database backup retention |
 | `accounts.identity_key` | Public Ed25519 account identity, immutable after its first enrollment | Account lifetime, including backups; deletion is not implemented yet |
-| `account_devices`: account ID, device public key, certificate, account/device enrollment signatures, creation time | Validate account/server-bound first-device ownership and return the public roster | Account lifetime, including backups; linking and revocation are not implemented yet |
+| `account_devices`: account ID, device public key, certificate, account/device enrollment signatures, creation time | Validate account/server-bound device ownership and return the public roster | Account lifetime, including backups; revocation is not implemented yet |
+| `device_link_offers`: hashed high-entropy code ID, account/device IDs, encrypted identity kit, device signature, creation/expiry | Relay an approved-device handoff without learning its code or private identity | Successful consumption or 3-minute expiry plus cleanup delay, including possible backups |
+| `account_invites`: hashed invite code, issuer account ID, used flag, creation/expiry | Owner-authorized single-use account creation | Until account deletion or expired-invite cleanup, including possible backups |
+| Registration mode and server name in `instance_settings` | Owner-controlled onboarding policy and public discovery | Until changed, including backups |
+| `mls_key_packages`: package hash, account/device IDs, signed public KeyPackage bytes, claimed flag, creation/expiry | Single-use public MLS join material; private package secrets remain in the encrypted client store | Consumed at accepted commit or one-hour expiry plus cleanup delay, including possible backups |
+| `consumed_mls_packages`: public package digest, device ID, consumption time | Prevent a delayed upload retry from re-advertising a consumed package, including after pool expiry | Device lifetime, including backups |
+| `conversations`: random ID, MLS epoch, public device-proof manifest, creation time | Serialize commits and validate the roster against approved devices | Conversation lifetime; deletion is not implemented, including backups |
+| `conversation_accounts` and `conversation_devices` | Fixed Phase 1 DM audience and per-device fan-out; exposes the social graph | Conversation lifetime, including backups |
+| `delivery_operations`: random operation ID, conversation/account/device IDs, action, optional target operation, payload digest, creation time | Idempotent retry and author-only edits/deletes; operation kinds and reply timing are visible, reply targets remain encrypted | Conversation lifetime, including backups |
+| `device_delivery_cursors`: device public key, next sequence | Gap-free, persistent ordering for offline delivery | Device lifetime, including backups |
+| `delivery_events`: recipient device, sequence, conversation/operation IDs, public signed envelope, ciphertext, ephemeral flag, creation time | Ordered Welcome/commit/message backlog without decryption | Conversation lifetime; deletion replaces originals/edits with markers; typing is hidden after ten seconds, with backup retention possible |
+| Gateway challenge, token digest, authenticated account/device, resume scope ID, sent/acknowledged cursor and heartbeat times | Bind each connection to possession of an approved device and bound delivery window | Connection memory only; sequence metadata remains in the database |
 | OPAQUE spike setup, password file, and pending login state | Opt-in, fixed-user feasibility test only; no product auth endpoint | Test process lifetime; memory only |
 | Media spike API secret, scoped JWTs, room/participant IDs, signaling, and RTP metadata | Loopback synthetic fixture only; no product media API | Fixture lifetime; generated secret configuration removed on normal shutdown |
 
-Later Phase 1 milestones add MLS KeyPackages, ciphertext message envelopes,
-and delivery timestamps. Each gets a row here, with its justification.
+All routing information above is metadata. MLS private content is never decoded by the server.
 
 ## Phase 0 discovery and client storage
 
@@ -77,7 +87,7 @@ malicious first server or compromised web client code. Passwords and bearer toke
 persisted by the application. Tokens remain in React memory; JavaScript strings and browser
 form/password-manager handling cannot promise memory erasure. Reloading drops the local
 token without revoking its server session. Logout revokes the current token; no session
-listing, device revocation, password change or recovery is implemented yet.
+listing, device revocation or password change is implemented yet.
 
 Auth routes use explicit origin allowlists, no credentialed cookies, 16 KiB body limits,
 no-store responses, a 16-operation admission bound and process-local request budgets
@@ -101,7 +111,7 @@ these bodies and authorization headers. No independent security audit has occurr
 with a wrapping key derived from the OPAQUE export key. Account ID, server signing key,
 format version and a domain context bind the ciphertext. Private identity/device keys and
 the reserved local storage key stay inside WASM; the server receives only public enrollment
-proofs. A fresh password login cannot replace an established identity or add a device.
+proofs. A password alone cannot replace an established identity or add a device.
 The first enrollment still trusts password authentication and first-use server pinning;
 independent fingerprint comparison remains necessary for authenticating that initial trust.
 
@@ -109,10 +119,11 @@ The browser stores an encrypted envelope in IndexedDB `hearth-identity-v1`, keye
 public server/account IDs. The desktop stores the same encrypted envelope in its OS
 credential store under `chat.hearth.identity.v1`; a filesystem lock containing no envelope
 serializes multiple processes. Those identifiers and displayed fingerprints are local
-metadata. Envelopes remain until site data or OS credentials are deleted; product deletion,
-export and recovery are not implemented. Missing, damaged or locked storage fails closed
+metadata. Envelopes remain until site data or OS credentials are deleted. Recovery kits
+are available; product vault deletion is not implemented. Missing, damaged or locked storage fails closed
 and never overwrites an existing vault. Local backups still contain sensitive ciphertext.
-Browser profile deletion loses the identity even when password authentication still works.
+Browser profile deletion requires an approved-device link or an exported recovery kit;
+password authentication alone cannot recover the identity.
 Linux requires an unlocked Secret Service; the desktop never falls back to unprotected files.
 
 The client persists the vault before requesting enrollment. IndexedDB transactions and
@@ -122,9 +133,34 @@ its saved identity and device proof against the roster and warns on changes. Sig
 expiry, reload or server switching terminate the worker holding unlocked keys. Cancellation
 and storage deadlines settle the UI even if an OS prompt remains pending; an already-started
 store operation may finish afterward, but no enrollment is submitted after cancellation.
-This is identity storage, not SQLCipher, MLS state or encrypted message storage. A compromised
+The identity vault wraps the key used by the separate encrypted message snapshot. A compromised
 client or same-origin script can access unlocked secrets; browser/JS memory erasure is not
 guaranteed. The native command origin guard is not a defense against compromised bundled code.
+
+Recovery kits contain only the portable identity seed, encrypted with Argon2id
+(64 MiB, three passes, one lane) and XChaCha20-Poly1305. Account/server/public identity,
+version and a domain context authenticate the kit. Device and message-store keys are
+generated anew on restore. The kit and passphrase together authorize future devices, so
+protect them as recovery credentials; linking transfers that same portable authority.
+Kits do not restore old message history or MLS epoch state. Recovery still requires an
+authenticated account and an identity-matching cross-signed device proof.
+
+Linking uses a random 128-bit code; only its SHA-256 ID reaches the server. An approved
+device signs the ID and encrypted kit, scoped to account/server. Delivery requires an
+authenticated session for the same account and expires after three minutes. Enrollment
+atomically consumes it; exact enrollment retries remain idempotent. A recipient who has
+already decrypted the portable identity retains recovery authority; consuming the relay
+does not revoke identity knowledge. There is no six-digit offline-guessable link secret.
+An unlinked authenticated client retains its OPAQUE export key inside the worker while
+waiting for restore/link, until completion, sign-out, expiry or teardown; no raw key enters
+JavaScript. Existing vaults remain immutable even during restore.
+
+Registration defaults to invite-only after owner creation. The owner can select closed,
+invite-only or open registration and set the public server name. Invites are random
+256-bit capabilities delivered once to the authenticated owner, hashed in PostgreSQL,
+single-use and valid for 24 hours. Creation transactions serialize invitation consumption
+and settings changes; account creation cannot grant the owner flag. Invitation codes are
+sensitive and necessarily submitted to registration; account passwords remain OPAQUE-only.
 
 ## Phase 0 crypto experiments
 
@@ -134,8 +170,9 @@ account security or encrypted chat. See [ADR 0002](adr/0002-mls-feasibility.md) 
 [ADR 0003](adr/0003-opaque-feasibility.md).
 
 The MLS experiment uses test-device BasicCredentials and requires rollback after rejected
-ciphertexts. Its integration with product device credentials and atomic encrypted message
-storage is not implemented.
+ciphertexts. Product integration now uses cross-signed credentials, transactional rollback
+and durable encrypted snapshots; [ADR 0008](adr/0008-encrypted-direct-messages.md) records
+its formats, tests and limits separately from the experiment.
 The OPAQUE experiment uses a fixed test password, client WASM state, and a separate Rust
 stdio process accepting only protocol messages. Its password file and server setup are
 sensitive even though plaintext password bytes are absent. Product transport still needs

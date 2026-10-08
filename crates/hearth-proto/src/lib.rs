@@ -7,6 +7,7 @@
 pub mod auth;
 pub mod device;
 pub mod gateway;
+pub mod messaging;
 
 #[cfg(feature = "typescript")]
 pub mod typescript;

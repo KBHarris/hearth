@@ -17,7 +17,7 @@ required-features = ["opaque-spike"]
 
 [dependencies]
 hearth-proto.workspace = true
-hearth-crypto = { workspace = true, features = ["auth"] }
+hearth-crypto = { workspace = true, features = ["messaging"] }
 anyhow.workspace = true
 axum.workspace = true
 serde.workspace = true

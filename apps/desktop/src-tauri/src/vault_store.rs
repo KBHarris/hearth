@@ -67,7 +67,7 @@ fn store(
     }
     Ok(None)
 }
-fn allowed(window: &tauri::WebviewWindow) -> Result<(), String> {
+pub(crate) fn allowed(window: &tauri::WebviewWindow) -> Result<(), String> {
     let url = window.url().map_err(|_| UNAVAILABLE)?;
     let bundled = matches!(url.scheme(), "tauri" | "http" | "https")
         && matches!(url.host_str(), Some("localhost" | "tauri.localhost"))
@@ -93,7 +93,11 @@ pub async fn identity_vault_read(
         .app_local_data_dir()
         .map_err(|_| UNAVAILABLE)?
         .join("identity-locks");
-    tauri::async_runtime::spawn_blocking(move || store(&directory, SERVICE, &scope, None))
+    let (directory, service) = (directory, SERVICE);
+    #[cfg(feature = "phase1-acceptance")]
+    let (directory, service) = crate::phase1::storage_context(&window, &scope, "identity")?
+        .unwrap_or((directory, service));
+    tauri::async_runtime::spawn_blocking(move || store(&directory, service, &scope, None))
         .await
         .map_err(|_| UNAVAILABLE)?
 }
@@ -110,8 +114,12 @@ pub async fn identity_vault_create(
         .app_local_data_dir()
         .map_err(|_| UNAVAILABLE)?
         .join("identity-locks");
+    let (directory, service) = (directory, SERVICE);
+    #[cfg(feature = "phase1-acceptance")]
+    let (directory, service) = crate::phase1::storage_context(&window, &scope, "identity")?
+        .unwrap_or((directory, service));
     tauri::async_runtime::spawn_blocking(move || {
-        store(&directory, SERVICE, &scope, Some(&envelope))
+        store(&directory, service, &scope, Some(&envelope))
     })
     .await
     .map_err(|_| UNAVAILABLE)?

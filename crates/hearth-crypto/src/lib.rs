@@ -8,6 +8,10 @@
 //! attachment encryption, and SFrame key export land in Phases 1-4.
 
 pub mod identity;
+#[cfg(feature = "messaging")]
+pub mod messaging;
+#[cfg(feature = "local-vault")]
+pub mod recovery;
 #[cfg(feature = "local-vault")]
 pub mod vault;
 

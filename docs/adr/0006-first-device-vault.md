@@ -13,8 +13,9 @@ rejects weak public keys. The authenticated server accepts only public keys and 
 `GET /api/v1/auth/identity` returns the account's public identity and first-device roster.
 `POST /api/v1/auth/device/first` locks the account row and atomically binds that identity
 and device. An exact retry is idempotent; another identity or another device returns 409,
-even with a valid password session. The current protocol deliberately permits one device;
-approved linking needs a separate authorization flow. Roster reads use one repeatable-read
+even with a valid password session. This initial milestone permitted one device;
+[ADR 0007](0007-recovery-and-registration.md) adds separately authorized restore/linking.
+Roster reads use one repeatable-read
 snapshot. Clients compare all enrollment fields with their saved identity before using it.
 
 Keep the 64-byte OPAQUE export key within WASM after successful login. HKDF-SHA-512 derives
@@ -65,11 +66,11 @@ authentication remain separate validation gates. Build success alone does not cl
 
 ## Limits and next steps
 
-This stores identity material only. The reserved store key is not yet connected to
-SQLCipher, message history, MLS group state or KeyPackages. There is no vault export,
-password change, recovery, linking, device revocation or second-account registration.
-Clearing browser data or deleting the OS credential loses this identity; the password
-alone cannot recreate it. Do not silently reset keys to resolve storage failures.
+This ADR specifies identity storage. Subsequent work adds recovery, linking and member
+registration in ADR 0007 and integrates the reserved store key with encrypted MLS state.
+SQLCipher and complete messaging acceptance remain phase gates. Password change and device
+revocation are not implemented. Clearing browser data or deleting the OS credential loses
+this installation; the password alone cannot recreate it. Do not silently reset keys.
 
 The first device trusts successful password authentication and the pinned server's initial
 identity. A compromised client can steal unlocked keys; a malicious first server is not

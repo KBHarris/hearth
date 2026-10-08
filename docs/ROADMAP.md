@@ -74,15 +74,23 @@ PostgreSQL and browser checks pass. [ADR 0005](adr/0005-owner-authentication.md)
 profile, bootstrap, session and storage decisions. All 12 hosted checks pass for the owner
 milestone. First-device enrollment now binds immutable account/device public keys, with
 an encrypted local vault in browser IndexedDB or the native OS store. [ADR 0006](adr/0006-first-device-vault.md)
-records its scope and local acceptance. Hosted checks for the new vault work are pending;
-DMs and the full phase exit criteria remain open.
+records its scope and local acceptance. All 12 hosted checks pass for vault commit `ba9b21e`
+in run `37709982624`, including Windows/macOS credential-store acceptance. Recovery kits,
+approved-device linking and owner-controlled account invitations now pass local HTTP/WASM
+acceptance. Production MLS, authenticated gateway delivery, durable encrypted storage and
+DMs/group DMs are implemented. Local HTTP/WASM, browser and packaged Windows checks pass.
+Hosted Linux/macOS/Windows acceptance and the full phase exit criteria remain open.
 
 - [x] Guided first-run owner creation, closed registration, OPAQUE owner login/logout,
   and PostgreSQL sessions. Test concurrent claims, replay, expiry, restart and revocation.
 - [x] Account identity, cross-signed first-device registration and encrypted local key vault;
   preserve existing keys and warn on roster changes. Local browser/Windows storage checks pass.
-- [ ] Device linking and recovery/export; validate native packaged auth and Linux Secret Service.
-- [ ] Second-account registration and authenticated MLS delivery.
+- [x] Passphrase-encrypted recovery kit export/restore and an approved-device link code.
+- [x] Second-account registration through single-use owner invitations; configure name and registration mode.
+- [ ] Native packaged auth and Linux Secret Service runtime validation.
+- [x] Authenticated MLS delivery and durable encrypted messaging; local acceptance passes.
+- [x] DMs/group DMs with text, replies, edits, deletes, typing and offline backlog.
+- [ ] All Phase 1 exit criteria verified by hosted CI.
 
 - Accounts: OPAQUE register/login, sessions, and device registration.
 - Identity: the user identity key, cross-signed device keys, and key-change warnings in the

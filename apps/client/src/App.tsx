@@ -179,7 +179,7 @@ export default function App() {
               <ServerStatus status={status} url={connection.url} retry={retry} />
             </div>
             {status.kind === 'ok' && <ServerDetails info={status.info} />}
-            {status.kind === 'ok' && <AuthPanel key={connection.url + connection.attempt} url={connection.url} info={status.info} setupFinished={() => setStatus({ kind: 'ok', info: { ...status.info, setup: { setup_complete: true } } })} />}
+            {status.kind === 'ok' && <AuthPanel key={connection.url + connection.attempt} url={connection.url} info={status.info} setupFinished={() => setStatus({ kind: 'ok', info: { ...status.info, setup: { setup_complete: true } } })} configured={settings => setStatus({kind:'ok',info:{...status.info,wellKnown:{...status.info.wellKnown,server_name:settings.server_name}}})}/>}
             <div className="storage-note">
               <span><Icon name="device" />{remembered ? 'Last working address saved on this device.' : 'A working address will be remembered on this device.'}</span>
               {remembered && <button type="button" onClick={forgetServer}>Forget address</button>}
@@ -190,7 +190,7 @@ export default function App() {
             <div><Icon name="globe" /><span>Community owned</span></div>
             <div><Icon name="code" /><span>Open by design</span></div>
           </div>
-          <p className="development-note">You’re trying an early build. Messaging, device linking, and recovery are still in development.</p>
+          <p className="development-note">You’re trying an early build. Direct messages, recovery and device linking are available for testing. Communities, calls and federation are coming later.</p>
         </section>
       </main>
     </div>

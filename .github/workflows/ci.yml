@@ -71,7 +71,8 @@ jobs:
         with:
           node-version: 22
       - run: npm run spike:tools
-      - run: cargo test -p hearth-server --test auth --test device -- --ignored
+      - run: sudo apt-get update && sudo apt-get install -y postgresql-client
+      - run: cargo test -p hearth-server --test auth --test device --test delivery -- --ignored
       - run: node scripts/verify-auth.mjs
         timeout-minutes: 5
       - uses: actions/upload-artifact@v4
@@ -128,22 +129,48 @@ jobs:
         if: runner.os == 'Linux'
         run: |
           sudo apt-get update
-          sudo apt-get install -y libwebkit2gtk-4.1-dev libappindicator3-dev librsvg2-dev patchelf xvfb gstreamer1.0-plugins-good gstreamer1.0-plugins-bad gstreamer1.0-nice
+          sudo apt-get install -y libwebkit2gtk-4.1-dev libappindicator3-dev librsvg2-dev patchelf xvfb gstreamer1.0-plugins-good gstreamer1.0-plugins-bad gstreamer1.0-nice gnome-keyring dbus-x11 postgresql
+          echo "PGBIN=/usr/lib/postgresql/14/bin" >> "$GITHUB_ENV"
+      - name: Windows SQLCipher toolchain
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          $taskPerl = 'C:\Strawberry\perl\bin\perl.exe'
+          if (!(Test-Path -LiteralPath $taskPerl)) { throw 'Vendored OpenSSL requires complete Strawberry Perl' }
+          "PERL=$taskPerl" | Out-File -FilePath $env:GITHUB_ENV -Append -Encoding utf8
+          'OPENSSL_NO_ASM=1' | Out-File -FilePath $env:GITHUB_ENV -Append -Encoding utf8
+      - name: macOS fixture PostgreSQL
+        if: runner.os == 'macOS'
+        run: |
+          brew install postgresql@17
+          echo "PGBIN=$(brew --prefix postgresql@17)/bin" >> "$GITHUB_ENV"
       - run: npm ci
       - uses: actions/download-artifact@v4
         with:
           name: product-auth-wasm
           path: apps/client/src/crypto/generated/
       - run: npm run desktop:build -- --debug --no-bundle
-      - run: cargo build -p hearth-desktop --features phase1-storage-test
-      - name: Windows/macOS credential store acceptance
+      - name: Build packaged Phase 1 acceptance
+        run: npm run build
+        env:
+          HEARTH_PHASE1_HARNESS: '1'
+      - run: cargo build -p hearth-server
+      - run: cargo build -p hearth-desktop --features phase1-storage-test,phase1-acceptance
+      - name: Windows/macOS encrypted storage and packaged client acceptance
         if: runner.os != 'Linux'
-        timeout-minutes: 2
-        run: node scripts/verify-local-vault.mjs
+        timeout-minutes: 5
+        run: |
+          node scripts/verify-local-vault.mjs
+          node scripts/verify-message-store.mjs
+          node scripts/verify-auth.mjs --desktop --native-postgres
+      - name: Linux Secret Service, SQLCipher and packaged client acceptance
+        if: runner.os == 'Linux'
+        timeout-minutes: 5
+        run: xvfb-run -a dbus-run-session -- bash scripts/verify-linux-key-store.sh
       - uses: actions/upload-artifact@v4
-        if: runner.os != 'Linux'
+        if: always()
         with:
-          name: phase1-vault-${{ matrix.os }}
+          name: phase1-desktop-${{ matrix.os }}
           path: target/phase1-evidence/
       - run: npm run spike:media:build
       - run: cargo build -p hearth-desktop --features phase0-spike

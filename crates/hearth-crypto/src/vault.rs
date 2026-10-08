@@ -13,10 +13,10 @@ const ERROR: &str = "The local identity could not be unlocked. Preserve it and u
 pub const ENVELOPE_HEX_LENGTH: usize = 274;
 
 pub struct LocalIdentity {
-    user: IdentityKey,
-    device: IdentityKey,
+    pub(crate) user: IdentityKey,
+    pub(crate) device: IdentityKey,
     // Reserved client-only storage key; SQLCipher/message storage is a later integration.
-    store_key: Zeroizing<[u8; 32]>,
+    pub(crate) store_key: Zeroizing<[u8; 32]>,
 }
 impl Default for LocalIdentity {
     fn default() -> Self {

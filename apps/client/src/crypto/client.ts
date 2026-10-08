@@ -13,8 +13,9 @@ export class AuthCrypto {
     }
     this.worker.onerror = () => this.close()
   }
-  request(operation: 'registrationStart' | 'registrationFinish' | 'loginStart' | 'loginFinish' | 'prepareIdentity' | 'commitIdentity', password: string, response?: string, username?: string, serverId?: string): Promise<string> {
+  request(operation: 'registrationStart' | 'registrationFinish' | 'loginStart' | 'loginFinish' | 'prepareIdentity' | 'commitIdentity' | 'exportRecovery' | 'restoreIdentity' | 'linkOffer' | 'linkId' | 'openMessaging' | 'messaging', password: string, response?: string, username?: string, serverId?: string): Promise<string> {
     const id = ++this.sequence
+    if(this.closed)return Promise.reject(new Error('This session is locked. Sign in again.'))
     return new Promise((resolve, reject) => {
       const timer = setTimeout(() => this.close(), 30000)
       this.pending.set(id, { resolve, reject, timer })
@@ -22,8 +23,12 @@ export class AuthCrypto {
     })
   }
   close() {
+    this.closed = true
     this.worker.terminate()
     for (const request of this.pending.values()) { clearTimeout(request.timer); request.reject(new Error('Authentication was interrupted. Please try again.')) }
     this.pending.clear()
   }
+  private closed = false
+  async openMessages(envelope:string|undefined,account:string,server:string) { await this.request('openMessaging','',envelope,account,server) }
+  message(operation:string,input:unknown=''):Promise<string> { return this.request('messaging',operation,typeof input==='string'?input:JSON.stringify(input)) }
 }

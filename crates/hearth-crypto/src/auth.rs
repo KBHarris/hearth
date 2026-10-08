@@ -137,6 +137,15 @@ impl Client {
         };
         Ok((identity, sealed))
     }
+    #[cfg(feature = "local-vault")]
+    pub fn wrap_identity(
+        &self,
+        identity: &crate::vault::LocalIdentity,
+        account: &str,
+        server: &str,
+    ) -> Result<String, String> {
+        identity.seal(self.export_key()?, account, server)
+    }
 }
 
 pub struct Server {

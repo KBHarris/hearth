@@ -7,11 +7,14 @@ import { existsSync, mkdirSync, readFileSync, renameSync, rmSync, writeFileSync 
 import { createServer } from 'node:net'
 import { createInterface } from 'node:readline'
 import { fileURLToPath } from 'node:url'
-import { join } from 'node:path'
+import { join, delimiter, resolve } from 'node:path'
+import { verifyMessaging } from './phase1-messaging-acceptance.mjs'
 
 const root = fileURLToPath(new URL('../', import.meta.url))
+if(process.env.PGBIN)process.env.PATH=process.env.PGBIN+delimiter+process.env.PATH
 const reportPath = join(root, 'target/phase1-evidence/auth.json')
 if (!process.argv.includes('--serve')) rmSync(reportPath, { force: true })
+if(process.argv.includes('--desktop'))rmSync(join(root,'target/phase1-evidence',`packaged-${process.platform}.json`),{force:true})
 const id = randomUUID()
 const directory = join(root, 'target/auth-acceptance', id)
 mkdirSync(directory, { recursive: true })
@@ -21,9 +24,12 @@ function command(name, args, quiet = false, env = process.env) {
   return result.stdout?.trim()
 }
 command('cargo', ['build', '--locked', '-p', 'hearth-server'])
-command('cargo', ['build', '--locked', '-p', 'hearth-wasm', '--features', 'auth', '--target', 'wasm32-unknown-unknown'])
-command('wasm-bindgen', [join(root, 'target/wasm32-unknown-unknown/debug/hearth_wasm.wasm'), '--target', 'nodejs', '--out-dir', join(directory, 'wasm')])
-const wasm = createRequire(import.meta.url)(join(directory, 'wasm/hearth_wasm.js'))
+let wasm
+if(!process.argv.includes('--desktop') && !process.argv.includes('--serve')) {
+  command('cargo', ['build', '--locked', '-p', 'hearth-wasm', '--features', 'auth', '--target', 'wasm32-unknown-unknown'])
+  command('wasm-bindgen', [join(root, 'target/wasm32-unknown-unknown/debug/hearth_wasm.wasm'), '--target', 'nodejs', '--out-dir', join(directory, 'wasm')])
+  wasm = createRequire(import.meta.url)(join(directory, 'wasm/hearth_wasm.js'))
+}
 const lease = createServer()
 await new Promise((resolve) => lease.listen(0, '127.0.0.1', resolve))
 const port = lease.address().port
@@ -32,6 +38,7 @@ const origin = `http://127.0.0.1:${port}`
 const binary = join(root, 'target/debug', process.platform === 'win32' ? 'hearth-server.exe' : 'hearth-server')
 let child
 let container
+let postgresDirectory
 let logs = ''
 let databaseUrl = process.env.HEARTH_TEST_DATABASE_URL
 const pause = (ms) => new Promise((resolve) => setTimeout(resolve, ms))
@@ -64,17 +71,26 @@ async function request(path, body, token) {
   const text = await response.text()
   return { status: response.status, value: text ? JSON.parse(text) : null, headers: response.headers }
 }
-async function login(password, serverId, retainClient) {
+async function login(password, serverId, retainClient, username = 'owner') {
   const client = new wasm.OpaqueAuthClient()
   try {
     const message = client.loginStart(password)
-    const response = await request('/api/v1/auth/login/start', { username: 'owner', message })
+    const response = await request('/api/v1/auth/login/start', { username, message })
     assert.equal(response.status, 200)
-    const proof = client.loginFinish(password, response.value.message, 'owner', serverId)
+    const proof = client.loginFinish(password, response.value.message, username, serverId)
     return { exchange_id: response.value.exchange_id, message: proof }
   } finally { if (!retainClient) client.free(); else retainClient(client) }
 }
 try {
+  if (!databaseUrl && process.argv.includes('--native-postgres')) {
+    postgresDirectory=join(directory,'postgres')
+    command('initdb',['-D',postgresDirectory,'--username=hearth','--auth=trust','--encoding=UTF8','--no-locale'],true)
+    const dbLease=createServer();await new Promise(resolve=>dbLease.listen(0,'127.0.0.1',resolve))
+    const dbPort=dbLease.address().port;await new Promise(resolve=>dbLease.close(resolve))
+    command('pg_ctl',['-D',postgresDirectory,'-l',join(directory,'postgres.log'),'-o',`-h 127.0.0.1 -p ${dbPort}`,'-w','start'],true)
+    command('createdb',['-h','127.0.0.1','-p',String(dbPort),'-U','hearth','hearth'],true)
+    databaseUrl=`postgres://hearth@127.0.0.1:${dbPort}/hearth`
+  }
   if (!databaseUrl) {
     container = `hearth-auth-${id}`
     const password = randomBytes(32).toString('hex')
@@ -88,7 +104,7 @@ try {
       if (result.status === 0) break
       await pause(250)
     }
-    if (!process.argv.includes('--serve')) command('cargo', ['test', '--locked', '-p', 'hearth-server', '--test', 'auth', '--test', 'device', '--', '--ignored'], false, { ...process.env, DATABASE_URL: databaseUrl })
+    if (!process.argv.includes('--serve')) command('cargo', ['test', '--locked', '-p', 'hearth-server', '--test', 'auth', '--test', 'device', '--test', 'delivery', '--', '--ignored'], false, { ...process.env, DATABASE_URL: databaseUrl })
   }
   start()
   await healthy()
@@ -96,6 +112,32 @@ try {
     console.log(`Disposable owner-setup fixture: ${origin}; setup code file: ${join(directory, 'setup.code')}. Type stop to clean up.`)
     const lines = createInterface({ input: process.stdin })
     for await (const line of lines) if (line.trim() === 'stop') { lines.close(); break }
+  } else if (process.argv.includes('--desktop')) {
+    const configPath=join(directory,'webview-fixture.json')
+    writeFileSync(configPath,JSON.stringify({origin,serverKey:(await request('/.well-known/hearth')).value.server_key,setupCode:readFileSync(join(directory,'setup.code'),'utf8').trim()}),{mode:0o600})
+    let native
+    try {
+      native=spawn(join(root,'target/debug',process.platform==='win32'?'hearth-desktop.exe':'hearth-desktop'),['--phase1-acceptance'],{cwd:root,env:{...process.env,HEARTH_PHASE1_FIXTURE_PATH:configPath},windowsHide:true,stdio:['ignore','pipe','pipe']})
+      let stdout='';native.stdout.on('data',chunk=>{stdout+=chunk;if(stdout.length>100000)native.kill()})
+      // SDK errors can contain operational details; capture but never print them.
+      native.stderr.on('data',()=>{})
+      const code=await new Promise((resolve,reject)=>{
+        const timer=setTimeout(()=>{native.kill();reject(new Error('Packaged client acceptance timed out'))},190000)
+        native.once('error',error=>{clearTimeout(timer);reject(error)})
+        native.once('exit',code=>{clearTimeout(timer);resolve(code)})
+      })
+      const line=stdout.split(/\r?\n/).find(line=>line.startsWith('HEARTH_PHASE1_REPORT='))
+      assert.ok(line,'Packaged client did not return its sanitized report')
+      const report=JSON.parse(line.slice('HEARTH_PHASE1_REPORT='.length))
+      const output=join(root,'target/phase1-evidence',`packaged-${process.platform}.json`)
+      const dump=container?command('docker',['exec',container,'pg_dump','-U','hearth','-d','hearth','--data-only'],true):(()=>{const db=new URL(databaseUrl);return command('pg_dump',['--data-only','--no-owner'],true,{...process.env,PGHOST:db.hostname,PGPORT:db.port,PGUSER:decodeURIComponent(db.username),PGPASSWORD:decodeURIComponent(db.password),PGDATABASE:db.pathname.slice(1)})})()
+      const canary='HEARTH_PACKAGED_MESSAGE_CANARY_private_content'
+      report.checks.server_database_and_logs_exclude_packaged_message_canary=!dump.includes(canary) && !logs.includes(canary)
+      mkdirSync(join(root,'target/phase1-evidence'),{recursive:true})
+      writeFileSync(output,JSON.stringify({measuredAt:new Date().toISOString(),runtime:`Tauri system webview (${process.platform})`,...report},null,2)+'\n')
+      console.log(JSON.stringify(report,null,2))
+      assert.equal(code,0);assert.equal(report.outcome,'pass');assert.ok(Object.values(report.checks).every(value=>value===true))
+    } finally {native?.kill();rmSync(configPath,{force:true})}
   } else {
     const password = 'PHASE1_WASM_PASSWORD_CANARY_private_only'
     const serverId = (await request('/.well-known/hearth')).value.server_key
@@ -135,6 +177,9 @@ try {
       assert.deepEqual(deviceClaims.map((r) => r.status), [200, 200])
       assert.equal((await request('/api/v1/auth/identity', undefined, token)).value.devices.length, 1)
       vaultClient.commitIdentity()
+      const recoveryPhrase = 'HEARTH_RECOVERY_PHRASE_CANARY_private_only'
+      const recoveryKit = vaultClient.exportRecovery(recoveryPhrase,accountId,serverId)
+      const linkOffer = JSON.parse(vaultClient.linkOffer(accountId,serverId))
       assert.throws(() => vaultClient.prepareIdentity(prepared.envelope, accountId, serverId))
       vaultClient.free()
       checks.cross_signed_device_bound_to_account_and_server = true
@@ -157,6 +202,81 @@ try {
       assert.equal((await request('/api/v1/auth/device/first', otherIdentity.enrollment, newSession.value.token)).status, 409)
       restoredClient.free()
       checks.vault_unlock_after_fresh_login_and_identity_replacement_rejected = true
+      await stop();start();await healthy()
+      const offered = { id:linkOffer.id,device_key:linkOffer.device_key,envelope:linkOffer.envelope,signature:linkOffer.signature }
+      assert.equal((await request('/api/v1/auth/device/link',offered,token)).status,200)
+      assert.equal((await request(`/api/v1/auth/device/link/${linkOffer.id}`)).status,401)
+      const received = await request(`/api/v1/auth/device/link/${linkOffer.id}`,undefined,token)
+      assert.equal(received.status,200)
+      let recoveryClient
+      const recoveryProof = await login(password,serverId,client => {recoveryClient = client})
+      const recoverySession = await request('/api/v1/auth/login/finish',recoveryProof)
+      assert.equal(recoverySession.status,200)
+      assert.throws(() => recoveryClient.restoreIdentity(recoveryKit,'incorrect recovery passphrase',accountId,serverId))
+      const recovered = JSON.parse(recoveryClient.restoreIdentity(recoveryKit,recoveryPhrase,accountId,serverId))
+      assert.equal(recovered.enrollment.identity_key,enrollment.identity_key)
+      assert.notEqual(recovered.enrollment.device_key,enrollment.device_key)
+      assert.equal((await request('/api/v1/auth/device/restore',{enrollment:recovered.enrollment,link_id:null},recoverySession.value.token)).status,200)
+      recoveryClient.commitIdentity();recoveryClient.free()
+      let linkClient
+      const linkingProof = await login(password,serverId,client => {linkClient = client})
+      const linkingSession = await request('/api/v1/auth/login/finish',linkingProof)
+      assert.equal(linkingSession.status,200)
+      assert.equal(linkClient.linkId(linkOffer.code),linkOffer.id)
+      const linked = JSON.parse(linkClient.restoreIdentity(received.value.envelope,linkOffer.code,accountId,serverId))
+      const linkingBody = {enrollment:linked.enrollment,link_id:linkOffer.id}
+      assert.equal((await request('/api/v1/auth/device/restore',linkingBody,linkingSession.value.token)).status,200)
+      assert.equal((await request('/api/v1/auth/device/restore',linkingBody,linkingSession.value.token)).status,200)
+      assert.equal((await request(`/api/v1/auth/device/link/${linkOffer.id}`,undefined,token)).status,404)
+      assert.equal((await request('/api/v1/auth/identity',undefined,token)).value.devices.length,3)
+      linkClient.commitIdentity();linkClient.free()
+      assert.ok(frames.every(frame => !frame.includes(recoveryPhrase) && !frame.includes(linkOffer.code)))
+      checks.recovery_kit_restores_identity_with_fresh_device = true
+      checks.approved_device_link_delivers_identity_once = true
+      await stop();start();await healthy()
+      assert.equal((await request('/api/v1/auth/admin/settings')).status,401)
+      assert.equal((await request('/api/v1/auth/registration')).value.registration_mode,'invite')
+      const memberPassword = 'HEARTH_SECOND_ACCOUNT_PASSWORD_CANARY_private_only'
+      const member = new wasm.OpaqueAuthClient()
+      try {
+        const memberRequest = member.registrationStart(memberPassword)
+        assert.equal((await request('/api/v1/auth/register/start',{username:'bob',message:memberRequest,invite_code:null})).status,403)
+        const invited = await request('/api/v1/auth/admin/invite',{},token)
+        assert.equal(invited.status,200)
+        const registration = await request('/api/v1/auth/register/start',{username:'bob',message:memberRequest,invite_code:invited.value.code})
+        assert.equal(registration.status,200)
+        const upload = member.registrationFinish(memberPassword,registration.value.message,'bob',serverId)
+        const claims = await Promise.all([request('/api/v1/auth/register/finish',{username:'bob',message:upload,invite_code:invited.value.code}),request('/api/v1/auth/register/finish',{username:'bob',message:upload,invite_code:invited.value.code})])
+        assert.deepEqual(claims.map(result=>result.status).sort(),[200,403])
+        assert.equal(claims.find(result=>result.status===200).value.owner,false)
+        const memberProof = await login(memberPassword,serverId,null,'bob')
+        const memberSession = await request('/api/v1/auth/login/finish',memberProof)
+        assert.equal(memberSession.status,200)
+        assert.equal((await request('/api/v1/auth/admin/invite',{},memberSession.value.token)).status,403)
+        assert.equal((await request('/api/v1/auth/admin/settings',undefined,memberSession.value.token)).status,403)
+        const settings = {server_name:'Hearth acceptance',registration_mode:'closed'}
+        assert.equal((await request('/api/v1/auth/admin/settings',settings,memberSession.value.token)).status,403)
+        assert.equal((await request('/api/v1/auth/admin/settings',settings,token)).status,200)
+        assert.equal((await request('/.well-known/hearth')).value.server_name,settings.server_name)
+        assert.equal((await request('/api/v1/auth/register/start',{username:'carol',message:memberRequest,invite_code:invited.value.code})).status,403)
+        await stop();start();await healthy()
+        assert.equal((await request('/api/v1/auth/registration')).value.registration_mode,'closed')
+        assert.ok(frames.every(frame=>!frame.includes(memberPassword)))
+      } finally {member.free()}
+      checks.single_use_invite_creates_second_account = true
+      checks.owner_only_registration_settings_survive_restart = true
+      await verifyMessaging({wasm,request,login,origin,serverId,owner:token,password,prepared,linked,start,stop,healthy,checks,
+        scanDatabase:async canary=>{
+          if (container) {
+            const dump=command('docker',['exec',container,'pg_dump','-U','hearth','-d','hearth','--data-only'],true)
+            assert.ok(!dump.includes(canary))
+          } else {
+            const db=new URL(databaseUrl)
+            const dump=command('pg_dump',['--data-only','--no-owner'],true,{...process.env,PGHOST:db.hostname,PGPORT:db.port,PGUSER:decodeURIComponent(db.username),PGPASSWORD:decodeURIComponent(db.password),PGDATABASE:db.pathname.slice(1)})
+            assert.ok(!dump.includes(canary))
+          }
+          assert.ok(!logs.includes(canary))
+        }})
       assert.ok(frames.every((frame) => !frame.includes(prepared.envelope)))
       await stop()
       const setupPath = join(directory, 'opaque.setup')
@@ -188,6 +308,11 @@ try {
 } finally {
   await stop()
   if (container) command('docker', ['stop', container], true)
+  if(postgresDirectory){
+    command('pg_ctl',['-D',postgresDirectory,'-m','fast','-w','stop'],true)
+    assert.equal(resolve(postgresDirectory),resolve(root,'target/auth-acceptance',id,'postgres'))
+    rmSync(postgresDirectory,{recursive:true,force:true})
+  }
   // Delete only secrets generated by this invocation, leaving non-secret build output.
   for (const name of ['server.key', 'opaque.setup', 'setup.code']) rmSync(join(directory, name), { force: true })
 }

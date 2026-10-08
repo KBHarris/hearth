@@ -1,6 +1,6 @@
 # Hearth implementation progress
 
-Updated: 2026-10-07. This file records implementation and validation separately. The
+Updated: 2026-10-08. This file records implementation and validation separately. The
 full product backlog and phase exit criteria are in [ROADMAP.md](ROADMAP.md).
 
 ## Current phase
@@ -10,8 +10,11 @@ foundations and spike ADRs into `main` on 2026-10-07 (commit `8f6db29`). All 11 
 [CI checks](https://github.com/KBHarris/hearth/actions/runs/37670086516) passed before merge.
 Phase 1 is in progress. The first owner can now register, sign in and sign out with
 product OPAQUE and PostgreSQL sessions. First-device enrollment and encrypted local identity
-vaults are implemented; linking, recovery, second-account registration and encrypted messaging
-remain open. The full Phase 1 exit criteria are still open.
+vaults, linking, recovery and second-account registration are implemented. The product MLS
+engine, PostgreSQL delivery service, gateway and encrypted DM/group-DM client are implemented.
+Local HTTP/WASM, browser and packaged Windows acceptance pass, including encrypted storage,
+offline delivery and recovery/new-device messages. Hosted platform gates are pending, so
+Phase 1 exit criteria remain open.
 
 | Todo | Implementation | Validation |
 |---|---|---|
@@ -24,10 +27,42 @@ remain open. The full Phase 1 exit criteria are still open.
 | Spike B: encrypted media | Feasibility complete | Local and hosted WebView2, hosted WKWebView and Chrome/Firefox/Safari pass; Linux native capability block selects browser media |
 | Spike C: OPAQUE | Feasibility complete | WASM client + separate Rust process pass registration/login and adversarial checks locally and in CI |
 | Phase 1 owner/account slice | Implemented | Local PostgreSQL, native HTTP/product WASM and browser checks pass; all 12 hosted jobs pass for commit 074ab7e |
-| Phase 1 identity/first-device vault | Implemented | Local crypto, PostgreSQL, WASM/HTTP, browser repeat-login and Windows OS-store acceptance pass; new hosted checks pending |
+| Phase 1 identity/first-device vault | Implemented | All 12 hosted jobs pass for ba9b21e, including Windows/macOS OS stores; Linux runtime remains open |
+| Recovery, device linking and second-account onboarding | Implemented | Local SQL/HTTP/WASM, browser link flow and packaged Windows recovery acceptance pass; hosted gates pending |
+| MLS delivery, authenticated gateway, DMs and group DMs | Implemented | Actual PostgreSQL, 22 HTTP/WASM outcomes, browser text/reply/edit/offline checks and packaged Windows acceptance pass |
+| Encrypted message store | Implemented | Browser IndexedDB and real Windows SQLCipher/OS-store CAS, new-process, canary and missing-key checks pass; Linux/macOS gates pending |
 | Threat model | Draft maintained | Discovery exposure and saved server address documented; no independent security audit |
 
 ## Iteration log
+
+### 2026-10-07: encrypted messaging vertical slice
+
+- Implemented device-bound production MLS with signed manifests, identity-root pins,
+  atomic rejection rollback, encrypted worker snapshots and durable upload outboxes.
+- Added real KeyPackage validation/claims and consumed-package tombstones, epoch-ordered
+  commits, idempotent fan-out and ACLs. Authenticated WebSockets use nonce-bound device
+  proofs, bounded acknowledgements, heartbeats, resume and PostgreSQL offline queues.
+- Implemented DMs/group DMs, replies, edits, deletes and encrypted expiring typing.
+  Linked/recovered installs join a fresh epoch and read new messages without old history.
+- Browser storage uses strict IndexedDB CAS; desktop uses actual SQLCipher with its
+  separate database key in the OS store. Missing/damaged/conflicting storage fails closed.
+- Local SQL acceptance and 22 real HTTP/product-WASM outcomes pass, including three-person
+  groups, gateway forgery/revocation, restart/offline delivery and full database/log canary
+  inspection. Crypto regression tests cover a previous-epoch message racing a commit and
+  rejection of a pending first conversation without orphaned state.
+- The packaged Windows webview passes the product worker/SDK/session/native-command path,
+  SQLCipher CAS/history, fresh-worker offline reopening, recovery and new-device rekeying.
+  Its dedicated credential services and owned files are cleaned; no production entries
+  are deleted. Separate native storage tests pass fresh-process persistence and corruption
+  rejection. This is a runtime harness, not native UI click/permission acceptance.
+- Browser UI verifies owner setup, account invitation, both-way text/reply, synced edits,
+  reload/sign-in history, offline delivery and linking from a fresh origin. The linked
+  install starts with no old history and receives a new peer message. A full database
+  dump excludes the browser message canaries.
+- Recorded [ADR 0008](adr/0008-encrypted-direct-messages.md) and updated the metadata inventory.
+  CI now includes delivery tests, packaged runtime acceptance on all desktop platforms and
+  Linux Secret Service runtime in a private D-Bus/XDG fixture. Those hosted gates remain
+  pending; Phase 1 is not marked complete.
 
 ### 2026-10-07: server connection flow
 
@@ -315,3 +350,25 @@ remain open. The full Phase 1 exit criteria are still open.
   remains unclaimed, with no disposable test owner installed.
 - Next: recovery/linking and a second-account registration path, then authenticated MLS
   delivery, the gateway and encrypted DMs. Phase 1 remains in progress.
+
+### 2026-10-07: recovery, approved linking and second-account onboarding
+
+- Verified all 12 [hosted jobs](https://github.com/KBHarris/hearth/actions/runs/37709982624)
+  pass for first-device commit `ba9b21e`; this includes macOS/Windows OS-store acceptance.
+- Added versioned passphrase-encrypted recovery kits carrying the portable identity only.
+  Restore creates fresh device and storage keys. A 128-bit grouped link code authorizes
+  an encrypted identity handoff from an approved device, with three-minute expiry and
+  atomic consumption. The relay sees the hash ID, encrypted kit and public authorization.
+- Native crypto and SQL tests pass wrong-passphrase/context rejection, new-device identity
+  preservation, expired links, cross-account isolation, forged approval and consumed-link
+  replay rejection. Product WASM/HTTP passes recovery and one-use linking across real
+  authenticated accounts; old vaults remain immutable.
+- Added single-use 24-hour owner invitations, invite-only/open/closed registration and
+  persistent server names. Product WASM passes a second-account registration, concurrent
+  invite claims, non-owner settings/invite rejection and settings persistence after restart.
+  The [local report](evidence/recovery-registration-wasm-native-2026-10-07.json) records
+  15 passing outcomes. No plaintext account or recovery passphrase reaches the server.
+- Added client backup/restore/link and admin/onboarding forms. Typecheck and lint pass;
+  browser/native UI runtime acceptance remains to be run as part of the full slice.
+- MLS delivery, gateway resume/backlog, encrypted local message storage, DMs/group DMs
+  and full Phase 1 exit criteria remain open. Work continues on these gates.

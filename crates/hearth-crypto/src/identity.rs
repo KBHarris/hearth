@@ -27,6 +27,10 @@ impl IdentityKey {
     pub fn public(&self) -> PublicIdentity {
         PublicIdentity(self.0.verifying_key())
     }
+    #[cfg(feature = "local-vault")]
+    pub(crate) fn sign_scoped(&self, statement: &[u8]) -> [u8; 64] {
+        self.0.sign(statement).to_bytes()
+    }
 
     /// Cross-sign a device key with this (user identity) key.
     pub fn certify_device(&self, device: &PublicIdentity) -> DeviceCertificate {

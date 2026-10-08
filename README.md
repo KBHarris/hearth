@@ -6,8 +6,11 @@ tracking. The application is licensed AGPLv3.
 
 The current build connects to a server, creates its first owner account, and supports
 OPAQUE sign-in and sign-out with persistent, expiring server sessions. It enrolls the first
-cross-signed device and saves an encrypted local identity vault. Encrypted messaging,
-device linking, recovery, media, and federation remain on the roadmap.
+cross-signed device and saves an encrypted local identity vault. It also supports encrypted
+recovery kits, approved-device linking, member invitations and registration settings.
+It exchanges encrypted DMs and group DMs, including replies, edits, deletes, typing and
+offline delivery, using MLS and durable encrypted local storage. Hosted Phase 1 platform
+validation is in progress; media and federation remain on the roadmap.
 
 - **What we're building and why:** [PLAN.md](PLAN.md)
 - **Phased build plan:** [docs/ROADMAP.md](docs/ROADMAP.md). **Phase 1 is in progress**; Phase 0 is complete.
@@ -19,7 +22,7 @@ device linking, recovery, media, and federation remain on the roadmap.
 ```
 crates/
   hearth-proto/        versioned wire types (REST, gateway, federation, bots)
-  hearth-crypto/       identity keys + product OPAQUE + opt-in MLS/OPAQUE spikes
+  hearth-crypto/       identity, recovery, OPAQUE and production MLS messaging
   hearth-client-core/  I/O-free client logic, shared by native and WASM
   hearth-wasm/         wasm-bindgen bindings for the web client
   hearth-server/       axum server: REST, WebSocket gateway, Postgres, migrations
@@ -45,6 +48,9 @@ docs/                  roadmap, threat model, ADRs
   (WebView2 on Windows, Xcode CLT on macOS, and `libwebkit2gtk-4.1-dev` et al. on Linux).
 - Linux desktop identity storage needs a running, unlocked Secret Service, such as GNOME
   Keyring. An unavailable system store blocks enrollment; there is no file fallback.
+- SQLCipher builds compile vendored OpenSSL. Windows requires a complete Perl distribution
+  such as [Strawberry Perl](https://strawberryperl.com/); set `PERL` to its `perl.exe` if needed.
+  CI uses `OPENSSL_NO_ASM=1` on Windows. Incomplete Git/MSYS Perl installations may fail.
 
 ## Quick start
 
@@ -65,7 +71,8 @@ needs explicit `HEARTH_HOST` configuration and TLS. Use `npm run setup -- --init
 generate configuration without starting services, or `--podman` with a Compose v2 provider.
 Retrieve the owner setup code with `npm run setup -- --show-setup-code` (add `--podman`
 for Podman). Connect the client to the server, enter that code, and create the owner.
-Registration closes after the first successful claim. A native server operator can use
+Owner bootstrap closes after the first successful claim; member registration defaults to
+invite-only and can be configured by the owner. A native server operator can use
 `cargo run -p hearth-server -- --setup-code` with the same environment as the running server.
 The code is a secret; it is never exposed by discovery or ordinary server logs.
 
@@ -91,16 +98,28 @@ compromised first connection. Clearing site data removes these pins.
 Passwords are processed in a WASM worker and are never sent to the server. Session tokens
 stay in client memory, while the server stores only their hashes. Reloading or switching
 servers requires sign-in again; server sessions expire after 24 hours and Sign out revokes
-the current session. Account/device recovery and password changes are not implemented yet.
+the current session. Recovery uses an exported encrypted kit or an approved-device link;
+password changes and device revocation are not implemented yet.
 
 The first successful sign-in creates an identity and device key in WASM, saves their
 password-wrapped vault, then enrolls only their public keys and signatures. Browser vaults
 use IndexedDB; desktop vaults use the OS credential store. Signing out locks the keys;
 signing in on the same install unlocks the same identity. A fresh install can authenticate
-but remains unlinked until device linking or recovery is implemented. **Do not clear site
-data or delete the saved OS credential if you need to retain this prototype identity.**
-The password alone cannot restore a lost local vault. There is no vault export UI yet.
-See [ADR 0006](docs/adr/0006-first-device-vault.md) for the format and remaining gates.
+but remains unlinked until it restores a recovery kit or uses an approved-device link.
+Export a kit and protect it together with its separate passphrase before clearing site
+data or deleting the saved OS credential. The password alone cannot restore a lost vault.
+Recovery creates a new device and does not copy old message history.
+See [ADR 0006](docs/adr/0006-first-device-vault.md) for the vault format and
+[ADR 0007](docs/adr/0007-recovery-and-registration.md) for recovery and member onboarding.
+
+Keep both participants signed in to prepare their encrypted devices, then enter usernames
+under **Start a conversation**. Separate usernames with commas for a group DM. An existing
+participant adds approved new devices automatically while signed in; the new install reads
+subsequent messages without inheriting old history. Browser message snapshots are encrypted
+in IndexedDB. Desktop snapshots use SQLCipher with a separate OS-stored database key.
+Compare **Check identities** fingerprints using a trusted channel. Clearing site data or
+losing native database keys loses local history. See [ADR 0008](docs/adr/0008-encrypted-direct-messages.md)
+for delivery, storage, bounded history and delete semantics.
 
 For a different local backend, set `HEARTH_DEV_SERVER` before starting Vite. Packaged desktop
 builds default to `http://localhost:8080`; set `VITE_HEARTH_SERVER_URL` at build time to change

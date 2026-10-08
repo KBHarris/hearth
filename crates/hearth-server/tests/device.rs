@@ -3,6 +3,7 @@ use axum::{
     body::{Body, to_bytes},
     http::{Request, StatusCode},
 };
+use hearth_crypto::vault::LocalIdentity;
 use hearth_crypto::{IdentityKey, identity::Enrollment};
 use hearth_server::{AppState, auth::AuthState, config::Config, keys, router};
 use serde_json::{Value, json};
@@ -239,5 +240,184 @@ async fn first_device_scope_race_immutability_and_revocation(db: PgPool) {
     assert_eq!(
         call(&app, "GET", "identity", Some(&token), None).await.0,
         StatusCode::UNAUTHORIZED
+    );
+}
+
+#[sqlx::test(migrations = "./migrations")]
+#[ignore = "requires isolated PostgreSQL"]
+async fn recovery_and_link_require_identity_possession_and_scope(db: PgPool) {
+    let directory = tempfile::tempdir().unwrap();
+    let signing_key = keys::load_or_create(&directory.path().join("server.key")).unwrap();
+    let server = signing_key.public().to_hex();
+    let account = "ab".repeat(32);
+    let token = "cd".repeat(32);
+    for (id, name, session) in [
+        (&account, "alice", &token),
+        (&"ef".repeat(32), "bob", &"12".repeat(32)),
+    ] {
+        sqlx::query(
+            "INSERT INTO accounts(id,username,opaque_profile,password_file) VALUES($1,$2,$3,$4)",
+        )
+        .bind(id)
+        .bind(name)
+        .bind(hearth_crypto::auth::PROFILE)
+        .bind(vec![0u8])
+        .execute(&db)
+        .await
+        .unwrap();
+        sqlx::query("INSERT INTO auth_sessions(token_hash,account_id) VALUES($1,$2)")
+            .bind(Sha256::digest(session.as_bytes()).to_vec())
+            .bind(id)
+            .execute(&db)
+            .await
+            .unwrap();
+    }
+    let app = router(Arc::new(AppState {
+        config: Config {
+            server_name: "recovery-test".into(),
+            bind: "127.0.0.1:0".parse().unwrap(),
+            database_url: "unused".into(),
+            db_max_connections: 5,
+            server_key_path: directory.path().join("server.key"),
+            federation_enabled: false,
+            client_origins: vec![],
+        },
+        db: db.clone(),
+        server_key: signing_key,
+        auth: AuthState::load(directory.path()).unwrap(),
+    }));
+    let identity = LocalIdentity::new();
+    let proof = identity.enrollment(&account, &server).unwrap();
+    assert_eq!(
+        call(
+            &app,
+            "POST",
+            "device/first",
+            Some(&token),
+            Some(serde_json::to_value(&proof).unwrap())
+        )
+        .await
+        .0,
+        StatusCode::OK
+    );
+    let offer_body = |identity: &LocalIdentity| {
+        let (_, id, envelope, signature) = identity.link_offer(&account, &server).unwrap();
+        json!({"id":id,"envelope":envelope,"signature":signature,"device_key":identity.enrollment(&account,&server).unwrap().device_key})
+    };
+    assert_eq!(
+        call(
+            &app,
+            "POST",
+            "device/link",
+            Some(&token),
+            Some(offer_body(&LocalIdentity::new()))
+        )
+        .await
+        .0,
+        StatusCode::FORBIDDEN
+    );
+    let expired = offer_body(&identity);
+    let expired_id = expired["id"].as_str().unwrap().to_owned();
+    assert_eq!(
+        call(&app, "POST", "device/link", Some(&token), Some(expired))
+            .await
+            .0,
+        StatusCode::OK
+    );
+    assert_eq!(
+        call(
+            &app,
+            "GET",
+            &format!("device/link/{expired_id}"),
+            Some(&"12".repeat(32)),
+            None
+        )
+        .await
+        .0,
+        StatusCode::NOT_FOUND
+    );
+    sqlx::query("UPDATE device_link_offers SET expires_at=now()-interval '1 second'")
+        .execute(&db)
+        .await
+        .unwrap();
+    assert_eq!(
+        call(
+            &app,
+            "GET",
+            &format!("device/link/{expired_id}"),
+            Some(&token),
+            None
+        )
+        .await
+        .0,
+        StatusCode::NOT_FOUND
+    );
+    let phrase = "test recovery phrase never sent to the server";
+    let kit = identity.recovery_kit(phrase, &account, &server).unwrap();
+    let restored = LocalIdentity::restore_kit(&kit, phrase, &account, &server).unwrap();
+    let body =
+        json!({"enrollment":restored.enrollment(&account,&server).unwrap(),"link_id":expired_id});
+    assert_eq!(
+        call(&app, "POST", "device/restore", Some(&token), Some(body))
+            .await
+            .0,
+        StatusCode::CONFLICT
+    );
+    let fresh = offer_body(&identity);
+    let fresh_id = fresh["id"].as_str().unwrap().to_owned();
+    assert_eq!(
+        call(&app, "POST", "device/link", Some(&token), Some(fresh))
+            .await
+            .0,
+        StatusCode::OK
+    );
+    let body =
+        json!({"enrollment":restored.enrollment(&account,&server).unwrap(),"link_id":fresh_id});
+    assert_eq!(
+        call(
+            &app,
+            "POST",
+            "device/restore",
+            Some(&token),
+            Some(body.clone())
+        )
+        .await
+        .0,
+        StatusCode::OK
+    );
+    assert_eq!(
+        call(&app, "POST", "device/restore", Some(&token), Some(body))
+            .await
+            .0,
+        StatusCode::OK
+    );
+    let another = LocalIdentity::restore_kit(&kit, phrase, &account, &server).unwrap();
+    assert_eq!(call(&app,"POST","device/restore",Some(&token),Some(json!({"enrollment":another.enrollment(&account,&server).unwrap(),"link_id":fresh_id}))).await.0,StatusCode::CONFLICT);
+    let wrong = LocalIdentity::new().enrollment(&account, &server).unwrap();
+    assert_eq!(
+        call(
+            &app,
+            "POST",
+            "device/restore",
+            Some(&token),
+            Some(json!({"enrollment":wrong,"link_id":null}))
+        )
+        .await
+        .0,
+        StatusCode::CONFLICT
+    );
+    let mut forged = serde_json::to_value(restored.enrollment(&account, &server).unwrap()).unwrap();
+    forged["device_signature"] = json!("00".repeat(64));
+    assert_eq!(
+        call(
+            &app,
+            "POST",
+            "device/restore",
+            Some(&token),
+            Some(json!({"enrollment":forged,"link_id":null}))
+        )
+        .await
+        .0,
+        StatusCode::BAD_REQUEST
     );
 }

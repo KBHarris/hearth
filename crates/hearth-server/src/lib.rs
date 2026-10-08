@@ -5,9 +5,11 @@
 
 pub mod auth;
 pub mod config;
+pub mod delivery;
 pub mod device;
 pub mod gateway;
 pub mod keys;
+pub mod registration;
 pub mod routes;
 
 use std::sync::Arc;
@@ -38,6 +40,10 @@ pub fn router(state: SharedState) -> Router {
         .route("/gateway", get(gateway::upgrade))
         .nest("/api/v1", routes::api_v1())
         .nest("/api/v1/auth", auth::routes(&state.config.client_origins))
+        .nest(
+            "/api/v1/chat",
+            delivery::routes(&state.config.client_origins),
+        )
         .layer(TraceLayer::new_for_http())
         .with_state(state)
 }
