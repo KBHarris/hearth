@@ -70,11 +70,13 @@ require identity recovery.
    ```
 
    Enter it in Hearth and create your owner account. Keep that code with you.
-2. Set the server name, keep registration invite-only, and create a member invitation.
+2. Open **Server settings**, set the server name, keep registration **Invite only**,
+   save the settings and press **Create account invite**.
    Send your buddy that invitation, the HTTPS address and the same client installer.
 3. Your buddy installs Hearth, connects and registers a separate username. Both people
    stay signed in to prepare their encrypted devices.
-4. Export recovery kits and keep their separate passphrases. Compare fingerprints under
+4. Open **Back up your identity**, create and download a recovery kit, and keep its
+   separate passphrase. Compare fingerprints under
    **Check identities** over your existing trusted communication channel.
 5. Under **Start a conversation**, enter your buddy's username and send a message.
    Your buddy replies in that conversation.

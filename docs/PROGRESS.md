@@ -14,10 +14,10 @@ vaults, linking, recovery and second-account registration are implemented. The p
 engine, PostgreSQL delivery service, gateway and encrypted DM/group-DM client are implemented.
 Local HTTP/WASM, browser and packaged Windows acceptance pass, including encrypted storage,
 offline delivery and recovery/new-device messages. Hosted Linux and macOS packaged Phase 1
-acceptance pass in run 37791562849. Windows times out during native PostgreSQL fixture
-startup; the inherited-pipe bug is reproduced and fixed locally, with all seven packaged
-checks passing against native PostgreSQL 17. A Safari media regression also timed out.
-Hosted reruns remain necessary, so Phase 1 exit criteria stay open.
+acceptance passes across Windows/macOS/Linux in run 37795943918, including native
+PostgreSQL on Windows after the inherited-pipe fixture fix. The Safari media test never
+started after WebDriver's click; the handler-readiness fix passes local native-SFU browser
+acceptance and still needs hosted verification. Full Phase 1 closure remains open.
 
 | Todo | Implementation | Validation |
 |---|---|---|
@@ -49,11 +49,17 @@ Hosted reruns remain necessary, so Phase 1 exit criteria stay open.
   while starting native PostgreSQL. A disposable local reproduction confirms `pg_ctl`
   exits successfully while `spawnSync` waits on pipes inherited by its background server.
   Windows `pg_ctl` now uses ignored streams with a separate startup log; all seven
-  packaged checks pass against an owned native PostgreSQL 17 cluster after the fix.
+  packaged checks pass against an owned native PostgreSQL 17 cluster after the fix,
+  both locally and in hosted [run 37795943918](https://github.com/KBHarris/hearth/actions/runs/37795943918).
 - Safari's separate Phase 0 media job times out; its previous run passed in 7.95 seconds.
   Keep the gate open and rerun the failure before deciding whether another fix is needed.
   The harness now shows its current stage, and the browser test saves its report/screenshot
   on timeout so a repeat failure identifies the blocked stage without secret transcripts.
+  The next report shows `Ready`/`No test run yet`, confirming the test never started.
+  The run button is now disabled until its handler is attached, and WebDriver waits for
+  readiness before its real click. Windows headless Chrome passes full encrypted synthetic
+  media with the native SFU in 9.38 seconds. Its Docker SFU attempt fails at loopback ICE
+  connection; native SFU verification retains all encryption assertions.
 - Built a shareable unsigned Windows NSIS debug installer. Added the optional public
   HTTPS Compose front end with Caddy 2.11.7 and the Let's Encrypt short-lived profile,
   supporting a public IPv4 without a purchased domain. Configuration rejects malformed,

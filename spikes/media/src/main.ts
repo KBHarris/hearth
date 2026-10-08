@@ -311,4 +311,6 @@ async function run() {
 }
 
 button.addEventListener('click', () => { void run() })
+button.disabled = false
+status.textContent = 'Ready'
 if (desktop || new URLSearchParams(location.search).get('autorun') === '1') void run()

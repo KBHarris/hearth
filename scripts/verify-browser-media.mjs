@@ -32,8 +32,11 @@ try {
       .setPreference('media.autoplay.block-webaudio', false))
     .build()
   await driver.get(fixture.url)
-  await driver.findElement(By.id('run')).click()
   try {
+    // A dev module can finish loading after WebDriver considers the DOM ready.
+    // Preserve a real user-activation click, but wait for its handler first.
+    await driver.wait(async () => await driver.findElement(By.id('run')).isEnabled(), 20000)
+    await driver.findElement(By.id('run')).click()
     await driver.wait(async () => /^(PASS|FAIL) ·/.test(await driver.findElement(By.id('status')).getText()), 70000)
   } catch (error) {
     // Only the harness's stage/check fields; never browser logs, SDP or tokens.
