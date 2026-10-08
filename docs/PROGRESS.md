@@ -13,11 +13,12 @@ product OPAQUE and PostgreSQL sessions. First-device enrollment and encrypted lo
 vaults, linking, recovery and second-account registration are implemented. The product MLS
 engine, PostgreSQL delivery service, gateway and encrypted DM/group-DM client are implemented.
 Local HTTP/WASM, browser and packaged Windows acceptance pass, including encrypted storage,
-offline delivery and recovery/new-device messages. Hosted Linux and macOS packaged Phase 1
-acceptance passes across Windows/macOS/Linux in run 37795943918, including native
-PostgreSQL on Windows after the inherited-pipe fixture fix. The Safari media test never
-started after WebDriver's click; the handler-readiness fix passes local native-SFU browser
-acceptance and still needs hosted verification. Full Phase 1 closure remains open.
+offline delivery and recovery/new-device messages. Packaged Phase 1 acceptance passes
+across Windows/macOS/Linux in run 37795943918, including native PostgreSQL on Windows
+after the inherited-pipe fixture fix. The Safari handler-readiness correction now passes
+in run 37801886115. That rerun exposes an intermittent Linux recovery/new-device failure;
+the harness now records individual recovery stages without error strings or secrets.
+Full Phase 1 closure remains open while this failure is investigated.
 
 | Todo | Implementation | Validation |
 |---|---|---|
@@ -37,6 +38,20 @@ acceptance and still needs hosted verification. Full Phase 1 closure remains ope
 | Threat model | Draft maintained | Discovery exposure and saved server address documented; no independent security audit |
 
 ## Iteration log
+
+### 2026-10-08: recovery rerun diagnosis
+
+- Safari passes after the handler-readiness correction in
+  [run 37801886115](https://github.com/KBHarris/hearth/actions/runs/37801886115).
+  The Linux packaged client passes authentication, encrypted text/reply/edit/delete,
+  SQLCipher CAS, fresh-worker history and offline backlog, but fails in the recovery
+  section after passing that section in the preceding run. Recovery is now reported
+  as individual static stages, with no raw errors or credential material emitted.
+- Ten consecutive local Windows packaged recovery runs pass using the real worker,
+  native SQLCipher/OS credentials and fresh disposable PostgreSQL clusters. Each run
+  checks new-device rekeying, new-message delivery, old-history exclusion, preserved
+  original identity, server canary absence and fixture cleanup. Required npm verification
+  and the diagnostic desktop build pass. This does not resolve the Linux failure yet.
 
 ### 2026-10-08: cross-platform messaging and two-PC test preparation
 
