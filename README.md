@@ -81,6 +81,10 @@ by commas, then restart the server. Authenticated routes allow only those origin
 origins cover local Vite and Tauri clients. Native servers also bind to loopback by default.
 Public hosting requires TLS; this build is an early prototype without a security audit.
 
+For a two-PC DM test over a public IPv4 or domain, follow
+[the Windows hosting/test guide](docs/TWO_PC_DM_TEST.md). The optional
+`npm run setup -- --https` uses Caddy with automatic certificates and WebSocket proxying.
+
 Back up PostgreSQL together with the matching server data directory (`server.key`,
 `opaque.setup`, and `setup.code`). Losing the OPAQUE setup or signing key prevents existing
 accounts from signing in; startup refuses to generate replacements for an existing account

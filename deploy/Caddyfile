@@ -1,0 +1,14 @@
+{
+	# IP-address clients commonly omit SNI; select this site's certificate behind NAT.
+	default_sni {$HEARTH_PUBLIC_ADDRESS}
+}
+
+https://{$HEARTH_PUBLIC_ADDRESS} {
+	tls {
+		issuer acme https://acme-v02.api.letsencrypt.org/directory {
+			profile shortlived
+		}
+	}
+	# No access/body logging. WebSocket upgrades are forwarded by reverse_proxy.
+	reverse_proxy server:8080
+}

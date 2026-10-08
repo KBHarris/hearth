@@ -13,10 +13,11 @@ product OPAQUE and PostgreSQL sessions. First-device enrollment and encrypted lo
 vaults, linking, recovery and second-account registration are implemented. The product MLS
 engine, PostgreSQL delivery service, gateway and encrypted DM/group-DM client are implemented.
 Local HTTP/WASM, browser and packaged Windows acceptance pass, including encrypted storage,
-offline delivery and recovery/new-device messages. The first full Phase 1 hosted run has
-nine passing jobs, including HTTP/WASM acceptance. Linux Secret Service and SQLCipher
-runtime checks pass; packaged Linux/macOS gates need fixture/build fixes and Windows is
-still running. Phase 1 exit criteria remain open.
+offline delivery and recovery/new-device messages. Hosted Linux and macOS packaged Phase 1
+acceptance pass in run 37791562849. Windows times out during native PostgreSQL fixture
+startup; the inherited-pipe bug is reproduced and fixed locally, with all seven packaged
+checks passing against native PostgreSQL 17. A Safari media regression also timed out.
+Hosted reruns remain necessary, so Phase 1 exit criteria stay open.
 
 | Todo | Implementation | Validation |
 |---|---|---|
@@ -30,12 +31,40 @@ still running. Phase 1 exit criteria remain open.
 | Spike C: OPAQUE | Feasibility complete | WASM client + separate Rust process pass registration/login and adversarial checks locally and in CI |
 | Phase 1 owner/account slice | Implemented | Local PostgreSQL, native HTTP/product WASM and browser checks pass; all 12 hosted jobs pass for commit 074ab7e |
 | Phase 1 identity/first-device vault | Implemented | All 12 hosted jobs pass for ba9b21e, including Windows/macOS OS stores; Linux runtime remains open |
-| Recovery, device linking and second-account onboarding | Implemented | Local SQL/HTTP/WASM, browser link flow and packaged Windows recovery acceptance pass; hosted gates pending |
+| Recovery, device linking and second-account onboarding | Implemented | Local SQL/HTTP/WASM/browser and packaged Windows/Linux/macOS recovery acceptance pass; latest hosted Windows gate pending |
 | MLS delivery, authenticated gateway, DMs and group DMs | Implemented | Actual PostgreSQL, 22 HTTP/WASM outcomes, browser text/reply/edit/offline checks and packaged Windows acceptance pass |
-| Encrypted message store | Implemented | Browser IndexedDB and Windows/Linux SQLCipher/OS-store CAS, new-process, canary and missing-key checks pass; macOS gate pending |
+| Encrypted message store | Implemented | Browser IndexedDB and Windows/Linux/macOS SQLCipher/OS-store CAS, new-process, canary and missing-key checks pass |
 | Threat model | Draft maintained | Discovery exposure and saved server address documented; no independent security audit |
 
 ## Iteration log
+
+### 2026-10-08: cross-platform messaging and two-PC test preparation
+
+- The context and private PostgreSQL fixture fixes work in hosted CI. Packaged
+  [macOS](evidence/encrypted-messaging-packaged-macos-2026-10-08.json) and
+  [Linux](evidence/encrypted-messaging-packaged-linux-2026-10-08.json) each pass all seven
+  messaging acceptance checks, including OPAQUE, native identity storage, SQLCipher,
+  offline history, recovery/rekeying and server canary absence. Full Linux/macOS desktop
+  jobs pass. Windows's key-store/SQLCipher checks pass, but packaged acceptance times out
+  while starting native PostgreSQL. A disposable local reproduction confirms `pg_ctl`
+  exits successfully while `spawnSync` waits on pipes inherited by its background server.
+  Windows `pg_ctl` now uses ignored streams with a separate startup log; all seven
+  packaged checks pass against an owned native PostgreSQL 17 cluster after the fix.
+- Safari's separate Phase 0 media job times out; its previous run passed in 7.95 seconds.
+  Keep the gate open and rerun the failure before deciding whether another fix is needed.
+  The harness now shows its current stage, and the browser test saves its report/screenshot
+  on timeout so a repeat failure identifies the blocked stage without secret transcripts.
+- Built a shareable unsigned Windows NSIS debug installer. Added the optional public
+  HTTPS Compose front end with Caddy 2.11.7 and the Let's Encrypt short-lived profile,
+  supporting a public IPv4 without a purchased domain. Configuration rejects malformed,
+  private and CGNAT addresses before starting services and preserves existing secrets.
+- [Local proxy acceptance](evidence/https-proxy-2026-10-08.json) passes production ACME
+  configuration, forced loopback backend binding, TLS without SNI, real Hearth discovery
+  and real gateway WebSocket forwarding. Public certificate issuance, router forwarding
+  and the connection between the two houses remain untested.
+- Added the [two-PC test guide](TWO_PC_DM_TEST.md). No public listener, firewall rule or
+  router forwarding was enabled by these checks; test proxy containers were loopback-only
+  and removed afterward. The existing local development server/data were preserved.
 
 ### 2026-10-08: hosted platform validation and fixture fixes
 

@@ -1,5 +1,5 @@
 {
-  "measuredAt": "2026-10-08T14:17:06.699Z",
+  "measuredAt": "2026-10-08T14:50:31.542Z",
   "runtime": "Tauri system webview (win32)",
   "checks": {
     "existing_install_identity_is_preserved": true,

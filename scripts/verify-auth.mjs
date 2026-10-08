@@ -19,7 +19,11 @@ const id = randomUUID()
 const directory = join(root, 'target/auth-acceptance', id)
 mkdirSync(directory, { recursive: true })
 function command(name, args, quiet = false, env = process.env) {
-  const result = spawnSync(name, args, { cwd: root, env, encoding: 'utf8', stdio: quiet ? 'pipe' : 'inherit', windowsHide: true })
+  // Windows postgres inherits pipe handles from pg_ctl. Even after pg_ctl exits,
+  // spawnSync then waits for EOF until the background database stops. Its own
+  // startup log supplies diagnostics; it must not inherit Node's capture pipes.
+  const stdio=quiet?(process.platform==='win32'&&name==='pg_ctl'?'ignore':'pipe'):'inherit'
+  const result = spawnSync(name, args, { cwd: root, env, encoding: 'utf8', stdio, windowsHide: true })
   if (result.error || result.status !== 0) throw new Error(`${name} acceptance command failed`)
   return result.stdout?.trim()
 }
@@ -94,6 +98,8 @@ try {
     try {
       command('pg_ctl',['-D',postgresDirectory,'-l',postgresLog,'-o',`-h 127.0.0.1 -p ${dbPort} -c unix_socket_directories=`,'-w','start'],true)
     } catch (error) {
+      const status=spawnSync('pg_ctl',['-D',postgresDirectory,'status'],{cwd:root,stdio:'ignore',windowsHide:true,timeout:10000})
+      postgresStarted=status.status===0
       // Startup precedes accounts or application secrets; preserve its diagnostic.
       throw new Error(`PostgreSQL fixture startup failed:\n${existsSync(postgresLog)?readFileSync(postgresLog,'utf8'):'No startup log was created.'}`,{cause:error})
     }

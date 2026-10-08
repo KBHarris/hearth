@@ -79,7 +79,9 @@ in run `37709982624`, including Windows/macOS credential-store acceptance. Recov
 approved-device linking and owner-controlled account invitations now pass local HTTP/WASM
 acceptance. Production MLS, authenticated gateway delivery, durable encrypted storage and
 DMs/group DMs are implemented. Local HTTP/WASM, browser and packaged Windows checks pass.
-Hosted Linux/macOS/Windows acceptance and the full phase exit criteria remain open.
+Hosted Linux/macOS packaged acceptance passes as of 2026-10-08. Windows and a Safari
+media rerun remain open; full phase exit criteria are not yet marked complete. An optional
+public HTTPS front end and [two-PC test guide](TWO_PC_DM_TEST.md) prepare the remote DM test.
 
 - [x] Guided first-run owner creation, closed registration, OPAQUE owner login/logout,
   and PostgreSQL sessions. Test concurrent claims, replay, expiry, restart and revocation.
@@ -87,7 +89,7 @@ Hosted Linux/macOS/Windows acceptance and the full phase exit criteria remain op
   preserve existing keys and warn on roster changes. Local browser/Windows storage checks pass.
 - [x] Passphrase-encrypted recovery kit export/restore and an approved-device link code.
 - [x] Second-account registration through single-use owner invitations; configure name and registration mode.
-- [ ] Native packaged auth and Linux Secret Service runtime validation.
+- [x] Native packaged auth and Linux Secret Service runtime validation; hosted Linux/macOS pass.
 - [x] Authenticated MLS delivery and durable encrypted messaging; local acceptance passes.
 - [x] DMs/group DMs with text, replies, edits, deletes, typing and offline backlog.
 - [ ] All Phase 1 exit criteria verified by hosted CI.
