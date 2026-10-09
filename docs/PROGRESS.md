@@ -8,17 +8,18 @@ full product backlog and phase exit criteria are in [ROADMAP.md](ROADMAP.md).
 Phase 0 is complete. [PR #1](https://github.com/KBHarris/hearth/pull/1) merged the verified
 foundations and spike ADRs into `main` on 2026-10-07 (commit `8f6db29`). All 11 final
 [CI checks](https://github.com/KBHarris/hearth/actions/runs/37670086516) passed before merge.
-Phase 1 is in progress. The first owner can now register, sign in and sign out with
-product OPAQUE and PostgreSQL sessions. First-device enrollment and encrypted local identity
-vaults, linking, recovery and second-account registration are implemented. The product MLS
-engine, PostgreSQL delivery service, gateway and encrypted DM/group-DM client are implemented.
-Local HTTP/WASM, browser and packaged Windows acceptance pass, including encrypted storage,
-offline delivery and recovery/new-device messages. Packaged Phase 1 acceptance passes
-across Windows/macOS/Linux in run 37795943918, including native PostgreSQL on Windows
-after the inherited-pipe fixture fix. The Safari handler-readiness correction now passes
-in run 37801886115. That rerun exposes an intermittent Linux recovery/new-device failure;
-the harness now records individual recovery stages without error strings or secrets.
-Full Phase 1 closure remains open while this failure is investigated.
+Phase 1 is complete. Implementation `43ac92b` passes all twelve jobs in
+[run 37811808453](https://github.com/KBHarris/hearth/actions/runs/37811808453): Rust,
+web, crypto/WASM, real PostgreSQL/HTTP acceptance, Docker, Podman, three browsers and
+Windows/macOS/Linux desktop acceptance. The product suite passes 23 HTTP/WASM outcomes;
+packaged webviews pass all seven messaging outcomes, with ten isolated Linux repetitions.
+Owner/invitation onboarding, immutable cross-signed devices, linking/recovery, MLS DMs
+and group DMs, gateway/offline delivery and encrypted durable local storage are verified.
+[PR #2](https://github.com/KBHarris/hearth/pull/2) remains a draft for review; no merge
+has been performed. The next checkpoint is the [two-PC encrypted DM test](TWO_PC_DM_TEST.md).
+The Windows test package and server image are prepared. Public certificate issuance,
+router forwarding, clean installation on the other PC and actual two-house reachability
+remain human acceptance steps. Phase 2 has not started.
 
 | Todo | Implementation | Validation |
 |---|---|---|
@@ -30,14 +31,57 @@ Full Phase 1 closure remains open while this failure is investigated.
 | Spike A: OpenMLS | Feasibility complete | Native Rust, Node/browser WASM, and native MLS through Windows/macOS/Linux Tauri webview IPC pass |
 | Spike B: encrypted media | Feasibility complete | Local and hosted WebView2, hosted WKWebView and Chrome/Firefox/Safari pass; Linux native capability block selects browser media |
 | Spike C: OPAQUE | Feasibility complete | WASM client + separate Rust process pass registration/login and adversarial checks locally and in CI |
-| Phase 1 owner/account slice | Implemented | Local PostgreSQL, native HTTP/product WASM and browser checks pass; all 12 hosted jobs pass for commit 074ab7e |
-| Phase 1 identity/first-device vault | Implemented | All 12 hosted jobs pass for ba9b21e, including Windows/macOS OS stores; Linux runtime remains open |
-| Recovery, device linking and second-account onboarding | Implemented | Local SQL/HTTP/WASM/browser and packaged Windows/Linux/macOS recovery acceptance pass; latest hosted Windows gate pending |
-| MLS delivery, authenticated gateway, DMs and group DMs | Implemented | Actual PostgreSQL, 22 HTTP/WASM outcomes, browser text/reply/edit/offline checks and packaged Windows acceptance pass |
-| Encrypted message store | Implemented | Browser IndexedDB and Windows/Linux/macOS SQLCipher/OS-store CAS, new-process, canary and missing-key checks pass |
+| Phase 1 owner/account slice | Complete | SQL, browser and hosted product HTTP/WASM acceptance pass |
+| Phase 1 identity/first-device vault | Complete | Browser vault and all three native OS stores pass; optimized WASM preserves debug-build credentials/vaults |
+| Recovery, device linking and second-account onboarding | Complete | HTTP/WASM and packaged Windows/macOS/Linux recovery/new-message acceptance pass; ten Linux repetitions pass |
+| MLS delivery, authenticated gateway, DMs and group DMs | Complete | 23 HTTP/WASM outcomes, browser checks and all three packaged webview runtimes pass |
+| Encrypted message store | Complete | Browser IndexedDB and Windows/Linux/macOS SQLCipher/OS-store CAS, new-process, canary and missing-key checks pass |
+| Phase 1 exit criteria | Complete | All 12 hosted jobs pass for implementation 43ac92b |
+| Two-PC public HTTPS DM test | Prepared | Installer/guide and local proxy checks ready; actual WAN reachability and clean buddy-PC installation remain untested |
 | Threat model | Draft maintained | Discovery exposure and saved server address documented; no independent security audit |
 
 ## Iteration log
+
+### 2026-10-08: preserve the pending two-PC test
+
+- On the user's request to continue, preserved implementation `43ac92b` in
+  `target/manual-test/phase1-43ac92b`: versioned client ZIP, server image archive,
+  checksums and a launcher using a digest-pinned image with no build step.
+  [Frozen test manifest](evidence/phase1-frozen-test-2026-10-08.json).
+- Read-only inspection found the user's `hearth` HTTPS stack already running. Its
+  server executable SHA-256 matches the frozen image. No live service was restarted;
+  existing `hearth` database, server-key and certificate volumes are preserved.
+  The frozen host folder contains private configuration; only its client ZIP is shareable.
+- Phase 2 work begins in the attached `phase2-communities` managed checkout. Its
+  development configuration and disposable acceptance databases must be separate
+  from the pending Phase 1 test. Use the frozen commands in the updated two-PC guide.
+
+### 2026-10-08: Phase 1 complete and manual test checkpoint
+
+- [All twelve hosted jobs](https://github.com/KBHarris/hearth/actions/runs/37811808453)
+  pass for `43ac92b`; [workflow summary](evidence/phase1-ci-2026-10-08.json).
+  The [23-outcome HTTP/WASM report](evidence/optimized-wasm-auth-2026-10-08.json) includes
+  existing debug-build credential/vault compatibility. Packaged
+  [Windows](evidence/encrypted-messaging-packaged-windows-2026-10-08.json),
+  [macOS](evidence/encrypted-messaging-packaged-macos-2026-10-08.json) and
+  [Linux](evidence/encrypted-messaging-packaged-linux-2026-10-08.json) pass seven product
+  outcomes plus native-call/credential/file cleanup. All
+  [ten isolated Linux repetitions](evidence/optimized-wasm-linux-repetitions-2026-10-08.json)
+  pass with optimized product WASM. Five optimized Windows repetitions also pass locally.
+- The debug comparison in run 37811334323 reproduces an OPAQUE registration protocol
+  rejection on its fourth Linux repetition, before OS storage; no WASM runtime trap is
+  reported. Optimized product WASM preserves the fixed OPAQUE/Argon2 profile and removes
+  the observed failure across the ten-run gate. Debug WASM is not shipped by the product
+  build; the underlying debug/WebKit compatibility issue remains available for diagnosis.
+- Required npm verification, Rust formatting/clippy/tests, native feature clippy and
+  the fixture shutdown regression test pass. The normal Windows product build and
+  unsigned NSIS development installer are rebuilt with optimized WASM. The shareable
+  ZIP contains only the installer and START_HERE guide; its checksum/source are in
+  [the two-PC guide](TWO_PC_DM_TEST.md). No public server exposure or router change was
+  made here. The original development server/data remain healthy and preserved.
+- Updated README, this tracker, the roadmap, ADR 0008 and the test guide. The IP-change
+  guide now correctly distinguishes native server/account storage from browser-origin
+  storage. PR #2 remains a draft. Stop at the manual two-PC DM checkpoint before Phase 2.
 
 ### 2026-10-08: recovery rerun diagnosis
 

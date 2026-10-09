@@ -9,11 +9,12 @@ OPAQUE sign-in and sign-out with persistent, expiring server sessions. It enroll
 cross-signed device and saves an encrypted local identity vault. It also supports encrypted
 recovery kits, approved-device linking, member invitations and registration settings.
 It exchanges encrypted DMs and group DMs, including replies, edits, deletes, typing and
-offline delivery, using MLS and durable encrypted local storage. Hosted Phase 1 platform
-validation is in progress; media and federation remain on the roadmap.
+offline delivery, using MLS and durable encrypted local storage. Phase 1 passes hosted
+Windows/macOS/Linux acceptance. The next checkpoint is the
+[two-PC encrypted DM test](docs/TWO_PC_DM_TEST.md); media and federation remain on the roadmap.
 
 - **What we're building and why:** [PLAN.md](PLAN.md)
-- **Phased build plan:** [docs/ROADMAP.md](docs/ROADMAP.md). **Phase 1 is in progress**; Phase 0 is complete.
+- **Phased build plan:** [docs/ROADMAP.md](docs/ROADMAP.md). **Phases 0 and 1 are complete**; Phase 2 has not started.
 - **Threat model (draft):** [docs/THREAT_MODEL.md](docs/THREAT_MODEL.md)
 - **Implementation and verification notes:** [docs/PROGRESS.md](docs/PROGRESS.md)
 

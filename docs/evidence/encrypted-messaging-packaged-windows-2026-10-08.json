@@ -1,5 +1,5 @@
 {
-  "measuredAt": "2026-10-08T15:14:02.500Z",
+  "measuredAt": "2026-10-08T17:14:33.238Z",
   "runtime": "Tauri system webview (win32)",
   "checks": {
     "existing_install_identity_is_preserved": true,
@@ -9,6 +9,11 @@
     "packaged_worker_opaque_and_native_identity_vault": true,
     "recovery_fresh_device_rekeys_and_reads_new_messages_without_old_history": true,
     "server_database_and_logs_exclude_packaged_message_canary": true
+  },
+  "fixture_cleanup": {
+    "credentials_removed": true,
+    "files_removed": true,
+    "native_calls_drained": true
   },
   "fixture_storage_cleaned": true,
   "outcome": "pass"

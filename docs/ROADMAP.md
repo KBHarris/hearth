@@ -67,21 +67,16 @@ and call `/health`. The spike ADRs are merged.
 **Goal:** two people on one server can exchange E2EE DMs from the desktop app or the
 browser.
 
-Current progress (2026-10-07): the first owner/account milestone is implemented and locally
-validated. A setup code authorizes exactly one owner claim; WASM-worker OPAQUE registration
-and login use persistent PostgreSQL accounts and expiring/revocable sessions. Real HTTP,
-PostgreSQL and browser checks pass. [ADR 0005](adr/0005-owner-authentication.md) records the
-profile, bootstrap, session and storage decisions. All 12 hosted checks pass for the owner
-milestone. First-device enrollment now binds immutable account/device public keys, with
-an encrypted local vault in browser IndexedDB or the native OS store. [ADR 0006](adr/0006-first-device-vault.md)
-records its scope and local acceptance. All 12 hosted checks pass for vault commit `ba9b21e`
-in run `37709982624`, including Windows/macOS credential-store acceptance. Recovery kits,
-approved-device linking and owner-controlled account invitations now pass local HTTP/WASM
-acceptance. Production MLS, authenticated gateway delivery, durable encrypted storage and
-DMs/group DMs are implemented. Local HTTP/WASM, browser and packaged Windows checks pass.
-Hosted Linux/macOS packaged acceptance passes as of 2026-10-08. Windows and a Safari
-media rerun remain open; full phase exit criteria are not yet marked complete. An optional
-public HTTPS front end and [two-PC test guide](TWO_PC_DM_TEST.md) prepare the remote DM test.
+Complete, 2026-10-08. All twelve hosted jobs pass for implementation `43ac92b` in
+[run 37811808453](https://github.com/KBHarris/hearth/actions/runs/37811808453).
+The real HTTP/product-WASM suite passes 23 outcomes, including existing credential/vault
+compatibility across build profiles. Packaged Windows/macOS/Linux webviews pass all seven
+messaging outcomes; Linux passes ten isolated repetitions. SQLCipher and OS-store checks,
+browser media regressions, Docker and Podman pass. [ADR 0008](adr/0008-encrypted-direct-messages.md)
+records the slice's scope and limits. The next checkpoint is the
+[two-PC encrypted DM test](TWO_PC_DM_TEST.md) using the prepared Windows installer and
+optional public-IP HTTPS front end. Public certificate issuance and two-house reachability
+remain part of that human test. Phase 2 has not started; PR #2 remains a draft.
 
 - [x] Guided first-run owner creation, closed registration, OPAQUE owner login/logout,
   and PostgreSQL sessions. Test concurrent claims, replay, expiry, restart and revocation.
@@ -89,10 +84,10 @@ public HTTPS front end and [two-PC test guide](TWO_PC_DM_TEST.md) prepare the re
   preserve existing keys and warn on roster changes. Local browser/Windows storage checks pass.
 - [x] Passphrase-encrypted recovery kit export/restore and an approved-device link code.
 - [x] Second-account registration through single-use owner invitations; configure name and registration mode.
-- [x] Native packaged auth and Linux Secret Service runtime validation; hosted Linux/macOS pass.
+- [x] Native packaged auth and OS credential stores; hosted Windows/macOS/Linux pass.
 - [x] Authenticated MLS delivery and durable encrypted messaging; local acceptance passes.
 - [x] DMs/group DMs with text, replies, edits, deletes, typing and offline backlog.
-- [ ] All Phase 1 exit criteria verified by hosted CI.
+- [x] All Phase 1 exit criteria verified by hosted CI.
 
 - Accounts: OPAQUE register/login, sessions, and device registration.
 - Identity: the user identity key, cross-signed device keys, and key-change warnings in the

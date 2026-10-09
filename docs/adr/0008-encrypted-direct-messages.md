@@ -1,7 +1,7 @@
 # ADR 0008: Device-authenticated MLS delivery and durable encrypted DMs
 
-Date: 2026-10-07. Status: implemented; local server/WASM, browser and packaged
-Windows acceptance pass. Hosted platform gates remain open until recorded in PROGRESS.
+Date: 2026-10-07. Status: implemented and verified, 2026-10-08. All twelve hosted jobs
+pass for implementation `43ac92b`; see PROGRESS for the evidence and manual-test checkpoint.
 
 ## Protocol and identity
 
@@ -64,6 +64,14 @@ history, cursor and pending operations. A versioned XChaCha20-Poly1305 snapshot 
 the server/account/device and format context and uses the install's random local
 store key. Raw private keys and provider snapshots never cross the worker boundary.
 The UI necessarily receives decrypted text and typing indicators for display.
+
+Product WASM uses the optimized release profile. Linux WebKitGTK intermittently
+rejects valid OPAQUE registration exchanges with the debug artifact; the optimized
+artifact passes ten isolated packaged runs. The OPAQUE/Argon2 profile remains fixed,
+and a real HTTP/WASM compatibility gate verifies credentials and encrypted identity
+vaults created by the debug build still open with the optimized build. Worker failures
+carry only fixed classes to the bundled diagnostic entry; exception text is never
+exported or logged.
 
 Every crypto operation snapshots provider/client state and rolls it back on rejected
 input, including failed ciphertext authentication, AAD and roster checks. A queued
@@ -130,6 +138,13 @@ recovery and new-device rekeying. Reports contain boolean checks only, and owned
 fixture storage/credentials are cleaned. Normal product builds expose none of its
 configuration/report commands or harness assets. This is packaged runtime acceptance,
 not a native UI click/permission test or an independent security audit.
+
+Native storage calls hold fixture operation leases through their blocking work. Finish
+rejects new calls and waits for existing calls before removing test credentials/files;
+an aborted JavaScript promise does not cancel a running native call. A regression test
+checks this ordering, and reports distinguish drained calls, credentials and files with
+boolean outcomes. [Optimized Linux evidence](../evidence/optimized-wasm-linux-repetitions-2026-10-08.json)
+records all ten independent runs.
 
 Primary references checked 2026-10-07:
 [OpenMLS configuration](https://book.openmls.tech/user_manual/group_config.html),
