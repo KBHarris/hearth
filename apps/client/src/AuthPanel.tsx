@@ -5,7 +5,6 @@ import { createIdentity, readIdentity, identityScope, identityStorageLabel, stor
 import { RecoveryPanel } from './RecoveryPanel'
 import { AdminPanel } from './AdminPanel'
 import { ChatPanel } from './ChatPanel'
-import { CommunityPanel } from './CommunityPanel'
 
 export function AuthPanel({ url, info, setupFinished,configured }: { url: string; info: ServerInfo; setupFinished: () => void;configured:(settings:ServerSettings)=>void }) {
   const [session, setSession] = useState<Session | null>(null)
@@ -138,7 +137,6 @@ export function AuthPanel({ url, info, setupFinished,configured }: { url: string
       {unlinked && <p className="input-error">This install isn’t linked to your account. Use an approved device or your recovery kit below.</p>}
       {!device && !unlinked && <p className="input-error">Your account is signed in, but its keys could not be unlocked. Sign out and try again after resolving the storage or identity issue below.</p>}
       {clientCrypto && device && <ChatPanel crypto={clientCrypto} session={session} device={device} server={info.wellKnown.server_key.toLowerCase()} url={url}/>}
-      {clientCrypto && device && <CommunityPanel session={session} url={url}/>}
       {clientCrypto && <RecoveryPanel crypto={clientCrypto} session={session} serverKey={info.wellKnown.server_key.toLowerCase()} url={url} ready={!!device} restored={enrollment => {setDevice(enrollment);setUnlinked(false)}}/>}
       {session.account.owner && <AdminPanel session={session} url={url} configured={settings => {setRegistrationMode(settings.registration_mode);configured(settings)}}/>}
       <button className="retry-button" onClick={() => void signOut()}>Sign out</button>

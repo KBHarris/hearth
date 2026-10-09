@@ -16,6 +16,7 @@ pub fn generate() -> String {
         crate::community::ChannelKind::decl(&config),
         crate::community::CreateChannel::decl(&config),
         crate::community::Channel::decl(&config),
+        crate::community::ChannelRoster::decl(&config),
         crate::community::CommunityStructure::decl(&config),
         crate::community::CreateCommunityInvite::decl(&config),
         crate::community::CommunityInvite::decl(&config),

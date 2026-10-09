@@ -48,7 +48,7 @@ pub fn routes(origins: &[String]) -> Router<SharedState> {
         )
         .layer(middleware::map_response(crate::auth::no_store))
 }
-fn enrollment(row: &PgRow) -> DeviceEnrollment {
+pub(crate) fn enrollment(row: &PgRow) -> DeviceEnrollment {
     DeviceEnrollment {
         identity_key: row.get("identity_key"),
         device_key: row.get("device_key"),
@@ -240,6 +240,7 @@ async fn claim_packages(
 fn conversation(row: &PgRow, accounts: Vec<String>) -> Result<Conversation> {
     Ok(Conversation {
         id: row.get("id"),
+        channel_id: row.get("channel_id"),
         epoch: row.get::<i64, _>("epoch") as u64,
         members: parsed(row.get("members"))?,
         accounts,
@@ -250,7 +251,7 @@ async fn conversations(
     headers: HeaderMap,
 ) -> Result<Json<Vec<Conversation>>> {
     let account = authenticated(&state, &headers).await?;
-    let rows=sqlx::query("SELECT c.id,c.epoch,c.members FROM conversations c JOIN conversation_accounts a ON a.conversation_id=c.id WHERE a.account_id=$1 ORDER BY c.created_at,c.id")
+    let rows=sqlx::query("SELECT c.id,c.channel_id,c.epoch,c.members FROM conversations c WHERE (c.channel_id IS NULL AND EXISTS(SELECT 1 FROM conversation_accounts a WHERE a.conversation_id=c.id AND a.account_id=$1)) OR (c.channel_id IS NOT NULL AND EXISTS(SELECT 1 FROM community_channels h JOIN community_members m ON m.community_id=h.community_id WHERE h.id=c.channel_id AND m.account_id=$1)) ORDER BY c.created_at,c.id")
         .bind(&account).fetch_all(&state.db).await.map_err(unavailable)?;
     let mut result = Vec::new();
     for row in rows {
@@ -342,30 +343,51 @@ async fn commit(
         .collect::<Vec<_>>();
     accounts.sort();
     accounts.dedup();
-    if accounts.len() < 2 || accounts.len() > 10 || !accounts.contains(&account) {
+    if accounts.is_empty() || !accounts.contains(&account) {
         return Err(StatusCode::FORBIDDEN);
     }
     let mut tx = state.db.begin().await.map_err(unavailable)?;
     // The insert's uniqueness lock and the existing-row lock order creation and all commits.
+    let channel = crate::community::channel_access(&mut tx, &id, &account).await?;
+    if let Some(channel) = &channel {
+        let eligible: i64 = sqlx::query_scalar(
+            "SELECT count(*) FROM community_members WHERE community_id=$1 AND account_id=ANY($2)",
+        )
+        .bind(&channel.community_id)
+        .bind(&accounts)
+        .fetch_one(&mut *tx)
+        .await
+        .map_err(unavailable)?;
+        if eligible != accounts.len() as i64 {
+            return Err(StatusCode::FORBIDDEN);
+        }
+    } else if accounts.len() < 2 || accounts.len() > 10 || upload.members.len() > 32 {
+        return Err(StatusCode::FORBIDDEN);
+    }
     let inserted = sqlx::query(
-        "INSERT INTO conversations(id,epoch,members) VALUES($1,0,'[]') ON CONFLICT DO NOTHING",
+        "INSERT INTO conversations(id,epoch,members,channel_id) VALUES($1,0,'[]',$2) ON CONFLICT DO NOTHING",
     )
     .bind(&id)
+    .bind(channel.as_ref().map(|_| &id))
     .execute(&mut *tx)
     .await
     .map_err(unavailable)?
     .rows_affected()
         == 1;
-    let row = sqlx::query("SELECT epoch,members FROM conversations WHERE id=$1 FOR UPDATE")
-        .bind(&id)
-        .fetch_one(&mut *tx)
-        .await
-        .map_err(unavailable)?;
+    let row =
+        sqlx::query("SELECT epoch,members,channel_id FROM conversations WHERE id=$1 FOR UPDATE")
+            .bind(&id)
+            .fetch_one(&mut *tx)
+            .await
+            .map_err(unavailable)?;
     if deduplicated(&mut tx, &id, &upload.operation_id, &hash).await? {
         tx.commit().await.map_err(unavailable)?;
         return Ok(StatusCode::NO_CONTENT);
     }
     let old: Vec<GroupMember> = parsed(row.get("members"))?;
+    if row.get::<Option<String>, _>("channel_id").is_some() != channel.is_some() {
+        return Err(StatusCode::FORBIDDEN);
+    }
     if row.get::<i64, _>("epoch") as u64 != upload.expected_epoch {
         return Err(StatusCode::CONFLICT);
     }
@@ -390,13 +412,20 @@ async fn commit(
         }
     } else {
         let expected:Vec<String>=sqlx::query_scalar("SELECT account_id FROM conversation_accounts WHERE conversation_id=$1 ORDER BY account_id").bind(&id).fetch_all(&mut *tx).await.map_err(unavailable)?;
-        if expected != accounts
+        if (channel.is_none() && expected != accounts)
+            || (channel.is_some() && expected.iter().any(|id| !accounts.contains(id)))
             || !old
                 .iter()
                 .any(|m| m.account_id == account && m.enrollment.device_key == upload.device_key)
             || old.iter().any(|m| !upload.members.contains(m))
         {
             return Err(StatusCode::FORBIDDEN);
+        }
+        if channel.is_some() {
+            for member in &accounts {
+                sqlx::query("INSERT INTO conversation_accounts(conversation_id,account_id) VALUES($1,$2) ON CONFLICT DO NOTHING")
+                    .bind(&id).bind(member).execute(&mut *tx).await.map_err(unavailable)?;
+            }
         }
     }
     for member in &upload.members {
@@ -411,7 +440,9 @@ async fn commit(
         .iter()
         .filter(|m| !old.contains(m) && !(inserted && m.enrollment.device_key == upload.device_key))
         .collect::<Vec<_>>();
-    if added.len() != upload.welcomes.len() || added.is_empty() {
+    if added.len() != upload.welcomes.len()
+        || (added.is_empty() && !(inserted && channel.is_some() && upload.members.len() == 1))
+    {
         return Err(StatusCode::BAD_REQUEST);
     }
     added.sort_by(|a, b| a.enrollment.device_key.cmp(&b.enrollment.device_key));
@@ -505,6 +536,13 @@ async fn message(
         serde_json::to_vec(&upload).map_err(|_| StatusCode::BAD_REQUEST)?,
     ));
     let mut tx = state.db.begin().await.map_err(unavailable)?;
+    let channel = crate::community::channel_access(&mut tx, &id, &account).await?;
+    if let Some(channel) = &channel
+        && channel.announcement
+        && channel.owner_id != account
+    {
+        return Err(StatusCode::FORBIDDEN);
+    }
     let row = sqlx::query("SELECT epoch,members FROM conversations WHERE id=$1 FOR UPDATE")
         .bind(&id)
         .fetch_optional(&mut *tx)

@@ -16,6 +16,8 @@ export type CreateChannel = { name: string, category_id: string | null, kind: Ch
 
 export type Channel = { id: string, community_id: string, name: string, category_id: string | null, kind: ChannelKind, };
 
+export type ChannelRoster = { community: Community, channel: Channel, people: Array<Person>, };
+
 export type CommunityStructure = { community: Community, categories: Array<Category>, channels: Array<Channel>, };
 
 export type CreateCommunityInvite = { expires_in_seconds: number, max_uses: number, };
@@ -70,7 +72,7 @@ export type PackageClaim = { device_keys: Array<string>, };
 
 export type Person = { account: Account, devices: Array<DeviceEnrollment>, };
 
-export type Conversation = { id: string, accounts: Array<string>, epoch: number, members: Array<GroupMember>, };
+export type Conversation = { id: string, channel_id: string | null, accounts: Array<string>, epoch: number, members: Array<GroupMember>, };
 
 export type WelcomeEnvelope = { device_key: string, package_hash: string, ciphertext: string, };
 

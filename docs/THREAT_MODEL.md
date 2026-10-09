@@ -41,14 +41,15 @@
 | Registration mode and server name in `instance_settings` | Owner-controlled onboarding policy and public discovery | Until changed, including backups |
 | `mls_key_packages`: package hash, account/device IDs, signed public KeyPackage bytes, claimed flag, creation/expiry | Single-use public MLS join material; private package secrets remain in the encrypted client store | Consumed at accepted commit or one-hour expiry plus cleanup delay, including possible backups |
 | `consumed_mls_packages`: public package digest, device ID, consumption time | Prevent a delayed upload retry from re-advertising a consumed package, including after pool expiry | Device lifetime, including backups |
-| `conversations`: random ID, MLS epoch, public device-proof manifest, creation time | Serialize commits and validate the roster against approved devices | Conversation lifetime; deletion is not implemented, including backups |
-| `conversation_accounts` and `conversation_devices` | Fixed Phase 1 DM audience and per-device fan-out; exposes the social graph | Conversation lifetime, including backups |
+| `conversations`: random ID, optional unique channel ID equal to that ID, MLS epoch, public device-proof manifest, creation time | Bind a channel to its MLS group, serialize commits and validate approved devices | Conversation lifetime; deletion is not implemented, including backups |
+| `conversation_accounts` and `conversation_devices` | Fixed Phase 1 DM audience, append-only admitted channel audience and per-device fan-out; exposes the social graph | Conversation lifetime, including backups |
 | `delivery_operations`: random operation ID, conversation/account/device IDs, action, optional target operation, payload digest, creation time | Idempotent retry and author-only edits/deletes; operation kinds and reply timing are visible, reply targets remain encrypted | Conversation lifetime, including backups |
 | `device_delivery_cursors`: device public key, next sequence | Gap-free, persistent ordering for offline delivery | Device lifetime, including backups |
 | `delivery_events`: recipient device, sequence, conversation/operation IDs, public signed envelope, ciphertext, ephemeral flag, creation time | Ordered Welcome/commit/message backlog without decryption | Conversation lifetime; deletion replaces originals/edits with markers; typing is hidden after ten seconds, with backup retention possible |
 | Gateway challenge, token digest, authenticated account/device, resume scope ID, sent/acknowledged cursor and heartbeat times | Bind each connection to possession of an approved device and bound delivery window | Connection memory only; sequence metadata remains in the database |
 | `communities`: random ID, display name, owner account ID, creation time; `community_members`: community/account IDs and join time | Authenticated directory and authorization; names and membership are server-visible metadata, not encrypted message content | Community lifetime, including backups; deletion/retention follows later |
-| `community_categories` and `community_channels`: random IDs, community/category relationship, display name, channel type and creation time | Member-visible navigation; only the community owner creates structure in this first slice | Community lifetime, including backups; channel MLS and content delivery are not implemented yet |
+| `community_categories` and `community_channels`: random IDs, community/category relationship, display name, channel type and creation time | Member-visible navigation, MLS routing and owner-only announcement authorization; only the community owner creates structure | Community lifetime, including backups |
+| Channel roster responses: community/channel metadata, account IDs/usernames/owner flags and approved public device enrollment proofs | Member-visible audience preparation and local identity pinning; contains no package private secrets or epoch/history keys | No additional server table; no-store HTTP responses; public identity pins remain in the encrypted client snapshot |
 | `community_invites`: SHA-256 digest of random 256-bit capability, community/creator IDs, expiry, max uses, used count and creation time | Authorize atomic community admission; member retries do not consume a use. Account registration invitations remain separate | Expired/exhausted rows pruned when creating invites; remaining rows and backups persist until later retention work |
 | Optional HTTPS proxy: public IPv4/domain, TLS certificate/private key and ACME account data | Authenticate public transport and automate renewal; public certificates disclose the certified address to the CA and certificate-transparency ecosystem | Persistent Caddy volumes; public certificates/CA records have external retention |
 | Optional HTTPS proxy: transient request headers/bodies, paths, peer addresses and operational errors | Route REST and gateway traffic to Hearth without decrypting MLS; control requests can contain bearer/invite/bootstrap secrets, so access/body logging is not enabled | Connection memory and Docker operational logs; operator controls log retention |
@@ -61,9 +62,11 @@ All routing information above is metadata. MLS private content is never decoded 
 
 The first community slice exposes structure only to authenticated members. A server owner
 has no implicit read/manage access to communities created by other accounts. Community
-owners alone create categories, text/announcement channel records and invitations. No
-channel-message endpoint or plaintext fallback is added; roster-to-MLS synchronization,
-rekeying, history policies and governance are separate unfinished milestones.
+owners alone create categories, text/announcement channel records and invitations.
+Channel IDs now bind to MLS conversations. Community members obtain public rosters;
+online existing devices admit eligible accounts/devices through signed private commits.
+Announcement publishing requires the community owner. The server still never decrypts
+content or creates epoch keys. Wrapped history handoff and governance remain unfinished.
 
 Community, category and channel names are explicitly server-visible navigation metadata.
 Do not put private message content in directory names. Community creation/admission locks
@@ -76,6 +79,21 @@ Requests have a 4 KiB body bound, explicit CORS origins, no-store responses and 
 admission/request budgets. Limits are 100 communities per account, 1,024 members per
 community, 256 categories, 512 channels and 32 active invites. Invites allow 1–1,000 new
 members and expire in 60 seconds–7 days. These bounds are not large-channel MLS evidence.
+
+Channel admission/messages lock the community before conversation and device rows;
+admission verifies every account against current membership. The client drains backlog,
+pins account/device proofs and persists before transmission. New members/devices receive
+only post-Welcome messages; no old history is handed off. A waiting new device needs an
+existing epoch holder online. Channels currently support at most 128 devices, and roster
+reads reject communities above 128 accounts. See [ADR 0010](adr/0010-encrypted-channels.md).
+
+Community admission is currently server-authorized, without owner-signed admission
+evidence verified by clients. A malicious host can fabricate a new account's community
+membership; a valid enrolled identity in that fabricated roster can then receive future
+epochs through the client rekey agent. Account/device pinning alone does not prevent
+this. Hostile-server channel confidentiality remains an explicit unfinished gate;
+client-verifiable owner admission must precede that claim or Phase 2 completion. Fixed
+DM audiences retain their existing account-expansion rejection.
 
 ## Phase 0 discovery and client storage
 

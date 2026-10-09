@@ -1,13 +1,13 @@
-import {HearthClient,HearthError,PROTOCOL_VERSION,validateDeliveryEvent,type Session,type DeviceEnrollment,type Conversation,type LocalMessage,type KeyPackageRecord,type CommitUpload,type MessageUpload,type MessageContent,type Person,type DeliveryEvent} from '@hearth/sdk'
+import {HearthClient,HearthError,PROTOCOL_VERSION,validateDeliveryEvent,type Session,type DeviceEnrollment,type Conversation,type LocalMessage,type KeyPackageRecord,type CommitUpload,type MessageUpload,type MessageContent,type Person,type DeliveryEvent,type ChannelRoster} from '@hearth/sdk'
 import {AuthCrypto} from './client'
 import {messageScope,readMessages,writeMessages} from './message-store'
 import {storageDeadline} from './vault-store'
 
 type Pending={kind:'commit';conversation_id:string;upload:CommitUpload}|{kind:'message';conversation_id:string;upload:MessageUpload}
 type EngineView={last_seq:number;messages:LocalMessage[];groups:Conversation[];pending:Pending[];pending_packages:KeyPackageRecord[]}
-export type ChatState={conversations:Conversation[];joined:string[];messages:LocalMessage[];people:Record<string,Person>;typing:Record<string,{account:string;until:number}[]>;pending:number;connection:string;error:string;fatal:boolean}
+export type ChatState={conversations:Conversation[];channels:Record<string,ChannelRoster>;joined:string[];messages:LocalMessage[];people:Record<string,Person>;typing:Record<string,{account:string;until:number}[]>;pending:number;connection:string;error:string;fatal:boolean}
 const initialView:EngineView={last_seq:0,messages:[],groups:[],pending:[],pending_packages:[]}
-export const initialChat:ChatState={conversations:[],joined:[],messages:[],people:{},typing:{},pending:0,connection:'Opening encrypted storage…',error:'',fatal:false}
+export const initialChat:ChatState={conversations:[],channels:{},joined:[],messages:[],people:{},typing:{},pending:0,connection:'Opening encrypted storage…',error:'',fatal:false}
 
 /** One serialized stream owns the in-memory ratchets; CAS detects competing tabs/processes. */
 export class MessagingSession {
@@ -126,14 +126,21 @@ export class MessagingSession {
     // application secrets for messages still waiting in the ordered backlog.
     await this.synchronize()
     const conversations=await this.client.conversations(this.session.token,this.options)
-    const ids=new Set(conversations.flatMap(conversation=>conversation.accounts))
+    const ids=new Set(conversations.filter(conversation=>!conversation.channel_id).flatMap(conversation=>conversation.accounts))
     const people={...this.state.people}
     for(const id of ids)people[id]=await this.client.personById(this.session.token,id,this.options)
+    const channels:Record<string,ChannelRoster>={}
+    for(const conversation of conversations.filter(c=>c.channel_id)) {
+      const roster=await this.client.channelRoster(this.session.token,conversation.id,this.options)
+      if(roster.channel.id!==conversation.id || !roster.people.some(p=>p.account.id===this.session.account.id))throw new Error('The channel roster could not be verified.')
+      channels[conversation.id]=roster
+      for(const person of roster.people)people[person.account.id]=person
+    }
     const peers=Object.values(people).flatMap(person=>person.devices.map(enrollment=>({account_id:person.account.id,enrollment})))
-    try {for(let offset=0;offset<peers.length;offset+=160)await this.operation('verify_peers',peers.slice(offset,offset+160))}
+    try {for(let offset=0;offset<peers.length;offset+=128)await this.operation('verify_peers',peers.slice(offset,offset+128))}
     catch {throw new Error('A participant’s identity changed or could not be verified. Saved fingerprints were preserved. Compare identities using a trusted channel before adding devices.')}
     await this.persist()
-    this.publish({conversations,people})
+    this.publish({conversations,people,channels})
     const count=await this.client.packageCount(this.session.token,this.device.device_key,this.options)
     if(count.available===0 && this.view.pending_packages.length===0){
       await this.operation('package');await this.persist();await this.flush()
@@ -144,9 +151,11 @@ export class MessagingSession {
       if(!local || local.epoch!==conversation.epoch || this.view.pending.some(p=>p.conversation_id===conversation.id))continue
       const known=new Set(local.members.map(member=>member.enrollment.device_key))
       const packages:KeyPackageRecord[]=[]
-      for(const account of conversation.accounts){
+      const audience=conversation.channel_id?channels[conversation.id].people.map(p=>p.account.id):conversation.accounts
+      for(const account of audience){
         for(const proof of people[account]?.devices ?? []) {
           if(known.has(proof.device_key))continue
+          if(known.size+packages.length>= (conversation.channel_id?128:32))throw new Error('This encrypted group has reached its device limit.')
           try {
             const claimed=await this.client.claimPackages(this.session.token,[proof.device_key],this.options)
             this.verifyClaim(claimed,account,proof);packages.push(...claimed)
@@ -154,7 +163,7 @@ export class MessagingSession {
         }
       }
       if(packages.length){
-        await this.operation('add',{id:conversation.id,packages,create:false});await this.persist();await this.flush()
+        await this.operation(conversation.channel_id?'add_channel':'add',{id:conversation.id,packages,create:false});await this.persist();await this.flush()
       }
     }
     this.publish()
@@ -162,15 +171,38 @@ export class MessagingSession {
   private verifyClaim(packages:KeyPackageRecord[],account:string,proof:DeviceEnrollment){
     if(packages.length!==1 || packages[0].member.account_id!==account || Object.keys(proof).some(key=>packages[0].member.enrollment[key as keyof DeviceEnrollment]!==proof[key as keyof DeviceEnrollment]))throw new Error('A recipient device changed. Compare fingerprints before trying again.')
   }
+  async openChannel(id:string):Promise<string> {
+    return this.enqueue(async()=>{
+      await this.refresh()
+      const roster=await this.client.channelRoster(this.session.token,id,this.options)
+      if(roster.channel.id!==id || !roster.people.some(p=>p.account.id===this.session.account.id))throw new Error('The channel roster could not be verified.')
+      const peers=roster.people.flatMap(p=>p.devices.map(enrollment=>({account_id:p.account.id,enrollment})))
+      for(let offset=0;offset<peers.length;offset+=128)await this.operation('verify_peers',peers.slice(offset,offset+128))
+      await this.persist()
+      if(!this.state.conversations.some(c=>c.id===id)) {
+        const packages:KeyPackageRecord[]=[]
+        for(const person of roster.people)for(const proof of person.devices) {
+          if(proof.device_key===this.device.device_key)continue
+          if(packages.length>=127)throw new Error('This channel has reached its device limit.')
+          try {const claimed=await this.client.claimPackages(this.session.token,[proof.device_key],this.options);this.verifyClaim(claimed,person.account.id,proof);packages.push(...claimed)}
+          catch(error){if(!(error instanceof HearthError) || ![404,409].includes(error.status))throw error}
+        }
+        await this.operation('add_channel',{id,packages,create:true});await this.persist();await this.flush()
+      }
+      await this.refresh()
+      return id
+    })
+  }
   async create(usernames:string[]):Promise<string> {
     return this.enqueue(async()=>{
       const people=await Promise.all([...new Set([this.session.account.username,...usernames])].map(username=>this.client.person(this.session.token,username,this.options)))
       if(people.length<2 || people.length>10)throw new Error('Choose one to nine other people for this conversation.')
-      try {await this.operation('verify_peers',people.flatMap(person=>person.devices.map(enrollment=>({account_id:person.account.id,enrollment}))))}
+      const peers=people.flatMap(person=>person.devices.map(enrollment=>({account_id:person.account.id,enrollment})))
+      try {for(let offset=0;offset<peers.length;offset+=128)await this.operation('verify_peers',peers.slice(offset,offset+128))}
       catch {throw new Error('A recipient’s identity changed or could not be verified. Saved fingerprints were preserved. Compare identities using a trusted channel before trying again.')}
       await this.persist()
       const audience=people.map(person=>person.account.id).sort().join(':')
-      const existing=this.state.conversations.find(conversation=>[...conversation.accounts].sort().join(':')===audience)
+      const existing=this.state.conversations.find(conversation=>!conversation.channel_id && [...conversation.accounts].sort().join(':')===audience)
       if(existing)return existing.id
       const packages:KeyPackageRecord[]=[]
       for(const person of people){

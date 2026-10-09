@@ -1,6 +1,6 @@
 # Hearth implementation progress
 
-Updated: 2026-10-08. This file records implementation and validation separately. The
+Updated: 2026-10-09. This file records implementation and validation separately. The
 full product backlog and phase exit criteria are in [ROADMAP.md](ROADMAP.md).
 
 ## Current phase
@@ -20,8 +20,8 @@ has been performed. The next checkpoint is the [two-PC encrypted DM test](TWO_PC
 The Windows test package and server image are prepared. Public certificate issuance,
 router forwarding, clean installation on the other PC and actual two-house reachability
 remain human acceptance steps. Phase 2 has started in the separate attached
-`codex/phase2-communities` worktree. Its first community-directory iteration passes local
-checks; the [development guide](PHASE2_DEVELOPMENT.md) records its independent configuration.
+`codex/phase2-communities` worktree. Community setup and encrypted channel messaging pass
+local checks; the [development guide](PHASE2_DEVELOPMENT.md) records the independent configuration.
 The original checkout and frozen Phase 1 pair remain available for the pending DM test.
 
 | Todo | Implementation | Validation |
@@ -41,11 +41,46 @@ The original checkout and frozen Phase 1 pair remain available for the pending D
 | Encrypted message store | Complete | Browser IndexedDB and Windows/Linux/macOS SQLCipher/OS-store CAS, new-process, canary and missing-key checks pass |
 | Phase 1 exit criteria | Complete | All 12 hosted jobs pass for implementation 43ac92b |
 | Two-PC public HTTPS DM test | Prepared | Installer/guide and local proxy checks ready; actual WAN reachability and clean buddy-PC installation remain untested |
-| Phase 2 community structure and invitations | Implemented | 30 HTTP/WASM outcomes (seven community checks), five Chrome UI checks and required npm/Rust/WASM checks pass locally; hosted Phase 2 CI pending |
-| Phase 2 channel MLS, encrypted text, history and attachments | Pending | No channel-message endpoints or plaintext fallback added |
+| Phase 2 community structure and invitations | Implemented | Local membership/invite boundaries pass; first directory CI passes 11/12 jobs, Windows media fails twice after packaged messaging passes |
+| Phase 2 channel MLS and encrypted text | Implemented | 38 HTTP/WASM outcomes, nine Chrome UI outcomes, required npm/Rust/WASM checks pass locally; new hosted channel validation pending |
+| Phase 2 client-verifiable admission, history and attachments | Pending | Server-authorized new-account admission needs hardening; current history is post-Welcome only, attachments not implemented |
 | Threat model | Draft maintained | Discovery exposure and saved server address documented; no independent security audit |
 
 ## Iteration log
+
+### 2026-10-09: encrypted channel iteration
+
+- Added migration 0008 binding channel IDs to MLS conversations, member-only public
+  roster snapshots and community/approved-device checks on signed commits/messages.
+  Existing DM audiences stay fixed. Channels allow solo initialization and append-only
+  account/device rekeys; an existing device must be online for a later join.
+- Integrated channels into the existing encrypted engine, store and outbox. Channel
+  names identify conversations; owner-only announcements disable member publishing.
+  Retry messaging reopens saved state after startup failure. New devices receive only
+  post-Welcome messages; neither the host nor directory joining supplies old epoch keys.
+- Required npm verification, Rustfmt/clippy/default and combined-feature tests, generated
+  protocol checks and WASM portability pass. The
+  [HTTP/WASM report](evidence/channels-http-wasm-2026-10-09.json) passes 38 outcomes,
+  including eight channel outcomes and all previous auth/DM/community checks. The
+  [Chrome UI report](evidence/channels-ui-2026-10-09.json) passes nine outcomes with two
+  real isolated clients, no-history admission, automatic rekey, announcements, outage
+  recovery and narrow layout. Desktop/narrow screenshots were reviewed.
+- Browser tests caught asynchronous selection assumptions and the need for messaging
+  startup retry. The composer now disables while opening another channel. HTTP tests
+  verify stale-epoch rejection rather than assuming recipient commits arrive instantly;
+  older directory tests now allow previously joined communities in the same fixture.
+- The first directory commit `a590d32` passes 11/12 hosted jobs in
+  [run 37870006242](https://github.com/KBHarris/hearth/actions/runs/37870006242). Windows
+  packaged messaging passes, but the later WebView2 media publisher ICE connection fails
+  on both attempts. Saved the [failed retry report](evidence/windows-media-failure-2026-10-09.json).
+  No media gate is waived. New channel CI has not yet completed.
+- The original Phase 1 checkout stays clean, its public server remains healthy with
+  migration 6, and the frozen installer/image were not replaced. All new acceptance
+  fixtures use disposable data and signing keys in the Phase 2 checkout.
+- Limits: 128 devices/channel; larger loads and other-platform channel UI are unverified.
+  Admission currently trusts the host directory, so client-verifiable owner approval
+  must precede a hostile-host privacy claim. Next: admission hardening, history policies
+  and encrypted attachments. The 50-person/week and remaining Phase 2 exit gates stay open.
 
 ### 2026-10-08: first Phase 2 community iteration
 

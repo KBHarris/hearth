@@ -175,7 +175,7 @@ impl AuthClient {
                 Ok(serde_json::Value::Null)
             }
             "package" => serde_json::to_value(engine.key_package().map_err(error)?),
-            "add" => {
+            "add" | "add_channel" => {
                 let value: serde_json::Value =
                     serde_json::from_str(input).map_err(|_| invalid())?;
                 let id = value["id"].as_str().ok_or_else(invalid)?;
@@ -183,14 +183,14 @@ impl AuthClient {
                     Vec<hearth_proto::messaging::KeyPackageRecord>,
                 >(value["packages"].clone())
                 .map_err(|_| invalid())?;
+                let create = value["create"].as_bool().ok_or_else(invalid)?;
                 serde_json::to_value(
-                    engine
-                        .add(
-                            id,
-                            &packages,
-                            value["create"].as_bool().ok_or_else(invalid)?,
-                        )
-                        .map_err(error)?,
+                    if operation == "add_channel" {
+                        engine.add_channel(id, &packages, create)
+                    } else {
+                        engine.add(id, &packages, create)
+                    }
+                    .map_err(error)?,
                 )
             }
             "send" => {

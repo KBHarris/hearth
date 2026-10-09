@@ -30,7 +30,7 @@ export async function verifyCommunities({wasm,request,login,serverId,owner,membe
   assert.equal(created.headers.get('cache-control'),'no-store')
   const community=created.value
   assert.equal((await request(base+community.id,undefined,bob.value.token)).status,403)
-  assert.deepEqual((await request(directory,undefined,bob.value.token)).value,[])
+  assert.ok(!(await request(directory,undefined,bob.value.token)).value.some(c=>c.id===community.id))
   assert.equal((await request(base+community.id,undefined,'0'.repeat(64))).status,401)
   assert.equal((await request(directory,{name:'Hidden content',message:'plaintext is forbidden'},owner)).status,422)
   checks.community_directory_requires_membership=true
@@ -92,7 +92,7 @@ export async function verifyCommunities({wasm,request,login,serverId,owner,membe
   assert.equal(before.channels.length,2)
   await stop();start();await healthy()
   assert.deepEqual((await request(base+community.id,undefined,loser.value.token)).value,before)
-  assert.equal((await request(directory,undefined,loser.value.token)).value[0].id,community.id)
+  assert.ok((await request(directory,undefined,loser.value.token)).value.some(c=>c.id===community.id))
   assert.equal((await request('/api/v1/auth/logout',{},loser.value.token)).status,204)
   assert.equal((await request(base+community.id,undefined,loser.value.token)).status,401)
   checks.community_structure_and_membership_survive_restart=true

@@ -33,6 +33,8 @@ pub struct Person {
 #[cfg_attr(feature = "typescript", derive(ts_rs::TS))]
 pub struct Conversation {
     pub id: String,
+    #[serde(default)]
+    pub channel_id: Option<String>,
     pub accounts: Vec<String>,
     #[cfg_attr(feature = "typescript", ts(type = "number"))]
     pub epoch: u64,

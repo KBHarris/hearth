@@ -112,15 +112,18 @@ new messages after linking. A restore from the recovery kit works. Offline deliv
 **Goal:** a usable Discord-like text community.
 
 Started 2026-10-08 in the isolated `codex/phase2-communities` worktree. The authenticated
-community directory, categories, text/announcement channel records and expiring/use-limited
-invites are implemented. Local required checks, 30 HTTP/product-WASM outcomes and five
-headless Chrome UI outcomes pass. [ADR 0009](adr/0009-community-directory.md) and
-[the development guide](PHASE2_DEVELOPMENT.md) record scope/isolation. Channel MLS,
-encrypted channel content, history and the remaining text features are still pending;
-Phase 2 exit criteria are not met. The Phase 1 test pair stays frozen in the original checkout.
+community directory, categories, text/announcement channels and expiring/use-limited
+invites are implemented. The second slice adds channel MLS binding, encrypted text,
+online roster/device rekeying and owner-only announcements with no old-history handoff.
+Local HTTP/product-WASM acceptance passes 38 outcomes. [ADR 0009](adr/0009-community-directory.md),
+[ADR 0010](adr/0010-encrypted-channels.md) and [the development guide](PHASE2_DEVELOPMENT.md)
+record scope/isolation. Client-verifiable admission, history and the remaining text
+features are still pending; Phase 2 exit criteria are not met. The Phase 1 test pair
+stays frozen in the original checkout.
 
 - [x] Communities, categories, text/announcement channel records and invites (expiry, max uses).
-- The MLS group per channel, roster to MLS sync, and the rekey agent.
+- [x] MLS group per channel, server-authorized roster sync and online rekey agent (128-device initial bound).
+- [ ] Client-verifiable owner authorization for new account admission; hostile-host channel privacy gate.
 - History policies (`none`, `since-invite`, `full`) and wrapped epoch-key handoff.
 - Encrypted attachments via presigned S3 upload, with local thumbnails.
 - Reactions, pins, threads, Markdown, custom emoji, mentions, and read state.

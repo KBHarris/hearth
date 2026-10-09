@@ -1,7 +1,7 @@
 import {useEffect,useRef,useState,type FormEvent} from 'react'
 import {HearthClient,HearthError,type Community,type CommunityStructure,type Session} from '@hearth/sdk'
 
-export function CommunityPanel({session,url}:{session:Session;url:string}) {
+export function CommunityPanel({session,url,onOpenChannel}:{session:Session;url:string;onOpenChannel:(id:string)=>Promise<void>}) {
   const [communities,setCommunities]=useState<Community[]>([])
   const [selected,setSelected]=useState('')
   const [structure,setStructure]=useState<CommunityStructure|null>(null)
@@ -52,8 +52,15 @@ export function CommunityPanel({session,url}:{session:Session;url:string}) {
     } catch(error) { if(!controller.signal.aborted)setError(error instanceof HearthError?error.message:'Could not complete the action. Refresh and try again.') }
     finally {if(!controller.signal.aborted)setBusy(false)}
   }
+  async function openChannel(id:string) {
+    const controller=lifetime.current
+    if(!controller || controller.signal.aborted)return
+    setBusy(true);setError('')
+    try {await onOpenChannel(id)}catch(error){if(!controller.signal.aborted)setError(error instanceof Error?error.message:'Could not open this channel.')}
+    finally{if(!controller.signal.aborted)setBusy(false)}
+  }
   const owner=structure?.community.owner_id===session.account.id
-  const channels=(category:string|null)=>structure?.channels.filter(c=>c.category_id===category).map(c=><li key={c.id}><span aria-hidden="true"># </span>{c.name}<small>{c.kind==='announcement'?'Announcements':'Text'}</small></li>)
+  const channels=(category:string|null)=>structure?.channels.filter(c=>c.category_id===category).map(c=><li key={c.id}><button disabled={busy} onClick={()=>void openChannel(c.id)}># {c.name}</button><small>{c.kind==='announcement'?'Announcements':'Text'}</small></li>)
   return <section className="community-panel" aria-labelledby="communities-heading" aria-busy={loading || busy}>
     <header className="chat-header"><h2 id="communities-heading">Communities</h2><small>Community setup</small></header>
     {error && <p className="input-error" role="alert">{error} <button disabled={busy} onClick={()=>setRetry(value=>value+1)}>Refresh communities</button></p>}
@@ -64,7 +71,7 @@ export function CommunityPanel({session,url}:{session:Session;url:string}) {
         <form onSubmit={event=>void action(event,'join')}><label htmlFor="community-code">Join with an invite</label><input id="community-code" name="code" required pattern="[a-f0-9]{64}" type="password" autoComplete="off" disabled={busy}/><button type="submit" disabled={busy || loading}>Join</button></form>
       </nav>
       <div className="community-structure">
-        {structure?<><h3>{structure.community.name}</h3><p className="storage-note">Channels are being set up. Encrypted channel messaging will be available in a later update.</p>
+        {structure?<><h3>{structure.community.name}</h3><p className="storage-note">Open a channel to exchange encrypted messages. New members receive messages after their device joins encryption; old history stays on existing devices.</p>
           <ul className="channel-directory">{channels(null)}</ul>
           {structure.categories.map(category=><section key={category.id}><h4>{category.name}</h4><ul className="channel-directory">{channels(category.id)}</ul></section>)}
           {structure.channels.length===0 && <p>No channels yet.</p>}

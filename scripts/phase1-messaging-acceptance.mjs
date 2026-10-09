@@ -1,6 +1,7 @@
 // Product WASM over actual HTTP/WebSocket. Only disposable fixture accounts.
 import assert from 'node:assert/strict'
 import { randomBytes } from 'node:crypto'
+import { verifyChannels } from './phase2-channel-acceptance.mjs'
 
 export async function verifyMessaging({wasm,request,login,origin,serverId,owner,password,prepared,linked,start,stop,healthy,checks,scanDatabase}) {
   const clients=[]
@@ -168,8 +169,11 @@ export async function verifyMessaging({wasm,request,login,origin,serverId,owner,
     await until(()=>typing.some(value=>value.device===alice.identity.enrollment.device_key && value.indicator[0]===carol.session.account.id && value.indicator[1]))
     assert.equal(view(alice.client).messages.length,beforeTyping)
     checks.open_registration_three_person_group_dm_and_encrypted_typing=true
+    await verifyChannels({alice,bob:resumed,carol,linked:linkedInstall,dmId:id,request,json,op,view,uploadedPackage,submitted,connect,until,pause,sockets,start,stop,healthy,checks,wire,scanDatabase})
+    // Channel restart closed earlier gateways; open a current one for revocation.
+    const revocationGateway=await connect(carol)
     assert.equal((await request('/api/v1/auth/logout',{},carol.session.token)).status,204)
-    await until(()=>carolGateway.socket.readyState===WebSocket.CLOSED)
+    await until(()=>revocationGateway.socket.readyState===WebSocket.CLOSED)
     checks.live_gateway_closes_after_session_revocation=true
     assert.ok(wire.every(frame=>!frame.includes(canary)))
     for(const install of [alice,bob,resumed,linkedInstall,carol]) assert.ok(!Buffer.from(op(install.client,'seal'),'hex').includes(Buffer.from(canary)))

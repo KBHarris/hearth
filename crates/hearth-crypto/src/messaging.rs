@@ -24,7 +24,7 @@ const ERROR: &str =
     "Encrypted messaging state or device verification failed; preserve the local store.";
 const MAX_STATE: usize = 8 * 1024 * 1024;
 const MAX_WIRE: usize = 256 * 1024;
-const MAX_MEMBERS: usize = 32;
+const MAX_MEMBERS: usize = 128;
 
 #[derive(Clone, Serialize, Deserialize)]
 #[serde(tag = "kind", rename_all = "snake_case")]
@@ -487,10 +487,28 @@ impl Messaging {
         packages: &[KeyPackageRecord],
         create: bool,
     ) -> Result<CommitUpload, String> {
+        self.add_audience(id, packages, create, false)
+    }
+    /// The host authorizes channel audience expansion; certificates remain locally pinned.
+    pub fn add_channel(
+        &mut self,
+        id: &str,
+        packages: &[KeyPackageRecord],
+        create: bool,
+    ) -> Result<CommitUpload, String> {
+        self.add_audience(id, packages, create, true)
+    }
+    fn add_audience(
+        &mut self,
+        id: &str,
+        packages: &[KeyPackageRecord],
+        create: bool,
+        channel: bool,
+    ) -> Result<CommitUpload, String> {
         self.transaction(|this| {
             require(
                 valid_id(id)
-                    && !packages.is_empty()
+                    && (!packages.is_empty() || (create && channel))
                     && packages.len() < MAX_MEMBERS
                     && !this
                         .state
@@ -498,7 +516,7 @@ impl Messaging {
                         .iter()
                         .any(|pending| pending.conversation() == id),
             )?;
-            if !create {
+            if !create && !channel {
                 let accounts = this
                     .roster(id)?
                     .iter()
@@ -537,7 +555,7 @@ impl Messaging {
             members.extend(packages.iter().map(|package| package.member.clone()));
             members.sort_by(|a, b| a.enrollment.device_key.cmp(&b.enrollment.device_key));
             require(
-                members.len() <= MAX_MEMBERS
+                members.len() <= if channel { MAX_MEMBERS } else { 32 }
                     && members
                         .windows(2)
                         .all(|w| w[0].enrollment.device_key != w[1].enrollment.device_key),
@@ -553,10 +571,24 @@ impl Messaging {
                 signature: String::new(),
             };
             group.set_aad(commit_aad(id, &upload)?);
-            let (commit, welcome, _) =
-                fail(group.add_members(&this.provider, &this.signer, &verified))?;
+            let (commit, welcome) = if verified.is_empty() {
+                let (commit, welcome, _) = fail(group.self_update(
+                    &this.provider,
+                    &this.signer,
+                    LeafNodeParameters::default(),
+                ))?
+                .into_messages();
+                (commit, welcome)
+            } else {
+                let (commit, welcome, _) =
+                    fail(group.add_members(&this.provider, &this.signer, &verified))?;
+                (commit, Some(welcome))
+            };
             upload.commit = hex::encode(fail(commit.tls_serialize_detached())?);
-            let ciphertext = hex::encode(fail(welcome.tls_serialize_detached())?);
+            let ciphertext = match welcome {
+                Some(welcome) => hex::encode(fail(welcome.tls_serialize_detached())?),
+                None => String::new(),
+            };
             upload.welcomes = packages
                 .iter()
                 .map(|package| WelcomeEnvelope {
@@ -908,6 +940,7 @@ impl Messaging {
             accounts.dedup();
             groups.push(Conversation {
                 id: id.clone(),
+                channel_id: None,
                 accounts,
                 epoch: self.groups[&id].epoch().as_u64(),
                 members,

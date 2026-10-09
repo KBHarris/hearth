@@ -62,6 +62,7 @@ pub fn routes(origins: &[String]) -> Router<SharedState> {
     Router::new()
         .route("/", get(list).post(create))
         .route("/join", post(join))
+        .route("/channels/{id}/roster", get(channel_roster))
         .route("/{id}", get(structure))
         .route("/{id}/categories", post(create_category))
         .route("/{id}/channels", post(create_channel))
@@ -79,6 +80,100 @@ pub fn routes(origins: &[String]) -> Router<SharedState> {
                 .allow_headers([header::AUTHORIZATION, header::CONTENT_TYPE]),
         )
         .layer(middleware::map_response(crate::auth::no_store))
+}
+pub(crate) struct ChannelAccess {
+    pub community_id: String,
+    pub owner_id: String,
+    pub announcement: bool,
+}
+/// Lock communities before conversations/devices, so admission and rekeys are ordered.
+pub(crate) async fn channel_access(
+    tx: &mut PgConnection,
+    channel: &str,
+    account: &str,
+) -> Result<Option<ChannelAccess>> {
+    let row = sqlx::query("SELECT c.id AS community_id,c.owner_id,h.kind FROM community_channels h JOIN communities c ON c.id=h.community_id WHERE h.id=$1 FOR SHARE OF c")
+        .bind(channel).fetch_optional(&mut *tx).await.map_err(unavailable)?;
+    let Some(row) = row else {
+        return Ok(None);
+    };
+    let community_id: String = row.get("community_id");
+    let member: bool = sqlx::query_scalar(
+        "SELECT EXISTS(SELECT 1 FROM community_members WHERE community_id=$1 AND account_id=$2)",
+    )
+    .bind(&community_id)
+    .bind(account)
+    .fetch_one(tx)
+    .await
+    .map_err(unavailable)?;
+    if !member {
+        return Err(StatusCode::FORBIDDEN);
+    }
+    Ok(Some(ChannelAccess {
+        community_id,
+        owner_id: row.get("owner_id"),
+        announcement: row.get::<&str, _>("kind") == "announcement",
+    }))
+}
+async fn channel_roster(
+    State(state): State<SharedState>,
+    headers: HeaderMap,
+    Path(channel): Path<String>,
+) -> Result<Json<ChannelRoster>> {
+    let account = authenticated(&state, &headers).await?;
+    id(&channel)?;
+    let mut tx = state.db.begin().await.map_err(unavailable)?;
+    sqlx::query("SET TRANSACTION ISOLATION LEVEL REPEATABLE READ")
+        .execute(&mut *tx)
+        .await
+        .map_err(unavailable)?;
+    let access = channel_access(&mut tx, &channel, &account)
+        .await?
+        .ok_or(StatusCode::NOT_FOUND)?;
+    let row = sqlx::query("SELECT id,name,owner_id FROM communities WHERE id=$1")
+        .bind(&access.community_id)
+        .fetch_one(&mut *tx)
+        .await
+        .map_err(unavailable)?;
+    let h =
+        sqlx::query("SELECT id,community_id,name,category_id FROM community_channels WHERE id=$1")
+            .bind(&channel)
+            .fetch_one(&mut *tx)
+            .await
+            .map_err(unavailable)?;
+    let accounts = sqlx::query("SELECT a.id,a.username,a.owner FROM accounts a JOIN community_members m ON m.account_id=a.id WHERE m.community_id=$1 ORDER BY a.id").bind(&access.community_id).fetch_all(&mut *tx).await.map_err(unavailable)?;
+    if accounts.len() > 128 {
+        return Err(StatusCode::CONFLICT);
+    }
+    let mut people = Vec::new();
+    for a in accounts {
+        let devices = sqlx::query("SELECT a.identity_key,d.device_key,d.certificate,d.account_signature,d.device_signature FROM account_devices d JOIN accounts a ON a.id=d.account_id WHERE d.account_id=$1 ORDER BY d.device_key")
+            .bind(a.get::<&str,_>("id")).fetch_all(&mut *tx).await.map_err(unavailable)?;
+        people.push(hearth_proto::messaging::Person {
+            account: hearth_proto::auth::Account {
+                id: a.get("id"),
+                username: a.get("username"),
+                owner: a.get("owner"),
+            },
+            devices: devices.iter().map(crate::delivery::enrollment).collect(),
+        });
+    }
+    tx.commit().await.map_err(unavailable)?;
+    Ok(Json(ChannelRoster {
+        community: community(&row),
+        channel: Channel {
+            id: h.get("id"),
+            community_id: h.get("community_id"),
+            name: h.get("name"),
+            category_id: h.get("category_id"),
+            kind: if access.announcement {
+                ChannelKind::Announcement
+            } else {
+                ChannelKind::Text
+            },
+        },
+        people,
+    }))
 }
 async fn list(
     State(state): State<SharedState>,

@@ -180,6 +180,15 @@ jobs:
         with:
           name: phase1-desktop-${{ matrix.os }}
           path: target/phase1-evidence/
+      - name: Windows community and encrypted channel UI acceptance
+        if: runner.os == 'Windows'
+        timeout-minutes: 5
+        run: node scripts/verify-community-ui.mjs
+      - uses: actions/upload-artifact@v4
+        if: always() && runner.os == 'Windows'
+        with:
+          name: phase2-community-ui-windows
+          path: target/phase2-evidence/
       - run: npm run spike:media:build
       - run: cargo build -p hearth-desktop --features phase0-spike
       - run: node scripts/verify-desktop-mls.mjs

@@ -2,6 +2,14 @@
 use serde::{Deserialize, Serialize};
 
 #[derive(Clone, Serialize, Deserialize)]
+#[cfg_attr(feature = "typescript", derive(ts_rs::TS))]
+pub struct ChannelRoster {
+    pub community: Community,
+    pub channel: Channel,
+    pub people: Vec<crate::messaging::Person>,
+}
+
+#[derive(Clone, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 #[cfg_attr(feature = "typescript", derive(ts_rs::TS))]
 pub struct CreateCommunity {

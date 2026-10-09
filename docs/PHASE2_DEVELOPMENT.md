@@ -15,11 +15,26 @@ communities, manages structure, creates/hides invites and exposes real failure/r
 Community invitations require an existing account on the same server; they are separate
 from owner-issued account registration invitations.
 
-This is community setup. Channel MLS groups, encrypted channel messaging, rekeying,
-history policies, attachments and the remaining text features are not implemented yet.
-Direct messages still use the Phase 1 encrypted delivery path. The next iteration is
-channel-to-MLS binding and authenticated roster synchronization, with an explicit
-no-history default until the history policies are implemented and tested.
+## Second iteration, 2026-10-09
+
+Channel IDs now bind to MLS groups. Open a channel to initialize or join its encrypted
+conversation. An existing online participant adds newly admitted accounts and approved
+devices through signed private commits. Text, replies, edits, deletes, typing and offline
+delivery use the Phase 1 encrypted engine/outbox. Only the community owner can publish
+announcements; members can decrypt new announcements and help rekey. Messaging startup
+failures have a retry control that reopens the preserved encrypted store.
+
+History is `none`: messages sent before a device receives its Welcome are unavailable to
+that device, including messages sent while it is waiting after a directory join. Keep an
+existing device signed in and wait for the new client's channel status to say **Encrypted**
+before testing a message for it. Channels currently have a 128-device bound, and roster
+reads reject communities above 128 accounts. No large-channel capacity is verified.
+
+New-account admission currently trusts the server's community directory. A malicious
+host could fabricate membership for a valid enrolled identity and induce a future rekey.
+Client-verifiable owner admission is the next security gate; fixed-audience DMs still
+reject new accounts. See [ADR 0010](adr/0010-encrypted-channels.md). History policies,
+attachments and the remaining text features are unfinished.
 
 ## Separate development data
 
@@ -66,13 +81,24 @@ node scripts/verify-auth.mjs --native-postgres
 node scripts/verify-community-ui.mjs
 ```
 
-The HTTP/product-WASM suite passes 30 outcomes, including seven community outcomes:
+The HTTP/product-WASM suite passes 38 outcomes, including seven community outcomes:
 membership secrecy, category scope/types, no implicit server-owner access, competing
 single-use joins, owner controls/expiry, multi-use retries and restart/session revocation.
-The headless Chrome UI check passes five outcomes with real clicks and a fresh browser
-profile: creation/navigation, category/channel management, invitation handling,
-outage/retry and narrow layout. The outage is deliberately injected in the test profile.
+Eight channel outcomes cover solo initialization/replay, outsider denial and fixed DM
+audiences, post-Welcome history, stale epochs, later accounts/devices, announcements,
+offline restart and plaintext canaries. The headless Chrome UI check passes nine outcomes
+with two isolated browser profiles and real controls: setup/navigation, categories/types,
+invitations, solo messages, a real member join and automatic rekey, announcements with
+disabled member publishing, directory retry, messaging retry with saved history, and
+narrow layout. The outage is deliberately injected in the test profile.
 Screenshots and reports are under `target/phase2-evidence`; committed reports are in
-`docs/evidence`. This is local Windows validation; hosted Phase 2 CI and other-platform
-community UI validation remain pending. The 50-person/week and remaining Phase 2 exit
-criteria are not met.
+`docs/evidence`. The workflow now runs the community/channel UI test on Windows.
+
+The earlier directory implementation `a590d32` passes 11 of 12 hosted jobs in
+[run 37870006242](https://github.com/KBHarris/hearth/actions/runs/37870006242), including
+HTTP acceptance, macOS/Linux desktop, browser media, Docker and Podman. Packaged Windows
+messaging passes, but Windows WebView2 media fails at publisher ICE connection on both
+attempts. No media packets flow; this is unresolved and the check has not been weakened.
+Those jobs do not validate this new channel slice. Hosted channel validation and
+other-platform community UI validation remain pending. The two-house DM test, 50-person
+week, admission hardening and remaining Phase 2 exit criteria are not met.
