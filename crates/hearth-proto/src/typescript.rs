@@ -10,6 +10,16 @@ use crate::{
 pub fn generate() -> String {
     let config = Config::new();
     let declarations = [
+        crate::community::CreateCommunity::decl(&config),
+        crate::community::Community::decl(&config),
+        crate::community::Category::decl(&config),
+        crate::community::ChannelKind::decl(&config),
+        crate::community::CreateChannel::decl(&config),
+        crate::community::Channel::decl(&config),
+        crate::community::CommunityStructure::decl(&config),
+        crate::community::CreateCommunityInvite::decl(&config),
+        crate::community::CommunityInvite::decl(&config),
+        crate::community::JoinCommunity::decl(&config),
         crate::auth::OwnerRegistrationStart::decl(&config),
         crate::auth::OwnerRegistrationFinish::decl(&config),
         crate::auth::LoginStart::decl(&config),

@@ -76,7 +76,8 @@ browser media regressions, Docker and Podman pass. [ADR 0008](adr/0008-encrypted
 records the slice's scope and limits. The next checkpoint is the
 [two-PC encrypted DM test](TWO_PC_DM_TEST.md) using the prepared Windows installer and
 optional public-IP HTTPS front end. Public certificate issuance and two-house reachability
-remain part of that human test. Phase 2 has not started; PR #2 remains a draft.
+remain part of that human test. Phase 2 now uses a separate development checkout;
+PR #2 remains a draft and the Phase 1 test pair is preserved.
 
 - [x] Guided first-run owner creation, closed registration, OPAQUE owner login/logout,
   and PostgreSQL sessions. Test concurrent claims, replay, expiry, restart and revocation.
@@ -110,7 +111,15 @@ new messages after linking. A restore from the recovery kit works. Offline deliv
 
 **Goal:** a usable Discord-like text community.
 
-- Communities, categories, text and announcement channels, and invites (expiry, max uses).
+Started 2026-10-08 in the isolated `codex/phase2-communities` worktree. The authenticated
+community directory, categories, text/announcement channel records and expiring/use-limited
+invites are implemented. Local required checks, 30 HTTP/product-WASM outcomes and five
+headless Chrome UI outcomes pass. [ADR 0009](adr/0009-community-directory.md) and
+[the development guide](PHASE2_DEVELOPMENT.md) record scope/isolation. Channel MLS,
+encrypted channel content, history and the remaining text features are still pending;
+Phase 2 exit criteria are not met. The Phase 1 test pair stays frozen in the original checkout.
+
+- [x] Communities, categories, text/announcement channel records and invites (expiry, max uses).
 - The MLS group per channel, roster to MLS sync, and the rekey agent.
 - History policies (`none`, `since-invite`, `full`) and wrapped epoch-key handoff.
 - Encrypted attachments via presigned S3 upload, with local thumbnails.

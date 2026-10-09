@@ -19,7 +19,10 @@ and group DMs, gateway/offline delivery and encrypted durable local storage are 
 has been performed. The next checkpoint is the [two-PC encrypted DM test](TWO_PC_DM_TEST.md).
 The Windows test package and server image are prepared. Public certificate issuance,
 router forwarding, clean installation on the other PC and actual two-house reachability
-remain human acceptance steps. Phase 2 has not started.
+remain human acceptance steps. Phase 2 has started in the separate attached
+`codex/phase2-communities` worktree. Its first community-directory iteration passes local
+checks; the [development guide](PHASE2_DEVELOPMENT.md) records its independent configuration.
+The original checkout and frozen Phase 1 pair remain available for the pending DM test.
 
 | Todo | Implementation | Validation |
 |---|---|---|
@@ -38,9 +41,34 @@ remain human acceptance steps. Phase 2 has not started.
 | Encrypted message store | Complete | Browser IndexedDB and Windows/Linux/macOS SQLCipher/OS-store CAS, new-process, canary and missing-key checks pass |
 | Phase 1 exit criteria | Complete | All 12 hosted jobs pass for implementation 43ac92b |
 | Two-PC public HTTPS DM test | Prepared | Installer/guide and local proxy checks ready; actual WAN reachability and clean buddy-PC installation remain untested |
+| Phase 2 community structure and invitations | Implemented | 30 HTTP/WASM outcomes (seven community checks), five Chrome UI checks and required npm/Rust/WASM checks pass locally; hosted Phase 2 CI pending |
+| Phase 2 channel MLS, encrypted text, history and attachments | Pending | No channel-message endpoints or plaintext fallback added |
 | Threat model | Draft maintained | Discovery exposure and saved server address documented; no independent security audit |
 
 ## Iteration log
+
+### 2026-10-08: first Phase 2 community iteration
+
+- Added migration 0007, generated protocol types, validated SDK methods and authenticated
+  community/category/channel/invitation APIs. Member-only reads and owner-only changes
+  apply independently of server ownership. Invitations serialize competing joins and
+  count only new members; category foreign keys cannot cross communities.
+- The client creates/joins communities, manages structure and creates/hides invitations.
+  Failed directory loads show an explicit retry state rather than an empty directory.
+  Channel messaging is visibly unavailable until the MLS/channel slice is implemented.
+- Required npm verification, Rust formatting/clippy/default tests, protocol drift and
+  WASM portability checks pass. [HTTP/WASM acceptance](evidence/communities-http-wasm-2026-10-08.json)
+  passes 30 outcomes; [Chrome UI acceptance](evidence/communities-ui-2026-10-08.json)
+  passes five with actual controls and desktop/narrow screenshots reviewed locally.
+- Acceptance uses disposable PostgreSQL clusters and fresh server keys in this worktree.
+  The development overlay uses independent `hearth-phase2` volumes and ports 18088/5174,
+  with no public proxy. No Phase 2 migration or restart touched the live Phase 1 stack.
+- The first runs caught a reused fixture account, a collection-route slash mismatch and
+  a test helper assuming every error body was JSON; all are corrected. UI readiness
+  waits now cover IPv4 binding and account-unlock/remount readiness.
+- Next: bind channels to MLS conversations, enforce roster synchronization and implement
+  encrypted channel text. History policies, attachments, text extras, load benchmarks
+  and the 50-person/week exit criterion remain pending. Hosted Phase 2 CI is not yet verified.
 
 ### 2026-10-08: preserve the pending two-PC test
 

@@ -4,6 +4,7 @@
 //! blobs, enforces membership and permissions, and orders MLS commits for groups it hosts.
 
 pub mod auth;
+pub mod community;
 pub mod config;
 pub mod delivery;
 pub mod device;
@@ -40,6 +41,10 @@ pub fn router(state: SharedState) -> Router {
         .route("/gateway", get(gateway::upgrade))
         .nest("/api/v1", routes::api_v1())
         .nest("/api/v1/auth", auth::routes(&state.config.client_origins))
+        .nest(
+            "/api/v1/communities",
+            community::routes(&state.config.client_origins),
+        )
         .nest(
             "/api/v1/chat",
             delivery::routes(&state.config.client_origins),

@@ -9,6 +9,7 @@ import { createInterface } from 'node:readline'
 import { fileURLToPath } from 'node:url'
 import { join, delimiter, resolve } from 'node:path'
 import { verifyMessaging } from './phase1-messaging-acceptance.mjs'
+import { verifyCommunities } from './phase2-community-acceptance.mjs'
 
 const root = fileURLToPath(new URL('../', import.meta.url))
 if(process.env.PGBIN)process.env.PATH=process.env.PGBIN+delimiter+process.env.PATH
@@ -79,7 +80,7 @@ async function request(path, body, token) {
   if (token) options.headers.Authorization = `Bearer ${token}`
   const response = await fetch(origin + path, options)
   const text = await response.text()
-  return { status: response.status, value: text ? JSON.parse(text) : null, headers: response.headers }
+  return { status: response.status, value: text && response.headers.get('content-type')?.includes('application/json') ? JSON.parse(text) : null, headers: response.headers }
 }
 async function login(password, serverId, retainClient, username = 'owner', implementation = wasm) {
   const client = new implementation.OpaqueAuthClient()
@@ -301,6 +302,17 @@ try {
           assert.ok(!logs.includes(canary))
         }})
       assert.ok(frames.every((frame) => !frame.includes(prepared.envelope)))
+      await verifyCommunities({wasm,request,login,serverId,owner:token,memberPassword,checks,start,stop,healthy,
+        expireInvite:async digest=>{
+          assert.match(digest,/^[a-f0-9]{64}$/)
+          const sql=`UPDATE community_invites SET expires_at=clock_timestamp()-interval '1 second' WHERE code_hash=decode('${digest}','hex')`
+          const dbContainer=container ?? process.env.HEARTH_TEST_POSTGRES_CONTAINER
+          if(dbContainer)command('docker',['exec',dbContainer,'psql','-U','hearth','-d','hearth','-v','ON_ERROR_STOP=1','-c',sql],true)
+          else {
+            const db=new URL(databaseUrl)
+            command('psql',['-v','ON_ERROR_STOP=1','-c',sql],true,{...process.env,PGHOST:db.hostname,PGPORT:db.port,PGUSER:decodeURIComponent(db.username),PGPASSWORD:decodeURIComponent(db.password),PGDATABASE:db.pathname.slice(1)})
+          }
+        }})
       await stop()
       const setupPath = join(directory, 'opaque.setup')
       const savedPath = join(directory, 'opaque.setup.saved')
@@ -318,7 +330,7 @@ try {
       checks.logout_revokes_session = true
       await assert.rejects(login('wrong password', serverId))
       checks.wrong_password_rejected = true
-      assert.ok(frames.every((frame) => !frame.includes(password)))
+      assert.ok(frames.every((frame) => !frame.includes(password) && !frame.includes('HEARTH_COMMUNITY_THIRD_ACCOUNT_private_fixture')))
       await stop()
       assert.ok(!logs.includes(password) && !logs.includes(token) && !logs.includes(code))
       checks.no_password_on_wire_or_secrets_in_logs = true

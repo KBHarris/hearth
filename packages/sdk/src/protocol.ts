@@ -4,6 +4,26 @@
 
 export const PROTOCOL_VERSION = 1 as const
 
+export type CreateCommunity = { name: string, };
+
+export type Community = { id: string, name: string, owner_id: string, };
+
+export type Category = { id: string, community_id: string, name: string, };
+
+export type ChannelKind = "text" | "announcement";
+
+export type CreateChannel = { name: string, category_id: string | null, kind: ChannelKind, };
+
+export type Channel = { id: string, community_id: string, name: string, category_id: string | null, kind: ChannelKind, };
+
+export type CommunityStructure = { community: Community, categories: Array<Category>, channels: Array<Channel>, };
+
+export type CreateCommunityInvite = { expires_in_seconds: number, max_uses: number, };
+
+export type CommunityInvite = { code: string, expires_in_seconds: number, max_uses: number, };
+
+export type JoinCommunity = { code: string, };
+
 export type OwnerRegistrationStart = { username: string, message: string, setup_code: string, };
 
 export type OwnerRegistrationFinish = { username: string, message: string, setup_code: string, };

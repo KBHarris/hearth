@@ -3,6 +3,8 @@ import { defineConfig } from 'vite'
 import { fileURLToPath } from 'node:url'
 
 const server = process.env.HEARTH_DEV_SERVER ?? 'http://localhost:8080'
+const port = Number(process.env.HEARTH_DEV_CLIENT_PORT ?? 5173)
+if (!Number.isInteger(port) || port < 1 || port > 65535) throw new Error('HEARTH_DEV_CLIENT_PORT must be a TCP port')
 
 // https://vite.dev/config/
 export default defineConfig({
@@ -12,7 +14,7 @@ export default defineConfig({
   envPrefix: ['VITE_', 'TAURI_ENV_'],
   build: process.env.HEARTH_PHASE1_HARNESS === '1' ? {rollupOptions:{input:{main:fileURLToPath(new URL('./index.html',import.meta.url)),phase1:fileURLToPath(new URL('./phase1.html',import.meta.url))}}} : undefined,
   server: {
-    port: 5173,
+    port,
     strictPort: true,
     proxy: {
       '/health': server,

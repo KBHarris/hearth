@@ -3,6 +3,8 @@ import type { Account, AuthResponse, LoginResponse, Session, OwnerRegistrationSt
 import type { AccountIdentity, DeviceEnrollment, DeviceRestore, DeviceLinkOffer, DeviceLinkEnvelope } from './protocol.ts'
 import type { RegistrationStart,RegistrationFinish,RegistrationStatus,ServerSettings,AccountInvite } from './protocol.ts'
 import type { Person,Conversation,KeyPackageRecord,CommitUpload,MessageUpload,DeliveryEvent,GroupMember } from './protocol.ts'
+import type { Community, CommunityStructure, Category, Channel, CreateChannel, CreateCommunityInvite, CommunityInvite } from './protocol.ts'
+import { isCommunity, isCommunities, isCommunityStructure, isCategory, isChannel, isCommunityInvite } from './community.ts'
 
 export * from './protocol.ts'
 
@@ -61,6 +63,16 @@ export class HearthClient {
   constructor(baseUrl: string) {
     this.baseUrl = normalizeServerUrl(baseUrl)
   }
+  private community<T>(path:string,token:string,validate:(value:unknown)=>value is T,body?:unknown,options?:RequestOptions):Promise<T> {
+    return this.get('/api/v1/communities'+(path?'/'+path:''),validate,options,{method:body===undefined?'GET':'POST',headers:{Authorization:`Bearer ${token}`,...(body===undefined?{}:{'Content-Type':'application/json'})},...(body===undefined?{}:{body:JSON.stringify(body)})})
+  }
+  communities(token:string,options?:RequestOptions):Promise<Community[]> { return this.community('',token,isCommunities,undefined,options) }
+  createCommunity(token:string,name:string,options?:RequestOptions):Promise<Community> { return this.community('',token,isCommunity,{name},options) }
+  communityStructure(token:string,id:string,options?:RequestOptions):Promise<CommunityStructure> { checkedId(id);return this.community(id,token,isCommunityStructure,undefined,options) }
+  createCategory(token:string,id:string,name:string,options?:RequestOptions):Promise<Category> { checkedId(id);return this.community(`${id}/categories`,token,isCategory,{name},options) }
+  createChannel(token:string,id:string,body:CreateChannel,options?:RequestOptions):Promise<Channel> { checkedId(id);return this.community(`${id}/channels`,token,isChannel,body,options) }
+  createCommunityInvite(token:string,id:string,body:CreateCommunityInvite,options?:RequestOptions):Promise<CommunityInvite> { checkedId(id);return this.community(`${id}/invites`,token,isCommunityInvite,body,options) }
+  joinCommunity(token:string,code:string,options?:RequestOptions):Promise<Community> { checkedId(code);return this.community('join',token,isCommunity,{code},options) }
   private chat<T>(path:string,token:string,validate:(value:unknown)=>value is T,body?:unknown,options?:RequestOptions):Promise<T> {
     return this.get('/api/v1/chat/'+path,validate,options,{method:body===undefined?'GET':'POST',headers:{Authorization:`Bearer ${token}`,...(body===undefined?{}:{'Content-Type':'application/json'})},...(body===undefined?{}:{body:JSON.stringify(body)})})
   }
@@ -169,6 +181,7 @@ export class HearthClient {
         res.status === 403 ? path.includes('/register/') ? 'Registration is closed, or this invite has expired or been used.' : 'This account is not allowed to perform that action.' :
         res.status === 409 && path.includes('/register/') ? 'This username is already taken.' :
         res.status === 409 && path.includes('/chat/') ? 'Encryption or delivery state changed. Refresh and retry.' :
+        res.status === 409 && path.includes('/communities/') ? 'A community limit was reached. Refresh and try again.' :
         res.status === 409 ? path.includes('/device/') ? 'This account already has an identity. Link an approved device or restore your existing keys.' : 'Owner setup is already complete. Sign in with the owner account.' :
         res.status === 429 ? 'Too many attempts. Wait one minute and try again.' : res.status === 503 ?
         'This server is temporarily unavailable. Try again soon.' :

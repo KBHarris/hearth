@@ -47,12 +47,35 @@
 | `device_delivery_cursors`: device public key, next sequence | Gap-free, persistent ordering for offline delivery | Device lifetime, including backups |
 | `delivery_events`: recipient device, sequence, conversation/operation IDs, public signed envelope, ciphertext, ephemeral flag, creation time | Ordered Welcome/commit/message backlog without decryption | Conversation lifetime; deletion replaces originals/edits with markers; typing is hidden after ten seconds, with backup retention possible |
 | Gateway challenge, token digest, authenticated account/device, resume scope ID, sent/acknowledged cursor and heartbeat times | Bind each connection to possession of an approved device and bound delivery window | Connection memory only; sequence metadata remains in the database |
+| `communities`: random ID, display name, owner account ID, creation time; `community_members`: community/account IDs and join time | Authenticated directory and authorization; names and membership are server-visible metadata, not encrypted message content | Community lifetime, including backups; deletion/retention follows later |
+| `community_categories` and `community_channels`: random IDs, community/category relationship, display name, channel type and creation time | Member-visible navigation; only the community owner creates structure in this first slice | Community lifetime, including backups; channel MLS and content delivery are not implemented yet |
+| `community_invites`: SHA-256 digest of random 256-bit capability, community/creator IDs, expiry, max uses, used count and creation time | Authorize atomic community admission; member retries do not consume a use. Account registration invitations remain separate | Expired/exhausted rows pruned when creating invites; remaining rows and backups persist until later retention work |
 | Optional HTTPS proxy: public IPv4/domain, TLS certificate/private key and ACME account data | Authenticate public transport and automate renewal; public certificates disclose the certified address to the CA and certificate-transparency ecosystem | Persistent Caddy volumes; public certificates/CA records have external retention |
 | Optional HTTPS proxy: transient request headers/bodies, paths, peer addresses and operational errors | Route REST and gateway traffic to Hearth without decrypting MLS; control requests can contain bearer/invite/bootstrap secrets, so access/body logging is not enabled | Connection memory and Docker operational logs; operator controls log retention |
 | OPAQUE spike setup, password file, and pending login state | Opt-in, fixed-user feasibility test only; no product auth endpoint | Test process lifetime; memory only |
 | Media spike API secret, scoped JWTs, room/participant IDs, signaling, and RTP metadata | Loopback synthetic fixture only; no product media API | Fixture lifetime; generated secret configuration removed on normal shutdown |
 
 All routing information above is metadata. MLS private content is never decoded by the server.
+
+## Phase 2 community directory
+
+The first community slice exposes structure only to authenticated members. A server owner
+has no implicit read/manage access to communities created by other accounts. Community
+owners alone create categories, text/announcement channel records and invitations. No
+channel-message endpoint or plaintext fallback is added; roster-to-MLS synchronization,
+rekeying, history policies and governance are separate unfinished milestones.
+
+Community, category and channel names are explicitly server-visible navigation metadata.
+Do not put private message content in directory names. Community creation/admission locks
+the account row; structure/invitation mutations lock the community row. Joining locks and
+checks an unexpired invite with wall-clock time after contention, then inserts membership
+and increments usage atomically. A join requires an existing server account and does not
+register an account, enroll a device or grant access to any past MLS epoch.
+
+Requests have a 4 KiB body bound, explicit CORS origins, no-store responses and the existing
+admission/request budgets. Limits are 100 communities per account, 1,024 members per
+community, 256 categories, 512 channels and 32 active invites. Invites allow 1–1,000 new
+members and expire in 60 seconds–7 days. These bounds are not large-channel MLS evidence.
 
 ## Phase 0 discovery and client storage
 
