@@ -1,0 +1,22 @@
+{
+  "measuredAt": "2026-10-09T11:52:19.644Z",
+  "runtime": "Tauri system webview (darwin)",
+  "checks": {
+    "existing_install_identity_is_preserved": true,
+    "fresh_worker_restores_native_keys_sqlcipher_history_and_offline_backlog": true,
+    "packaged_authenticated_gateway_text_reply_edit_delete": true,
+    "packaged_channel_reactions_and_local_search_pass": true,
+    "packaged_signed_admission_and_since_invite_history_pass": true,
+    "packaged_sqlcipher_compare_and_swap_preserves_state": true,
+    "packaged_worker_opaque_and_native_identity_vault": true,
+    "recovery_fresh_device_rekeys_and_reads_new_messages_without_old_history": true,
+    "server_database_and_logs_exclude_packaged_message_canary": true
+  },
+  "fixture_cleanup": {
+    "credentials_removed": true,
+    "files_removed": true,
+    "native_calls_drained": true
+  },
+  "fixture_storage_cleaned": true,
+  "outcome": "pass"
+}

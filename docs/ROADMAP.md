@@ -112,38 +112,34 @@ new messages after linking. A restore from the recovery kit works. Offline deliv
 
 **Goal:** a usable Discord-like text community.
 
-Started 2026-10-08 in the isolated `codex/phase2-communities` worktree. The authenticated
-community directory, categories, text/announcement channels and expiring/use-limited
-invites are implemented. The second slice adds channel MLS binding, encrypted text,
-online roster/device rekeying and owner-only announcements with no old-history handoff.
-Local HTTP/product-WASM acceptance passes 38 outcomes and the two-profile Chrome UI suite
-passes nine. All 12 hosted jobs pass for `7f8aed2` in
-[run 37890119377](https://github.com/KBHarris/hearth/actions/runs/37890119377), including
-Windows channel UI and media. [ADR 0009](adr/0009-community-directory.md),
-[ADR 0010](adr/0010-encrypted-channels.md) and [the development guide](PHASE2_DEVELOPMENT.md)
-record scope/isolation. The completed local implementation adds owner-signed admission, reactions, pins, threads,
-safe Markdown, mentions, read markers, encrypted profiles/presence, sender-written link
-previews, local search, signed history cutoffs and encrypted files/thumbnails/custom emoji.
-All 49 HTTP/WASM, 18 Chrome UI and ten packaged Windows WebView2 checks pass.
-The versioned `ee0a90f` Windows/server bundle passes eight assembled-artifact checks;
-its proxy configuration validates. Old Phase 1 bundle files are removed, with the running
-server and data preserved. Hosted checks for this expanded implementation are running in
-[run 37923945571](https://github.com/KBHarris/hearth/actions/runs/37923945571).
-Follow [the two-PC Phase 2 guide](TWO_PC_PHASE2_TEST.md). WAN/clean buddy-PC installation
-and the separate 50-person/week exit criterion remain open.
+Implementation and automated validation are complete for `7cc8852`, 2026-10-09.
+All twelve hosted jobs pass in [run 37925276507](https://github.com/KBHarris/hearth/actions/runs/37925276507),
+including Windows/macOS/Linux native acceptance, ten isolated Linux repetitions, private
+S3/HTTP checks, Docker, Podman, Rust, web/WASM and browser media regressions.
+The local suite passes 49 HTTP/WASM, 18 Chrome UI and ten packaged Windows checks;
+hosted Windows UI passes 16 checks (files also have local UI/native and hosted HTTP evidence).
+Owner-signed admission, signed history policies, encrypted files/thumbnails/custom emoji,
+reactions/pins/threads, Markdown/mentions/read state, profiles/presence/embeds and local
+search are implemented. [ADR 0012](adr/0012-signed-history-and-encrypted-files.md)
+and [the development guide](PHASE2_DEVELOPMENT.md) record scope and limits.
+
+The versioned `7cc8852` Windows/server bundle passes eight assembled-artifact checks;
+its HTTPS proxy configuration validates. Old Phase 1 bundle files are removed, with the
+running server and data preserved. Follow [the two-PC Phase 2 guide](TWO_PC_PHASE2_TEST.md).
+WAN/clean buddy-PC installation and the separate 50-person/week exit criterion remain open.
 
 - [x] Communities, categories, text/announcement channel records and invites (expiry, max uses).
 - [x] MLS group per channel, server-authorized roster sync and online rekey agent (128-device initial bound).
 - [x] Client-verifiable owner authorization for new account admission; signed policies and pinned owner identities (first contact requires fingerprint comparison).
 - [x] History policies (`none`, `since-invite`, `full`) and wrapped epoch-key handoff (native and HTTP/WASM policy/tamper/restart checks pass).
 - [x] Encrypted attachments via presigned S3 upload, with local thumbnails (real private S3, tamper/scope/restart and host canary and Chrome UI checks pass).
-- [x] Reactions and pins (42 HTTP/WASM and 13 Chrome UI outcomes pass).
+- [x] Reactions and pins (native, HTTP/WASM, local and hosted UI checks pass).
 - [x] Threads, Markdown, custom emoji, mentions and read state (expanded 18-outcome Chrome UI suite passes).
 - [x] Profiles, presence and client-generated link embeds (encrypted state and expanded Chrome UI checks pass).
 - [x] Local full-text search (case/token matching, deletion and absence of host search requests checked).
 - [x] MLS load benchmark (1k synthetic members: rotation median 11.47 ms, p95 12.52 ms; product limit remains 128 devices).
-- [x] Versioned Phase 2 Windows client/server test bundle and two-PC guide (`ee0a90f`, eight bundle checks pass); old bundle files removed after validation.
-- [ ] Human exit test: a 50-person community runs for a week; history and attachment canaries pass.
+- [x] Versioned Phase 2 Windows client/server test bundle and two-PC guide (`7cc8852`, eight bundle checks pass); old bundle files removed after validation.
+- [ ] Human exit test: a 50-person community runs for a week (automated history/attachment policy and canary checks pass).
 
 **Exit:** a 50-person test community runs for a week. History policy tests pass. The
 attachment canary passes.

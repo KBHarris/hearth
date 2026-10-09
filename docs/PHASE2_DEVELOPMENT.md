@@ -1,4 +1,4 @@
-# Phase 2 development and the preserved DM test
+# Phase 2 development and test bundle
 
 Started 2026-10-08 on `codex/phase2-communities`, in the attached managed worktree.
 The original checkout and running server stay on Phase 1. Its obsolete bundle files
@@ -50,8 +50,7 @@ minutes. The host sees IDs, encrypted lengths/digests and routing metadata, neve
 MIME, thumbnails, keys or file plaintext. Bootstrap creates private S3 credentials without
 replacing matching secrets; do not copy these host files into a friend ZIP. Ready file
 retention/deletion remains Phase 3 work. Windows packaged WebView2 acceptance passes ten checks, including real encrypted file
-upload/download, history handoff, reactions and local search. Human testing and hosted validation of this expanded
-slice are still pending.
+upload/download, history handoff, reactions and local search. All twelve hosted checks pass for `7cc8852`; human testing remains pending.
 
 ## Separate development data
 
@@ -105,7 +104,7 @@ passed 13 Chrome UI checks; all 18 expanded Chrome UI checks now pass, including
 signed history handoff and profile/presence/embed controls.
 Reports/screenshots are under `target/phase2-evidence`; committed evidence is in
 `docs/evidence`. Existing hosted implementation `7f8aed2` passes all 12 jobs in
-[run 37890119377](https://github.com/KBHarris/hearth/actions/runs/37890119377). New changes
-have not yet been submitted to hosted CI. Two-house reachability and a 50-person community
-running for a week remain human gates. The validated `ee0a90f` Windows/server replacement bundle is prepared; old Phase 1
+[run 37890119377](https://github.com/KBHarris/hearth/actions/runs/37890119377). The expanded implementation and Linux storage correction pass all twelve jobs in
+[run 37925276507](https://github.com/KBHarris/hearth/actions/runs/37925276507). Two-house reachability and a 50-person community
+running for a week remain human gates. The validated `7cc8852` Windows/server replacement bundle is prepared; old Phase 1
 bundle files were removed, preserving running server data. Follow [the new guide](TWO_PC_PHASE2_TEST.md).

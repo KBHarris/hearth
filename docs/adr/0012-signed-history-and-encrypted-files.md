@@ -1,7 +1,7 @@
 # ADR 0012: signed history boundaries and encrypted files
 
 Status: implemented; local HTTP/WASM, Chrome UI, packaged Windows and bundle checks pass.
-Expanded hosted CI and human acceptance remain pending.
+All twelve hosted checks pass for `7cc8852`; human WAN/week acceptance remains pending.
 Date: 2026-10-09.
 
 ## Decision
@@ -58,4 +58,6 @@ The real HTTP/product-WASM suite passes encrypted file/thumbnail/custom-emoji, s
 tamper, sealed restart and no-plaintext canary checks, including scans of S3 volume bytes.
 History none/full/signed-since-invite and owner linked-device backfill pass over HTTP.
 Native history tests also cover ordinary-member linked-device cutoffs and recipient-bound
-handoff. Expanded UI and hosted/packaged evidence will be recorded before bundle delivery.
+handoff. The committed reports record 49 HTTP/WASM, 18 Chrome UI, ten packaged Windows
+checks and eight assembled-bundle checks. All twelve hosted jobs pass for `7cc8852`,
+including nine core native checks on each platform and ten isolated Linux repetitions.

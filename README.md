@@ -11,10 +11,13 @@ recovery kits, approved-device linking, member invitations and registration sett
 It exchanges encrypted DMs and group DMs, including replies, edits, deletes, typing and
 offline delivery, using MLS and durable encrypted local storage. Phase 1 passes hosted
 Windows/macOS/Linux acceptance. The next checkpoint is the
-[two-PC encrypted DM test](docs/TWO_PC_DM_TEST.md); media and federation remain on the roadmap.
+[two-PC Phase 2 test](docs/TWO_PC_PHASE2_TEST.md). Communities now include owner-approved
+encrypted channels, signed history policies, encrypted files/thumbnails/custom emoji,
+threads/reactions/pins, profiles/presence and local search. Media and federation remain
+on the roadmap; the 50-person/week community trial is still an open human gate.
 
 - **What we're building and why:** [PLAN.md](PLAN.md)
-- **Phased build plan:** [docs/ROADMAP.md](docs/ROADMAP.md). **Phases 0 and 1 are complete**; Phase 2 community setup and encrypted channel messaging are implemented. Owner-signed admission, signed history policies, encrypted files/thumbnails, custom emoji and the text layer are implemented; packaged validation and human exit testing remain.
+- **Phased build plan:** [docs/ROADMAP.md](docs/ROADMAP.md). **Phases 0 and 1 are complete**; Phase 2 community setup and encrypted channel messaging are implemented. Owner-signed admission, signed history policies, encrypted files/thumbnails, custom emoji and the text layer are implemented; all twelve hosted jobs and local packaged/bundle checks pass; human exit testing remains.
 - **Keep the pending DM test stable:** [docs/PHASE2_DEVELOPMENT.md](docs/PHASE2_DEVELOPMENT.md) describes the separate development data and frozen Phase 1 pair.
 - **Threat model (draft):** [docs/THREAT_MODEL.md](docs/THREAT_MODEL.md)
 - **Implementation and verification notes:** [docs/PROGRESS.md](docs/PROGRESS.md)
@@ -84,7 +87,7 @@ origins cover local Vite and Tauri clients. Native servers also bind to loopback
 Public hosting requires TLS; this build is an early prototype without a security audit.
 
 For a two-PC DM test over a public IPv4 or domain, follow
-[the Windows hosting/test guide](docs/TWO_PC_DM_TEST.md). The optional
+[the Phase 2 Windows hosting/test guide](docs/TWO_PC_PHASE2_TEST.md). The optional
 `npm run setup -- --https` uses Caddy with automatic certificates and WebSocket proxying.
 
 Back up PostgreSQL together with the matching server data directory (`server.key`,

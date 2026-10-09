@@ -18,12 +18,12 @@ and group DMs, gateway/offline delivery and encrypted durable local storage are 
 [PR #2](https://github.com/KBHarris/hearth/pull/2) remains a draft for review; no merge
 has been performed. The next checkpoint is the [two-PC encrypted DM test](TWO_PC_DM_TEST.md).
 The original Phase 1 server and data are preserved. Its bundle files have been replaced
-by the validated Phase 2 Windows/server bundle from `ee0a90f`. Public certificate issuance,
+by the validated Phase 2 Windows/server bundle from `7cc8852`. Public certificate issuance,
 router forwarding, clean installation on the other PC and actual two-house reachability
 remain human acceptance. The full Phase 2 implementation passes 49 HTTP/WASM, 18 Chrome
 UI and ten packaged Windows checks; eight assembled-bundle checks also pass.
-[The two-PC guide](TWO_PC_PHASE2_TEST.md) covers DMs and communities. Hosted expanded
-cross-platform checks are running; a 50-person community running for a week remains open.
+[The two-PC guide](TWO_PC_PHASE2_TEST.md) covers DMs and communities. All twelve expanded hosted
+checks pass for `7cc8852` in [run 37925276507](https://github.com/KBHarris/hearth/actions/runs/37925276507); a 50-person community running for a week remains open.
 
 | Todo | Implementation | Validation |
 |---|---|---|
@@ -42,18 +42,35 @@ cross-platform checks are running; a 50-person community running for a week rema
 | Encrypted message store | Complete | Browser IndexedDB and Windows/Linux/macOS SQLCipher/OS-store CAS, new-process, canary and missing-key checks pass |
 | Phase 1 exit criteria | Complete | All 12 hosted jobs pass for implementation 43ac92b |
 | Two-PC public HTTPS DM test | Prepared | Installer/guide and local proxy checks ready; actual WAN reachability and clean buddy-PC installation remain untested |
-| Phase 2 community structure and invitations | Implemented | Local membership/invite boundaries pass; first directory CI passes 11/12 jobs, Windows media fails twice after packaged messaging passes |
-| Phase 2 channel MLS and encrypted text | Implemented | 38 HTTP/WASM outcomes, nine Chrome UI outcomes and all 12 hosted jobs pass for 7f8aed2 |
+| Phase 2 community structure and invitations | Implemented | Membership/invite boundaries and all 12 hosted jobs pass for 7cc8852 |
+| Phase 2 channel MLS and encrypted text | Implemented | 49 HTTP/WASM, 18 local UI, 16 hosted UI and all 12 hosted jobs pass for 7cc8852 |
 | Phase 2 client-verifiable admission | Implemented | Owner-signed grants/policies, pinned roots and malicious delivery-host rejection pass native and HTTP/WASM checks |
 | Phase 2 reactions, pins, threads, Markdown, mentions, read markers and search | Implemented | 49 HTTP/WASM and 18 Chrome UI outcomes pass, including custom emoji |
 | Phase 2 profiles, presence and sender-created embeds | Implemented | Encrypted control/state and profile/presence/embed UI checks pass |
 | Phase 2 history | Implemented | Native and real HTTP/WASM none/full/since-invite, device binding, tamper and sealed restart and signed history UI handoff pass |
 | Phase 2 encrypted files, thumbnails and custom emoji | Implemented | Expanded suite passes 49 HTTP/WASM outcomes; canary absent from database, logs and private S3 volume bytes; actual UI file upload/download and custom emoji pass |
 | Phase 2 MLS load measurement | Complete | 1,000 synthetic native OpenMLS members; rotation median 11.47 ms, p95 12.52 ms, final member decrypts; product remains bounded to 128 devices |
-| Phase 2 replacement test bundle | Prepared | ee0a90f installer/image hashes, secret-free friend ZIP, fresh migrations, private S3 and restart pass all eight checks; old bundle files removed |
+| Phase 2 replacement test bundle | Prepared | 7cc8852 installer/image hashes, secret-free friend ZIP, fresh migrations, private S3 and restart pass all eight checks; old bundle files removed |
 | Threat model | Draft maintained | Discovery exposure and saved server address documented; no independent security audit |
 
 ## Iteration log
+
+### 2026-10-09: Phase 2 implementation ready for two-PC acceptance
+
+- All twelve [hosted jobs](https://github.com/KBHarris/hearth/actions/runs/37925276507)
+  pass for `7cc8852` ([CI record](evidence/phase2-ci-2026-10-09.json)). Expanded private
+  S3/HTTP/WASM passes all 49 outcomes; Windows UI passes 16 (local storage-enabled UI: 18).
+  Windows/macOS/Linux packaged webviews pass nine core outcomes each; all ten Linux
+  repetitions pass. Local Windows with private S3 passes ten, including file transfer.
+- The final `phase2-7cc8852` bundle passes all eight assembled-artifact checks and keeps
+  operator secrets out of the friend ZIP. The original Phase 1 bundle files were removed;
+  the original running backend/proxy, images, signing keys and volumes remain untouched.
+- The earlier `phase2-ee0a90f` build is retained with a `SUPERSEDED.md` marker: automatic
+  approval review rejected removing it because the user's removal request covered Phase 1.
+  Use `phase2-7cc8852` for the actual test. No operator credentials were copied into it.
+- Updated the original checkout's roadmap/progress and [two-PC guide](TWO_PC_PHASE2_TEST.md).
+  The engineering checklist is complete. Actual WAN/certificate issuance, a clean buddy-PC
+  installation and a 50-person community running for a week remain human acceptance gates.
 
 ### 2026-10-09: Linux private-storage ownership correction
 
