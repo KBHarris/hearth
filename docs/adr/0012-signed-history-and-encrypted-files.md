@@ -1,6 +1,7 @@
 # ADR 0012: signed history boundaries and encrypted files
 
-Status: implemented locally; expanded UI, hosted CI and packaged acceptance in progress.
+Status: implemented; local HTTP/WASM, Chrome UI, packaged Windows and bundle checks pass.
+Expanded hosted CI and human acceptance remain pending.
 Date: 2026-10-09.
 
 ## Decision

@@ -271,6 +271,9 @@ Deployment bootstrap generates a URL-safe database password once, refuses placeh
 preserves existing files, and binds the stack to loopback by default. Generated `.env` files
 and fixture configuration contain secrets and stay ignored. POSIX file modes are requested;
 Windows access still depends on the directory ACL and user profile protection.
+SeaweedFS starts through a wrapper that copies its private, read-only host credentials
+into a mode-0600 service-owned container file before the standard privilege drop.
+The host file is not made readable to other users.
 
 ## Out of scope (stated honestly)
 

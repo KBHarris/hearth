@@ -77,7 +77,8 @@ records the slice's scope and limits. The next checkpoint is the
 [two-PC encrypted DM test](TWO_PC_DM_TEST.md) using the prepared Windows installer and
 optional public-IP HTTPS front end. Public certificate issuance and two-house reachability
 remain part of that human test. Phase 2 now uses a separate development checkout;
-PR #2 remains a draft and the Phase 1 test pair is preserved.
+PR #2 remains a draft. The original server/data are preserved; the old bundle files
+were replaced by the validated Phase 2 bundle on 2026-10-09.
 
 - [x] Guided first-run owner creation, closed registration, OPAQUE owner login/logout,
   and PostgreSQL sessions. Test concurrent claims, replay, expiry, restart and revocation.
@@ -120,15 +121,16 @@ passes nine. All 12 hosted jobs pass for `7f8aed2` in
 [run 37890119377](https://github.com/KBHarris/hearth/actions/runs/37890119377), including
 Windows channel UI and media. [ADR 0009](adr/0009-community-directory.md),
 [ADR 0010](adr/0010-encrypted-channels.md) and [the development guide](PHASE2_DEVELOPMENT.md)
-record scope/isolation. The current development changes add owner-signed admission,
-reactions, pins, threads, safe Markdown, mentions, read markers, encrypted profiles and
-presence, sender-created link previews and local search. The expanded local suite
-passes 42 HTTP/WASM and 13 Chrome UI outcomes. Signed invitation cutoffs, wrapped history keys,
-encrypted files/thumbnails and custom emoji now pass the 49-outcome HTTP/WASM suite.
-All 18 expanded Chrome UI checks pass, including real file downloads, custom emoji,
-profiles/presence, sender-written previews and signed history handoff. Packaged checks and
-the replacement bundle remain in progress; Phase 2 exit criteria are not met. The Phase 1 test pair
-stays frozen until its replacement is validated.
+record scope/isolation. The completed local implementation adds owner-signed admission, reactions, pins, threads,
+safe Markdown, mentions, read markers, encrypted profiles/presence, sender-written link
+previews, local search, signed history cutoffs and encrypted files/thumbnails/custom emoji.
+All 49 HTTP/WASM, 18 Chrome UI and ten packaged Windows WebView2 checks pass.
+The versioned `ee0a90f` Windows/server bundle passes eight assembled-artifact checks;
+its proxy configuration validates. Old Phase 1 bundle files are removed, with the running
+server and data preserved. Hosted checks for this expanded implementation are running in
+[run 37923945571](https://github.com/KBHarris/hearth/actions/runs/37923945571).
+Follow [the two-PC Phase 2 guide](TWO_PC_PHASE2_TEST.md). WAN/clean buddy-PC installation
+and the separate 50-person/week exit criterion remain open.
 
 - [x] Communities, categories, text/announcement channel records and invites (expiry, max uses).
 - [x] MLS group per channel, server-authorized roster sync and online rekey agent (128-device initial bound).
@@ -140,7 +142,7 @@ stays frozen until its replacement is validated.
 - [x] Profiles, presence and client-generated link embeds (encrypted state and expanded Chrome UI checks pass).
 - [x] Local full-text search (case/token matching, deletion and absence of host search requests checked).
 - [x] MLS load benchmark (1k synthetic members: rotation median 11.47 ms, p95 12.52 ms; product limit remains 128 devices).
-- [ ] Versioned Phase 2 Windows client/server test bundle and two-PC guide; replace the Phase 1 bundle after validation.
+- [x] Versioned Phase 2 Windows client/server test bundle and two-PC guide (`ee0a90f`, eight bundle checks pass); old bundle files removed after validation.
 - [ ] Human exit test: a 50-person community runs for a week; history and attachment canaries pass.
 
 **Exit:** a 50-person test community runs for a week. History policy tests pass. The

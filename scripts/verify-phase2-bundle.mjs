@@ -25,7 +25,7 @@ function compose(args){return command(['compose','--project-name',project,'--env
 const delay=ms=>new Promise(resolve=>setTimeout(resolve,ms))
 async function freePort(){const server=createServer();await new Promise(resolve=>server.listen(0,'127.0.0.1',resolve));const port=server.address().port;await new Promise(resolve=>server.close(resolve));return port}
 const port=await freePort(),s3Port=await freePort()
-for(const f of ['compose.yaml','.env.example'])copyFileSync(join(bundle,'deploy',f),join(directory,f))
+for(const f of ['compose.yaml','.env.example','storage-entrypoint.sh'])copyFileSync(join(bundle,'deploy',f),join(directory,f))
 initializeConfig(directory);initializeStorage(directory)
 let env=readFileSync(join(directory,'.env'),'utf8').replace('HEARTH_PORT=8182',`HEARTH_PORT=${port}`).replace('HEARTH_S3_PORT=18334',`HEARTH_S3_PORT=${s3Port}`).replace('http://127.0.0.1:18334',`http://127.0.0.1:${s3Port}`)
 writeFileSync(join(directory,'.env'),env,{mode:0o600})

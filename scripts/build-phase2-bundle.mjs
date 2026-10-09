@@ -18,7 +18,7 @@ const info=JSON.parse(run('docker',['image','inspect',imageName]))[0]
 assert.match(info.Id,/^sha256:[a-f0-9]{64}$/);assert.equal(info.Os,'linux');assert.equal(info.Architecture,'amd64')
 mkdirSync(join(directory,'deploy'),{recursive:true});mkdirSync(join(directory,'client'))
 const deploy=join(directory,'deploy')
-for(const file of ['setup.mjs','compose.https.yaml','Caddyfile'])copyFileSync(join(root,'deploy',file),join(deploy,file))
+for(const file of ['setup.mjs','compose.https.yaml','Caddyfile','storage-entrypoint.sh'])copyFileSync(join(root,'deploy',file),join(deploy,file))
 let compose=readFileSync(join(root,'deploy/compose.yaml'),'utf8').replace('name: hearth','name: hearth-phase2-test')
 const build='    build:\n      context: ..\n      dockerfile: crates/hearth-server/Dockerfile'
 compose=compose.replaceAll('\r\n','\n');assert.ok(compose.includes(build))
@@ -37,6 +37,6 @@ run('docker',['save','--output',join(directory,archiveName),imageName])
 copyFileSync(join(root,'docs/TWO_PC_PHASE2_TEST.md'),join(directory,'TWO_PC_PHASE2_TEST.md'))
 writeFileSync(join(directory,'START_HOST_HERE.md'),`# Host the Phase 2 test\n\nSource: ${commit}\n\nSend your friend only [the client ZIP](${zipName}). Install it on your PC too.\nKeep this host folder in place and follow [the two-PC guide](TWO_PC_PHASE2_TEST.md).\n\nOpen PowerShell here:\n\n\`\`\`powershell\ndocker load --input ${archiveName}\nnode deploy/setup.mjs\nnode deploy/setup.mjs --show-setup-code\n\`\`\`\n\nConnect locally at http://127.0.0.1:8182 first. HTTPS needs your actual public IP/domain,\nrouter TCP 80/443 forwarding and the guide's explicit proxy handover. Existing Phase 1\ndata is preserved. Generated operator secrets belong only on the host.\n`)
 const files={}
-for(const f of [zipName,archiveName,'client/'+installerName,'deploy/compose.yaml','deploy/compose.https.yaml','deploy/setup.mjs','deploy/Caddyfile','deploy/.env.example','START_HOST_HERE.md','TWO_PC_PHASE2_TEST.md'])files[f]=digest(join(directory,f))
+for(const f of [zipName,archiveName,'client/'+installerName,'deploy/compose.yaml','deploy/compose.https.yaml','deploy/setup.mjs','deploy/Caddyfile','deploy/storage-entrypoint.sh','deploy/.env.example','START_HOST_HERE.md','TWO_PC_PHASE2_TEST.md'])files[f]=digest(join(directory,f))
 writeFileSync(join(directory,'manifest.json'),JSON.stringify({builtAt:new Date().toISOString(),sourceCommit:commit,client:{version:'0.2.0',identifier:'chat.hearth.phase2-test',unsigned:true,profile:'independent'},server:{image:imageName,imageId:info.Id,architecture:info.Architecture,composeProject:'hearth-phase2-test',backendPort:8182,s3LoopbackPort:18334},files},null,2)+'\n')
 console.log(JSON.stringify({directory,sourceCommit:commit,clientZip:zipName,serverArchive:archiveName,imageId:info.Id}))

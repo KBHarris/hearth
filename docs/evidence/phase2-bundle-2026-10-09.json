@@ -1,0 +1,20 @@
+{
+  "measuredAt": "2026-10-09T11:31:07.567Z",
+  "outcome": "pass",
+  "sourceCommit": "ee0a90fbe350c0815010a31b842d01fb4226f47e",
+  "checks": {
+    "all_manifest_hashes_match": true,
+    "host_secrets_absent_from_distribution": true,
+    "friend_zip_contains_only_installer_guide_and_checksum": true,
+    "loaded_server_archive_matches_pinned_image": true,
+    "fresh_server_health_discovery_and_owner_bootstrap_pass": true,
+    "all_phase2_migrations_applied_to_fresh_data": true,
+    "storage_rejects_anonymous_requests": true,
+    "server_restart_preserves_signing_identity": true
+  },
+  "humanPending": [
+    "clean installation on buddy PC",
+    "WAN/public certificate issuance",
+    "50-person community for one week"
+  ]
+}

@@ -1,5 +1,5 @@
 {
-  "measuredAt": "2026-10-09T11:23:10.886Z",
+  "measuredAt": "2026-10-09T11:39:26.783Z",
   "outcome": "pass",
   "client": "product WASM",
   "server": "native HTTP + PostgreSQL",

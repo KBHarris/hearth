@@ -72,6 +72,7 @@ jobs:
           node-version: 22
       - run: npm run spike:tools
       - run: cargo test -p hearth-server --test auth --test device --test delivery -- --ignored
+      - run: node scripts/verify-storage-permissions.mjs
       - run: node scripts/verify-auth.mjs --storage
         timeout-minutes: 8
         env:

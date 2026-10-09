@@ -52,12 +52,14 @@ services:
   storage:
     image: chrislusf/seaweedfs@sha256:4e61d15fd35994cb1e43e1e553dff106794841fd9a99ade2fc8c8bfce4d7872d
     restart: unless-stopped
-    command: server -dir=/data -s3 -s3.port=8333 -s3.config=/etc/hearth/s3.json -s3.allowedOrigins=${HEARTH_CLIENT_ORIGINS:-http://127.0.0.1:5173,http://localhost:5173,http://tauri.localhost,tauri://localhost} -master.telemetry=false
+    entrypoint: ["/bin/sh", "/etc/hearth/storage-entrypoint.sh"]
+    command: server -dir=/data -s3 -s3.port=8333 -s3.config=/run/hearth/s3.json -s3.allowedOrigins=${HEARTH_CLIENT_ORIGINS:-http://127.0.0.1:5173,http://localhost:5173,http://tauri.localhost,tauri://localhost} -master.telemetry=false
     ports:
       - "127.0.0.1:${HEARTH_S3_PORT:-8333}:8333"
     volumes:
       - storage-data:/data
       - ${HEARTH_S3_CONFIG_PATH:-./s3.json}:/etc/hearth/s3.json:ro
+      - ./storage-entrypoint.sh:/etc/hearth/storage-entrypoint.sh:ro
 
 volumes:
   server-data:

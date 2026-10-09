@@ -17,12 +17,13 @@ Owner/invitation onboarding, immutable cross-signed devices, linking/recovery, M
 and group DMs, gateway/offline delivery and encrypted durable local storage are verified.
 [PR #2](https://github.com/KBHarris/hearth/pull/2) remains a draft for review; no merge
 has been performed. The next checkpoint is the [two-PC encrypted DM test](TWO_PC_DM_TEST.md).
-The Windows test package and server image are prepared. Public certificate issuance,
+The original Phase 1 server and data are preserved. Its bundle files have been replaced
+by the validated Phase 2 Windows/server bundle from `ee0a90f`. Public certificate issuance,
 router forwarding, clean installation on the other PC and actual two-house reachability
-remain human acceptance steps. Phase 2 has started in the separate attached
-`codex/phase2-communities` worktree. Community setup and encrypted channel messaging pass
-local checks; the [development guide](PHASE2_DEVELOPMENT.md) records the independent configuration.
-The original checkout and frozen Phase 1 pair remain available for the pending DM test.
+remain human acceptance. The full Phase 2 implementation passes 49 HTTP/WASM, 18 Chrome
+UI and ten packaged Windows checks; eight assembled-bundle checks also pass.
+[The two-PC guide](TWO_PC_PHASE2_TEST.md) covers DMs and communities. Hosted expanded
+cross-platform checks are running; a 50-person community running for a week remains open.
 
 | Todo | Implementation | Validation |
 |---|---|---|
@@ -49,10 +50,39 @@ The original checkout and frozen Phase 1 pair remain available for the pending D
 | Phase 2 history | Implemented | Native and real HTTP/WASM none/full/since-invite, device binding, tamper and sealed restart and signed history UI handoff pass |
 | Phase 2 encrypted files, thumbnails and custom emoji | Implemented | Expanded suite passes 49 HTTP/WASM outcomes; canary absent from database, logs and private S3 volume bytes; actual UI file upload/download and custom emoji pass |
 | Phase 2 MLS load measurement | Complete | 1,000 synthetic native OpenMLS members; rotation median 11.47 ms, p95 12.52 ms, final member decrypts; product remains bounded to 128 devices |
-| Phase 2 replacement test bundle | Pending | Build and validate after implementation checks; remove old bundle files only after the replacement passes |
+| Phase 2 replacement test bundle | Prepared | ee0a90f installer/image hashes, secret-free friend ZIP, fresh migrations, private S3 and restart pass all eight checks; old bundle files removed |
 | Threat model | Draft maintained | Discovery exposure and saved server address documented; no independent security audit |
 
 ## Iteration log
+
+### 2026-10-09: Linux private-storage ownership correction
+
+- Hosted HTTP acceptance found that SeaweedFS drops to its service UID, which cannot
+  read a Linux host's mode-0600 configuration owned by another UID. Windows bind mounts
+  had masked this. The host configuration stays private/read-only; startup copies it into
+  a mode-0600 service-owned container file before the normal privilege drop.
+- The [Linux ownership reproduction](evidence/phase2-storage-permissions-2026-10-09.json)
+  passes locally inside the real Linux image: the original file stays unreadable to the
+  service UID, its private copy is readable and anonymous S3 requests still fail.
+  All 49 HTTP/WASM checks and fresh Compose checks pass again with the corrected startup.
+- Expanded macOS native acceptance passed in the first hosted run. Hosted checks and the
+  final bundle are being refreshed with this deployment correction; no gate is waived.
+
+### 2026-10-09: validated replacement bundle
+
+- Built `Hearth Phase 2 Test` 0.2.0 with identifier `chat.hearth.phase2-test`, independent
+  from the installed Phase 1 app. The friend ZIP contains only installer, guide and hash.
+- The host bundle pins the archived server image by content ID, uses project
+  `hearth-phase2-test` and fresh data, and generates new operator credentials on startup.
+  Its [eight-check report](evidence/phase2-bundle-2026-10-09.json) passes hash checks,
+  archive load, fresh schema 13, discovery/owner bootstrap, anonymous S3 rejection and
+  signing-key persistence. Caddy configuration validates; public issuance remains untested.
+- Removed only `target/manual-test/phase1-43ac92b` after checking that no running container
+  mounts it. The original backend remains healthy at port 8181; proxy, keys and volumes
+  are preserved. [The new guide](TWO_PC_PHASE2_TEST.md) explains the manual proxy handover.
+- Hosted cross-platform checks for implementation `ee0a90f` are running in
+  [run 37923945571](https://github.com/KBHarris/hearth/actions/runs/37923945571).
+  The 50-person/week exit criterion and actual two-house installation remain human gates.
 
 ### 2026-10-09: full text-layer browser validation and packaging
 

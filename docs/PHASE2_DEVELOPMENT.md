@@ -1,10 +1,10 @@
 # Phase 2 development and the preserved DM test
 
 Started 2026-10-08 on `codex/phase2-communities`, in the attached managed worktree.
-The original checkout stays on Phase 1. Its pending two-PC test uses the frozen
-`target/manual-test/phase1-43ac92b` folder in that original checkout, including its
-versioned client ZIP and digest-pinned server image. Use [the test guide](TWO_PC_DM_TEST.md)
-from the original checkout; do not rebuild its server from Phase 2 source.
+The original checkout and running server stay on Phase 1. Its obsolete bundle files
+were removed after the Phase 2 replacement passed validation. The replacement uses
+independent app/server profiles; follow [the two-PC guide](TWO_PC_PHASE2_TEST.md).
+Do not rebuild or migrate the original server from Phase 2 source.
 
 ## First iteration
 
@@ -107,5 +107,5 @@ Reports/screenshots are under `target/phase2-evidence`; committed evidence is in
 `docs/evidence`. Existing hosted implementation `7f8aed2` passes all 12 jobs in
 [run 37890119377](https://github.com/KBHarris/hearth/actions/runs/37890119377). New changes
 have not yet been submitted to hosted CI. Two-house reachability and a 50-person community
-running for a week remain human gates. A versioned replacement bundle follows validation;
-only then will old Phase 1 bundle files be removed, preserving running server data.
+running for a week remain human gates. The validated `ee0a90f` Windows/server replacement bundle is prepared; old Phase 1
+bundle files were removed, preserving running server data. Follow [the new guide](TWO_PC_PHASE2_TEST.md).
