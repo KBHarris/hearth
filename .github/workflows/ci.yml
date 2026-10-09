@@ -24,8 +24,8 @@ jobs:
           targets: wasm32-unknown-unknown
       - uses: Swatinem/rust-cache@v2
       - run: cargo fmt --all --check
-      - run: cargo clippy --all-targets --features hearth-proto/typescript,hearth-crypto/mls-spike,hearth-server/opaque-spike,hearth-wasm/opaque-spike -- -D warnings
-      - run: cargo test --features hearth-proto/typescript,hearth-crypto/mls-spike,hearth-server/opaque-spike,hearth-wasm/opaque-spike
+      - run: cargo clippy --all-targets --features hearth-proto/typescript,hearth-crypto/mls-spike,hearth-server/opaque-spike,hearth-wasm/opaque-spike,hearth-wasm/auth -- -D warnings
+      - run: cargo test --features hearth-proto/typescript,hearth-crypto/mls-spike,hearth-server/opaque-spike,hearth-wasm/opaque-spike,hearth-wasm/auth
       - run: cargo run -p hearth-proto --features typescript --bin generate-protocol -- --check
       - run: cargo check -p hearth-wasm --target wasm32-unknown-unknown
       - run: cargo check -p hearth-wasm --target wasm32-unknown-unknown --features mls-spike,opaque-spike
@@ -45,21 +45,72 @@ jobs:
       - run: npm run spike:mls:wasm
       - run: npm run spike:opaque:wasm
 
+  auth:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:17-alpine
+        env:
+          POSTGRES_USER: hearth
+          POSTGRES_PASSWORD: phase1-fixture-only
+          POSTGRES_DB: hearth
+        ports: ['5432:5432']
+        options: >-
+          --health-cmd "pg_isready -U hearth -d hearth"
+          --health-interval 5s --health-timeout 3s --health-retries 10
+    env:
+      DATABASE_URL: postgres://hearth:phase1-fixture-only@127.0.0.1:5432/hearth
+      HEARTH_TEST_DATABASE_URL: postgres://hearth:phase1-fixture-only@127.0.0.1:5432/hearth
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: wasm32-unknown-unknown
+      - uses: Swatinem/rust-cache@v2
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - run: npm run spike:tools
+      - run: cargo test -p hearth-server --test auth --test device --test delivery -- --ignored
+      - run: node scripts/verify-auth.mjs
+        timeout-minutes: 5
+        env:
+          HEARTH_TEST_POSTGRES_CONTAINER: ${{ job.services.postgres.id }}
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: phase1-auth
+          path: target/phase1-evidence/
+
   web:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: wasm32-unknown-unknown
+      - uses: Swatinem/rust-cache@v2
       - uses: actions/setup-node@v4
         with:
           node-version: 22
           cache: npm
       - run: npm ci
+      - run: npm run spike:tools
+      - run: node scripts/build-auth-wasm.mjs
       - run: npm run verify
+        env:
+          HEARTH_PREBUILT_WASM: '1'
         timeout-minutes: 2
+      - uses: actions/upload-artifact@v4
+        with:
+          name: product-auth-wasm
+          path: apps/client/src/crypto/generated/
       - run: npm run spike:media:build
 
   desktop:
     needs: [rust, web]
+    env:
+      HEARTH_PREBUILT_WASM: '1'
     strategy:
       fail-fast: false
       matrix:
@@ -79,9 +130,56 @@ jobs:
         if: runner.os == 'Linux'
         run: |
           sudo apt-get update
-          sudo apt-get install -y libwebkit2gtk-4.1-dev libappindicator3-dev librsvg2-dev patchelf xvfb gstreamer1.0-plugins-good gstreamer1.0-plugins-bad gstreamer1.0-nice
+          sudo apt-get install -y libwebkit2gtk-4.1-dev libappindicator3-dev librsvg2-dev patchelf xvfb gstreamer1.0-plugins-good gstreamer1.0-plugins-bad gstreamer1.0-nice gnome-keyring dbus-x11 postgresql
+          echo "PGBIN=/usr/lib/postgresql/14/bin" >> "$GITHUB_ENV"
+      - name: Windows SQLCipher toolchain
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          $taskPerl = 'C:\Strawberry\perl\bin\perl.exe'
+          if (!(Test-Path -LiteralPath $taskPerl)) { throw 'Vendored OpenSSL requires complete Strawberry Perl' }
+          "PERL=$taskPerl" | Out-File -FilePath $env:GITHUB_ENV -Append -Encoding utf8
+          'OPENSSL_NO_ASM=1' | Out-File -FilePath $env:GITHUB_ENV -Append -Encoding utf8
+      - name: macOS fixture PostgreSQL
+        if: runner.os == 'macOS'
+        run: |
+          brew install postgresql@17
+          echo "PGBIN=$(brew --prefix postgresql@17)/bin" >> "$GITHUB_ENV"
       - run: npm ci
+      - uses: actions/download-artifact@v4
+        with:
+          name: product-auth-wasm
+          path: apps/client/src/crypto/generated/
       - run: npm run desktop:build -- --debug --no-bundle
+      - name: Build packaged Phase 1 acceptance
+        run: npm run build
+        env:
+          HEARTH_PHASE1_HARNESS: '1'
+      - run: cargo build -p hearth-server
+      - run: cargo build -p hearth-desktop --features phase1-storage-test,phase1-acceptance
+      - name: Fixture shutdown barrier
+        run: cargo test -p hearth-desktop --features phase1-storage-test,phase1-acceptance cleanup_preserves_files_until_native_storage_returns
+      - name: Windows/macOS encrypted storage and packaged client acceptance
+        if: runner.os != 'Linux'
+        timeout-minutes: 5
+        run: |
+          node scripts/verify-local-vault.mjs
+          node scripts/verify-message-store.mjs
+          node scripts/verify-auth.mjs --desktop --native-postgres
+      - name: Linux Secret Service, SQLCipher and packaged client acceptance
+        if: runner.os == 'Linux'
+        timeout-minutes: 7
+        run: |
+          for attempt in 1 2 3 4 5 6 7 8 9 10; do
+            echo "Linux packaged acceptance repetition $attempt"
+            xvfb-run -a dbus-run-session -- bash scripts/verify-linux-key-store.sh
+            cp target/phase1-evidence/packaged-linux.json "target/phase1-evidence/packaged-linux-repetition-$attempt.json"
+          done
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: phase1-desktop-${{ matrix.os }}
+          path: target/phase1-evidence/
       - run: npm run spike:media:build
       - run: cargo build -p hearth-desktop --features phase0-spike
       - run: node scripts/verify-desktop-mls.mjs

@@ -3,7 +3,7 @@ import { test } from 'node:test'
 import { mkdtempSync, readFileSync, writeFileSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join, dirname, basename, resolve } from 'node:path'
-import { initializeConfig } from '../setup.mjs'
+import { initializeConfig, publicAddress } from '../setup.mjs'
 
 function fixture(t) {
   const directory = mkdtempSync(join(tmpdir(), 'hearth-setup-test-'))
@@ -52,4 +52,20 @@ test('duplicate password entries cannot hide an unsafe effective Compose value',
   writeFileSync(join(directory, '.env'), text)
   assert.throws(() => initializeConfig(directory), /exactly one/)
   assert.equal(readFileSync(join(directory, '.env'), 'utf8'), text)
+})
+
+test('public HTTPS rejects unsafe addresses before starting Compose and preserves configuration', (t) => {
+  const directory=fixture(t)
+  for(const address of ['', 'https://8.8.8.8', '8.8.8.8:443', '8.8.8.8/path', 'host.example.com {', '127.0.0.1', '192.168.1.10', '10.1.2.3', '172.31.1.2', '100.64.0.1', '239.1.1.1', 'chat.localhost']){
+    const text=`POSTGRES_PASSWORD=${'a'.repeat(64)}\nHEARTH_PUBLIC_ADDRESS=${address}\n`
+    writeFileSync(join(directory,'.env'),text)
+    assert.throws(()=>publicAddress(directory))
+    assert.equal(readFileSync(join(directory,'.env'),'utf8'),text)
+  }
+  writeFileSync(join(directory,'.env'),'HEARTH_PUBLIC_ADDRESS=8.8.8.8\nHEARTH_PUBLIC_ADDRESS=1.1.1.1\n')
+  assert.throws(()=>publicAddress(directory),/exactly one/)
+  for(const address of ['8.8.8.8','chat.example.com']){
+    writeFileSync(join(directory,'.env'),`HEARTH_PUBLIC_ADDRESS=${address}\n`)
+    assert.equal(publicAddress(directory),address)
+  }
 })

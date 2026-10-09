@@ -96,6 +96,7 @@ async function run() {
     'establish old key decoding', 'fresh key replacement']
   function setStage(next: string) {
     stage = next
+    status.textContent = `Checking ${next}…`
     if (desktop) void invoke('phase0_stage', { stage: stageNames.indexOf(next) }).catch(() => {})
   }
   let matchedVideo: RemoteTrack | undefined
@@ -310,4 +311,6 @@ async function run() {
 }
 
 button.addEventListener('click', () => { void run() })
+button.disabled = false
+status.textContent = 'Ready'
 if (desktop || new URLSearchParams(location.search).get('autorun') === '1') void run()

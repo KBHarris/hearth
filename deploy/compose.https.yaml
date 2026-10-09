@@ -1,0 +1,28 @@
+# Optional public HTTPS front end. Requires Docker Compose 2.24.4+.
+# Keep the same project name and volumes as compose.yaml.
+services:
+  server:
+    environment:
+      HEARTH_SERVER_NAME: ${HEARTH_PUBLIC_ADDRESS:?set HEARTH_PUBLIC_ADDRESS in deploy/.env}
+    # The public interface belongs to Caddy; force the backend to stay on loopback.
+    ports: !override
+      - "127.0.0.1:${HEARTH_PORT:-8080}:8080"
+  proxy:
+    image: caddy:2.11.7-alpine
+    restart: unless-stopped
+    environment:
+      HEARTH_PUBLIC_ADDRESS: ${HEARTH_PUBLIC_ADDRESS:?set HEARTH_PUBLIC_ADDRESS in deploy/.env}
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy-data:/data
+      - caddy-config:/config
+    depends_on:
+      server:
+        condition: service_healthy
+
+volumes:
+  caddy-data:
+  caddy-config:

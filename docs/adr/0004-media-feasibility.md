@@ -1,7 +1,8 @@
 # ADR 0004: encrypted media feasibility and platform gates
 
-- Status: proposed; platform feasibility gates pass with supported-browser media on Linux
+- Status: accepted; platform feasibility gates pass with supported-browser media on Linux
 - Date: 2026-10-07
+- Accepted in: [PR #1](https://github.com/KBHarris/hearth/pull/1)
 
 ## Decision
 

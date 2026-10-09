@@ -5,15 +5,24 @@
 
 use serde::{Deserialize, Serialize};
 
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[cfg_attr(feature = "typescript", derive(ts_rs::TS))]
 #[serde(tag = "op", content = "d", rename_all = "snake_case")]
 pub enum ClientFrame {
     /// First frame after connecting.
-    Identify { protocol: u32, token: String },
+    Identify {
+        protocol: u32,
+        token: String,
+        device_key: String,
+        signature: String,
+    },
     Heartbeat {
         #[cfg_attr(feature = "typescript", ts(type = "number | null"))]
         last_seq: Option<u64>,
+    },
+    Ack {
+        #[cfg_attr(feature = "typescript", ts(type = "number"))]
+        last_seq: u64,
     },
     Resume {
         session_id: String,
@@ -26,6 +35,9 @@ pub enum ClientFrame {
 #[cfg_attr(feature = "typescript", derive(ts_rs::TS))]
 #[serde(tag = "op", content = "d", rename_all = "snake_case")]
 pub enum ServerFrame {
+    Challenge {
+        challenge: String,
+    },
     /// Sent immediately on connect.
     Hello {
         protocol: u32,

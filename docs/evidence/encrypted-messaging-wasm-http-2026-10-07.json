@@ -1,0 +1,30 @@
+{
+  "measuredAt": "2026-10-08T03:47:05.703Z",
+  "outcome": "pass",
+  "client": "product WASM",
+  "server": "native HTTP + PostgreSQL",
+  "checks": {
+    "setup_code_required": true,
+    "one_owner_under_concurrent_claims": true,
+    "one_use_login_proof": true,
+    "cross_signed_device_bound_to_account_and_server": true,
+    "encrypted_vault_only_client_side": true,
+    "credentials_pending_proofs_and_sessions_survive_restart": true,
+    "vault_unlock_after_fresh_login_and_identity_replacement_rejected": true,
+    "recovery_kit_restores_identity_with_fresh_device": true,
+    "approved_device_link_delivers_identity_once": true,
+    "single_use_invite_creates_second_account": true,
+    "owner_only_registration_settings_survive_restart": true,
+    "wasm_mls_authenticated_gateway_and_offline_resume_after_restart": true,
+    "linked_device_joins_new_epoch_without_old_history": true,
+    "encrypted_reply_edit_and_delete": true,
+    "gateway_rejects_forged_device_token_binding_and_future_resume": true,
+    "open_registration_three_person_group_dm_and_encrypted_typing": true,
+    "live_gateway_closes_after_session_revocation": true,
+    "message_canary_absent_from_server_database_and_gateway": true,
+    "missing_key_refuses_existing_account_startup": true,
+    "logout_revokes_session": true,
+    "wrong_password_rejected": true,
+    "no_password_on_wire_or_secrets_in_logs": true
+  }
+}

@@ -32,8 +32,21 @@ try {
       .setPreference('media.autoplay.block-webaudio', false))
     .build()
   await driver.get(fixture.url)
-  await driver.findElement(By.id('run')).click()
-  await driver.wait(async () => /^(PASS|FAIL) ·/.test(await driver.findElement(By.id('status')).getText()), 70000)
+  try {
+    // A dev module can finish loading after WebDriver considers the DOM ready.
+    // Preserve a real user-activation click, but wait for its handler first.
+    await driver.wait(async () => await driver.findElement(By.id('run')).isEnabled(), 20000)
+    await driver.findElement(By.id('run')).click()
+    await driver.wait(async () => /^(PASS|FAIL) ·/.test(await driver.findElement(By.id('status')).getText()), 70000)
+  } catch (error) {
+    // Only the harness's stage/check fields; never browser logs, SDP or tokens.
+    mkdirSync(output, { recursive: true })
+    const status=await driver.findElement(By.id('status')).getText()
+    const report=await driver.findElement(By.id('report')).getText()
+    writeFileSync(reportPath, JSON.stringify({runtime:`${browser} (${process.platform})`,outcome:'fail',failedStage:status,errorClass:error.name,report},null,2)+'\n')
+    writeFileSync(screenshotPath, Buffer.from(await driver.takeScreenshot(), 'base64'))
+    throw error
+  }
   const report = JSON.parse(await driver.findElement(By.id('report')).getText())
   mkdirSync(output, { recursive: true })
   writeFileSync(reportPath, JSON.stringify({ runtime: `${browser} (${process.platform})`, ...report }, null, 2) + '\n')

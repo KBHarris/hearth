@@ -1,0 +1,16 @@
+{
+  "checks": {
+    "fresh_origin_device_link": true,
+    "invited_second_account": true,
+    "full_database_dump_excludes_browser_message_canaries": true,
+    "reload_signin_reopens_history": true,
+    "two_way_text_and_reply": true,
+    "linked_device_receives_new_message_without_old_history": true,
+    "owner_setup_and_settings": true,
+    "offline_delivery_after_signin": true,
+    "edit_synced_to_recipient": true
+  },
+  "outcome": "pass",
+  "measuredAt": "2026-10-08T04:10:45.5674468Z",
+  "runtime": "Windows in-app Chromium, product UI and WASM worker"
+}

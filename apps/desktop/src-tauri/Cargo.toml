@@ -9,6 +9,8 @@ rust-version.workspace = true
 [features]
 mls-spike = ["hearth-crypto/mls-spike"]
 phase0-spike = ["mls-spike"]
+phase1-storage-test = []
+phase1-acceptance = []
 
 [lib]
 name = "hearth_desktop_lib"
@@ -24,3 +26,16 @@ hearth-proto.workspace = true
 serde.workspace = true
 serde_json.workspace = true
 tauri = { version = "2", features = [] }
+# Matches SQLx 0.8's libsqlite3-sys link version; one sqlite3 implementation per graph.
+rusqlite = { version = "=0.32.1", features = ["bundled-sqlcipher-vendored-openssl"] }
+zeroize = "1"
+hex.workspace = true
+rand_core.workspace = true
+sha2 = "0.10"
+
+[target.'cfg(target_os = "windows")'.dependencies]
+keyring = { version = "=3.6.3", features = ["windows-native"] }
+[target.'cfg(target_os = "macos")'.dependencies]
+keyring = { version = "=3.6.3", features = ["apple-native"] }
+[target.'cfg(target_os = "linux")'.dependencies]
+keyring = { version = "=3.6.3", features = ["sync-secret-service", "crypto-rust", "vendored"] }

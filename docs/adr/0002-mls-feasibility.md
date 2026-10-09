@@ -1,7 +1,8 @@
 # ADR 0002: OpenMLS feasibility and receive transactions
 
-- Status: proposed for acceptance; native, WASM and all desktop IPC scenarios pass
+- Status: accepted; native, WASM and all desktop IPC scenarios pass
 - Date: 2026-10-07
+- Accepted in: [PR #1](https://github.com/KBHarris/hearth/pull/1)
 
 ## Context
 

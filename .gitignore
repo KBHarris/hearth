@@ -11,6 +11,7 @@ dist/
 
 # wasm-pack output
 crates/hearth-wasm/pkg/
+apps/client/src/crypto/generated/
 
 # Env / secrets
 .env

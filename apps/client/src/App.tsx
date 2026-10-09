@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState, type FormEvent } from 'react'
 import { HearthClient, HearthError, normalizeServerUrl, type ServerInfo } from '@hearth/sdk'
 import './App.css'
+import { AuthPanel } from './AuthPanel'
 
 // Vite proxies the web origin to the development server. Packaged desktop builds
 // need an actual server origin rather than the Tauri asset origin.
@@ -178,6 +179,7 @@ export default function App() {
               <ServerStatus status={status} url={connection.url} retry={retry} />
             </div>
             {status.kind === 'ok' && <ServerDetails info={status.info} />}
+            {status.kind === 'ok' && <AuthPanel key={connection.url + connection.attempt} url={connection.url} info={status.info} setupFinished={() => setStatus({ kind: 'ok', info: { ...status.info, setup: { setup_complete: true } } })} configured={settings => setStatus({kind:'ok',info:{...status.info,wellKnown:{...status.info.wellKnown,server_name:settings.server_name}}})}/>}
             <div className="storage-note">
               <span><Icon name="device" />{remembered ? 'Last working address saved on this device.' : 'A working address will be remembered on this device.'}</span>
               {remembered && <button type="button" onClick={forgetServer}>Forget address</button>}
@@ -188,7 +190,7 @@ export default function App() {
             <div><Icon name="globe" /><span>Community owned</span></div>
             <div><Icon name="code" /><span>Open by design</span></div>
           </div>
-          <p className="development-note">You’re trying an early build. Accounts and encrypted messaging are still in development.</p>
+          <p className="development-note">You’re trying an early build. Direct messages, recovery and device linking are available for testing. Communities, calls and federation are coming later.</p>
         </section>
       </main>
     </div>
@@ -233,7 +235,7 @@ function ServerDetails({ info }: { info: ServerInfo }) {
         <div><dt>Federation setting</dt><dd>{info.wellKnown.federation ? 'Enabled' : 'Disabled'}</dd></div>
         <div><dt>Owner setup</dt><dd>{info.setup.setup_complete ? 'Complete' : 'Not complete'}</dd></div>
       </dl>
-      {!info.setup.setup_complete && <p className="setup-note">This server still needs its owner setup. The guided setup flow is coming in a later build.</p>}
+      {!info.setup.setup_complete && <p className="setup-note">Create the owner account below to complete this server’s setup.</p>}
       <details>
         <summary>Server signing key</summary>
         <p>This is the public key advertised by the server. It has not been independently verified.</p>

@@ -1,0 +1,14 @@
+{
+  "measuredAt": "2026-10-08T14:07:59.678Z",
+  "outcome": "pass",
+  "platform": "linux",
+  "backend": "Secret Service",
+  "scope": "dedicated disposable test credential; not packaged authentication",
+  "checks": {
+    "create_and_read": true,
+    "fresh_process_read": true,
+    "preserve_existing": true,
+    "preserve_damaged_entry": true,
+    "cleanup": true
+  }
+}

@@ -1,0 +1,24 @@
+{
+  "ci_run": "https://github.com/KBHarris/hearth/actions/runs/37811808453",
+  "revision": "43ac92bad44fd28d80efdf81885e9b537db0e821",
+  "runtime": "Tauri system webview (linux)",
+  "wasm_build": "release",
+  "outcome": "pass",
+  "repetitions": 10,
+  "measured_from": "2026-10-08T17:02:21.586Z",
+  "measured_to": "2026-10-08T17:06:01.841Z",
+  "checks": {
+    "existing_install_identity_is_preserved": true,
+    "fresh_worker_restores_native_keys_sqlcipher_history_and_offline_backlog": true,
+    "packaged_authenticated_gateway_text_reply_edit_delete": true,
+    "packaged_sqlcipher_compare_and_swap_preserves_state": true,
+    "packaged_worker_opaque_and_native_identity_vault": true,
+    "recovery_fresh_device_rekeys_and_reads_new_messages_without_old_history": true,
+    "server_database_and_logs_exclude_packaged_message_canary": true
+  },
+  "fixture_cleanup": {
+    "credentials_removed": true,
+    "files_removed": true,
+    "native_calls_drained": true
+  }
+}

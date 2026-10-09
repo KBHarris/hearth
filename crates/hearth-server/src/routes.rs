@@ -18,8 +18,16 @@ pub async fn health(State(state): State<SharedState>) -> Json<Health> {
 }
 
 pub async fn well_known(State(state): State<SharedState>) -> Json<WellKnown> {
+    let configured: Option<serde_json::Value> =
+        sqlx::query_scalar("SELECT value FROM instance_settings WHERE key='server_name'")
+            .fetch_optional(&state.db)
+            .await
+            .ok()
+            .flatten();
     Json(WellKnown {
-        server_name: state.config.server_name.clone(),
+        server_name: configured
+            .and_then(|v| v.as_str().map(str::to_owned))
+            .unwrap_or_else(|| state.config.server_name.clone()),
         protocols: vec![PROTOCOL_VERSION],
         server_key: state.server_key.public().to_hex(),
         federation: state.config.federation_enabled,

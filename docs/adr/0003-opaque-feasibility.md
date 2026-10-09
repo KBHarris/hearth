@@ -1,7 +1,8 @@
 # ADR 0003: OPAQUE feasibility across WASM and Rust
 
-- Status: proposed for acceptance; local and hosted WASM-client/native-server scenarios pass
+- Status: accepted; local and hosted WASM-client/native-server scenarios pass
 - Date: 2026-10-07
+- Accepted in: [PR #1](https://github.com/KBHarris/hearth/pull/1)
 
 ## Context
 

@@ -1,0 +1,19 @@
+{
+  "measuredAt": "2026-10-08T00:49:17.965Z",
+  "outcome": "pass",
+  "client": "product WASM",
+  "server": "native HTTP + PostgreSQL",
+  "checks": {
+    "setup_code_required": true,
+    "one_owner_under_concurrent_claims": true,
+    "one_use_login_proof": true,
+    "cross_signed_device_bound_to_account_and_server": true,
+    "encrypted_vault_only_client_side": true,
+    "credentials_pending_proofs_and_sessions_survive_restart": true,
+    "vault_unlock_after_fresh_login_and_identity_replacement_rejected": true,
+    "missing_key_refuses_existing_account_startup": true,
+    "logout_revokes_session": true,
+    "wrong_password_rejected": true,
+    "no_password_on_wire_or_secrets_in_logs": true
+  }
+}

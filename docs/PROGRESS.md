@@ -1,11 +1,25 @@
 # Hearth implementation progress
 
-Updated: 2026-10-07. This file records implementation and validation separately. The
+Updated: 2026-10-08. This file records implementation and validation separately. The
 full product backlog and phase exit criteria are in [ROADMAP.md](ROADMAP.md).
 
 ## Current phase
 
-Phase 0 is in progress. Accounts and encrypted messaging are not usable yet.
+Phase 0 is complete. [PR #1](https://github.com/KBHarris/hearth/pull/1) merged the verified
+foundations and spike ADRs into `main` on 2026-10-07 (commit `8f6db29`). All 11 final
+[CI checks](https://github.com/KBHarris/hearth/actions/runs/37670086516) passed before merge.
+Phase 1 is complete. Implementation `43ac92b` passes all twelve jobs in
+[run 37811808453](https://github.com/KBHarris/hearth/actions/runs/37811808453): Rust,
+web, crypto/WASM, real PostgreSQL/HTTP acceptance, Docker, Podman, three browsers and
+Windows/macOS/Linux desktop acceptance. The product suite passes 23 HTTP/WASM outcomes;
+packaged webviews pass all seven messaging outcomes, with ten isolated Linux repetitions.
+Owner/invitation onboarding, immutable cross-signed devices, linking/recovery, MLS DMs
+and group DMs, gateway/offline delivery and encrypted durable local storage are verified.
+[PR #2](https://github.com/KBHarris/hearth/pull/2) remains a draft for review; no merge
+has been performed. The next checkpoint is the [two-PC encrypted DM test](TWO_PC_DM_TEST.md).
+The Windows test package and server image are prepared. Public certificate issuance,
+router forwarding, clean installation on the other PC and actual two-house reachability
+remain human acceptance steps. Phase 2 has not started.
 
 | Todo | Implementation | Validation |
 |---|---|---|
@@ -16,10 +30,184 @@ Phase 0 is in progress. Accounts and encrypted messaging are not usable yet.
 | Rust to TypeScript protocol generation | Complete | Generation, committed-output test, typecheck, and deliberate drift rejection pass |
 | Spike A: OpenMLS | Feasibility complete | Native Rust, Node/browser WASM, and native MLS through Windows/macOS/Linux Tauri webview IPC pass |
 | Spike B: encrypted media | Feasibility complete | Local and hosted WebView2, hosted WKWebView and Chrome/Firefox/Safari pass; Linux native capability block selects browser media |
-| Spike C: OPAQUE | Feasibility complete | WASM client + separate Rust process pass registration/login and adversarial checks locally and in CI; product account integration remains Phase 1 |
+| Spike C: OPAQUE | Feasibility complete | WASM client + separate Rust process pass registration/login and adversarial checks locally and in CI |
+| Phase 1 owner/account slice | Complete | SQL, browser and hosted product HTTP/WASM acceptance pass |
+| Phase 1 identity/first-device vault | Complete | Browser vault and all three native OS stores pass; optimized WASM preserves debug-build credentials/vaults |
+| Recovery, device linking and second-account onboarding | Complete | HTTP/WASM and packaged Windows/macOS/Linux recovery/new-message acceptance pass; ten Linux repetitions pass |
+| MLS delivery, authenticated gateway, DMs and group DMs | Complete | 23 HTTP/WASM outcomes, browser checks and all three packaged webview runtimes pass |
+| Encrypted message store | Complete | Browser IndexedDB and Windows/Linux/macOS SQLCipher/OS-store CAS, new-process, canary and missing-key checks pass |
+| Phase 1 exit criteria | Complete | All 12 hosted jobs pass for implementation 43ac92b |
+| Two-PC public HTTPS DM test | Prepared | Installer/guide and local proxy checks ready; actual WAN reachability and clean buddy-PC installation remain untested |
 | Threat model | Draft maintained | Discovery exposure and saved server address documented; no independent security audit |
 
 ## Iteration log
+
+### 2026-10-08: preserve the pending two-PC test
+
+- On the user's request to continue, preserved implementation `43ac92b` in
+  `target/manual-test/phase1-43ac92b`: versioned client ZIP, server image archive,
+  checksums and a launcher using a digest-pinned image with no build step.
+  [Frozen test manifest](evidence/phase1-frozen-test-2026-10-08.json).
+- Read-only inspection found the user's `hearth` HTTPS stack already running. Its
+  server executable SHA-256 matches the frozen image. No live service was restarted;
+  existing `hearth` database, server-key and certificate volumes are preserved.
+  The frozen host folder contains private configuration; only its client ZIP is shareable.
+- Phase 2 work begins in the attached `phase2-communities` managed checkout. Its
+  development configuration and disposable acceptance databases must be separate
+  from the pending Phase 1 test. Use the frozen commands in the updated two-PC guide.
+
+### 2026-10-08: Phase 1 complete and manual test checkpoint
+
+- [All twelve hosted jobs](https://github.com/KBHarris/hearth/actions/runs/37811808453)
+  pass for `43ac92b`; [workflow summary](evidence/phase1-ci-2026-10-08.json).
+  The [23-outcome HTTP/WASM report](evidence/optimized-wasm-auth-2026-10-08.json) includes
+  existing debug-build credential/vault compatibility. Packaged
+  [Windows](evidence/encrypted-messaging-packaged-windows-2026-10-08.json),
+  [macOS](evidence/encrypted-messaging-packaged-macos-2026-10-08.json) and
+  [Linux](evidence/encrypted-messaging-packaged-linux-2026-10-08.json) pass seven product
+  outcomes plus native-call/credential/file cleanup. All
+  [ten isolated Linux repetitions](evidence/optimized-wasm-linux-repetitions-2026-10-08.json)
+  pass with optimized product WASM. Five optimized Windows repetitions also pass locally.
+- The debug comparison in run 37811334323 reproduces an OPAQUE registration protocol
+  rejection on its fourth Linux repetition, before OS storage; no WASM runtime trap is
+  reported. Optimized product WASM preserves the fixed OPAQUE/Argon2 profile and removes
+  the observed failure across the ten-run gate. Debug WASM is not shipped by the product
+  build; the underlying debug/WebKit compatibility issue remains available for diagnosis.
+- Required npm verification, Rust formatting/clippy/tests, native feature clippy and
+  the fixture shutdown regression test pass. The normal Windows product build and
+  unsigned NSIS development installer are rebuilt with optimized WASM. The shareable
+  ZIP contains only the installer and START_HERE guide; its checksum/source are in
+  [the two-PC guide](TWO_PC_DM_TEST.md). No public server exposure or router change was
+  made here. The original development server/data remain healthy and preserved.
+- Updated README, this tracker, the roadmap, ADR 0008 and the test guide. The IP-change
+  guide now correctly distinguishes native server/account storage from browser-origin
+  storage. PR #2 remains a draft. Stop at the manual two-PC DM checkpoint before Phase 2.
+
+### 2026-10-08: recovery rerun diagnosis
+
+- Safari passes after the handler-readiness correction in
+  [run 37801886115](https://github.com/KBHarris/hearth/actions/runs/37801886115).
+  The Linux packaged client passes authentication, encrypted text/reply/edit/delete,
+  SQLCipher CAS, fresh-worker history and offline backlog, but fails in the recovery
+  section after passing that section in the preceding run. Recovery is now reported
+  as individual static stages, with no raw errors or credential material emitted.
+- Ten consecutive local Windows packaged recovery runs pass using the real worker,
+  native SQLCipher/OS credentials and fresh disposable PostgreSQL clusters. Each run
+  checks new-device rekeying, new-message delivery, old-history exclusion, preserved
+  original identity, server canary absence and fixture cleanup. Required npm verification
+  and the diagnostic desktop build pass. This does not resolve the Linux failure yet.
+- The Windows rerun passes all seven product checks but fails disposable fixture cleanup.
+  Fixture storage calls now hold native operation leases through their blocking work;
+  finishing rejects new calls and waits for existing calls before deleting credentials
+  or files. A regression test verifies files survive while a lease is active and are
+  removed afterward; it passes locally and runs on all three CI desktop platforms.
+  Cleanup reports only static booleans for drained calls, credentials and files.
+  Native feature clippy, formatting and default Rust tests pass. Hosted rerun pending.
+- The first isolated Linux repetition in run 37805727608 passes all seven product
+  checks and all three cleanup outcomes. Its second repetition fails during account
+  setup, while native cleanup still passes. macOS passes product and cleanup acceptance.
+  Diagnostics now distinguish individual registration/login/storage steps and static
+  failure classes; raw error strings remain private. This broader intermittent Linux
+  failure remains under investigation.
+- Classified Linux diagnostics narrow the failure to WASM OPAQUE registration finish,
+  before OS storage. The worker now distinguishes fixed runtime-trap classes from
+  protocol rejection without exporting exception text. A separate diagnostic branch
+  retains debug WASM for a controlled comparison. The product build now emits optimized
+  WASM (2.96 MB versus 15.42 MB), preserving the exact OPAQUE/Argon2 profile. Optimized
+  WASM passes required npm verification and all 22 real HTTP/WASM outcomes locally.
+  The product CI run will repeat isolated Linux acceptance ten times and preserve each
+  successful report. Hosted comparison and full closure remain pending.
+- Added an upgrade-compatibility gate: optimized WASM authenticates credentials created
+  by the debug build and opens its original encrypted identity vault with the same
+  cross-signed device. All 23 HTTP/WASM outcomes pass locally, including this gate;
+  [report](evidence/optimized-wasm-auth-2026-10-08.json). No profile migration is needed.
+
+### 2026-10-08: cross-platform messaging and two-PC test preparation
+
+- The context and private PostgreSQL fixture fixes work in hosted CI. Packaged
+  [macOS](evidence/encrypted-messaging-packaged-macos-2026-10-08.json) and
+  [Linux](evidence/encrypted-messaging-packaged-linux-2026-10-08.json) each pass all seven
+  messaging acceptance checks, including OPAQUE, native identity storage, SQLCipher,
+  offline history, recovery/rekeying and server canary absence. Full Linux/macOS desktop
+  jobs pass. Windows's key-store/SQLCipher checks pass, but packaged acceptance times out
+  while starting native PostgreSQL. A disposable local reproduction confirms `pg_ctl`
+  exits successfully while `spawnSync` waits on pipes inherited by its background server.
+  Windows `pg_ctl` now uses ignored streams with a separate startup log; all seven
+  packaged checks pass against an owned native PostgreSQL 17 cluster after the fix,
+  both locally and in hosted [run 37795943918](https://github.com/KBHarris/hearth/actions/runs/37795943918).
+- Safari's separate Phase 0 media job times out; its previous run passed in 7.95 seconds.
+  Keep the gate open and rerun the failure before deciding whether another fix is needed.
+  The harness now shows its current stage, and the browser test saves its report/screenshot
+  on timeout so a repeat failure identifies the blocked stage without secret transcripts.
+  The next report shows `Ready`/`No test run yet`, confirming the test never started.
+  The run button is now disabled until its handler is attached, and WebDriver waits for
+  readiness before its real click. Windows headless Chrome passes full encrypted synthetic
+  media with the native SFU in 9.38 seconds. Its Docker SFU attempt fails at loopback ICE
+  connection; native SFU verification retains all encryption assertions.
+- Built a shareable unsigned Windows NSIS debug installer. Added the optional public
+  HTTPS Compose front end with Caddy 2.11.7 and the Let's Encrypt short-lived profile,
+  supporting a public IPv4 without a purchased domain. Configuration rejects malformed,
+  private and CGNAT addresses before starting services and preserves existing secrets.
+- [Local proxy acceptance](evidence/https-proxy-2026-10-08.json) passes production ACME
+  configuration, forced loopback backend binding, TLS without SNI, real Hearth discovery
+  and real gateway WebSocket forwarding. Public certificate issuance, router forwarding
+  and the connection between the two houses remain untested.
+- Added the [two-PC test guide](TWO_PC_DM_TEST.md). No public listener, firewall rule or
+  router forwarding was enabled by these checks; test proxy containers were loopback-only
+  and removed afterward. The existing local development server/data were preserved.
+- Prebuilt the local `hearth-server` image for the manual test. Docker build contexts now
+  exclude `deploy/data`, environment secrets and private fixtures; inspection of the
+  actual builder confirms their absence. The verification image tag was removed.
+- Run 37795943918 finishes with all three full desktop jobs passing; Safari is the only
+  failed job. Its startup-readiness correction is queued for the next full CI run.
+
+### 2026-10-08: hosted platform validation and fixture fixes
+
+- [Run 37788432871](https://github.com/KBHarris/hearth/actions/runs/37788432871) passes
+  Rust, web, crypto WASM, full HTTP/WASM auth/messaging acceptance, Docker, Podman and
+  Chrome/Firefox/Safari media jobs. Windows desktop remains running at this checkpoint.
+- Linux's [Secret Service](evidence/local-vault-linux-2026-10-08.json) and
+  [SQLCipher](evidence/sqlcipher-linux-2026-10-08.json) runtime checks pass. Packaged
+  acceptance stops during its owned PostgreSQL startup; the fixture now disables Unix
+  sockets and uses loopback TCP, independently verified in a disposable Linux container.
+  Startup errors preserve the initial diagnostic. The private keyring readiness check
+  no longer requires ripgrep and reports a startup timeout explicitly; ShellCheck passes.
+- macOS finds duplicate embedded plist symbols because the acceptance build includes
+  both product and diagnostic Tauri contexts. The contexts are now mutually excluded.
+  Windows feature clippy/build and [packaged acceptance](evidence/encrypted-messaging-packaged-windows-2026-10-08.json)
+  pass with the entrypoint fix. Hosted macOS/Linux acceptance still requires a rerun.
+- Required npm verification, Rust formatting/clippy/tests and the normal Windows desktop
+  debug build pass after these fixes.
+- Phase 1 remains open until all required hosted platform gates pass.
+
+### 2026-10-07: encrypted messaging vertical slice
+
+- Implemented device-bound production MLS with signed manifests, identity-root pins,
+  atomic rejection rollback, encrypted worker snapshots and durable upload outboxes.
+- Added real KeyPackage validation/claims and consumed-package tombstones, epoch-ordered
+  commits, idempotent fan-out and ACLs. Authenticated WebSockets use nonce-bound device
+  proofs, bounded acknowledgements, heartbeats, resume and PostgreSQL offline queues.
+- Implemented DMs/group DMs, replies, edits, deletes and encrypted expiring typing.
+  Linked/recovered installs join a fresh epoch and read new messages without old history.
+- Browser storage uses strict IndexedDB CAS; desktop uses actual SQLCipher with its
+  separate database key in the OS store. Missing/damaged/conflicting storage fails closed.
+- Local SQL acceptance and 22 real HTTP/product-WASM outcomes pass, including three-person
+  groups, gateway forgery/revocation, restart/offline delivery and full database/log canary
+  inspection. Crypto regression tests cover a previous-epoch message racing a commit and
+  rejection of a pending first conversation without orphaned state.
+- The packaged Windows webview passes the product worker/SDK/session/native-command path,
+  SQLCipher CAS/history, fresh-worker offline reopening, recovery and new-device rekeying.
+  Its dedicated credential services and owned files are cleaned; no production entries
+  are deleted. Separate native storage tests pass fresh-process persistence and corruption
+  rejection. This is a runtime harness, not native UI click/permission acceptance.
+- Browser UI verifies owner setup, account invitation, both-way text/reply, synced edits,
+  reload/sign-in history, offline delivery and linking from a fresh origin. The linked
+  install starts with no old history and receives a new peer message. A full database
+  dump excludes the browser message canaries.
+- Recorded [ADR 0008](adr/0008-encrypted-direct-messages.md) and updated the metadata inventory.
+  CI now includes delivery tests, packaged runtime acceptance on all desktop platforms and
+  Linux Secret Service runtime in a private D-Bus/XDG fixture. Those hosted gates remain
+  pending; Phase 1 is not marked complete.
 
 ### 2026-10-07: server connection flow
 
@@ -122,13 +310,14 @@ Phase 0 is in progress. Accounts and encrypted messaging are not usable yet.
 - Added a Podman hosted job. Local Podman is not installed; its compatibility result is
   pending. The application preview is kept separate from disposable test stacks.
 
-### Remaining work (updated after hosted results below)
+### Next work
 
-- Merge the reviewed spike ADRs after the final validation run completes. WebView2,
-  WKWebView, WebKitGTK capability gating, all browser media scenarios, Podman, and the
-  desktop build/MLS IPC matrix have passed. Production MLS media keys and SFU packet
-  canaries are Phase 4 integration work, beyond this feasibility spike.
-- Start Phase 1 only after the Phase 0 gates and ADR decisions are resolved.
+- Continue Phase 1 with protected local identity/device keys and device enrollment, then
+  a second-account registration path and authenticated MLS delivery. Owner accounts and
+  sessions are implemented; recovery, device linking and encrypted DMs remain open.
+- Production MLS media keys, SFU packet canaries and real-device/NAT/TURN validation
+  remain Phase 4 integration work. The optional custom WebKitGTK prototype is documented
+  in ADR 0004 and is not required to begin Phase 1.
 
 ### 2026-10-07: hosted validation results
 
@@ -211,3 +400,120 @@ Phase 0 is in progress. Accounts and encrypted messaging are not usable yet.
   the official runner image already includes Podman. CI now uses the installed executable
   and installs only if missing. Final validation is being rerun. Phase 0's final exit
   criterion is merging the reviewed spike ADRs; this branch is still a draft PR.
+
+### 2026-10-07: Phase 0 complete
+
+- All 11 checks in final run `37670086516` pass: Rust, web, crypto WASM, Docker Compose,
+  Podman, Chrome/Firefox/Safari media, and Windows/macOS/Linux desktop acceptance.
+- Following the user's instruction to continue, marked PR #1 ready and squash-merged
+  the exact verified head `d4cbe9d` into `main` as `8f6db29`. Updated the clean local main
+  checkout. The spike ADRs are accepted and the Phase 0 merge exit criterion is met.
+- Selected first-run owner setup plus product OPAQUE accounts/sessions as the next
+  Phase 1 milestone. No product authentication or encrypted messaging is claimed yet.
+
+### 2026-10-07: Phase 1 owner accounts and sessions
+
+- Added the product OPAQUE profile and typed owner/login/session APIs. The client runs
+  Argon2id/OPAQUE in a WASM worker and pins the advertised server identity on first use.
+  Passwords and session tokens are not saved in application browser storage. Public
+  registration is closed; only the first owner can register with the operator's setup code.
+- Added persistent PostgreSQL accounts, two-minute one-use pending proofs and 24-hour
+  revocable sessions. Token/exchange IDs are stored as hashes. An atomic owner transaction
+  and unique constraint prevent competing claims from creating two owners.
+- Server data persists the OPAQUE setup and bootstrap code. Unix files are created with
+  owner-only permissions; Windows requires a protected directory ACL. Existing account
+  databases refuse startup if matching signing/OPAQUE keys are missing. The operator can
+  retrieve the code with `npm run setup -- --show-setup-code`.
+- Local PostgreSQL acceptance passes concurrent claims/proofs, expiry, invalid-proof
+  consumption, hashed-token storage, restart, wrong passwords, unknown users, logout,
+  exact CORS, body rejection and request budgets. The product WASM also passes against the
+  real HTTP server; its [report](evidence/auth-wasm-native-2026-10-07.json) records eight
+  successful outcomes, including missing-key startup rejection. Disposable resources and
+  their secret files were removed after validation.
+- Browser validation passes owner creation and automatic sign-in, sign-out, incorrect
+  password rejection with cleared fields, fresh sign-in and reload. Reload requires
+  sign-in while preserving server account state. Refreshed the existing development
+  backend at port 18087, preserving and verifying its signing key and PostgreSQL data.
+  The preview is connected to that updated backend; it has no test owner account. Its
+  protected operator code is in ignored `deploy/data/setup.code`.
+- Updated the metadata inventory and [ADR 0005](adr/0005-owner-authentication.md). Added a
+  hosted PostgreSQL/product-WASM auth job and current-run WASM artifact sharing for the
+  desktop matrix. Packaged native auth runtime is not yet claimed.
+- Standard npm verification passes 17 JavaScript tests, typecheck, lint and web/WASM build.
+  Rust fmt/clippy and all 14 baseline tests pass; the real PostgreSQL test also passes
+  separately. Combined CI features pass clippy and 17 Rust tests. Generated protocol drift
+  checks, baseline WASM compilation and the Windows desktop debug build pass. Packaged
+  desktop authentication runtime remains unverified.
+- Next: identity/device enrollment and protected local storage. Password change/recovery,
+  session management, second-user registration, gateway delivery and encrypted DMs remain.
+
+### 2026-10-07: Phase 1 hosted checks
+
+- Opened [draft PR #2](https://github.com/KBHarris/hearth/pull/2) from
+  `codex/phase1-owner-auth`. Implementation commit `085fa19` passes the hosted PostgreSQL
+  and real HTTP/product-WASM auth scenario; saved the
+  [hosted report](evidence/auth-wasm-native-hosted-2026-10-07.json).
+- [Run 37683819094](https://github.com/KBHarris/hearth/actions/runs/37683819094) passes all
+  12 jobs for follow-up commit `074ab7e`, including Linux desktop. The earlier run's Linux
+  dependency installation was canceled by that follow-up; it was not a product failure.
+  This evidence covers owner/authentication before the new first-device changes.
+  No Phase 1 merge or full-phase completion is claimed.
+- These desktop results cover packaging and the existing Phase 0 diagnostic scenarios,
+  not the new account flow inside native webviews. Product authentication has real browser
+  runtime evidence; native auth runtime, independent review and the remaining Phase 1
+  product features still need validation.
+
+### 2026-10-07: immutable first-device enrollment and local identity vault
+
+- Added account/server-bound Ed25519 enrollment, strict signatures and weak-key rejection.
+  PostgreSQL serializes first claims, accepts exact retries, and rejects replacement keys
+  or additional devices. Public wire types are generated from Rust.
+- WASM creates identity/device keys and a reserved storage key, encrypted with
+  XChaCha20-Poly1305 and an HKDF-derived OPAQUE export key. Private keys stay inside the
+  worker; accepted enrollment discards wrapping material. The reserved key is not yet
+  connected to SQLCipher or message storage.
+- Browser IndexedDB transactions and native OS credentials preserve existing envelopes.
+  Native storage uses a cross-process filesystem lock and never falls back to files.
+  Missing, damaged or locked stores fail closed. A fresh install authenticates but cannot
+  replace an established identity. Cancellation and deadlines settle pending storage UI.
+- Browser checks observed first enrollment, the same fingerprint after sign-out/sign-in,
+  and an unlinked fresh origin. Browser access changed before the final screenshot and
+  post-reload sign-in check; those are not counted as passing. The disposable backend,
+  database and generated secret files were cleaned up.
+- Standard npm verification passes 21 JavaScript tests, typecheck, lint and web/WASM build.
+  Rust fmt/clippy, 14 baseline tests, 18 combined-feature tests, WASM checks and protocol
+  drift checks pass. Both isolated PostgreSQL tests and all 11 real HTTP/product-WASM
+  acceptance outcomes pass in the [vault report](evidence/identity-vault-wasm-native-2026-10-07.json).
+  The Windows desktop debug build and native clippy pass. Windows Credential Manager
+  passes create/read, fresh-process persistence, existing/damaged-entry preservation and
+  cleanup in the [OS-store report](evidence/local-vault-windows-2026-10-07.json).
+- Updated the threat model and [ADR 0006](adr/0006-first-device-vault.md). CI now runs
+  device acceptance, combined product-vault crypto tests, and Windows/macOS OS-store
+  acceptance. Linux Secret Service runtime and packaged native auth remain unverified.
+- Restored the local preview at port 5173 and updated its native backend at port 18087.
+  The original signing key and PostgreSQL data were preserved; the development server
+  remains unclaimed, with no disposable test owner installed.
+- Next: recovery/linking and a second-account registration path, then authenticated MLS
+  delivery, the gateway and encrypted DMs. Phase 1 remains in progress.
+
+### 2026-10-07: recovery, approved linking and second-account onboarding
+
+- Verified all 12 [hosted jobs](https://github.com/KBHarris/hearth/actions/runs/37709982624)
+  pass for first-device commit `ba9b21e`; this includes macOS/Windows OS-store acceptance.
+- Added versioned passphrase-encrypted recovery kits carrying the portable identity only.
+  Restore creates fresh device and storage keys. A 128-bit grouped link code authorizes
+  an encrypted identity handoff from an approved device, with three-minute expiry and
+  atomic consumption. The relay sees the hash ID, encrypted kit and public authorization.
+- Native crypto and SQL tests pass wrong-passphrase/context rejection, new-device identity
+  preservation, expired links, cross-account isolation, forged approval and consumed-link
+  replay rejection. Product WASM/HTTP passes recovery and one-use linking across real
+  authenticated accounts; old vaults remain immutable.
+- Added single-use 24-hour owner invitations, invite-only/open/closed registration and
+  persistent server names. Product WASM passes a second-account registration, concurrent
+  invite claims, non-owner settings/invite rejection and settings persistence after restart.
+  The [local report](evidence/recovery-registration-wasm-native-2026-10-07.json) records
+  15 passing outcomes. No plaintext account or recovery passphrase reaches the server.
+- Added client backup/restore/link and admin/onboarding forms. Typecheck and lint pass;
+  browser/native UI runtime acceptance remains to be run as part of the full slice.
+- MLS delivery, gateway resume/backlog, encrypted local message storage, DMs/group DMs
+  and full Phase 1 exit criteria remain open. Work continues on these gates.

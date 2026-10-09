@@ -13,7 +13,15 @@ async fn main() -> anyhow::Result<()> {
         .init();
 
     let config = Config::from_env()?;
-    let server_key = keys::load_or_create(&config.server_key_path)?;
+    let directory = config
+        .server_key_path
+        .parent()
+        .context("server key needs a parent directory")?;
+    if std::env::args().nth(1).as_deref() == Some("--setup-code") {
+        // Operator-only CLI, never a log line or network endpoint.
+        print!("{}", std::fs::read_to_string(directory.join("setup.code"))?);
+        return Ok(());
+    }
 
     let db = PgPoolOptions::new()
         .max_connections(config.db_max_connections)
@@ -25,13 +33,41 @@ async fn main() -> anyhow::Result<()> {
         .await
         .context("running migrations")?;
 
+    let has_accounts: bool = sqlx::query_scalar("SELECT EXISTS (SELECT 1 FROM accounts)")
+        .fetch_one(&db)
+        .await?;
+    if has_accounts
+        && (!config.server_key_path.exists() || !directory.join("opaque.setup").exists())
+    {
+        anyhow::bail!(
+            "authentication keys are missing for an existing account database; restore the matching server-data backup instead of generating new keys"
+        );
+    }
+    let server_key = keys::load_or_create(&config.server_key_path)?;
+    let auth = hearth_server::auth::AuthState::load(directory)?;
+
     let listener = tokio::net::TcpListener::bind(config.bind).await?;
     tracing::info!(addr = %config.bind, server_name = %config.server_name, "hearth-server listening");
+
+    let cleanup_db = db.clone();
+    tokio::spawn(async move {
+        let mut interval = tokio::time::interval(std::time::Duration::from_secs(60));
+        loop {
+            interval.tick().await;
+            if hearth_server::auth::cleanup_expired(&cleanup_db)
+                .await
+                .is_err()
+            {
+                tracing::warn!("expired authentication state cleanup unavailable");
+            }
+        }
+    });
 
     let state = Arc::new(AppState {
         config,
         db,
         server_key,
+        auth,
     });
     axum::serve(listener, router(state))
         .with_graceful_shutdown(shutdown_signal())

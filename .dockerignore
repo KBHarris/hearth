@@ -9,3 +9,5 @@ apps/client
 apps/desktop/src-tauri/icons
 apps/desktop/src-tauri/gen
 deploy/.env
+**/.env
+deploy/data

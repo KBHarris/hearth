@@ -16,12 +16,17 @@ fn app() -> axum::Router {
             db_max_connections: 1,
             server_key_path: "unused.key".into(),
             federation_enabled: false,
+            client_origins: vec!["https://client.example.org".into()],
         },
         db: PgPoolOptions::new()
             .acquire_timeout(Duration::from_millis(30))
             .connect_lazy(database_url)
             .unwrap(),
         server_key: IdentityKey::generate(),
+        auth: hearth_server::auth::AuthState::new(
+            hearth_crypto::auth::Server::default(),
+            b"unused",
+        ),
     }))
 }
 

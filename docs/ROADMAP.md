@@ -32,7 +32,8 @@ and stale-key rejection; [ADR 0004](adr/0004-media-feasibility.md) records the m
 Hosted Rust, web, crypto WASM, Docker Compose, Podman, Chrome, Safari, and Linux desktop
 checks pass, as does Firefox. Linux media requires a supported browser because the tested WebKitGTK lacks
 WebRTC/encoded transforms. Native WKWebView and hosted Windows WebView2 also pass.
-Phase 0 remains open until the reviewed spike ADRs are merged. See [PROGRESS.md](PROGRESS.md)
+Phase 0 is complete: all 11 final CI checks pass and the spike ADRs were merged in
+[PR #1](https://github.com/KBHarris/hearth/pull/1) on 2026-10-07. See [PROGRESS.md](PROGRESS.md)
 for dated evidence. This is not an encrypted chat implementation.
 
 - [x] Set up the monorepo: Cargo workspace (`hearth-proto`, `hearth-crypto`,
@@ -55,7 +56,7 @@ for dated evidence. This is not an encrypted chat implementation.
   supported browser; the optional custom-runtime experiment is not a release dependency.
 - [x] **Spike C, OPAQUE:** registration and login round trip, with the client in WASM and the
   server in Rust.
-  Local WASM/native-process scenario passes; product authentication is not implemented.
+  Local WASM/native-process scenario passes; product authentication follows in Phase 1.
 - [x] Draft the first threat model: assets, adversaries, and the metadata inventory.
 
 **Exit:** `docker compose up` gives a healthy server. The desktop and web shells both load
@@ -65,6 +66,28 @@ and call `/health`. The spike ADRs are merged.
 
 **Goal:** two people on one server can exchange E2EE DMs from the desktop app or the
 browser.
+
+Complete, 2026-10-08. All twelve hosted jobs pass for implementation `43ac92b` in
+[run 37811808453](https://github.com/KBHarris/hearth/actions/runs/37811808453).
+The real HTTP/product-WASM suite passes 23 outcomes, including existing credential/vault
+compatibility across build profiles. Packaged Windows/macOS/Linux webviews pass all seven
+messaging outcomes; Linux passes ten isolated repetitions. SQLCipher and OS-store checks,
+browser media regressions, Docker and Podman pass. [ADR 0008](adr/0008-encrypted-direct-messages.md)
+records the slice's scope and limits. The next checkpoint is the
+[two-PC encrypted DM test](TWO_PC_DM_TEST.md) using the prepared Windows installer and
+optional public-IP HTTPS front end. Public certificate issuance and two-house reachability
+remain part of that human test. Phase 2 has not started; PR #2 remains a draft.
+
+- [x] Guided first-run owner creation, closed registration, OPAQUE owner login/logout,
+  and PostgreSQL sessions. Test concurrent claims, replay, expiry, restart and revocation.
+- [x] Account identity, cross-signed first-device registration and encrypted local key vault;
+  preserve existing keys and warn on roster changes. Local browser/Windows storage checks pass.
+- [x] Passphrase-encrypted recovery kit export/restore and an approved-device link code.
+- [x] Second-account registration through single-use owner invitations; configure name and registration mode.
+- [x] Native packaged auth and OS credential stores; hosted Windows/macOS/Linux pass.
+- [x] Authenticated MLS delivery and durable encrypted messaging; local acceptance passes.
+- [x] DMs/group DMs with text, replies, edits, deletes, typing and offline backlog.
+- [x] All Phase 1 exit criteria verified by hosted CI.
 
 - Accounts: OPAQUE register/login, sessions, and device registration.
 - Identity: the user identity key, cross-signed device keys, and key-change warnings in the

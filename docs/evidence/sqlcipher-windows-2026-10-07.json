@@ -1,0 +1,17 @@
+{
+  "measuredAt": "2026-10-08T03:34:42.541Z",
+  "outcome": "pass",
+  "platform": "win32",
+  "backend": "bundled SQLCipher + OS credential store",
+  "scope": "dedicated disposable credential/database; not packaged webview authentication",
+  "checks": {
+    "encrypted_database": true,
+    "fresh_process_read": true,
+    "atomic_compare_and_swap": true,
+    "concurrent_writer_rejected": true,
+    "wrong_key_rejected": true,
+    "canary_absent_from_file": true,
+    "missing_os_key_preserves_database": true,
+    "cleanup": true
+  }
+}

@@ -10,6 +10,7 @@ rust-version.workspace = true
 crate-type = ["cdylib", "rlib"]
 
 [features]
+auth = ["hearth-crypto/messaging"]
 mls-spike = ["hearth-crypto/mls-spike"]
 opaque-spike = ["hearth-crypto/opaque-spike"]
 
