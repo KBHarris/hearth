@@ -4,6 +4,7 @@ services:
   server:
     environment:
       HEARTH_SERVER_NAME: ${HEARTH_PUBLIC_ADDRESS:?set HEARTH_PUBLIC_ADDRESS in deploy/.env}
+      HEARTH_S3_PUBLIC_ENDPOINT: https://${HEARTH_PUBLIC_ADDRESS}
     # The public interface belongs to Caddy; force the backend to stay on loopback.
     ports: !override
       - "127.0.0.1:${HEARTH_PORT:-8080}:8080"

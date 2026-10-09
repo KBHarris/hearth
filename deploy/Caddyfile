@@ -10,5 +10,10 @@ https://{$HEARTH_PUBLIC_ADDRESS} {
 		}
 	}
 	# No access/body logging. WebSocket upgrades are forwarded by reverse_proxy.
-	reverse_proxy server:8080
+	handle /hearth-blobs/* {
+		reverse_proxy storage:8333
+	}
+	handle {
+		reverse_proxy server:8080
+	}
 }

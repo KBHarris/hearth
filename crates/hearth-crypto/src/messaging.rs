@@ -6,6 +6,7 @@ use chacha20poly1305::{
     aead::{Aead, Payload},
 };
 use ed25519_dalek::{Signature, VerifyingKey};
+use hearth_proto::community::*;
 use hearth_proto::messaging::*;
 use openmls::prelude::{
     tls_codec::{Deserialize as _, Serialize as _},
@@ -19,6 +20,11 @@ use sha2::{Digest, Sha256};
 use std::collections::{BTreeMap, HashMap};
 use zeroize::Zeroizing;
 
+#[path = "messaging_attachments.rs"]
+mod attachments;
+#[path = "messaging_history.rs"]
+mod history;
+
 const SUITE: Ciphersuite = Ciphersuite::MLS_128_DHKEMX25519_AES128GCM_SHA256_Ed25519;
 const ERROR: &str =
     "Encrypted messaging state or device verification failed; preserve the local store.";
@@ -31,11 +37,11 @@ const MAX_MEMBERS: usize = 128;
 pub enum PendingOperation {
     Commit {
         conversation_id: String,
-        upload: CommitUpload,
+        upload: Box<CommitUpload>,
     },
     Message {
         conversation_id: String,
-        upload: MessageUpload,
+        upload: Box<MessageUpload>,
     },
 }
 impl PendingOperation {
@@ -67,6 +73,34 @@ struct ClientState {
     own_operations: BTreeMap<String, String>,
     messages: Vec<LocalMessage>,
     last_seq: u64,
+    #[serde(default)]
+    community_owners: BTreeMap<String, (String, String)>,
+    #[serde(default)]
+    channels: BTreeMap<String, ChannelAuthorization>,
+    #[serde(default)]
+    profiles: BTreeMap<String, LocalProfile>,
+    #[serde(default)]
+    presence: BTreeMap<String, LocalPresence>,
+    #[serde(default)]
+    read: BTreeMap<String, BTreeMap<String, String>>,
+    #[serde(default)]
+    history_keys: BTreeMap<String, BTreeMap<u64, String>>,
+    #[serde(default)]
+    history_requests: BTreeMap<String, Vec<history::Request>>,
+    #[serde(default)]
+    history_secrets: BTreeMap<String, (String, String)>,
+    #[serde(default)]
+    history_seen: std::collections::BTreeSet<String>,
+    #[serde(default)]
+    history_live: std::collections::BTreeSet<String>,
+    #[serde(default)]
+    joined_invites: BTreeMap<String, CommunityInvitation>,
+    #[serde(default)]
+    history_backfill: std::collections::BTreeSet<String>,
+    #[serde(default)]
+    files: BTreeMap<String, BTreeMap<String, EncryptedAttachment>>,
+    #[serde(default)]
+    emoji: BTreeMap<String, BTreeMap<String, LocalAttachment>>,
 }
 #[derive(Serialize, Deserialize)]
 struct Snapshot {
@@ -81,6 +115,12 @@ pub struct MessagingView {
     pub pending: Vec<PendingOperation>,
     pub pending_packages: Vec<KeyPackageRecord>,
     pub groups: Vec<Conversation>,
+    pub profiles: BTreeMap<String, LocalProfile>,
+    pub presence: BTreeMap<String, LocalPresence>,
+    pub read: BTreeMap<String, BTreeMap<String, String>>,
+    pub history_backfill: Vec<String>,
+    pub history_waiting: Vec<String>,
+    pub emoji: BTreeMap<String, BTreeMap<String, LocalAttachment>>,
 }
 pub struct Messaging {
     provider: OpenMlsRustCrypto,
@@ -98,6 +138,20 @@ pub fn valid_id(id: &str) -> bool {
         && id
             .bytes()
             .all(|b| b.is_ascii_digit() || (b'a'..=b'f').contains(&b))
+}
+fn channel_action_allowed(
+    auth: &ChannelAuthorization,
+    account: &str,
+    action: MessageAction,
+) -> bool {
+    if account == auth.authority.owner.account_id {
+        return true;
+    }
+    if action == MessageAction::Pin {
+        return false;
+    }
+    auth.policy.kind != ChannelKind::Announcement
+        || matches!(action, MessageAction::Reaction | MessageAction::Control)
 }
 pub fn random_id() -> String {
     let mut bytes = [0; 32];
@@ -172,6 +226,16 @@ pub fn check_message_header(
     )
 }
 fn commit_aad(group: &str, upload: &CommitUpload) -> Result<Vec<u8>, String> {
+    if let Some(auth) = &upload.authorization {
+        return fail(serde_json::to_vec(&(
+            "hearth/v1/mls-channel-commit",
+            group,
+            &upload.operation_id,
+            upload.expected_epoch,
+            &upload.members,
+            auth,
+        )));
+    }
     fail(serde_json::to_vec(&(
         "hearth/v1/mls-commit",
         group,
@@ -181,6 +245,17 @@ fn commit_aad(group: &str, upload: &CommitUpload) -> Result<Vec<u8>, String> {
     )))
 }
 fn message_aad(group: &str, upload: &MessageUpload) -> Result<Vec<u8>, String> {
+    if let Some(archive) = &upload.archive {
+        return fail(serde_json::to_vec(&(
+            "hearth/v1/mls-archived-message",
+            group,
+            &upload.operation_id,
+            upload.epoch,
+            upload.action,
+            &upload.target_id,
+            hex::encode(Sha256::digest(fail(serde_json::to_vec(archive))?)),
+        )));
+    }
     fail(serde_json::to_vec(&(
         "hearth/v1/mls-message",
         group,
@@ -210,7 +285,7 @@ fn signed_message(group: &str, server: &str, upload: &MessageUpload) -> Result<V
         unsigned,
     )))
 }
-fn verify_signature(key: &str, signature: &str, bytes: &[u8]) -> Result<(), String> {
+pub(crate) fn verify_signature(key: &str, signature: &str, bytes: &[u8]) -> Result<(), String> {
     let public: [u8; 32] = fail(fail(hex::decode(key))?.try_into())?;
     let signature: [u8; 64] = fail(fail(hex::decode(signature))?.try_into())?;
     let key = fail(VerifyingKey::from_bytes(&public))?;
@@ -218,6 +293,9 @@ fn verify_signature(key: &str, signature: &str, bytes: &[u8]) -> Result<(), Stri
     fail(key.verify_strict(bytes, &Signature::from_bytes(&signature)))
 }
 pub fn verify_commit(group: &str, server: &str, upload: &CommitUpload) -> Result<(), String> {
+    if let Some(auth) = &upload.authorization {
+        crate::community::verify_authorization(server, group, auth, &upload.members)?;
+    }
     require(
         valid_id(group)
             && valid_id(&upload.operation_id)
@@ -248,14 +326,31 @@ pub fn verify_commit(group: &str, server: &str, upload: &CommitUpload) -> Result
     )
 }
 pub fn verify_message(group: &str, server: &str, upload: &MessageUpload) -> Result<(), String> {
+    if let Some(archive) = &upload.archive {
+        verify_member(&archive.member, server)?;
+        require(
+            archive.member.enrollment.device_key == upload.device_key
+                && !matches!(
+                    upload.action,
+                    MessageAction::Control | MessageAction::Typing
+                ),
+        )?;
+        let bytes = decode(&archive.ciphertext)?;
+        require(bytes.len() >= 40 && bytes.len() <= 64 * 1024)?;
+    }
     require(
         valid_id(group)
             && valid_id(&upload.operation_id)
             && valid_id(&upload.device_key)
             && upload.epoch <= 9_007_199_254_740_991
             && upload.target_id.as_ref().is_none_or(|id| valid_id(id))
-            && matches!(upload.action, MessageAction::Edit | MessageAction::Delete)
-                == upload.target_id.is_some(),
+            && matches!(
+                upload.action,
+                MessageAction::Edit
+                    | MessageAction::Delete
+                    | MessageAction::Reaction
+                    | MessageAction::Pin
+            ) == upload.target_id.is_some(),
     )?;
     check_message_header(&upload.ciphertext, group, upload.epoch, false)?;
     verify_signature(
@@ -480,6 +575,247 @@ impl Messaging {
             Ok(())
         })
     }
+    pub fn sign_authority(&mut self, community_id: &str) -> Result<CommunityAuthority, String> {
+        require(valid_id(community_id))?;
+        let mut authority = CommunityAuthority {
+            community_id: community_id.into(),
+            owner: self.own.clone(),
+            signature: String::new(),
+        };
+        authority.signature = hex::encode(self.device.sign_scoped(
+            &crate::community::authority_statement(&self.server, &authority)?,
+        ));
+        self.pin_authority(&authority)?;
+        Ok(authority)
+    }
+    pub fn pin_authority(&mut self, authority: &CommunityAuthority) -> Result<(), String> {
+        crate::community::verify_authority(&self.server, authority)?;
+        let pin = (
+            authority.owner.account_id.clone(),
+            authority.owner.enrollment.identity_key.clone(),
+        );
+        require(
+            self.state
+                .community_owners
+                .get(&authority.community_id)
+                .is_none_or(|old| *old == pin),
+        )?;
+        self.pin(&authority.owner)?;
+        self.state
+            .community_owners
+            .insert(authority.community_id.clone(), pin);
+        Ok(())
+    }
+    pub fn sign_admission(
+        &mut self,
+        authority: &CommunityAuthority,
+        account_id: &str,
+        identity_key: &str,
+        history_from: BTreeMap<String, u64>,
+    ) -> Result<CommunityAdmission, String> {
+        self.pin_authority(authority)?;
+        require(
+            authority.owner.account_id == self.own.account_id
+                && authority.owner.enrollment.identity_key == self.own.enrollment.identity_key,
+        )?;
+        let mut grant = CommunityAdmission {
+            community_id: authority.community_id.clone(),
+            account_id: account_id.into(),
+            identity_key: identity_key.into(),
+            owner: self.own.clone(),
+            history_from,
+            signature: String::new(),
+            invitation: None,
+        };
+        grant.signature = hex::encode(self.device.sign_scoped(
+            &crate::community::admission_statement(&self.server, &grant)?,
+        ));
+        crate::community::verify_admission(&self.server, authority, &grant)?;
+        Ok(grant)
+    }
+    pub fn sign_invitation(
+        &mut self,
+        authority: &CommunityAuthority,
+        history_from: BTreeMap<String, u64>,
+        issued_at: u64,
+    ) -> Result<(String, CommunityInvitation), String> {
+        self.pin_authority(authority)?;
+        require(authority.owner.account_id == self.own.account_id)?;
+        let code = random_id();
+        let mut value = CommunityInvitation {
+            community_id: authority.community_id.clone(),
+            invite_id: hex::encode(Sha256::digest(code.as_bytes())),
+            owner: self.own.clone(),
+            history_from,
+            issued_at,
+            signature: String::new(),
+        };
+        value.signature = hex::encode(self.device.sign_scoped(
+            &crate::community::invitation_statement(&self.server, &value)?,
+        ));
+        crate::community::verify_invitation(&self.server, authority, &value)?;
+        Ok((code, value))
+    }
+    pub fn pin_invitation(
+        &mut self,
+        authority: &CommunityAuthority,
+        code: &str,
+        value: &CommunityInvitation,
+    ) -> Result<(), String> {
+        self.transaction(|this| {
+            this.pin_authority(authority)?;
+            crate::community::verify_invitation(&this.server, authority, value)?;
+            require(
+                valid_id(code) && value.invite_id == hex::encode(Sha256::digest(code.as_bytes())),
+            )?;
+            require(
+                this.state
+                    .joined_invites
+                    .get(&value.community_id)
+                    .is_none_or(|old| old == value),
+            )?;
+            this.state
+                .joined_invites
+                .insert(value.community_id.clone(), value.clone());
+            Ok(())
+        })
+    }
+    pub fn sign_invited_admission(
+        &mut self,
+        authority: &CommunityAuthority,
+        account: &str,
+        identity: &str,
+        invitation: &CommunityInvitation,
+    ) -> Result<CommunityAdmission, String> {
+        crate::community::verify_invitation(&self.server, authority, invitation)?;
+        let mut grant = self.sign_admission(
+            authority,
+            account,
+            identity,
+            invitation.history_from.clone(),
+        )?;
+        grant.invitation = Some(invitation.clone());
+        grant.signature = hex::encode(self.device.sign_scoped(
+            &crate::community::admission_statement(&self.server, &grant)?,
+        ));
+        crate::community::verify_admission(&self.server, authority, &grant)?;
+        Ok(grant)
+    }
+    pub fn sign_policy(
+        &mut self,
+        authority: &CommunityAuthority,
+        channel_id: &str,
+        kind: ChannelKind,
+        history: HistoryPolicy,
+        revision: u64,
+    ) -> Result<ChannelPolicy, String> {
+        self.pin_authority(authority)?;
+        require(
+            authority.owner.account_id == self.own.account_id
+                && authority.owner.enrollment.identity_key == self.own.enrollment.identity_key,
+        )?;
+        let mut policy = ChannelPolicy {
+            community_id: authority.community_id.clone(),
+            channel_id: channel_id.into(),
+            kind,
+            history,
+            revision,
+            created_at: self
+                .state
+                .channels
+                .get(channel_id)
+                .map_or(0, |a| a.policy.created_at),
+            history_open_for: self
+                .state
+                .channels
+                .get(channel_id)
+                .map_or_else(Vec::new, |a| a.policy.history_open_for.clone()),
+            owner: self.own.clone(),
+            signature: String::new(),
+        };
+        policy.signature = hex::encode(
+            self.device
+                .sign_scoped(&crate::community::policy_statement(&self.server, &policy)?),
+        );
+        crate::community::verify_policy(&self.server, authority, &policy)?;
+        Ok(policy)
+    }
+    pub fn sign_policy_details(
+        &mut self,
+        authority: &CommunityAuthority,
+        mut policy: ChannelPolicy,
+        created_at: u64,
+        history_open_for: Vec<String>,
+    ) -> Result<ChannelPolicy, String> {
+        crate::community::verify_policy(&self.server, authority, &policy)?;
+        require(
+            policy.owner == self.own
+                && self
+                    .state
+                    .channels
+                    .get(&policy.channel_id)
+                    .is_none_or(|old| {
+                        old.policy.created_at == created_at
+                            && old.policy.history_open_for == history_open_for
+                    }),
+        )?;
+        policy.created_at = created_at;
+        policy.history_open_for = history_open_for;
+        policy.signature = hex::encode(
+            self.device
+                .sign_scoped(&crate::community::policy_statement(&self.server, &policy)?),
+        );
+        crate::community::verify_policy(&self.server, authority, &policy)?;
+        Ok(policy)
+    }
+    pub fn authorize_channel(
+        &mut self,
+        id: &str,
+        auth: &ChannelAuthorization,
+    ) -> Result<(), String> {
+        self.transaction(|this| {
+            crate::community::verify_authorization(&this.server, id, auth, &[])?;
+            if let Some(expected) = this.state.joined_invites.get(&auth.authority.community_id)
+                && let Some(grant) = auth
+                    .admissions
+                    .iter()
+                    .find(|a| a.account_id == this.own.account_id)
+            {
+                require(grant.invitation.as_ref() == Some(expected))?;
+            }
+            this.pin_authority(&auth.authority)?;
+            if let Some(old) = this.state.channels.get(id) {
+                require(
+                    old.authority.community_id == auth.authority.community_id
+                        && old.policy.created_at == auth.policy.created_at
+                        && old.policy.history_open_for == auth.policy.history_open_for
+                        && auth.policy.revision >= old.policy.revision
+                        && (auth.policy.revision != old.policy.revision
+                            || auth.policy == old.policy),
+                )?;
+            }
+            if this.groups.contains_key(id) {
+                require(this.state.channels.contains_key(id))?;
+                let members = this.roster(id)?;
+                crate::community::verify_authorization(&this.server, id, auth, &members)?;
+            }
+            this.state.channels.insert(id.into(), auth.clone());
+            if this.groups.contains_key(id) {
+                this.capture_history_key(id)?;
+            }
+            Ok(())
+        })
+    }
+    fn accept_authorization(
+        &mut self,
+        id: &str,
+        auth: Option<&ChannelAuthorization>,
+    ) -> Result<(), String> {
+        match auth {
+            Some(auth) => self.authorize_channel(id, auth),
+            None => require(!self.state.channels.contains_key(id)),
+        }
+    }
     /// Queue a creation/addition. Persist the snapshot before submitting this envelope.
     pub fn add(
         &mut self,
@@ -508,7 +844,7 @@ impl Messaging {
         self.transaction(|this| {
             require(
                 valid_id(id)
-                    && (!packages.is_empty() || (create && channel))
+                    && (!packages.is_empty() || channel)
                     && packages.len() < MAX_MEMBERS
                     && !this
                         .state
@@ -569,7 +905,15 @@ impl Messaging {
                 commit: String::new(),
                 welcomes: vec![],
                 signature: String::new(),
+                authorization: if channel {
+                    Some(this.state.channels.get(id).ok_or(ERROR)?.clone())
+                } else {
+                    None
+                },
             };
+            if let Some(auth) = &upload.authorization {
+                crate::community::verify_authorization(&this.server, id, auth, &upload.members)?;
+            }
             group.set_aad(commit_aad(id, &upload)?);
             let (commit, welcome) = if verified.is_empty() {
                 let (commit, welcome, _) = fail(group.self_update(
@@ -605,7 +949,7 @@ impl Messaging {
             verify_commit(id, &this.server, &upload)?;
             this.state.pending.push(PendingOperation::Commit {
                 conversation_id: id.into(),
-                upload: upload.clone(),
+                upload: Box::new(upload.clone()),
             });
             Ok(upload)
         })
@@ -634,8 +978,17 @@ impl Messaging {
                 fail(group.merge_pending_commit(&this.provider))?;
                 require(group.epoch().as_u64() == upload.expected_epoch + 1)?;
                 this.match_roster(conversation_id, &upload.members)?;
+                this.capture_history_key(conversation_id)?;
             } else {
                 let content = this.state.pending_contents.remove(operation).ok_or(ERROR)?;
+                if matches!(
+                    content,
+                    MessageContent::Text { .. }
+                        | MessageContent::RichText { .. }
+                        | MessageContent::Thread { .. }
+                ) {
+                    this.state.history_live.insert(operation.into());
+                }
                 this.apply(
                     pending.conversation(),
                     operation,
@@ -684,6 +1037,11 @@ impl Messaging {
                 }
             }
             this.state.pending.remove(index);
+            if let Some(MessageContent::HistoryRequest { request_id, .. }) =
+                this.state.pending_contents.get(operation)
+            {
+                this.state.history_secrets.remove(request_id);
+            }
             this.state.pending_contents.remove(operation);
             Ok(())
         })
@@ -691,20 +1049,34 @@ impl Messaging {
     pub fn send(&mut self, id: &str, content: MessageContent) -> Result<MessageUpload, String> {
         self.transaction(|this| {
             require(!this.state.pending.iter().any(|p| p.conversation() == id))?;
-            validate_content(&content)?;
             let (action, target_id) = content_metadata(&content);
-            let group = this.groups.get_mut(id).ok_or(ERROR)?;
+            if let Some(auth) = this.state.channels.get(id) {
+                require(crate::community::authorized(auth, &this.own))?;
+                require(channel_action_allowed(auth, &this.own.account_id, action))?;
+            }
+            validate_content(&content)?;
+            if matches!(content, MessageContent::Emoji { .. }) {
+                require(
+                    this.state
+                        .channels
+                        .get(id)
+                        .is_some_and(|a| a.authority.owner.account_id == this.own.account_id),
+                )?;
+            }
             let mut upload = MessageUpload {
                 operation_id: random_id(),
                 device_key: this.own.enrollment.device_key.clone(),
-                epoch: group.epoch().as_u64(),
+                epoch: this.groups.get(id).ok_or(ERROR)?.epoch().as_u64(),
                 action,
                 target_id,
                 ciphertext: String::new(),
                 signature: String::new(),
+                archive: None,
             };
-            group.set_aad(message_aad(id, &upload)?);
             let plaintext = Zeroizing::new(fail(serde_json::to_vec(&content))?);
+            upload.archive = this.archive_content(id, &upload, &plaintext)?;
+            let group = this.groups.get_mut(id).ok_or(ERROR)?;
+            group.set_aad(message_aad(id, &upload)?);
             upload.ciphertext = hex::encode(fail(
                 fail(group.create_message(&this.provider, &this.signer, &plaintext))?
                     .tls_serialize_detached(),
@@ -719,7 +1091,7 @@ impl Messaging {
                 .insert(upload.operation_id.clone(), content);
             this.state.pending.push(PendingOperation::Message {
                 conversation_id: id.into(),
-                upload: upload.clone(),
+                upload: Box::new(upload.clone()),
             });
             Ok(upload)
         })
@@ -732,6 +1104,36 @@ impl Messaging {
         content: MessageContent,
     ) -> Result<(), String> {
         match content {
+            MessageContent::Attachment { text, files } => {
+                let mut public = Vec::new();
+                for file in files {
+                    public.push(self.remember_file(group, file)?);
+                }
+                self.apply(
+                    group,
+                    operation,
+                    author,
+                    MessageContent::Text {
+                        text: if text.trim().is_empty() {
+                            "Attachment".into()
+                        } else {
+                            text
+                        },
+                        reply_to: None,
+                    },
+                )?;
+                self.state.messages.last_mut().ok_or(ERROR)?.attachments = public;
+            }
+            MessageContent::Emoji { alias, asset } => {
+                let auth = self.state.channels.get(group).ok_or(ERROR)?;
+                require(auth.authority.owner.account_id == author)?;
+                let public = self.remember_file(group, asset)?;
+                let emoji = self.state.emoji.entry(group.into()).or_default();
+                require(emoji.len() < 32 || emoji.contains_key(&alias))?;
+                emoji.insert(alias, public);
+            }
+            history @ (MessageContent::HistoryRequest { .. }
+            | MessageContent::HistoryShare { .. }) => self.apply_history(group, author, history)?,
             MessageContent::Text { text, reply_to } => {
                 require(!self.state.messages.iter().any(|m| m.id == operation))?;
                 self.state.messages.push(LocalMessage {
@@ -742,7 +1144,86 @@ impl Messaging {
                     reply_to,
                     edited: false,
                     deleted: false,
+                    thread: None,
+                    reactions: BTreeMap::new(),
+                    pinned: false,
+                    embed: None,
+                    attachments: Vec::new(),
                 });
+            }
+            MessageContent::RichText {
+                text,
+                reply_to,
+                embed,
+            } => {
+                self.apply(
+                    group,
+                    operation,
+                    author,
+                    MessageContent::Text { text, reply_to },
+                )?;
+                self.state.messages.last_mut().ok_or(ERROR)?.embed = Some(embed);
+            }
+            MessageContent::Thread { text, parent } => {
+                self.apply(
+                    group,
+                    operation,
+                    author,
+                    MessageContent::Text {
+                        text,
+                        reply_to: None,
+                    },
+                )?;
+                self.state.messages.last_mut().ok_or(ERROR)?.thread = Some(parent);
+            }
+            MessageContent::Reaction { id, emoji, active } => {
+                if let Some(message) = self
+                    .state
+                    .messages
+                    .iter_mut()
+                    .find(|m| m.id == id && m.conversation_id == group && !m.deleted)
+                {
+                    let actors = message.reactions.entry(emoji.clone()).or_default();
+                    actors.retain(|actor| actor != author);
+                    if active {
+                        actors.push(author.into());
+                        actors.sort();
+                    }
+                    if actors.is_empty() {
+                        message.reactions.remove(&emoji);
+                    }
+                    require(message.reactions.len() <= 32)?;
+                }
+            }
+            MessageContent::Pin { id, active } => {
+                if let Some(auth) = self.state.channels.get(group) {
+                    require(auth.authority.owner.account_id == author)?;
+                }
+                if let Some(message) = self
+                    .state
+                    .messages
+                    .iter_mut()
+                    .find(|m| m.id == id && m.conversation_id == group && !m.deleted)
+                {
+                    message.pinned = active;
+                }
+            }
+            MessageContent::Read { id } => {
+                self.state
+                    .read
+                    .entry(group.into())
+                    .or_default()
+                    .insert(author.into(), id);
+            }
+            MessageContent::Profile { display_name, bio } => {
+                self.state
+                    .profiles
+                    .insert(author.into(), LocalProfile { display_name, bio });
+            }
+            MessageContent::Presence { state, until } => {
+                self.state
+                    .presence
+                    .insert(author.into(), LocalPresence { state, until });
             }
             MessageContent::Edit { id, text } => {
                 // Missing history is normal after linking; do not stall delivery on it.
@@ -767,6 +1248,10 @@ impl Messaging {
                     require(message.author_id == author)?;
                     message.text.clear();
                     message.deleted = true;
+                    message.reactions.clear();
+                    message.pinned = false;
+                    message.embed = None;
+                    message.attachments.clear();
                 }
             }
             MessageContent::Typing { .. } => {}
@@ -781,6 +1266,7 @@ impl Messaging {
             match &event.data {
                 DeliveryData::Welcome { upload, welcome } => {
                     verify_commit(id, &this.server, upload)?;
+                    this.accept_authorization(id, upload.authorization.as_ref())?;
                     require(
                         !this.groups.contains_key(id)
                             && welcome.device_key == this.own.enrollment.device_key
@@ -823,12 +1309,14 @@ impl Messaging {
                     this.groups.insert(id.clone(), group);
                     this.state.groups.push(id.clone());
                     this.match_roster(id, &upload.members)?;
+                    this.capture_history_key(id)?;
                     this.state
                         .pending_packages
                         .retain(|package| package.package_hash != consumed_package);
                 }
                 DeliveryData::Commit { upload } => {
                     verify_commit(id, &this.server, upload)?;
+                    this.accept_authorization(id, upload.authorization.as_ref())?;
                     if upload.device_key == this.own.enrollment.device_key {
                         require(
                             this.state
@@ -871,6 +1359,7 @@ impl Messaging {
                         fail(group.merge_staged_commit(&this.provider, *commit))?;
                         require(group.epoch().as_u64() == upload.expected_epoch + 1)?;
                         this.match_roster(id, &upload.members)?;
+                        this.capture_history_key(id)?;
                     }
                 }
                 DeliveryData::Message { upload } => {
@@ -897,6 +1386,20 @@ impl Messaging {
                             .iter()
                             .find(|p| p.enrollment.device_key == upload.device_key)
                             .ok_or(ERROR)?;
+                        require(
+                            upload
+                                .archive
+                                .as_ref()
+                                .is_none_or(|archive| archive.member == *peer),
+                        )?;
+                        if let Some(auth) = this.state.channels.get(id) {
+                            require(crate::community::authorized(auth, peer))?;
+                            require(channel_action_allowed(
+                                auth,
+                                &peer.account_id,
+                                upload.action,
+                            ))?;
+                        }
                         let group = this.groups.get_mut(id).ok_or(ERROR)?;
                         let processed = fail(
                             group.process_message(&this.provider, protocol(&upload.ciphertext)?),
@@ -918,6 +1421,9 @@ impl Messaging {
                         )?;
                         if let MessageContent::Typing { active } = &content {
                             typing = Some((peer.account_id.clone(), *active));
+                        }
+                        if upload.action == MessageAction::Send {
+                            this.state.history_live.insert(upload.operation_id.clone());
                         }
                         this.apply(id, &upload.operation_id, &peer.account_id, content)?;
                     }
@@ -952,8 +1458,52 @@ impl Messaging {
             pending: self.state.pending.clone(),
             pending_packages: self.state.pending_packages.clone(),
             groups,
+            emoji: self.state.emoji.clone(),
+            profiles: self.state.profiles.clone(),
+            presence: self.state.presence.clone(),
+            read: self.state.read.clone(),
+            history_backfill: self.state.history_backfill.iter().cloned().collect(),
+            history_waiting: self
+                .state
+                .history_secrets
+                .values()
+                .map(|(id, _)| id.clone())
+                .collect(),
         })
     }
+    /// A bounded local full-text query. Neither query nor results reach the delivery host.
+    pub fn search(
+        &self,
+        query: &str,
+        conversation: Option<&str>,
+    ) -> Result<Vec<LocalMessage>, String> {
+        require(query.len() <= 256 && conversation.is_none_or(valid_id))?;
+        let terms = words(query);
+        if terms.is_empty() {
+            return Ok(Vec::new());
+        }
+        Ok(self
+            .state
+            .messages
+            .iter()
+            .rev()
+            .filter(|message| {
+                if message.deleted || conversation.is_some_and(|id| id != message.conversation_id) {
+                    return false;
+                }
+                let tokens = words(&message.text);
+                terms.iter().all(|term| tokens.contains(term))
+            })
+            .take(100)
+            .cloned()
+            .collect())
+    }
+}
+fn words(text: &str) -> Vec<String> {
+    text.split(|c: char| !c.is_alphanumeric())
+        .filter(|word| !word.is_empty())
+        .map(str::to_lowercase)
+        .collect()
 }
 fn peer_device(credential: &Credential) -> Result<String, String> {
     let member: GroupMember = fail(serde_json::from_slice(credential.serialized_content()))?;
@@ -961,14 +1511,85 @@ fn peer_device(credential: &Credential) -> Result<String, String> {
 }
 fn content_metadata(content: &MessageContent) -> (MessageAction, Option<String>) {
     match content {
+        MessageContent::Attachment { .. } => (MessageAction::Send, None),
+        MessageContent::Emoji { .. } => (MessageAction::Send, None),
         MessageContent::Text { .. } => (MessageAction::Send, None),
         MessageContent::Edit { id, .. } => (MessageAction::Edit, Some(id.clone())),
         MessageContent::Delete { id } => (MessageAction::Delete, Some(id.clone())),
         MessageContent::Typing { .. } => (MessageAction::Typing, None),
+        MessageContent::Thread { .. } | MessageContent::RichText { .. } => {
+            (MessageAction::Send, None)
+        }
+        MessageContent::Reaction { id, .. } => (MessageAction::Reaction, Some(id.clone())),
+        MessageContent::Pin { id, .. } => (MessageAction::Pin, Some(id.clone())),
+        MessageContent::Read { .. }
+        | MessageContent::Profile { .. }
+        | MessageContent::Presence { .. }
+        | MessageContent::HistoryRequest { .. }
+        | MessageContent::HistoryShare { .. } => (MessageAction::Control, None),
     }
 }
 fn validate_content(content: &MessageContent) -> Result<(), String> {
     match content {
+        MessageContent::Attachment { text, files } => {
+            require(text.len() <= 16_000 && !files.is_empty() && files.len() <= 4)?;
+            for file in files {
+                attachments::validate(file, false)?;
+            }
+            Ok(())
+        }
+        MessageContent::Emoji { alias, asset } => {
+            require(
+                !alias.is_empty()
+                    && alias.len() <= 32
+                    && alias
+                        .bytes()
+                        .all(|b| b.is_ascii_lowercase() || b.is_ascii_digit() || b == b'_')
+                    && asset.file.bytes <= 128 * 1024
+                    && ["image/png", "image/jpeg", "image/webp"]
+                        .contains(&asset.file.mime.as_str()),
+            )?;
+            attachments::validate(asset, false)
+        }
+        MessageContent::HistoryRequest {
+            request_id,
+            device_key,
+            public_key,
+        } => require(valid_id(request_id) && valid_id(device_key) && valid_id(public_key)),
+        MessageContent::HistoryShare {
+            request_id,
+            device_key,
+            public_key,
+            ciphertext,
+        } => require(
+            valid_id(request_id)
+                && valid_id(device_key)
+                && valid_id(public_key)
+                && ciphertext.len() >= 80
+                && ciphertext.len() <= 240_000
+                && hex::decode(ciphertext).is_ok(),
+        ),
+        MessageContent::RichText {
+            text,
+            reply_to,
+            embed,
+        } => {
+            validate_content(&MessageContent::Text {
+                text: text.clone(),
+                reply_to: reply_to.clone(),
+            })?;
+            require(
+                embed.url.len() <= 2048
+                    && (embed.url.starts_with("https://") || embed.url.starts_with("http://"))
+                    && !embed
+                        .url
+                        .chars()
+                        .any(|c| c.is_control() || c.is_whitespace())
+                    && !embed.title.trim().is_empty()
+                    && embed.title.len() <= 160
+                    && embed.description.len() <= 512,
+            )
+        }
         MessageContent::Text { text, reply_to } => require(
             !text.trim().is_empty()
                 && text.len() <= 16_000
@@ -979,6 +1600,25 @@ fn validate_content(content: &MessageContent) -> Result<(), String> {
         }
         MessageContent::Delete { id } => require(valid_id(id)),
         MessageContent::Typing { .. } => Ok(()),
+        MessageContent::Thread { text, parent } => {
+            require(valid_id(parent) && !text.trim().is_empty() && text.len() <= 16_000)
+        }
+        MessageContent::Reaction { id, emoji, .. } => require(
+            valid_id(id)
+                && !emoji.is_empty()
+                && emoji.len() <= 64
+                && !emoji.chars().any(char::is_control),
+        ),
+        MessageContent::Pin { id, .. } | MessageContent::Read { id } => require(valid_id(id)),
+        MessageContent::Profile { display_name, bio } => require(
+            display_name.len() <= 80
+                && bio.len() <= 512
+                && !display_name.chars().any(char::is_control),
+        ),
+        MessageContent::Presence { state, until } => require(
+            ["online", "idle", "offline"].contains(&state.as_str())
+                && *until <= 9_007_199_254_740_991,
+        ),
     }
 }
 
@@ -991,6 +1631,365 @@ mod tests {
             conversation_id: id.into(),
             data,
         }
+    }
+    #[test]
+    fn later_channel_history_requires_explicit_signed_invite_id() {
+        for permitted in [false, true] {
+            let owner_identity = LocalIdentity::new();
+            let member_identity = LocalIdentity::new();
+            let server = random_id();
+            let owner_id = random_id();
+            let member_id = random_id();
+            let id = random_id();
+            let mut owner = Messaging::new(&owner_identity, &owner_id, &server).unwrap();
+            let mut member = Messaging::new(&member_identity, &member_id, &server).unwrap();
+            let authority = owner.sign_authority(&random_id()).unwrap();
+            let (code, invite) = owner
+                .sign_invitation(&authority, BTreeMap::new(), 100)
+                .unwrap();
+            member.pin_invitation(&authority, &code, &invite).unwrap();
+            let policy = owner
+                .sign_policy(
+                    &authority,
+                    &id,
+                    ChannelKind::Text,
+                    HistoryPolicy::SinceInvite,
+                    1,
+                )
+                .unwrap();
+            // Even a later timestamp is insufficient. Only the signed digest list grants access.
+            let policy = owner
+                .sign_policy_details(
+                    &authority,
+                    policy,
+                    200,
+                    if permitted {
+                        vec![invite.invite_id.clone()]
+                    } else {
+                        vec![]
+                    },
+                )
+                .unwrap();
+            let grant = owner
+                .sign_invited_admission(
+                    &authority,
+                    &member_id,
+                    &member.own.enrollment.identity_key,
+                    &invite,
+                )
+                .unwrap();
+            owner
+                .authorize_channel(
+                    &id,
+                    &ChannelAuthorization {
+                        authority,
+                        policy,
+                        admissions: vec![grant],
+                    },
+                )
+                .unwrap();
+            let package = member.key_package().unwrap();
+            let commit = owner.add_channel(&id, &[package], true).unwrap();
+            owner.accept(&commit.operation_id).unwrap();
+            member
+                .receive(&event(
+                    1,
+                    &id,
+                    DeliveryData::Welcome {
+                        welcome: commit.welcomes[0].clone(),
+                        upload: commit,
+                    },
+                ))
+                .unwrap();
+            assert_eq!(member.request_history(&id).is_ok(), permitted);
+        }
+    }
+    #[test]
+    fn wrapped_history_enforces_none_full_since_cutoff_and_recipient_binding() {
+        for policy in [
+            HistoryPolicy::None,
+            HistoryPolicy::Full,
+            HistoryPolicy::SinceInvite,
+        ] {
+            let owner_identity = LocalIdentity::new();
+            let member_identity = LocalIdentity::new();
+            let spy_identity = LocalIdentity::new();
+            let server = random_id();
+            let owner_id = random_id();
+            let member_id = random_id();
+            let spy_id = random_id();
+            let id = random_id();
+            let community = random_id();
+            let mut owner = Messaging::new(&owner_identity, &owner_id, &server).unwrap();
+            let mut member = Messaging::new(&member_identity, &member_id, &server).unwrap();
+            let mut spy = Messaging::new(&spy_identity, &spy_id, &server).unwrap();
+            let authority = owner.sign_authority(&community).unwrap();
+            let policy = owner
+                .sign_policy(&authority, &id, ChannelKind::Text, policy, 1)
+                .unwrap();
+            let mut auth = ChannelAuthorization {
+                authority: authority.clone(),
+                policy,
+                admissions: vec![],
+            };
+            owner.authorize_channel(&id, &auth).unwrap();
+            let solo = owner.add_channel(&id, &[], true).unwrap();
+            owner.accept(&solo.operation_id).unwrap();
+            let before = owner
+                .send(
+                    &id,
+                    MessageContent::Text {
+                        text: "before signed invitation".into(),
+                        reply_to: None,
+                    },
+                )
+                .unwrap();
+            owner.accept(&before.operation_id).unwrap();
+            let rotate = owner.add_channel(&id, &[], false).unwrap();
+            owner.accept(&rotate.operation_id).unwrap();
+            let after = owner
+                .send(
+                    &id,
+                    MessageContent::Text {
+                        text: "after invitation before join".into(),
+                        reply_to: None,
+                    },
+                )
+                .unwrap();
+            owner.accept(&after.operation_id).unwrap();
+            let a = member.key_package().unwrap();
+            let b = spy.key_package().unwrap();
+            for package in [&a, &b] {
+                auth.admissions.push(
+                    owner
+                        .sign_admission(
+                            &authority,
+                            &package.member.account_id,
+                            &package.member.enrollment.identity_key,
+                            BTreeMap::from([(id.clone(), 2)]),
+                        )
+                        .unwrap(),
+                );
+            }
+            owner.authorize_channel(&id, &auth).unwrap();
+            let join = owner.add_channel(&id, &[a, b], false).unwrap();
+            owner.accept(&join.operation_id).unwrap();
+            for client in [&mut member, &mut spy] {
+                let welcome = join
+                    .welcomes
+                    .iter()
+                    .find(|w| w.device_key == client.own.enrollment.device_key)
+                    .unwrap()
+                    .clone();
+                client
+                    .receive(&event(
+                        1,
+                        &id,
+                        DeliveryData::Welcome {
+                            upload: join.clone(),
+                            welcome,
+                        },
+                    ))
+                    .unwrap();
+            }
+            if auth.policy.history == HistoryPolicy::None {
+                assert!(member.request_history(&id).is_err());
+                assert!(before.archive.is_none());
+                continue;
+            }
+            let request = member.request_history(&id).unwrap();
+            member.accept(&request.operation_id).unwrap();
+            owner
+                .receive(&event(1, &id, DeliveryData::Message { upload: request }))
+                .unwrap();
+            let share = owner.offer_history(&id).unwrap().unwrap();
+            owner.accept(&share.operation_id).unwrap();
+            member
+                .receive(&event(
+                    2,
+                    &id,
+                    DeliveryData::Message {
+                        upload: share.clone(),
+                    },
+                ))
+                .unwrap();
+            spy.receive(&event(2, &id, DeliveryData::Message { upload: share }))
+                .unwrap();
+            assert_eq!(
+                spy.import_history(&id, &[before.clone(), after.clone()])
+                    .unwrap(),
+                0
+            );
+            let disk = member.seal().unwrap();
+            member = Messaging::open(&member_identity, &member_id, &server, &disk).unwrap();
+            member
+                .import_history(&id, &[before.clone(), after.clone()])
+                .unwrap();
+            let view = member.view().unwrap();
+            assert!(view.messages.iter().any(|m| m.id == after.operation_id));
+            assert_eq!(
+                view.messages.iter().any(|m| m.id == before.operation_id),
+                auth.policy.history == HistoryPolicy::Full
+            );
+            assert_eq!(
+                member
+                    .import_history(&id, &[before.clone(), after.clone()])
+                    .unwrap(),
+                0
+            );
+            // A later linked device of an ordinary member inherits the signed account
+            // cutoff. It must not be treated as a fresh, unrestricted owner device.
+            let mut linked_identity = LocalIdentity::new();
+            linked_identity.user = IdentityKey::from_bytes(&member_identity.user.to_bytes());
+            let mut linked = Messaging::new(&linked_identity, &member_id, &server).unwrap();
+            let package = linked.key_package().unwrap();
+            let commit = owner.add_channel(&id, &[package], false).unwrap();
+            owner.accept(&commit.operation_id).unwrap();
+            linked
+                .receive(&event(
+                    1,
+                    &id,
+                    DeliveryData::Welcome {
+                        welcome: commit.welcomes[0].clone(),
+                        upload: commit,
+                    },
+                ))
+                .unwrap();
+            let request = linked.request_history(&id).unwrap();
+            linked.accept(&request.operation_id).unwrap();
+            owner
+                .receive(&event(2, &id, DeliveryData::Message { upload: request }))
+                .unwrap();
+            let share = owner.offer_history(&id).unwrap().unwrap();
+            owner.accept(&share.operation_id).unwrap();
+            linked
+                .receive(&event(2, &id, DeliveryData::Message { upload: share }))
+                .unwrap();
+            linked
+                .import_history(&id, &[before.clone(), after.clone()])
+                .unwrap();
+            let mut restored = Messaging::open(
+                &linked_identity,
+                &member_id,
+                &server,
+                &linked.seal().unwrap(),
+            )
+            .unwrap();
+            assert!(
+                restored
+                    .view()
+                    .unwrap()
+                    .messages
+                    .iter()
+                    .any(|m| m.id == after.operation_id)
+            );
+            assert_eq!(
+                restored
+                    .view()
+                    .unwrap()
+                    .messages
+                    .iter()
+                    .any(|m| m.id == before.operation_id),
+                auth.policy.history == HistoryPolicy::Full
+            );
+        }
+    }
+    #[test]
+    fn channel_admission_and_announcement_rules_survive_a_malicious_delivery_host() {
+        let owner_identity = LocalIdentity::new();
+        let member_identity = LocalIdentity::new();
+        let rogue_identity = LocalIdentity::new();
+        let owner_id = random_id();
+        let member_id = random_id();
+        let rogue_id = random_id();
+        let server = random_id();
+        let community = random_id();
+        let id = random_id();
+        let mut owner = Messaging::new(&owner_identity, &owner_id, &server).unwrap();
+        let mut member = Messaging::new(&member_identity, &member_id, &server).unwrap();
+        let mut rogue = Messaging::new(&rogue_identity, &rogue_id, &server).unwrap();
+        let authority = owner.sign_authority(&community).unwrap();
+        let policy = owner
+            .sign_policy(
+                &authority,
+                &id,
+                ChannelKind::Announcement,
+                HistoryPolicy::None,
+                1,
+            )
+            .unwrap();
+        let mut authorization = ChannelAuthorization {
+            authority: authority.clone(),
+            policy,
+            admissions: vec![],
+        };
+        owner.authorize_channel(&id, &authorization).unwrap();
+        let package = member.key_package().unwrap();
+        assert!(
+            owner
+                .add_channel(&id, std::slice::from_ref(&package), true)
+                .is_err()
+        );
+        let grant = owner
+            .sign_admission(
+                &authority,
+                &member_id,
+                &package.member.enrollment.identity_key,
+                BTreeMap::new(),
+            )
+            .unwrap();
+        let mut forged = grant.clone();
+        forged.account_id = rogue_id.clone();
+        authorization.admissions.push(forged);
+        assert!(owner.authorize_channel(&id, &authorization).is_err());
+        authorization.admissions = vec![grant];
+        owner.authorize_channel(&id, &authorization).unwrap();
+        let upload = owner.add_channel(&id, &[package], true).unwrap();
+        owner.accept(&upload.operation_id).unwrap();
+        member
+            .receive(&event(
+                1,
+                &id,
+                DeliveryData::Welcome {
+                    welcome: upload.welcomes[0].clone(),
+                    upload,
+                },
+            ))
+            .unwrap();
+        let preserved = member.seal().unwrap();
+        member = Messaging::open(&member_identity, &member_id, &server, &preserved).unwrap();
+        let replacement = rogue.sign_authority(&community).unwrap();
+        assert!(member.pin_authority(&replacement).is_err());
+        assert!(
+            member
+                .send(
+                    &id,
+                    MessageContent::Text {
+                        text: "unauthorized announcement".into(),
+                        reply_to: None
+                    }
+                )
+                .is_err()
+        );
+        // A hostile member bypasses its own client checks; receiving clients still enforce policy.
+        member.state.channels.remove(&id);
+        let attack = member
+            .send(
+                &id,
+                MessageContent::Text {
+                    text: "host relayed unauthorized content".into(),
+                    reply_to: None,
+                },
+            )
+            .unwrap();
+        assert!(verify_message(&id, &server, &attack).is_ok());
+        assert!(
+            owner
+                .receive(&event(1, &id, DeliveryData::Message { upload: attack }))
+                .is_err()
+        );
+        assert_eq!(owner.view().unwrap().last_seq, 0);
+        assert!(owner.view().unwrap().messages.is_empty());
     }
     #[test]
     fn pending_creation_rejection_and_inflight_previous_epoch_are_recoverable() {

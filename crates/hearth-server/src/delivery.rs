@@ -33,6 +33,7 @@ pub fn routes(origins: &[String]) -> Router<SharedState> {
         .route("/conversations", get(conversations))
         .route("/conversations/{id}/commit", post(commit))
         .route("/conversations/{id}/message", post(message))
+        .route("/conversations/{id}/history", get(history))
         .route("/events/{device}", get(events))
         .layer(DefaultBodyLimit::max(4 * 1024 * 1024))
         .layer(
@@ -350,6 +351,32 @@ async fn commit(
     // The insert's uniqueness lock and the existing-row lock order creation and all commits.
     let channel = crate::community::channel_access(&mut tx, &id, &account).await?;
     if let Some(channel) = &channel {
+        let auth = upload.authorization.as_ref().ok_or(StatusCode::FORBIDDEN)?;
+        if channel.authority.as_ref() != Some(&auth.authority)
+            || channel.policy.as_ref() != Some(&auth.policy)
+        {
+            return Err(StatusCode::FORBIDDEN);
+        }
+        for member in &upload.members {
+            if member.account_id == auth.authority.owner.account_id {
+                continue;
+            }
+            let grant: Option<serde_json::Value> = sqlx::query_scalar(
+                "SELECT admission FROM community_members WHERE community_id=$1 AND account_id=$2",
+            )
+            .bind(&channel.community_id)
+            .bind(&member.account_id)
+            .fetch_optional(&mut *tx)
+            .await
+            .map_err(unavailable)?
+            .flatten();
+            let grant: hearth_proto::community::CommunityAdmission =
+                serde_json::from_value(grant.ok_or(StatusCode::FORBIDDEN)?)
+                    .map_err(|_| StatusCode::SERVICE_UNAVAILABLE)?;
+            if !auth.admissions.contains(&grant) {
+                return Err(StatusCode::FORBIDDEN);
+            }
+        }
         let eligible: i64 = sqlx::query_scalar(
             "SELECT count(*) FROM community_members WHERE community_id=$1 AND account_id=ANY($2)",
         )
@@ -361,7 +388,11 @@ async fn commit(
         if eligible != accounts.len() as i64 {
             return Err(StatusCode::FORBIDDEN);
         }
-    } else if accounts.len() < 2 || accounts.len() > 10 || upload.members.len() > 32 {
+    } else if upload.authorization.is_some()
+        || accounts.len() < 2
+        || accounts.len() > 10
+        || upload.members.len() > 32
+    {
         return Err(StatusCode::FORBIDDEN);
     }
     let inserted = sqlx::query(
@@ -441,7 +472,9 @@ async fn commit(
         .filter(|m| !old.contains(m) && !(inserted && m.enrollment.device_key == upload.device_key))
         .collect::<Vec<_>>();
     if added.len() != upload.welcomes.len()
-        || (added.is_empty() && !(inserted && channel.is_some() && upload.members.len() == 1))
+        || (added.is_empty()
+            && !(channel.as_ref().is_some_and(|c| c.owner_id == account)
+                || (inserted && channel.is_some() && upload.members.len() == 1)))
     {
         return Err(StatusCode::BAD_REQUEST);
     }
@@ -537,9 +570,49 @@ async fn message(
     ));
     let mut tx = state.db.begin().await.map_err(unavailable)?;
     let channel = crate::community::channel_access(&mut tx, &id, &account).await?;
+    if !matches!(
+        upload.action,
+        MessageAction::Typing | MessageAction::Control
+    ) && channel
+        .as_ref()
+        .and_then(|c| c.policy.as_ref())
+        .is_some_and(|p| p.history != hearth_proto::community::HistoryPolicy::None)
+        && upload.archive.is_none()
+    {
+        return Err(StatusCode::BAD_REQUEST);
+    }
+    if upload.archive.is_some()
+        && channel.as_ref().is_none_or(|c| {
+            c.policy
+                .as_ref()
+                .is_none_or(|p| p.history == hearth_proto::community::HistoryPolicy::None)
+        })
+    {
+        return Err(StatusCode::BAD_REQUEST);
+    }
+    if let Some(channel) = &channel {
+        if channel.authority.is_none() || channel.policy.is_none() {
+            return Err(StatusCode::FORBIDDEN);
+        }
+        if channel.owner_id != account {
+            let admitted:bool=sqlx::query_scalar("SELECT EXISTS(SELECT 1 FROM community_members WHERE community_id=$1 AND account_id=$2 AND admission IS NOT NULL)").bind(&channel.community_id).bind(&account).fetch_one(&mut *tx).await.map_err(unavailable)?;
+            if !admitted {
+                return Err(StatusCode::FORBIDDEN);
+            }
+        }
+    }
     if let Some(channel) = &channel
         && channel.announcement
         && channel.owner_id != account
+        && !matches!(
+            upload.action,
+            MessageAction::Reaction | MessageAction::Control
+        )
+    {
+        return Err(StatusCode::FORBIDDEN);
+    }
+    if upload.action == MessageAction::Pin
+        && channel.as_ref().is_some_and(|c| c.owner_id != account)
     {
         return Err(StatusCode::FORBIDDEN);
     }
@@ -550,6 +623,11 @@ async fn message(
         .map_err(unavailable)?
         .ok_or(StatusCode::NOT_FOUND)?;
     let members: Vec<GroupMember> = parsed(row.get("members"))?;
+    if let Some(archive) = &upload.archive
+        && !members.contains(&archive.member)
+    {
+        return Err(StatusCode::FORBIDDEN);
+    }
     if !members
         .iter()
         .any(|m| m.account_id == account && m.enrollment.device_key == upload.device_key)
@@ -565,7 +643,10 @@ async fn message(
     }
     if let Some(target) = &upload.target_id {
         let author:Option<String>=sqlx::query_scalar("SELECT account_id FROM delivery_operations WHERE operation_id=$1 AND conversation_id=$2 AND action='send'").bind(target).bind(&id).fetch_optional(&mut *tx).await.map_err(unavailable)?;
-        if author.as_deref() != Some(&account) {
+        if author.is_none()
+            || (matches!(upload.action, MessageAction::Edit | MessageAction::Delete)
+                && author.as_deref() != Some(&account))
+        {
             return Err(StatusCode::FORBIDDEN);
         }
     }
@@ -574,6 +655,9 @@ async fn message(
         MessageAction::Edit => "edit",
         MessageAction::Delete => "delete",
         MessageAction::Typing => "typing",
+        MessageAction::Reaction => "reaction",
+        MessageAction::Pin => "pin",
+        MessageAction::Control => "control",
     };
     record(
         &mut tx,
@@ -589,6 +673,10 @@ async fn message(
         // Recipient copies/backups cannot be recalled. Remove retained originals and edits here.
         sqlx::query("UPDATE delivery_events SET data=$1 WHERE operation_id IN (SELECT operation_id FROM delivery_operations WHERE operation_id=$2 OR (target_id=$2 AND action='edit'))")
             .bind(public(&DeliveryData::Redacted)?).bind(&upload.target_id).execute(&mut *tx).await.map_err(unavailable)?;
+        sqlx::query("DELETE FROM channel_archives WHERE operation_id=$1 OR operation_id IN (SELECT operation_id FROM delivery_operations WHERE target_id=$1 AND action='edit')").bind(&upload.target_id).execute(&mut *tx).await.map_err(unavailable)?;
+    }
+    if upload.archive.is_some() {
+        sqlx::query("INSERT INTO channel_archives(operation_id,conversation_id,epoch,upload) VALUES($1,$2,$3,$4)").bind(&upload.operation_id).bind(&id).bind(upload.epoch as i64).bind(public(&upload)?).execute(&mut *tx).await.map_err(unavailable)?;
     }
     fanout(
         &mut tx,
@@ -614,6 +702,73 @@ async fn message(
 #[derive(Deserialize)]
 pub struct EventsQuery {
     pub after: u64,
+}
+#[derive(Deserialize)]
+struct HistoryQuery {
+    after: u64,
+    device: String,
+}
+async fn history(
+    State(state): State<SharedState>,
+    headers: HeaderMap,
+    Path(id): Path<String>,
+    Query(query): Query<HistoryQuery>,
+) -> Result<Json<HistoryPage>> {
+    let _permit = state.auth.admit()?;
+    let account = authenticated(&state, &headers).await?;
+    approved(&state, &account, &query.device).await?;
+    if query.after > 9_007_199_254_740_991 {
+        return Err(StatusCode::BAD_REQUEST);
+    }
+    let mut tx = state.db.begin().await.map_err(unavailable)?;
+    let access = crate::community::channel_access(&mut tx, &id, &account)
+        .await?
+        .ok_or(StatusCode::FORBIDDEN)?;
+    let joined:bool=sqlx::query_scalar("SELECT EXISTS(SELECT 1 FROM conversation_devices WHERE conversation_id=$1 AND device_key=$2)").bind(&id).bind(&query.device).fetch_one(&mut *tx).await.map_err(unavailable)?;
+    if !joined {
+        return Err(StatusCode::FORBIDDEN);
+    }
+    let policy = access.policy.ok_or(StatusCode::FORBIDDEN)?;
+    use hearth_proto::community::HistoryPolicy;
+    let floor = match policy.history {
+        HistoryPolicy::None => return Err(StatusCode::FORBIDDEN),
+        HistoryPolicy::Full => 0,
+        HistoryPolicy::SinceInvite if access.owner_id == account => 0,
+        HistoryPolicy::SinceInvite => {
+            let value: Option<serde_json::Value> = sqlx::query_scalar(
+                "SELECT admission FROM community_members WHERE community_id=$1 AND account_id=$2",
+            )
+            .bind(&access.community_id)
+            .bind(&account)
+            .fetch_one(&mut *tx)
+            .await
+            .map_err(unavailable)?;
+            let grant: hearth_proto::community::CommunityAdmission =
+                parsed(value.ok_or(StatusCode::FORBIDDEN)?)?;
+            grant
+                .history_from
+                .get(&id)
+                .copied()
+                .or_else(|| {
+                    grant
+                        .invitation
+                        .as_ref()
+                        .filter(|invite| policy.history_open_for.contains(&invite.invite_id))
+                        .map(|_| 0)
+                })
+                .ok_or(StatusCode::FORBIDDEN)?
+        }
+    };
+    let rows=sqlx::query("SELECT seq,upload FROM channel_archives WHERE conversation_id=$1 AND seq>$2 AND epoch>=$3 ORDER BY seq LIMIT 128").bind(&id).bind(query.after as i64).bind(floor as i64).fetch_all(&mut *tx).await.map_err(unavailable)?;
+    let next = rows
+        .last()
+        .map_or(query.after, |r| r.get::<i64, _>("seq") as u64);
+    let items = rows
+        .into_iter()
+        .map(|r| parsed(r.get("upload")))
+        .collect::<Result<Vec<MessageUpload>>>()?;
+    tx.commit().await.map_err(unavailable)?;
+    Ok(Json(HistoryPage { items, next }))
 }
 pub(crate) async fn backlog(
     state: &SharedState,

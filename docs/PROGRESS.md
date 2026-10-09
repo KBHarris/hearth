@@ -42,11 +42,68 @@ The original checkout and frozen Phase 1 pair remain available for the pending D
 | Phase 1 exit criteria | Complete | All 12 hosted jobs pass for implementation 43ac92b |
 | Two-PC public HTTPS DM test | Prepared | Installer/guide and local proxy checks ready; actual WAN reachability and clean buddy-PC installation remain untested |
 | Phase 2 community structure and invitations | Implemented | Local membership/invite boundaries pass; first directory CI passes 11/12 jobs, Windows media fails twice after packaged messaging passes |
-| Phase 2 channel MLS and encrypted text | Implemented | 38 HTTP/WASM outcomes, nine Chrome UI outcomes, required npm/Rust/WASM checks pass locally; new hosted channel validation pending |
-| Phase 2 client-verifiable admission, history and attachments | Pending | Server-authorized new-account admission needs hardening; current history is post-Welcome only, attachments not implemented |
+| Phase 2 channel MLS and encrypted text | Implemented | 38 HTTP/WASM outcomes, nine Chrome UI outcomes and all 12 hosted jobs pass for 7f8aed2 |
+| Phase 2 client-verifiable admission | Implemented | Owner-signed grants/policies, pinned roots and malicious delivery-host rejection pass native and HTTP/WASM checks |
+| Phase 2 reactions, pins, threads, Markdown, mentions, read markers and search | Implemented | 49 HTTP/WASM and 18 Chrome UI outcomes pass, including custom emoji |
+| Phase 2 profiles, presence and sender-created embeds | Implemented | Encrypted control/state and profile/presence/embed UI checks pass |
+| Phase 2 history | Implemented | Native and real HTTP/WASM none/full/since-invite, device binding, tamper and sealed restart and signed history UI handoff pass |
+| Phase 2 encrypted files, thumbnails and custom emoji | Implemented | Expanded suite passes 49 HTTP/WASM outcomes; canary absent from database, logs and private S3 volume bytes; actual UI file upload/download and custom emoji pass |
+| Phase 2 MLS load measurement | Complete | 1,000 synthetic native OpenMLS members; rotation median 11.47 ms, p95 12.52 ms, final member decrypts; product remains bounded to 128 devices |
+| Phase 2 replacement test bundle | Pending | Build and validate after implementation checks; remove old bundle files only after the replacement passes |
 | Threat model | Draft maintained | Discovery exposure and saved server address documented; no independent security audit |
 
 ## Iteration log
+
+### 2026-10-09: full text-layer browser validation and packaging
+
+- All 18 expanded Chrome UI checks pass against isolated accounts and a real private S3
+  service. The [report](evidence/phase2-history-files-ui-2026-10-09.json) includes signed
+  history handoff, profiles/presence, sender-written previews without metadata fetching,
+  actual file-picker upload/download and encrypted custom emoji rendering.
+- Default and combined-feature Rust checks/tests, protocol drift, npm verification and
+  WASM portability pass. Native desktop compilation and fresh isolated Compose checks pass.
+  The expanded Windows packaged webview suite passes all ten checks, including encrypted
+  files and signed history ([report](evidence/phase2-packaged-windows-2026-10-09.json)).
+  Replacement installer assembly and hosted validation remain in progress.
+- Kept the existing server request budgets. Client synchronization now avoids unnecessary
+  repeated directory/channel requests; UI acceptance paces account request bursts.
+- Phase 2 installs with a separate application identifier and uses independent server
+  data. Replacement files are removed only after validation; the running Phase 1 stack,
+  keys and volumes remain intact. WAN installation and the 50-person/week test stay open.
+
+### 2026-10-09: owner admission, text controls and history development
+
+- Owner-signed community roots, admissions and channel policies are verified by receiving
+  clients. Pending members require explicit owner approval after fingerprint comparison.
+  [ADR 0011](adr/0011-owner-signed-channel-admission.md) records first-contact trust.
+- Reactions, owner channel pins, threads, safe Markdown/mentions, encrypted read markers,
+  profiles and expiring presence are implemented. Search runs over decrypted local state;
+  remote images and automatic link metadata fetching remain disabled. The expanded local
+  suite passes 42 HTTP/WASM and 13 Chrome UI outcomes before the history additions.
+- The [1k-member benchmark](evidence/mls-load-1000-2026-10-09.json) passes in a release
+  native build with synthetic credentials. These measurements do not raise the product's
+  128-device limit or claim network, browser or 1k-member product acceptance.
+- History invitations rotate epochs first and carry owner-signed channel cutoffs. Wrapped
+  epoch keys are bound to requesting devices. Native policy/recipient/restart checks pass;
+  the real HTTP fixture caught a delivery race and now waits for the current epoch before
+  issuing a history request. Integration validation continues.
+- These changes have not yet been submitted to hosted CI. The original running Phase 1
+  server and data remain untouched. Its bundle files will be removed only after a validated
+  Phase 2 replacement is ready.
+
+### 2026-10-09: resume the remaining Phase 2 checklist
+
+- Confirmed all 12 hosted jobs pass for `7f8aed2` in
+  [run 37890119377](https://github.com/KBHarris/hearth/actions/runs/37890119377), including
+  Windows channel UI and media. The earlier ICE failure remains historical evidence;
+  no gate was disabled to obtain the new pass.
+- Converted every remaining Phase 2 roadmap item to an explicit checkbox. The roadmap
+  and progress log are also mirrored into the original project folder so the user can
+  inspect current work without switching to the managed development checkout.
+- Working next on client-verifiable owner admission, followed by history, attachments,
+  text features, profiles/presence/embeds, local search and load measurements.
+- The user requested a separate Phase 2 test bundle for two PCs and authorized removing
+  the Phase 1 bundle after the replacement is validated. Existing server data stays intact.
 
 ### 2026-10-09: encrypted channel iteration
 

@@ -135,6 +135,7 @@ async fn ordered_ciphertext_delivery_is_atomic_idempotent_and_authorized(db: PgP
     .await;
     let app = router(Arc::new(AppState {
         config: Config {
+            storage: None,
             server_name: "delivery-test".into(),
             bind: "127.0.0.1:0".parse().unwrap(),
             database_url: "unused".into(),

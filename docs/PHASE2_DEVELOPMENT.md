@@ -24,17 +24,34 @@ delivery use the Phase 1 encrypted engine/outbox. Only the community owner can p
 announcements; members can decrypt new announcements and help rekey. Messaging startup
 failures have a retry control that reopens the preserved encrypted store.
 
-History is `none`: messages sent before a device receives its Welcome are unavailable to
-that device, including messages sent while it is waiting after a directory join. Keep an
-existing device signed in and wait for the new client's channel status to say **Encrypted**
-before testing a message for it. Channels currently have a 128-device bound, and roster
-reads reject communities above 128 accounts. No large-channel capacity is verified.
+## Current development, 2026-10-09
 
-New-account admission currently trusts the server's community directory. A malicious
-host could fabricate membership for a valid enrolled identity and induce a future rekey.
-Client-verifiable owner admission is the next security gate; fixed-audience DMs still
-reject new accounts. See [ADR 0010](adr/0010-encrypted-channels.md). History policies,
-attachments and the remaining text features are unfinished.
+Owner-signed roots, account admissions and channel policies are verified by clients.
+Joining the directory leaves a new identity pending until the owner compares its fingerprint
+and approves it. Signed invites rotate epochs first and pin history cutoffs on the joining
+client. Keep an existing owner device online for admission and history handoff. See
+[ADR 0011](adr/0011-owner-signed-channel-admission.md) and
+[ADR 0012](adr/0012-signed-history-and-encrypted-files.md).
+
+Choose New messages only, Since invitation or Full retained history in a channel. Backfill
+is explicit and device-bound. Messages predating archive enablement cannot be restored;
+previously shared keys/plaintext cannot be recalled. Retained archive keys deliberately
+reduce retrospective forward secrecy. Ordinary-member linked devices inherit the account
+cutoff. Channels remain bounded to 128 devices; the 1k synthetic benchmark is separate.
+
+The text layer includes reactions, owner pins, threads, safe Markdown, mentions, explicit
+read markers, encrypted profiles/expiring presence, sender-written link previews and local
+full-text search. No query or preview metadata request goes to the host. Raster custom emoji
+are encrypted channel assets published by the owner; republish after new members join.
+
+Encrypted files use local random keys and authenticated chunks, with optional locally
+created encrypted thumbnails. Files are limited to 8 MiB. Private S3 URLs expire after five
+minutes. The host sees IDs, encrypted lengths/digests and routing metadata, never filenames,
+MIME, thumbnails, keys or file plaintext. Bootstrap creates private S3 credentials without
+replacing matching secrets; do not copy these host files into a friend ZIP. Ready file
+retention/deletion remains Phase 3 work. Windows packaged WebView2 acceptance passes ten checks, including real encrypted file
+upload/download, history handoff, reactions and local search. Human testing and hosted validation of this expanded
+slice are still pending.
 
 ## Separate development data
 
@@ -77,28 +94,18 @@ npm run protocol:check
 cargo check -p hearth-wasm --target wasm32-unknown-unknown
 $env:PGBIN='C:/Program Files/PostgreSQL/17/bin'
 $env:HEARTH_TEST_DATABASE_URL=''
-node scripts/verify-auth.mjs --native-postgres
-node scripts/verify-community-ui.mjs
+node scripts/verify-auth.mjs --native-postgres --storage
+node scripts/verify-community-ui.mjs --storage
 ```
 
-The HTTP/product-WASM suite passes 38 outcomes, including seven community outcomes:
-membership secrecy, category scope/types, no implicit server-owner access, competing
-single-use joins, owner controls/expiry, multi-use retries and restart/session revocation.
-Eight channel outcomes cover solo initialization/replay, outsider denial and fixed DM
-audiences, post-Welcome history, stale epochs, later accounts/devices, announcements,
-offline restart and plaintext canaries. The headless Chrome UI check passes nine outcomes
-with two isolated browser profiles and real controls: setup/navigation, categories/types,
-invitations, solo messages, a real member join and automatic rekey, announcements with
-disabled member publishing, directory retry, messaging retry with saved history, and
-narrow layout. The outage is deliberately injected in the test profile.
-Screenshots and reports are under `target/phase2-evidence`; committed reports are in
-`docs/evidence`. The workflow now runs the community/channel UI test on Windows.
-
-The earlier directory implementation `a590d32` passes 11 of 12 hosted jobs in
-[run 37870006242](https://github.com/KBHarris/hearth/actions/runs/37870006242), including
-HTTP acceptance, macOS/Linux desktop, browser media, Docker and Podman. Packaged Windows
-messaging passes, but Windows WebView2 media fails at publisher ICE connection on both
-attempts. No media packets flow; this is unresolved and the check has not been weakened.
-Those jobs do not validate this new channel slice. Hosted channel validation and
-other-platform community UI validation remain pending. The two-house DM test, 50-person
-week, admission hardening and remaining Phase 2 exit criteria are not met.
+The expanded HTTP/product-WASM suite passes 49 outcomes with authenticated disposable
+S3 storage. History, files, encrypted thumbnails and custom emoji include adversarial
+scope/tamper/restart checks and host canary scans. The earlier 42-outcome text slice also
+passed 13 Chrome UI checks; all 18 expanded Chrome UI checks now pass, including real file downloads, custom emoji,
+signed history handoff and profile/presence/embed controls.
+Reports/screenshots are under `target/phase2-evidence`; committed evidence is in
+`docs/evidence`. Existing hosted implementation `7f8aed2` passes all 12 jobs in
+[run 37890119377](https://github.com/KBHarris/hearth/actions/runs/37890119377). New changes
+have not yet been submitted to hosted CI. Two-house reachability and a 50-person community
+running for a week remain human gates. A versioned replacement bundle follows validation;
+only then will old Phase 1 bundle files be removed, preserving running server data.

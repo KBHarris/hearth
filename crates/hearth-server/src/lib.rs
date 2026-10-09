@@ -3,6 +3,7 @@
 //! The server never sees plaintext content. It stores ciphertext envelopes and opaque
 //! blobs, enforces membership and permissions, and orders MLS commits for groups it hosts.
 
+pub mod attachments;
 pub mod auth;
 pub mod community;
 pub mod config;
@@ -41,6 +42,10 @@ pub fn router(state: SharedState) -> Router {
         .route("/gateway", get(gateway::upgrade))
         .nest("/api/v1", routes::api_v1())
         .nest("/api/v1/auth", auth::routes(&state.config.client_origins))
+        .nest(
+            "/api/v1/blobs",
+            attachments::routes(&state.config.client_origins),
+        )
         .nest(
             "/api/v1/communities",
             community::routes(&state.config.client_origins),

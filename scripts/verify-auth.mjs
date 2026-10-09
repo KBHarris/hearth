@@ -10,6 +10,7 @@ import { fileURLToPath } from 'node:url'
 import { join, delimiter, resolve } from 'node:path'
 import { verifyMessaging } from './phase1-messaging-acceptance.mjs'
 import { verifyCommunities } from './phase2-community-acceptance.mjs'
+import {blobFixture} from './blob-fixture.mjs'
 
 const root = fileURLToPath(new URL('../', import.meta.url))
 if(process.env.PGBIN)process.env.PATH=process.env.PGBIN+delimiter+process.env.PATH
@@ -24,7 +25,7 @@ function command(name, args, quiet = false, env = process.env) {
   // spawnSync then waits for EOF until the background database stops. Its own
   // startup log supplies diagnostics; it must not inherit Node's capture pipes.
   const stdio=quiet?(process.platform==='win32'&&name==='pg_ctl'?'ignore':'pipe'):'inherit'
-  const result = spawnSync(name, args, { cwd: root, env, encoding: 'utf8', stdio, windowsHide: true })
+  const result = spawnSync(name, args, { cwd: root, env, encoding: 'utf8', stdio, windowsHide: true, maxBuffer:64*1024*1024 })
   if (result.error || result.status !== 0) throw new Error(`${name} acceptance command failed`)
   return result.stdout?.trim()
 }
@@ -52,9 +53,10 @@ let postgresDirectory
 let postgresStarted=false
 let logs = ''
 let databaseUrl = process.env.HEARTH_TEST_DATABASE_URL
+let storage
 const pause = (ms) => new Promise((resolve) => setTimeout(resolve, ms))
 function start() {
-  child = spawn(binary, [], { cwd: root, env: { ...process.env, DATABASE_URL: databaseUrl, HEARTH_BIND: `127.0.0.1:${port}`, HEARTH_SERVER_KEY_PATH: join(directory, 'server.key'), RUST_LOG: 'info' }, stdio: ['ignore', 'pipe', 'pipe'], windowsHide: true })
+  child = spawn(binary, [], { cwd: root, env: { ...process.env, ...storage?.env, DATABASE_URL: databaseUrl, HEARTH_BIND: `127.0.0.1:${port}`, HEARTH_SERVER_KEY_PATH: join(directory, 'server.key'), RUST_LOG: 'info' }, stdio: ['ignore', 'pipe', 'pipe'], windowsHide: true })
   child.stdout.on('data', (data) => { logs += data })
   child.stderr.on('data', (data) => { logs += data })
 }
@@ -67,7 +69,11 @@ async function stop() {
 async function healthy() {
   for (let i = 0; i < 60; i++) {
     try { const res = await fetch(origin + '/health', { signal: AbortSignal.timeout(1000) }); if ((await res.json()).status === 'ok') return } catch { /* Starting */ }
-    if (child.exitCode !== null) throw new Error('Acceptance server exited before health')
+    if (child.exitCode !== null) {
+      // First startup precedes credentials. Keep migration diagnostics, redact bootstrap IDs/URLs.
+      const diagnostic=frames.length===0?logs.replace(/postgres(?:ql)?:\/\/[^\s]+/gi,'[database URL]').replace(/[a-f0-9]{64,}/gi,'[redacted ID]').slice(-4000):''
+      throw new Error(`Acceptance server exited before health${diagnostic?'\n'+diagnostic:''}`)
+    }
     await pause(250)
   }
   throw new Error('Acceptance server health timeout')
@@ -93,6 +99,7 @@ async function login(password, serverId, retainClient, username = 'owner', imple
   } finally { if (!retainClient) client.free(); else retainClient(client) }
 }
 try {
+  if(process.argv.includes('--storage'))storage=await blobFixture(directory)
   if (!databaseUrl && process.argv.includes('--native-postgres')) {
     postgresDirectory=join(directory,'postgres')
     command('initdb',['-D',postgresDirectory,'--username=hearth','--auth=trust','--encoding=UTF8','--no-locale'],true)
@@ -136,7 +143,7 @@ try {
     for await (const line of lines) if (line.trim() === 'stop') { lines.close(); break }
   } else if (process.argv.includes('--desktop')) {
     const configPath=join(directory,'webview-fixture.json')
-    writeFileSync(configPath,JSON.stringify({origin,serverKey:(await request('/.well-known/hearth')).value.server_key,setupCode:readFileSync(join(directory,'setup.code'),'utf8').trim()}),{mode:0o600})
+    writeFileSync(configPath,JSON.stringify({origin,serverKey:(await request('/.well-known/hearth')).value.server_key,setupCode:readFileSync(join(directory,'setup.code'),'utf8').trim(),storage:!!storage}),{mode:0o600})
     let native
     try {
       native=spawn(join(root,'target/debug',process.platform==='win32'?'hearth-desktop.exe':'hearth-desktop'),['--phase1-acceptance'],{cwd:root,env:{...process.env,HEARTH_PHASE1_FIXTURE_PATH:configPath},windowsHide:true,stdio:['ignore','pipe','pipe']})
@@ -155,6 +162,7 @@ try {
       const dump=container?command('docker',['exec',container,'pg_dump','-U','hearth','-d','hearth','--data-only'],true):(()=>{const db=new URL(databaseUrl);return command('pg_dump',['--data-only','--no-owner'],true,{...process.env,PGHOST:db.hostname,PGPORT:db.port,PGUSER:decodeURIComponent(db.username),PGPASSWORD:decodeURIComponent(db.password),PGDATABASE:db.pathname.slice(1)})})()
       const canary='HEARTH_PACKAGED_MESSAGE_CANARY_private_content'
       report.checks.server_database_and_logs_exclude_packaged_message_canary=!dump.includes(canary) && !logs.includes(canary)
+      if(storage)storage.scan(canary)
       mkdirSync(join(root,'target/phase1-evidence'),{recursive:true})
       writeFileSync(output,JSON.stringify({measuredAt:new Date().toISOString(),runtime:`Tauri system webview (${process.platform})`,...report},null,2)+'\n')
       console.log(JSON.stringify(report,null,2))
@@ -288,7 +296,7 @@ try {
       } finally {member.free()}
       checks.single_use_invite_creates_second_account = true
       checks.owner_only_registration_settings_survive_restart = true
-      await verifyMessaging({wasm,request,login,origin,serverId,owner:token,password,prepared,linked,start,stop,healthy,checks,
+      await verifyMessaging({wasm,request,login,origin,serverId,owner:token,password,prepared,linked,start,stop,healthy,checks,storage,
         scanDatabase:async canary=>{
           const dumpContainer=container ?? process.env.HEARTH_TEST_POSTGRES_CONTAINER
           if (dumpContainer) {
@@ -342,6 +350,7 @@ try {
   }
 } finally {
   await stop()
+  storage?.close()
   if (container) command('docker', ['stop', container], true)
   if(postgresDirectory){
     if(postgresStarted)command('pg_ctl',['-D',postgresDirectory,'-m','fast','-w','stop'],true)

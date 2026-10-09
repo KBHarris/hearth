@@ -165,8 +165,186 @@ impl AuthClient {
         };
         let invalid = || JsValue::from_str("Invalid encrypted messaging request");
         let result = match operation {
+            "sign_authority" => serde_json::to_value(engine.sign_authority(input).map_err(error)?),
+            "verify_authority" => {
+                let authority = serde_json::from_str(input).map_err(|_| invalid())?;
+                engine.pin_authority(&authority).map_err(error)?;
+                Ok(serde_json::Value::Null)
+            }
+            "sign_admission" => {
+                let v: serde_json::Value = serde_json::from_str(input).map_err(|_| invalid())?;
+                let authority =
+                    serde_json::from_value(v["authority"].clone()).map_err(|_| invalid())?;
+                if !v["invitation"].is_null() {
+                    let invitation =
+                        serde_json::from_value(v["invitation"].clone()).map_err(|_| invalid())?;
+                    return serde_json::to_string(
+                        &engine
+                            .sign_invited_admission(
+                                &authority,
+                                v["account_id"].as_str().ok_or_else(invalid)?,
+                                v["identity_key"].as_str().ok_or_else(invalid)?,
+                                &invitation,
+                            )
+                            .map_err(error)?,
+                    )
+                    .map_err(|_| invalid());
+                }
+                let history =
+                    serde_json::from_value(v["history_from"].clone()).map_err(|_| invalid())?;
+                serde_json::to_value(
+                    engine
+                        .sign_admission(
+                            &authority,
+                            v["account_id"].as_str().ok_or_else(invalid)?,
+                            v["identity_key"].as_str().ok_or_else(invalid)?,
+                            history,
+                        )
+                        .map_err(error)?,
+                )
+            }
+            "sign_policy" => {
+                let v: serde_json::Value = serde_json::from_str(input).map_err(|_| invalid())?;
+                let authority =
+                    serde_json::from_value(v["authority"].clone()).map_err(|_| invalid())?;
+                let kind = serde_json::from_value(v["kind"].clone()).map_err(|_| invalid())?;
+                let history =
+                    serde_json::from_value(v["history"].clone()).map_err(|_| invalid())?;
+                let policy = engine
+                    .sign_policy(
+                        &authority,
+                        v["channel_id"].as_str().ok_or_else(invalid)?,
+                        kind,
+                        history,
+                        v["revision"].as_u64().ok_or_else(invalid)?,
+                    )
+                    .map_err(error)?;
+                let created_at = v["created_at"].as_u64().unwrap_or(policy.created_at);
+                let history_open_for = if v["history_open_for"].is_null() {
+                    policy.history_open_for.clone()
+                } else {
+                    serde_json::from_value(v["history_open_for"].clone()).map_err(|_| invalid())?
+                };
+                serde_json::to_value(
+                    engine
+                        .sign_policy_details(&authority, policy, created_at, history_open_for)
+                        .map_err(error)?,
+                )
+            }
+            "sign_invitation" => {
+                let v: serde_json::Value = serde_json::from_str(input).map_err(|_| invalid())?;
+                let authority =
+                    serde_json::from_value(v["authority"].clone()).map_err(|_| invalid())?;
+                let history =
+                    serde_json::from_value(v["history_from"].clone()).map_err(|_| invalid())?;
+                serde_json::to_value(
+                    engine
+                        .sign_invitation(
+                            &authority,
+                            history,
+                            v["issued_at"].as_u64().ok_or_else(invalid)?,
+                        )
+                        .map_err(error)?,
+                )
+            }
+            "pin_invitation" => {
+                let v: serde_json::Value = serde_json::from_str(input).map_err(|_| invalid())?;
+                let authority =
+                    serde_json::from_value(v["authority"].clone()).map_err(|_| invalid())?;
+                let invitation =
+                    serde_json::from_value(v["invitation"].clone()).map_err(|_| invalid())?;
+                engine
+                    .pin_invitation(
+                        &authority,
+                        v["code"].as_str().ok_or_else(invalid)?,
+                        &invitation,
+                    )
+                    .map_err(error)?;
+                Ok(serde_json::Value::Null)
+            }
+            "request_history" => {
+                serde_json::to_value(engine.request_history(input).map_err(error)?)
+            }
+            "prepare_file" => {
+                let v: serde_json::Value = serde_json::from_str(input).map_err(|_| invalid())?;
+                serde_json::to_value(
+                    engine
+                        .prepare_file(
+                            v["id"].as_str().ok_or_else(invalid)?,
+                            v["name"].as_str().ok_or_else(invalid)?,
+                            v["mime"].as_str().ok_or_else(invalid)?,
+                            v["plaintext"].as_str().ok_or_else(invalid)?,
+                        )
+                        .map_err(error)?,
+                )
+            }
+            "send_file" => {
+                let v: serde_json::Value = serde_json::from_str(input).map_err(|_| invalid())?;
+                serde_json::to_value(
+                    engine
+                        .send_file(
+                            v["id"].as_str().ok_or_else(invalid)?,
+                            v["file"].as_str().ok_or_else(invalid)?,
+                            v["thumbnail"].as_str(),
+                            v["text"].as_str().unwrap_or(""),
+                            v["emoji"].as_str(),
+                        )
+                        .map_err(error)?,
+                )
+            }
+            "open_file" => {
+                let v: serde_json::Value = serde_json::from_str(input).map_err(|_| invalid())?;
+                serde_json::to_value(
+                    engine
+                        .open_file(
+                            v["id"].as_str().ok_or_else(invalid)?,
+                            v["file"].as_str().ok_or_else(invalid)?,
+                            v["ciphertext"].as_str().ok_or_else(invalid)?,
+                        )
+                        .map_err(error)?,
+                )
+            }
+            "offer_history" => serde_json::to_value(engine.offer_history(input).map_err(error)?),
+            "finish_history" => {
+                engine.finish_history(input).map_err(error)?;
+                Ok(serde_json::Value::Null)
+            }
+            "import_history" => {
+                let v: serde_json::Value = serde_json::from_str(input).map_err(|_| invalid())?;
+                let uploads =
+                    serde_json::from_value::<Vec<hearth_proto::messaging::MessageUpload>>(
+                        v["uploads"].clone(),
+                    )
+                    .map_err(|_| invalid())?;
+                serde_json::to_value(
+                    engine
+                        .import_history(v["id"].as_str().ok_or_else(invalid)?, &uploads)
+                        .map_err(error)?,
+                )
+            }
+            "authorize_channel" => {
+                let v: serde_json::Value = serde_json::from_str(input).map_err(|_| invalid())?;
+                let auth =
+                    serde_json::from_value(v["authorization"].clone()).map_err(|_| invalid())?;
+                engine
+                    .authorize_channel(v["id"].as_str().ok_or_else(invalid)?, &auth)
+                    .map_err(error)?;
+                Ok(serde_json::Value::Null)
+            }
             "seal" => return engine.seal().map_err(error),
             "view" => serde_json::to_value(engine.view().map_err(error)?),
+            "search" => {
+                let value: serde_json::Value =
+                    serde_json::from_str(input).map_err(|_| invalid())?;
+                serde_json::to_value(
+                    engine
+                        .search(
+                            value["query"].as_str().ok_or_else(invalid)?,
+                            value["conversation"].as_str(),
+                        )
+                        .map_err(error)?,
+                )
+            }
             "verify_peers" => {
                 let peers =
                     serde_json::from_str::<Vec<hearth_proto::messaging::GroupMember>>(input)

@@ -9,7 +9,7 @@ const channel={id:'d'.repeat(64),community_id:community.id,name:'chat',category_
 const owner={account:{id:community.owner_id,username:'owner',owner:true},devices:[{identity_key:'1'.repeat(64),device_key:'2'.repeat(64),certificate:'3'.repeat(128),account_signature:'4'.repeat(128),device_signature:'5'.repeat(128)}]}
 
 test('channel roster rejects foreign routing, duplicate accounts and duplicate device proofs',()=>{
-  const roster={community,channel,people:[owner]}
+  const roster={community,channel,people:[owner],authority:null,policy:null,admissions:[],invitations:[]}
   assert.equal(isChannelRoster(roster),true)
   assert.equal(isChannelRoster({...roster,channel:{...channel,community_id:'f'.repeat(64)}}),false)
   assert.equal(isChannelRoster({...roster,people:[owner,owner]}),false)

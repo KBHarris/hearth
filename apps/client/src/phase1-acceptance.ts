@@ -16,7 +16,7 @@ async function until(predicate:()=>boolean){for(let i=0;i<400;i++){for(const ins
 
 async function run(){
   require(isTauri())
-  const config=await invoke<{origin:string;serverKey:string;setupCode:string}>('phase1_config')
+  const config=await invoke<{origin:string;serverKey:string;setupCode:string;storage?:boolean}>('phase1_config')
   const client=new HearthClient(config.origin)
   const server=config.serverKey
   const password='HEARTH_PACKAGED_FIXTURE_PASSWORD_private_only'
@@ -138,6 +138,37 @@ async function run(){
   stage='existing install identity preservation'
   require((await readIdentity(identityScope(alice.session.account.id,server)))!==restored.envelope)
   checks.existing_install_identity_is_preserved=true
+  stage='signed community admission and history'
+  const community=await client.createCommunity(alice.session.token,'Packaged community')
+  await alice.service!.secureCommunity(community.id)
+  const channel=await client.createChannel(alice.session.token,community.id,{name:'packaged-channel',category_id:null,kind:'text'})
+  await alice.service!.secureChannel(channel.id);await alice.service!.openChannel(channel.id)
+  await alice.service!.setHistory(channel.id,'since_invite')
+  await alice.service!.send(channel.id,{kind:'text',text:canary+' before invitation',reply_to:null})
+  const invite=await alice.service!.createInvite(community.id,3600,1)
+  await alice.service!.send(channel.id,{kind:'text',text:canary+' after invitation',reply_to:null})
+  await client.joinCommunity(resumed.session.token,invite.code);await resumed.service!.secureJoin(community.id,invite.code)
+  await resumed.service!.openChannel(channel.id)
+  require(!resumed.state.joined.includes(channel.id))
+  await alice.service!.approveMember(channel.id,resumed.session.account.id,resumed.device.identity_key)
+  await until(()=>resumed.state.joined.includes(channel.id))
+  await resumed.service!.requestHistory(channel.id)
+  await until(()=>resumed.state.messages.some(m=>m.conversation_id===channel.id&&m.text===canary+' after invitation'))
+  require(!resumed.state.messages.some(m=>m.conversation_id===channel.id&&m.text===canary+' before invitation'))
+  checks.packaged_signed_admission_and_since_invite_history_pass=true
+  const historical=resumed.state.messages.find(m=>m.conversation_id===channel.id&&m.text===canary+' after invitation')!
+  await resumed.service!.send(channel.id,{kind:'reaction',id:historical.id,emoji:'👍',active:true})
+  await until(()=>alice.state.messages.find(m=>m.id===historical.id)?.reactions['👍']?.includes(resumed.session.account.id)??false)
+  require((await resumed.service!.search('AFTER invitation',channel.id)).some(m=>m.id===historical.id))
+  checks.packaged_channel_reactions_and_local_search_pass=true
+  if(config.storage){
+    stage='encrypted file through packaged worker and private S3'
+    await alice.service!.sendAttachment(channel.id,new File([canary+' file'],'packaged-file.txt',{type:'text/plain'}),'Packaged file')
+    await until(()=>resumed.state.messages.some(m=>m.conversation_id===channel.id&&m.attachments.length>0))
+    const file=resumed.state.messages.find(m=>m.conversation_id===channel.id&&m.attachments.length>0)!.attachments[0]
+    require(await (await resumed.service!.downloadAttachment(channel.id,file)).text()===canary+' file')
+    checks.packaged_encrypted_file_upload_and_download_pass=true
+  }
   for(const install of installs){install.service?.close();install.crypto.close()}
   await pause(200)
   await invoke('phase1_finish',{report:{outcome:'pass',checks}})

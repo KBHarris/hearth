@@ -1,0 +1,25 @@
+{
+  "runtime": "win32 headless Chrome, two isolated profiles, real client controls",
+  "outcome": "pass",
+  "checks": {
+    "create_and_select_community_with_literal_text": true,
+    "create_category_text_and_announcement_channels": true,
+    "open_channel_and_send_encrypted_solo_message": true,
+    "create_and_hide_invite_without_persisting_it": true,
+    "real_second_client_join_automatic_roster_rekey_and_no_old_history": true,
+    "reactions_sync_and_only_owner_has_channel_pin_controls": true,
+    "markdown_and_mentions_render_without_raw_html_or_remote_images": true,
+    "thread_filter_and_explicit_encrypted_read_receipt_sync": true,
+    "local_search_finds_decrypted_text_without_server_query": true,
+    "profiles_and_presence_share_over_encrypted_conversations": true,
+    "sender_generated_link_preview_renders_without_metadata_fetch": true,
+    "real_file_picker_encrypted_upload_and_buddy_download_pass": true,
+    "custom_emoji_local_thumbnail_encrypts_and_renders_in_markdown": true,
+    "signed_since_invite_history_backfills_after_owner_key_handoff": true,
+    "announcement_member_reads_ciphertext_with_publish_controls_disabled": true,
+    "unavailable_directory_has_retry_and_restores_saved_structure": true,
+    "messaging_startup_retry_preserves_encrypted_history_after_directory_outage": true,
+    "narrow_layout_has_no_horizontal_overflow": true
+  },
+  "measured_at": "2026-10-09T11:14:07.789Z"
+}

@@ -69,6 +69,19 @@ async fn main() -> anyhow::Result<()> {
         server_key,
         auth,
     });
+    let cleanup_state = state.clone();
+    tokio::spawn(async move {
+        let mut interval = tokio::time::interval(std::time::Duration::from_secs(60));
+        loop {
+            interval.tick().await;
+            if hearth_server::attachments::cleanup_expired(&cleanup_state)
+                .await
+                .is_err()
+            {
+                tracing::warn!("expired encrypted upload cleanup unavailable");
+            }
+        }
+    });
     axum::serve(listener, router(state))
         .with_graceful_shutdown(shutdown_signal())
         .await?;

@@ -16,11 +16,25 @@ export type CreateChannel = { name: string, category_id: string | null, kind: Ch
 
 export type Channel = { id: string, community_id: string, name: string, category_id: string | null, kind: ChannelKind, };
 
-export type ChannelRoster = { community: Community, channel: Channel, people: Array<Person>, };
+export type ChannelRoster = { community: Community, channel: Channel, people: Array<Person>, authority: CommunityAuthority | null, policy: ChannelPolicy | null, admissions: Array<CommunityAdmission>, invitations: Array<MemberInvitation>, };
 
-export type CommunityStructure = { community: Community, categories: Array<Category>, channels: Array<Channel>, };
+export type CommunityAuthority = { community_id: string, owner: GroupMember, signature: string, };
 
-export type CreateCommunityInvite = { expires_in_seconds: number, max_uses: number, };
+export type CommunityAdmission = { community_id: string, account_id: string, identity_key: string, owner: GroupMember, history_from: Record<string, number>, signature: string, invitation?: CommunityInvitation, };
+
+export type CommunityInvitation = { community_id: string, invite_id: string, owner: GroupMember, history_from: Record<string, number>, issued_at: number, signature: string, };
+
+export type MemberInvitation = { account_id: string, invitation: CommunityInvitation, };
+
+export type HistoryPolicy = "none" | "since_invite" | "full";
+
+export type ChannelPolicy = { channel_id: string, community_id: string, kind: ChannelKind, history: HistoryPolicy, revision: number, created_at: number, history_open_for: Array<string>, owner: GroupMember, signature: string, };
+
+export type ChannelAuthorization = { authority: CommunityAuthority, policy: ChannelPolicy, admissions: Array<CommunityAdmission>, };
+
+export type CommunityStructure = { community: Community, categories: Array<Category>, channels: Array<Channel>, authority: CommunityAuthority | null, };
+
+export type CreateCommunityInvite = { expires_in_seconds: number, max_uses: number, code?: string, authorization?: CommunityInvitation, };
 
 export type CommunityInvite = { code: string, expires_in_seconds: number, max_uses: number, };
 
@@ -76,19 +90,37 @@ export type Conversation = { id: string, channel_id: string | null, accounts: Ar
 
 export type WelcomeEnvelope = { device_key: string, package_hash: string, ciphertext: string, };
 
-export type CommitUpload = { operation_id: string, device_key: string, expected_epoch: number, members: Array<GroupMember>, commit: string, welcomes: Array<WelcomeEnvelope>, signature: string, };
+export type CommitUpload = { operation_id: string, device_key: string, expected_epoch: number, members: Array<GroupMember>, commit: string, welcomes: Array<WelcomeEnvelope>, signature: string, authorization?: ChannelAuthorization, };
 
-export type MessageAction = "send" | "edit" | "delete" | "typing";
+export type MessageAction = "send" | "edit" | "delete" | "typing" | "reaction" | "pin" | "control";
 
-export type MessageUpload = { operation_id: string, device_key: string, epoch: number, action: MessageAction, target_id: string | null, ciphertext: string, signature: string, };
+export type MessageUpload = { operation_id: string, device_key: string, epoch: number, action: MessageAction, target_id: string | null, ciphertext: string, signature: string, archive?: HistoryArchive, };
+
+export type HistoryArchive = { member: GroupMember, ciphertext: string, };
+
+export type HistoryPage = { items: Array<MessageUpload>, next: number, };
 
 export type DeliveryData = { "kind": "commit", upload: CommitUpload, } | { "kind": "welcome", upload: CommitUpload, welcome: WelcomeEnvelope, } | { "kind": "message", upload: MessageUpload, } | { "kind": "redacted" };
 
 export type DeliveryEvent = { seq: number, conversation_id: string, data: DeliveryData, };
 
-export type MessageContent = { "kind": "text", text: string, reply_to: string | null, } | { "kind": "edit", id: string, text: string, } | { "kind": "delete", id: string, } | { "kind": "typing", active: boolean, };
+export type MessageContent = { "kind": "attachment", text: string, files: Array<EncryptedAttachment>, } | { "kind": "emoji", alias: string, asset: EncryptedAttachment, } | { "kind": "history_request", request_id: string, device_key: string, public_key: string, } | { "kind": "history_share", request_id: string, device_key: string, public_key: string, ciphertext: string, } | { "kind": "text", text: string, reply_to: string | null, } | { "kind": "edit", id: string, text: string, } | { "kind": "delete", id: string, } | { "kind": "typing", active: boolean, } | { "kind": "thread", text: string, parent: string, } | { "kind": "reaction", id: string, emoji: string, active: boolean, } | { "kind": "pin", id: string, active: boolean, } | { "kind": "read", id: string, } | { "kind": "profile", display_name: string, bio: string, } | { "kind": "presence", state: string, until: number, } | { "kind": "rich_text", text: string, reply_to: string | null, embed: LinkEmbed, };
 
-export type LocalMessage = { id: string, conversation_id: string, author_id: string, text: string, reply_to: string | null, edited: boolean, deleted: boolean, };
+export type LocalMessage = { id: string, conversation_id: string, author_id: string, text: string, reply_to: string | null, edited: boolean, deleted: boolean, thread: string | null, reactions: { [key in string]: Array<string> }, pinned: boolean, embed: LinkEmbed | null, attachments: Array<LocalAttachment>, };
+
+export type LocalProfile = { display_name: string, bio: string, };
+
+export type LocalPresence = { state: string, until: number, };
+
+export type LinkEmbed = { url: string, title: string, description: string, };
+
+export type EncryptedAttachment = { file: LocalAttachment, key: string, nonce: string, thumbnail: EncryptedAttachment | null, };
+
+export type LocalAttachment = { id: string, name: string, mime: string, bytes: number, cipher_bytes: number, digest: string, thumbnail: LocalAttachment | null, };
+
+export type BlobReservation = { id: string, device_key: string, cipher_bytes: number, digest: string, };
+
+export type BlobUrl = { url: string, expires_in_seconds: number, };
 
 export type HealthStatus = "ok" | "degraded";
 

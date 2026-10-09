@@ -1,7 +1,7 @@
 import {useEffect,useRef,useState,type FormEvent} from 'react'
-import {HearthClient,HearthError,type Community,type CommunityStructure,type Session} from '@hearth/sdk'
+import {HearthClient,HearthError,type Community,type CommunityStructure,type Session,type CommunityInvite} from '@hearth/sdk'
 
-export function CommunityPanel({session,url,onOpenChannel}:{session:Session;url:string;onOpenChannel:(id:string)=>Promise<void>}) {
+export function CommunityPanel({session,url,onOpenChannel,onSecure,onInvite}:{session:Session;url:string;onOpenChannel:(id:string)=>Promise<void>;onSecure:(kind:'community'|'channel'|'join',id:string,code?:string)=>Promise<void>;onInvite:(id:string,expiry:number,uses:number)=>Promise<CommunityInvite>}) {
   const [communities,setCommunities]=useState<Community[]>([])
   const [selected,setSelected]=useState('')
   const [structure,setStructure]=useState<CommunityStructure|null>(null)
@@ -36,15 +36,17 @@ export function CommunityPanel({session,url,onOpenChannel}:{session:Session;url:
     try {
       if(kind==='create' || kind==='join') {
         const result=kind==='create'?await client.createCommunity(session.token,String(data.get('name')).trim(),options):await client.joinCommunity(session.token,String(data.get('code')).trim(),options)
+        if(kind==='create')await onSecure('community',result.id)
+        if(kind==='join' && !communities.some(c=>c.id===result.id))await onSecure('join',result.id,String(data.get('code')).trim())
         const next=await client.communities(session.token,options)
         if(!controller.signal.aborted){setCommunities(next);setSelected(result.id);form.reset()}
       } else if(kind==='invite') {
-        const result=await client.createCommunityInvite(session.token,current,{expires_in_seconds:Number(data.get('expiry')),max_uses:Number(data.get('uses'))},options)
+        const result=await onInvite(current,Number(data.get('expiry')),Number(data.get('uses')))
         if(!controller.signal.aborted)setInvite(result.code)
       } else {
         const name=String(data.get('name')).trim()
         if(kind==='category')await client.createCategory(session.token,current,name,options)
-        else await client.createChannel(session.token,current,{name,category_id:String(data.get('category'))||null,kind:data.get('kind')==='announcement'?'announcement':'text'},options)
+        else {const channel=await client.createChannel(session.token,current,{name,category_id:String(data.get('category'))||null,kind:data.get('kind')==='announcement'?'announcement':'text'},options);await onSecure('channel',channel.id)}
         const next=await client.communityStructure(session.token,current,options)
         // Selecting another community cancels its read and ignores this old result.
         if(!controller.signal.aborted && selection.current && !selection.current.signal.aborted && next.community.id===current){setStructure(previous=>previous?.community.id===current?next:previous);form.reset()}
@@ -71,7 +73,7 @@ export function CommunityPanel({session,url,onOpenChannel}:{session:Session;url:
         <form onSubmit={event=>void action(event,'join')}><label htmlFor="community-code">Join with an invite</label><input id="community-code" name="code" required pattern="[a-f0-9]{64}" type="password" autoComplete="off" disabled={busy}/><button type="submit" disabled={busy || loading}>Join</button></form>
       </nav>
       <div className="community-structure">
-        {structure?<><h3>{structure.community.name}</h3><p className="storage-note">Open a channel to exchange encrypted messages. New members receive messages after their device joins encryption; old history stays on existing devices.</p>
+        {structure?<><h3>{structure.community.name}</h3><p className="storage-note">Open a channel to exchange encrypted messages. New members need owner approval; earlier messages follow each channel’s history policy while an existing device is online.</p>
           <ul className="channel-directory">{channels(null)}</ul>
           {structure.categories.map(category=><section key={category.id}><h4>{category.name}</h4><ul className="channel-directory">{channels(category.id)}</ul></section>)}
           {structure.channels.length===0 && <p>No channels yet.</p>}

@@ -66,8 +66,12 @@ pub fn routes(origins: &[String]) -> Router<SharedState> {
         .route("/{id}", get(structure))
         .route("/{id}/categories", post(create_category))
         .route("/{id}/channels", post(create_channel))
+        .route("/{id}/authority", post(set_authority))
+        .route("/{id}/admissions", post(admit_member))
+        .route("/channels/{id}/policy", post(set_policy))
         .route("/{id}/invites", post(invite))
-        .layer(DefaultBodyLimit::max(4096))
+        .route("/{id}/invitation", get(member_invitation))
+        .layer(DefaultBodyLimit::max(64 * 1024))
         .layer(
             CorsLayer::new()
                 .allow_origin(
@@ -85,6 +89,8 @@ pub(crate) struct ChannelAccess {
     pub community_id: String,
     pub owner_id: String,
     pub announcement: bool,
+    pub authority: Option<CommunityAuthority>,
+    pub policy: Option<ChannelPolicy>,
 }
 /// Lock communities before conversations/devices, so admission and rekeys are ordered.
 pub(crate) async fn channel_access(
@@ -92,7 +98,7 @@ pub(crate) async fn channel_access(
     channel: &str,
     account: &str,
 ) -> Result<Option<ChannelAccess>> {
-    let row = sqlx::query("SELECT c.id AS community_id,c.owner_id,h.kind FROM community_channels h JOIN communities c ON c.id=h.community_id WHERE h.id=$1 FOR SHARE OF c")
+    let row = sqlx::query("SELECT c.id AS community_id,c.owner_id,c.authority,h.policy,h.kind FROM community_channels h JOIN communities c ON c.id=h.community_id WHERE h.id=$1 FOR SHARE OF c")
         .bind(channel).fetch_optional(&mut *tx).await.map_err(unavailable)?;
     let Some(row) = row else {
         return Ok(None);
@@ -113,6 +119,8 @@ pub(crate) async fn channel_access(
         community_id,
         owner_id: row.get("owner_id"),
         announcement: row.get::<&str, _>("kind") == "announcement",
+        authority: decode_optional(row.get("authority"))?,
+        policy: decode_optional(row.get("policy"))?,
     }))
 }
 async fn channel_roster(
@@ -141,12 +149,23 @@ async fn channel_roster(
             .fetch_one(&mut *tx)
             .await
             .map_err(unavailable)?;
-    let accounts = sqlx::query("SELECT a.id,a.username,a.owner FROM accounts a JOIN community_members m ON m.account_id=a.id WHERE m.community_id=$1 ORDER BY a.id").bind(&access.community_id).fetch_all(&mut *tx).await.map_err(unavailable)?;
+    let accounts = sqlx::query("SELECT a.id,a.username,a.owner,m.admission,m.invitation FROM accounts a JOIN community_members m ON m.account_id=a.id WHERE m.community_id=$1 ORDER BY a.id").bind(&access.community_id).fetch_all(&mut *tx).await.map_err(unavailable)?;
     if accounts.len() > 128 {
         return Err(StatusCode::CONFLICT);
     }
     let mut people = Vec::new();
+    let mut admissions = Vec::new();
+    let mut invitations = Vec::new();
     for a in accounts {
+        if let Some(invitation) = decode_optional::<CommunityInvitation>(a.get("invitation"))? {
+            invitations.push(MemberInvitation {
+                account_id: a.get("id"),
+                invitation,
+            });
+        }
+        if let Some(grant) = decode_optional::<CommunityAdmission>(a.get("admission"))? {
+            admissions.push(grant);
+        }
         let devices = sqlx::query("SELECT a.identity_key,d.device_key,d.certificate,d.account_signature,d.device_signature FROM account_devices d JOIN accounts a ON a.id=d.account_id WHERE d.account_id=$1 ORDER BY d.device_key")
             .bind(a.get::<&str,_>("id")).fetch_all(&mut *tx).await.map_err(unavailable)?;
         people.push(hearth_proto::messaging::Person {
@@ -173,7 +192,185 @@ async fn channel_roster(
             },
         },
         people,
+        authority: access.authority,
+        policy: access.policy,
+        admissions,
+        invitations,
     }))
+}
+fn decode_optional<T: serde::de::DeserializeOwned>(
+    v: Option<serde_json::Value>,
+) -> Result<Option<T>> {
+    v.map(serde_json::from_value)
+        .transpose()
+        .map_err(|_| StatusCode::SERVICE_UNAVAILABLE)
+}
+async fn approved_issuer(
+    tx: &mut PgConnection,
+    proof: &hearth_proto::messaging::GroupMember,
+) -> Result<()> {
+    let row=sqlx::query("SELECT a.identity_key,d.device_key,d.certificate,d.account_signature,d.device_signature FROM account_devices d JOIN accounts a ON a.id=d.account_id WHERE d.account_id=$1 AND d.device_key=$2").bind(&proof.account_id).bind(&proof.enrollment.device_key).fetch_optional(&mut *tx).await.map_err(unavailable)?.ok_or(StatusCode::FORBIDDEN)?;
+    if crate::delivery::enrollment(&row) != proof.enrollment {
+        return Err(StatusCode::FORBIDDEN);
+    }
+    Ok(())
+}
+async fn set_authority(
+    State(state): State<SharedState>,
+    headers: HeaderMap,
+    Path(id): Path<String>,
+    Json(value): Json<CommunityAuthority>,
+) -> Result<Json<CommunityAuthority>> {
+    let _permit = state.auth.admit()?;
+    let account = authenticated(&state, &headers).await?;
+    if value.community_id != id || value.owner.account_id != account {
+        return Err(StatusCode::FORBIDDEN);
+    }
+    hearth_crypto::community::verify_authority(&state.server_key.public().to_hex(), &value)
+        .map_err(|_| StatusCode::BAD_REQUEST)?;
+    let mut tx = state.db.begin().await.map_err(unavailable)?;
+    owner(&mut tx, &id, &account).await?;
+    approved_issuer(&mut tx, &value.owner).await?;
+    let old: Option<serde_json::Value> =
+        sqlx::query_scalar("SELECT authority FROM communities WHERE id=$1")
+            .bind(&id)
+            .fetch_one(&mut *tx)
+            .await
+            .map_err(unavailable)?;
+    if let Some(old) = decode_optional::<CommunityAuthority>(old)?
+        && old != value
+    {
+        return Err(StatusCode::CONFLICT);
+    }
+    sqlx::query("UPDATE communities SET authority=$2 WHERE id=$1")
+        .bind(id)
+        .bind(serde_json::to_value(&value).map_err(|_| StatusCode::BAD_REQUEST)?)
+        .execute(&mut *tx)
+        .await
+        .map_err(unavailable)?;
+    tx.commit().await.map_err(unavailable)?;
+    Ok(Json(value))
+}
+async fn admit_member(
+    State(state): State<SharedState>,
+    headers: HeaderMap,
+    Path(id): Path<String>,
+    Json(value): Json<CommunityAdmission>,
+) -> Result<Json<CommunityAdmission>> {
+    let _permit = state.auth.admit()?;
+    let account = authenticated(&state, &headers).await?;
+    if value.community_id != id || value.owner.account_id != account {
+        return Err(StatusCode::FORBIDDEN);
+    }
+    let mut tx = state.db.begin().await.map_err(unavailable)?;
+    owner(&mut tx, &id, &account).await?;
+    let root = decode_optional::<CommunityAuthority>(
+        sqlx::query_scalar("SELECT authority FROM communities WHERE id=$1")
+            .bind(&id)
+            .fetch_one(&mut *tx)
+            .await
+            .map_err(unavailable)?,
+    )?
+    .ok_or(StatusCode::CONFLICT)?;
+    hearth_crypto::community::verify_admission(&state.server_key.public().to_hex(), &root, &value)
+        .map_err(|_| StatusCode::BAD_REQUEST)?;
+    approved_issuer(&mut tx, &value.owner).await?;
+    let expected:Option<String>=sqlx::query_scalar("SELECT a.identity_key FROM accounts a JOIN community_members m ON m.account_id=a.id WHERE m.community_id=$1 AND a.id=$2").bind(&id).bind(&value.account_id).fetch_optional(&mut *tx).await.map_err(unavailable)?.flatten();
+    if expected.as_deref() != Some(&value.identity_key) {
+        return Err(StatusCode::FORBIDDEN);
+    }
+    let invitation = decode_optional::<CommunityInvitation>(
+        sqlx::query_scalar(
+            "SELECT invitation FROM community_members WHERE community_id=$1 AND account_id=$2",
+        )
+        .bind(&id)
+        .bind(&value.account_id)
+        .fetch_one(&mut *tx)
+        .await
+        .map_err(unavailable)?,
+    )?;
+    if value.invitation != invitation {
+        return Err(StatusCode::FORBIDDEN);
+    }
+    let old = decode_optional::<CommunityAdmission>(
+        sqlx::query_scalar(
+            "SELECT admission FROM community_members WHERE community_id=$1 AND account_id=$2",
+        )
+        .bind(&id)
+        .bind(&value.account_id)
+        .fetch_one(&mut *tx)
+        .await
+        .map_err(unavailable)?,
+    )?;
+    if old.is_some_and(|old| old != value) {
+        return Err(StatusCode::CONFLICT);
+    }
+    sqlx::query(
+        "UPDATE community_members SET admission=$3 WHERE community_id=$1 AND account_id=$2",
+    )
+    .bind(id)
+    .bind(&value.account_id)
+    .bind(serde_json::to_value(&value).map_err(|_| StatusCode::BAD_REQUEST)?)
+    .execute(&mut *tx)
+    .await
+    .map_err(unavailable)?;
+    tx.commit().await.map_err(unavailable)?;
+    Ok(Json(value))
+}
+async fn set_policy(
+    State(state): State<SharedState>,
+    headers: HeaderMap,
+    Path(id): Path<String>,
+    Json(value): Json<ChannelPolicy>,
+) -> Result<Json<ChannelPolicy>> {
+    let _permit = state.auth.admit()?;
+    let account = authenticated(&state, &headers).await?;
+    if value.channel_id != id || value.owner.account_id != account {
+        return Err(StatusCode::FORBIDDEN);
+    }
+    let mut tx = state.db.begin().await.map_err(unavailable)?;
+    owner(&mut tx, &value.community_id, &account).await?;
+    let root = decode_optional::<CommunityAuthority>(
+        sqlx::query_scalar("SELECT authority FROM communities WHERE id=$1")
+            .bind(&value.community_id)
+            .fetch_one(&mut *tx)
+            .await
+            .map_err(unavailable)?,
+    )?
+    .ok_or(StatusCode::CONFLICT)?;
+    hearth_crypto::community::verify_policy(&state.server_key.public().to_hex(), &root, &value)
+        .map_err(|_| StatusCode::BAD_REQUEST)?;
+    approved_issuer(&mut tx, &value.owner).await?;
+    let row =
+        sqlx::query("SELECT policy,kind FROM community_channels WHERE id=$1 AND community_id=$2")
+            .bind(&id)
+            .bind(&value.community_id)
+            .fetch_optional(&mut *tx)
+            .await
+            .map_err(unavailable)?
+            .ok_or(StatusCode::FORBIDDEN)?;
+    if (row.get::<&str, _>("kind") == "announcement") != (value.kind == ChannelKind::Announcement) {
+        return Err(StatusCode::BAD_REQUEST);
+    }
+    let old = decode_optional::<ChannelPolicy>(row.get("policy"))?;
+    if let Some(old) = old {
+        if old.created_at != value.created_at || old.history_open_for != value.history_open_for {
+            return Err(StatusCode::CONFLICT);
+        }
+        if old != value && value.revision != old.revision + 1 {
+            return Err(StatusCode::CONFLICT);
+        }
+    } else if value.revision != 1 {
+        return Err(StatusCode::CONFLICT);
+    }
+    sqlx::query("UPDATE community_channels SET policy=$2 WHERE id=$1")
+        .bind(id)
+        .bind(serde_json::to_value(&value).map_err(|_| StatusCode::BAD_REQUEST)?)
+        .execute(&mut *tx)
+        .await
+        .map_err(unavailable)?;
+    tx.commit().await.map_err(unavailable)?;
+    Ok(Json(value))
 }
 async fn list(
     State(state): State<SharedState>,
@@ -241,7 +438,7 @@ async fn structure(
         .execute(&mut *tx)
         .await
         .map_err(unavailable)?;
-    let row = sqlx::query("SELECT c.id,c.name,c.owner_id FROM communities c JOIN community_members m ON m.community_id=c.id WHERE c.id=$1 AND m.account_id=$2")
+    let row = sqlx::query("SELECT c.id,c.name,c.owner_id,c.authority FROM communities c JOIN community_members m ON m.community_id=c.id WHERE c.id=$1 AND m.account_id=$2")
         .bind(&community_id).bind(account).fetch_optional(&mut *tx).await.map_err(unavailable)?.ok_or(StatusCode::FORBIDDEN)?;
     let categories = sqlx::query("SELECT id,community_id,name FROM community_categories WHERE community_id=$1 ORDER BY created_at,id").bind(&community_id).fetch_all(&mut *tx).await.map_err(unavailable)?
         .iter().map(|r| Category { id:r.get("id"), community_id:r.get("community_id"), name:r.get("name") }).collect();
@@ -252,6 +449,7 @@ async fn structure(
         community: community(&row),
         categories,
         channels,
+        authority: decode_optional(row.get("authority"))?,
     }))
 }
 async fn create_category(
@@ -360,14 +558,58 @@ async fn invite(
         return Err(StatusCode::CONFLICT);
     }
     let result = CommunityInvite {
-        code: crate::auth::random_token(),
+        code: request
+            .code
+            .clone()
+            .unwrap_or_else(crate::auth::random_token),
         expires_in_seconds: request.expires_in_seconds,
         max_uses: request.max_uses,
     };
-    sqlx::query("INSERT INTO community_invites(code_hash,community_id,created_by,expires_at,max_uses) VALUES($1,$2,$3,now()+make_interval(secs=>$4),$5)")
-        .bind(Sha256::digest(result.code.as_bytes()).to_vec()).bind(community_id).bind(account).bind(f64::from(result.expires_in_seconds)).bind(i32::try_from(result.max_uses).map_err(|_|StatusCode::BAD_REQUEST)?).execute(&mut *tx).await.map_err(unavailable)?;
+    id(&result.code)?;
+    let root = decode_optional::<CommunityAuthority>(
+        sqlx::query_scalar("SELECT authority FROM communities WHERE id=$1")
+            .bind(&community_id)
+            .fetch_one(&mut *tx)
+            .await
+            .map_err(unavailable)?,
+    )?;
+    match (&root, &request.authorization) {
+        (Some(root), Some(certificate)) => {
+            hearth_crypto::community::verify_invitation(
+                &state.server_key.public().to_hex(),
+                root,
+                certificate,
+            )
+            .map_err(|_| StatusCode::BAD_REQUEST)?;
+            if certificate.invite_id != hex::encode(Sha256::digest(result.code.as_bytes())) {
+                return Err(StatusCode::BAD_REQUEST);
+            }
+            approved_issuer(&mut tx, &certificate.owner).await?;
+        }
+        (None, None) => {}
+        _ => return Err(StatusCode::BAD_REQUEST),
+    }
+    sqlx::query("INSERT INTO community_invites(code_hash,community_id,created_by,expires_at,max_uses,certificate) VALUES($1,$2,$3,now()+make_interval(secs=>$4),$5,$6)")
+        .bind(Sha256::digest(result.code.as_bytes()).to_vec()).bind(community_id).bind(account).bind(f64::from(result.expires_in_seconds)).bind(i32::try_from(result.max_uses).map_err(|_|StatusCode::BAD_REQUEST)?).bind(request.authorization.map(serde_json::to_value).transpose().map_err(|_|StatusCode::BAD_REQUEST)?).execute(&mut *tx).await.map_err(unavailable)?;
     tx.commit().await.map_err(unavailable)?;
     Ok(Json(result))
+}
+async fn member_invitation(
+    State(state): State<SharedState>,
+    headers: HeaderMap,
+    Path(id): Path<String>,
+) -> Result<Json<Option<CommunityInvitation>>> {
+    let account = authenticated(&state, &headers).await?;
+    let value: Option<serde_json::Value> = sqlx::query_scalar(
+        "SELECT invitation FROM community_members WHERE community_id=$1 AND account_id=$2",
+    )
+    .bind(id)
+    .bind(account)
+    .fetch_optional(&state.db)
+    .await
+    .map_err(unavailable)?
+    .ok_or(StatusCode::FORBIDDEN)?;
+    Ok(Json(decode_optional(value)?))
 }
 async fn join(
     State(state): State<SharedState>,
@@ -397,7 +639,7 @@ async fn join(
         .await
         .map_err(unavailable)?;
     // clock_timestamp, unlike now(), advances while concurrent joins wait for locks.
-    let invitation = sqlx::query("SELECT uses,max_uses FROM community_invites WHERE code_hash=$1 AND expires_at>clock_timestamp() FOR UPDATE").bind(&digest).fetch_optional(&mut *tx).await.map_err(unavailable)?.ok_or(StatusCode::FORBIDDEN)?;
+    let invitation = sqlx::query("SELECT uses,max_uses,certificate FROM community_invites WHERE code_hash=$1 AND expires_at>clock_timestamp() FOR UPDATE").bind(&digest).fetch_optional(&mut *tx).await.map_err(unavailable)?.ok_or(StatusCode::FORBIDDEN)?;
     let joined: bool = sqlx::query_scalar(
         "SELECT EXISTS(SELECT 1 FROM community_members WHERE community_id=$1 AND account_id=$2)",
     )
@@ -425,12 +667,15 @@ async fn join(
         if total >= 1024 || own >= 100 {
             return Err(StatusCode::CONFLICT);
         }
-        sqlx::query("INSERT INTO community_members(community_id,account_id) VALUES($1,$2)")
-            .bind(&community_id)
-            .bind(account)
-            .execute(&mut *tx)
-            .await
-            .map_err(unavailable)?;
+        sqlx::query(
+            "INSERT INTO community_members(community_id,account_id,invitation) VALUES($1,$2,$3)",
+        )
+        .bind(&community_id)
+        .bind(account)
+        .bind(invitation.get::<Option<serde_json::Value>, _>("certificate"))
+        .execute(&mut *tx)
+        .await
+        .map_err(unavailable)?;
         sqlx::query("UPDATE community_invites SET uses=uses+1 WHERE code_hash=$1")
             .bind(digest)
             .execute(&mut *tx)

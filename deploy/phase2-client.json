@@ -1,0 +1,8 @@
+{
+  "productName": "Hearth Phase 2 Test",
+  "version": "0.2.0",
+  "identifier": "chat.hearth.phase2-test",
+  "app": {
+    "windows": [{"title":"Hearth Phase 2 Test","width":1280,"height":800,"minWidth":940,"minHeight":560}]
+  }
+}

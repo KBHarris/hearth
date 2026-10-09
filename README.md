@@ -14,7 +14,7 @@ Windows/macOS/Linux acceptance. The next checkpoint is the
 [two-PC encrypted DM test](docs/TWO_PC_DM_TEST.md); media and federation remain on the roadmap.
 
 - **What we're building and why:** [PLAN.md](PLAN.md)
-- **Phased build plan:** [docs/ROADMAP.md](docs/ROADMAP.md). **Phases 0 and 1 are complete**; Phase 2 community setup and encrypted channel messaging are implemented. Admission hardening, history and attachments remain open.
+- **Phased build plan:** [docs/ROADMAP.md](docs/ROADMAP.md). **Phases 0 and 1 are complete**; Phase 2 community setup and encrypted channel messaging are implemented. Owner-signed admission, signed history policies, encrypted files/thumbnails, custom emoji and the text layer are implemented; packaged validation and human exit testing remain.
 - **Keep the pending DM test stable:** [docs/PHASE2_DEVELOPMENT.md](docs/PHASE2_DEVELOPMENT.md) describes the separate development data and frozen Phase 1 pair.
 - **Threat model (draft):** [docs/THREAT_MODEL.md](docs/THREAT_MODEL.md)
 - **Implementation and verification notes:** [docs/PROGRESS.md](docs/PROGRESS.md)

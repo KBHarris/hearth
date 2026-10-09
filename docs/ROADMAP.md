@@ -115,21 +115,33 @@ Started 2026-10-08 in the isolated `codex/phase2-communities` worktree. The auth
 community directory, categories, text/announcement channels and expiring/use-limited
 invites are implemented. The second slice adds channel MLS binding, encrypted text,
 online roster/device rekeying and owner-only announcements with no old-history handoff.
-Local HTTP/product-WASM acceptance passes 38 outcomes. [ADR 0009](adr/0009-community-directory.md),
+Local HTTP/product-WASM acceptance passes 38 outcomes and the two-profile Chrome UI suite
+passes nine. All 12 hosted jobs pass for `7f8aed2` in
+[run 37890119377](https://github.com/KBHarris/hearth/actions/runs/37890119377), including
+Windows channel UI and media. [ADR 0009](adr/0009-community-directory.md),
 [ADR 0010](adr/0010-encrypted-channels.md) and [the development guide](PHASE2_DEVELOPMENT.md)
-record scope/isolation. Client-verifiable admission, history and the remaining text
-features are still pending; Phase 2 exit criteria are not met. The Phase 1 test pair
-stays frozen in the original checkout.
+record scope/isolation. The current development changes add owner-signed admission,
+reactions, pins, threads, safe Markdown, mentions, read markers, encrypted profiles and
+presence, sender-created link previews and local search. The expanded local suite
+passes 42 HTTP/WASM and 13 Chrome UI outcomes. Signed invitation cutoffs, wrapped history keys,
+encrypted files/thumbnails and custom emoji now pass the 49-outcome HTTP/WASM suite.
+All 18 expanded Chrome UI checks pass, including real file downloads, custom emoji,
+profiles/presence, sender-written previews and signed history handoff. Packaged checks and
+the replacement bundle remain in progress; Phase 2 exit criteria are not met. The Phase 1 test pair
+stays frozen until its replacement is validated.
 
 - [x] Communities, categories, text/announcement channel records and invites (expiry, max uses).
 - [x] MLS group per channel, server-authorized roster sync and online rekey agent (128-device initial bound).
-- [ ] Client-verifiable owner authorization for new account admission; hostile-host channel privacy gate.
-- History policies (`none`, `since-invite`, `full`) and wrapped epoch-key handoff.
-- Encrypted attachments via presigned S3 upload, with local thumbnails.
-- Reactions, pins, threads, Markdown, custom emoji, mentions, and read state.
-- Profiles, presence, and client-generated link embeds.
-- Local full-text search.
-- Start the MLS load benchmark (1k-member channel, commit latency).
+- [x] Client-verifiable owner authorization for new account admission; signed policies and pinned owner identities (first contact requires fingerprint comparison).
+- [x] History policies (`none`, `since-invite`, `full`) and wrapped epoch-key handoff (native and HTTP/WASM policy/tamper/restart checks pass).
+- [x] Encrypted attachments via presigned S3 upload, with local thumbnails (real private S3, tamper/scope/restart and host canary and Chrome UI checks pass).
+- [x] Reactions and pins (42 HTTP/WASM and 13 Chrome UI outcomes pass).
+- [x] Threads, Markdown, custom emoji, mentions and read state (expanded 18-outcome Chrome UI suite passes).
+- [x] Profiles, presence and client-generated link embeds (encrypted state and expanded Chrome UI checks pass).
+- [x] Local full-text search (case/token matching, deletion and absence of host search requests checked).
+- [x] MLS load benchmark (1k synthetic members: rotation median 11.47 ms, p95 12.52 ms; product limit remains 128 devices).
+- [ ] Versioned Phase 2 Windows client/server test bundle and two-PC guide; replace the Phase 1 bundle after validation.
+- [ ] Human exit test: a 50-person community runs for a week; history and attachment canaries pass.
 
 **Exit:** a 50-person test community runs for a week. History policy tests pass. The
 attachment canary passes.

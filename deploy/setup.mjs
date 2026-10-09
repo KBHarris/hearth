@@ -44,10 +44,29 @@ export function publicAddress(directory) {
   return address
 }
 
+export function initializeStorage(directory) {
+  const path=join(directory,'.env');let text=readFileSync(path,'utf8')
+  const values={}
+  for(const [name,size] of [['HEARTH_S3_ACCESS_KEY',16],['HEARTH_S3_SECRET_KEY',32]]){
+    const entries=text.match(new RegExp(`^${name}=.*$`,'gm'))??[]
+    if(entries.length>1)throw new Error(`Use exactly one ${name}; storage configuration was preserved.`)
+    let value=entries[0]?.slice(name.length+1).trim()
+    if(!value){value=randomBytes(size).toString('hex');text=text.replace(new RegExp(`^${name}=.*\\r?\\n?`,'m'),'');text+=`${text.endsWith('\n')?'':'\n'}${name}=${value}\n`}
+    if(!/^[a-f0-9]+$/.test(value)||value.length<size*2)throw new Error(`${name} must be random hex; storage configuration was preserved.`)
+    values[name]=value
+  }
+  const config=JSON.stringify({identities:[{name:'hearth-server',credentials:[{accessKey:values.HEARTH_S3_ACCESS_KEY,secretKey:values.HEARTH_S3_SECRET_KEY}],actions:['Admin','Read','Write']}]},null,2)+'\n'
+  const storagePath=join(directory,'s3.json')
+  if(existsSync(storagePath)&&readFileSync(storagePath,'utf8')!==config)throw new Error('Existing S3 configuration differs. Restore matching credentials; files were preserved.')
+  if(!existsSync(storagePath))writeFileSync(storagePath,config,{flag:'wx',mode:0o600})
+  if(text!==readFileSync(path,'utf8'))writeFileSync(path,text,{mode:0o600})
+}
+
 if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
   const args = process.argv.slice(2)
   if (args.some((arg) => !['--init-only', '--podman', '--show-setup-code', '--https'].includes(arg))) throw new Error('Usage: node deploy/setup.mjs [--init-only] [--podman] [--show-setup-code] [--https]')
   const { port, created } = initializeConfig(deploy)
+  initializeStorage(deploy)
   if (created) console.log('Created deploy/.env with a random database password. Secrets are not printed.')
   const address=args.includes('--https')?publicAddress(deploy):undefined
   const composeFiles=['-f',join(deploy,'compose.yaml')]

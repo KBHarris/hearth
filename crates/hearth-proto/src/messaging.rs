@@ -60,6 +60,9 @@ pub struct CommitUpload {
     pub commit: String,
     pub welcomes: Vec<WelcomeEnvelope>,
     pub signature: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[cfg_attr(feature = "typescript", ts(optional))]
+    pub authorization: Option<crate::community::ChannelAuthorization>,
 }
 #[derive(Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
@@ -69,6 +72,9 @@ pub enum MessageAction {
     Edit,
     Delete,
     Typing,
+    Reaction,
+    Pin,
+    Control,
 }
 #[derive(Clone, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
@@ -82,6 +88,25 @@ pub struct MessageUpload {
     pub target_id: Option<String>,
     pub ciphertext: String,
     pub signature: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[cfg_attr(feature = "typescript", ts(optional))]
+    pub archive: Option<HistoryArchive>,
+}
+
+#[derive(Clone, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+#[cfg_attr(feature = "typescript", derive(ts_rs::TS))]
+pub struct HistoryArchive {
+    pub member: GroupMember,
+    pub ciphertext: String,
+}
+
+#[derive(Clone, Serialize, Deserialize)]
+#[cfg_attr(feature = "typescript", derive(ts_rs::TS))]
+pub struct HistoryPage {
+    pub items: Vec<MessageUpload>,
+    #[cfg_attr(feature = "typescript", ts(type = "number"))]
+    pub next: u64,
 }
 #[derive(Clone, Serialize, Deserialize)]
 #[serde(tag = "kind", rename_all = "snake_case")]
@@ -113,6 +138,25 @@ pub struct DeliveryEvent {
 #[serde(deny_unknown_fields)]
 #[cfg_attr(feature = "typescript", derive(ts_rs::TS))]
 pub enum MessageContent {
+    Attachment {
+        text: String,
+        files: Vec<EncryptedAttachment>,
+    },
+    Emoji {
+        alias: String,
+        asset: EncryptedAttachment,
+    },
+    HistoryRequest {
+        request_id: String,
+        device_key: String,
+        public_key: String,
+    },
+    HistoryShare {
+        request_id: String,
+        device_key: String,
+        public_key: String,
+        ciphertext: String,
+    },
     Text {
         text: String,
         reply_to: Option<String>,
@@ -127,6 +171,36 @@ pub enum MessageContent {
     Typing {
         active: bool,
     },
+    Thread {
+        text: String,
+        parent: String,
+    },
+    Reaction {
+        id: String,
+        emoji: String,
+        active: bool,
+    },
+    Pin {
+        id: String,
+        active: bool,
+    },
+    Read {
+        id: String,
+    },
+    Profile {
+        display_name: String,
+        bio: String,
+    },
+    Presence {
+        state: String,
+        #[cfg_attr(feature = "typescript", ts(type = "number"))]
+        until: u64,
+    },
+    RichText {
+        text: String,
+        reply_to: Option<String>,
+        embed: LinkEmbed,
+    },
 }
 #[derive(Clone, Serialize, Deserialize)]
 #[cfg_attr(feature = "typescript", derive(ts_rs::TS))]
@@ -138,4 +212,77 @@ pub struct LocalMessage {
     pub reply_to: Option<String>,
     pub edited: bool,
     pub deleted: bool,
+    #[serde(default)]
+    pub thread: Option<String>,
+    #[serde(default)]
+    pub reactions: std::collections::BTreeMap<String, Vec<String>>,
+    #[serde(default)]
+    pub pinned: bool,
+    #[serde(default)]
+    pub embed: Option<LinkEmbed>,
+    #[serde(default)]
+    pub attachments: Vec<LocalAttachment>,
+}
+
+/// Client-only descriptor, carried inside MLS. Never send this to object storage.
+#[derive(Clone, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+#[cfg_attr(feature = "typescript", derive(ts_rs::TS))]
+pub struct EncryptedAttachment {
+    pub file: LocalAttachment,
+    pub key: String,
+    pub nonce: String,
+    pub thumbnail: Option<Box<EncryptedAttachment>>,
+}
+/// Public-to-the-local-UI descriptor. File keys stay in the crypto worker's sealed state.
+#[derive(Clone, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+#[cfg_attr(feature = "typescript", derive(ts_rs::TS))]
+pub struct LocalAttachment {
+    pub id: String,
+    pub name: String,
+    pub mime: String,
+    pub bytes: u32,
+    pub cipher_bytes: u32,
+    pub digest: String,
+    pub thumbnail: Option<Box<LocalAttachment>>,
+}
+#[derive(Clone, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+#[cfg_attr(feature = "typescript", derive(ts_rs::TS))]
+pub struct BlobReservation {
+    pub id: String,
+    pub device_key: String,
+    pub cipher_bytes: u32,
+    pub digest: String,
+}
+#[derive(Clone, Serialize, Deserialize)]
+#[cfg_attr(feature = "typescript", derive(ts_rs::TS))]
+pub struct BlobUrl {
+    pub url: String,
+    pub expires_in_seconds: u32,
+}
+
+#[derive(Clone, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+#[cfg_attr(feature = "typescript", derive(ts_rs::TS))]
+pub struct LinkEmbed {
+    pub url: String,
+    pub title: String,
+    pub description: String,
+}
+
+#[derive(Clone, Default, Serialize, Deserialize)]
+#[cfg_attr(feature = "typescript", derive(ts_rs::TS))]
+pub struct LocalProfile {
+    pub display_name: String,
+    pub bio: String,
+}
+
+#[derive(Clone, Serialize, Deserialize)]
+#[cfg_attr(feature = "typescript", derive(ts_rs::TS))]
+pub struct LocalPresence {
+    pub state: String,
+    #[cfg_attr(feature = "typescript", ts(type = "number"))]
+    pub until: u64,
 }

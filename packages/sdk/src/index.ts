@@ -4,7 +4,11 @@ import type { AccountIdentity, DeviceEnrollment, DeviceRestore, DeviceLinkOffer,
 import type { RegistrationStart,RegistrationFinish,RegistrationStatus,ServerSettings,AccountInvite } from './protocol.ts'
 import type { Person,Conversation,KeyPackageRecord,CommitUpload,MessageUpload,DeliveryEvent,GroupMember } from './protocol.ts'
 import type { Community, CommunityStructure, Category, Channel, CreateChannel, CreateCommunityInvite, CommunityInvite, ChannelRoster } from './protocol.ts'
-import { isCommunity, isCommunities, isCommunityStructure, isCategory, isChannel, isCommunityInvite, isChannelRoster } from './community.ts'
+import { isCommunity, isCommunities, isCommunityStructure, isCategory, isChannel, isCommunityInvite, isChannelRoster,isAuthority,isAdmission,isPolicy,isChannelAuthorization } from './community.ts'
+import type {CommunityAuthority,CommunityAdmission,ChannelPolicy} from './protocol.ts'
+import type {CommunityInvitation,HistoryPage} from './protocol.ts'
+import {isInvitation} from './community.ts'
+import type {BlobReservation,BlobUrl} from './protocol.ts'
 
 export * from './protocol.ts'
 
@@ -74,9 +78,19 @@ export class HearthClient {
   createCommunityInvite(token:string,id:string,body:CreateCommunityInvite,options?:RequestOptions):Promise<CommunityInvite> { checkedId(id);return this.community(`${id}/invites`,token,isCommunityInvite,body,options) }
   joinCommunity(token:string,code:string,options?:RequestOptions):Promise<Community> { checkedId(code);return this.community('join',token,isCommunity,{code},options) }
   channelRoster(token:string,id:string,options?:RequestOptions):Promise<ChannelRoster> { checkedId(id);return this.community(`channels/${id}/roster`,token,isChannelRoster,undefined,options) }
+  communityAuthority(token:string,id:string,value:CommunityAuthority,options?:RequestOptions):Promise<CommunityAuthority>{checkedId(id);return this.community(`${id}/authority`,token,isAuthority,value,options)}
+  communityAdmission(token:string,id:string,value:CommunityAdmission,options?:RequestOptions):Promise<CommunityAdmission>{checkedId(id);return this.community(`${id}/admissions`,token,isAdmission,value,options)}
+  channelPolicy(token:string,id:string,value:ChannelPolicy,options?:RequestOptions):Promise<ChannelPolicy>{checkedId(id);return this.community(`channels/${id}/policy`,token,isPolicy,value,options)}
+  memberInvitation(token:string,id:string,options?:RequestOptions):Promise<CommunityInvitation|null>{checkedId(id);return this.community(`${id}/invitation`,token,(v):v is CommunityInvitation|null=>v===null||isInvitation(v),undefined,options)}
   private chat<T>(path:string,token:string,validate:(value:unknown)=>value is T,body?:unknown,options?:RequestOptions):Promise<T> {
     return this.get('/api/v1/chat/'+path,validate,options,{method:body===undefined?'GET':'POST',headers:{Authorization:`Bearer ${token}`,...(body===undefined?{}:{'Content-Type':'application/json'})},...(body===undefined?{}:{body:JSON.stringify(body)})})
   }
+  private blob<T>(path:string,token:string,validate:(value:unknown)=>value is T,body?:unknown,options?:RequestOptions):Promise<T> {
+    return this.get('/api/v1/blobs/'+path,validate,options,{method:body===undefined?'GET':'POST',headers:{Authorization:`Bearer ${token}`,...(body===undefined?{}:{'Content-Type':'application/json'})},...(body===undefined?{}:{body:JSON.stringify(body)})})
+  }
+  reserveBlob(token:string,id:string,body:BlobReservation,options?:RequestOptions):Promise<BlobUrl>{checkedId(id);checkedId(body.id);return this.blob(id,token,isBlobUrl,body,options)}
+  completeBlob(token:string,id:string,file:string,device:string,options?:RequestOptions):Promise<null>{checkedId(id);checkedId(file);checkedId(device);return this.blob(`${id}/${file}/complete`,token,isEmpty,{device},options)}
+  downloadBlob(token:string,id:string,file:string,device:string,options?:RequestOptions):Promise<BlobUrl>{checkedId(id);checkedId(file);checkedId(device);return this.blob(`${id}/${file}?device=${device}`,token,isBlobUrl,undefined,options)}
   person(token:string,username:string,options?:RequestOptions):Promise<Person> { return this.chat(`people/${encodeURIComponent(username)}`,token,isPerson,undefined,options) }
   personById(token:string,id:string,options?:RequestOptions):Promise<Person> { checkedId(id);return this.chat(`accounts/${id}`,token,isPerson,undefined,options) }
   conversations(token:string,options?:RequestOptions):Promise<Conversation[]> { return this.chat('conversations',token,isConversations,undefined,options) }
@@ -85,6 +99,7 @@ export class HearthClient {
   claimPackages(token:string,deviceKeys:string[],options?:RequestOptions):Promise<KeyPackageRecord[]> { deviceKeys.forEach(checkedId);return this.chat('packages/claim',token,isPackages,{device_keys:deviceKeys},options) }
   uploadCommit(token:string,id:string,body:CommitUpload,options?:RequestOptions):Promise<null> { checkedId(id);return this.chat(`conversations/${id}/commit`,token,isEmpty,body,options) }
   uploadMessage(token:string,id:string,body:MessageUpload,options?:RequestOptions):Promise<null> { checkedId(id);return this.chat(`conversations/${id}/message`,token,isEmpty,body,options) }
+  history(token:string,id:string,device:string,after:number,options?:RequestOptions):Promise<HistoryPage>{checkedId(id);checkedId(device);if(!isSequence(after))throw new HearthError(0,'Invalid history cursor.');return this.chat(`conversations/${id}/history?device=${device}&after=${after}`,token,(v):v is HistoryPage=>isRecord(v)&&Array.isArray(v.items)&&v.items.length<=128&&v.items.every(isMessageUpload)&&isSequence(v.next)&&v.next>=after,undefined,options)}
   events(token:string,device:string,after:number,options?:RequestOptions):Promise<DeliveryEvent[]> { checkedId(device);if(!isSequence(after))throw new HearthError(0,'Invalid delivery cursor.','invalid_response');return this.chat(`events/${device}?after=${after}`,token,isEvents,undefined,options) }
   identity(token: string, options?: RequestOptions): Promise<AccountIdentity> {
     return this.get('/api/v1/auth/identity', isAccountIdentity, options, { headers: { Authorization: `Bearer ${token}` } })
@@ -264,17 +279,21 @@ function isAccountInvite(value:unknown):value is AccountInvite { return isRecord
 function isId(value:unknown):value is string { return typeof value==='string' && /^[a-f0-9]{64}$/.test(value) }
 function checkedId(value:string) { if(!isId(value))throw new HearthError(0,'Invalid encrypted delivery identifier.','invalid_response') }
 function isEmpty(value:unknown):value is null { return value===null }
+function isBlobUrl(value:unknown):value is BlobUrl {
+  if(!isRecord(value)||typeof value.url!=='string'||value.url.length>8192||value.expires_in_seconds!==300)return false
+  try {const url=new URL(value.url);return !url.username&&!url.password&&!url.hash&&(url.protocol==='https:'||(url.protocol==='http:'&&['localhost','127.0.0.1','[::1]'].includes(url.hostname)))&&/^\/hearth-blobs\/[a-f0-9]{64}\/[a-f0-9]{64}$/.test(url.pathname)&&url.searchParams.has('X-Amz-Signature')}catch{return false}
+}
 function isSequence(value:unknown):value is number { return typeof value==='number' && Number.isSafeInteger(value) && value>=0 }
 function isWire(value:unknown):value is string { return typeof value==='string' && value.length>0 && value.length<=524288 && value.length%2===0 && /^[a-f0-9]+$/.test(value) }
-function isMember(value:unknown):value is GroupMember { return isRecord(value) && isId(value.account_id) && isDeviceEnrollment(value.enrollment) }
+export function isMember(value:unknown):value is GroupMember { return isRecord(value) && isId(value.account_id) && isDeviceEnrollment(value.enrollment) }
 function isMembers(value:unknown):value is GroupMember[] { return Array.isArray(value) && value.length>=1 && value.length<=128 && value.every(isMember) && new Set(value.map(peer=>peer.enrollment.device_key)).size===value.length }
 export function isPerson(value:unknown):value is Person { return isRecord(value) && isAccount(value.account) && Array.isArray(value.devices) && value.devices.length<=16 && value.devices.every(isDeviceEnrollment) }
 function isConversation(value:unknown):value is Conversation { return isRecord(value) && isId(value.id) && (value.channel_id===undefined || value.channel_id===null || value.channel_id===value.id) && isSequence(value.epoch) && isMembers(value.members) && Array.isArray(value.accounts) && value.accounts.length>=(value.channel_id?1:2) && value.accounts.length<=(value.channel_id?128:10) && value.accounts.every(isId) && new Set(value.accounts).size===value.accounts.length && value.members.every(member=>(value.accounts as string[]).includes(member.account_id)) }
 function isConversations(value:unknown):value is Conversation[] { return Array.isArray(value) && value.every(isConversation) }
 function isPackages(value:unknown):value is KeyPackageRecord[] { return Array.isArray(value) && value.length<=32 && value.every(record=>isRecord(record) && isMember(record.member) && isWire(record.package) && isId(record.package_hash)) }
 function isPackageCount(value:unknown):value is {available:number} { return isRecord(value) && isSequence(value.available) && value.available<=4 }
-function isCommit(value:unknown):value is CommitUpload { return isRecord(value) && isId(value.operation_id) && isId(value.device_key) && isSequence(value.expected_epoch) && isMembers(value.members) && isWire(value.commit) && typeof value.signature==='string' && /^[a-f0-9]{128}$/.test(value.signature) && Array.isArray(value.welcomes) && value.welcomes.length<=128 && value.welcomes.every(w=>isRecord(w) && isId(w.device_key) && isId(w.package_hash) && isWire(w.ciphertext)) }
-function isMessageUpload(value:unknown):value is MessageUpload { return isRecord(value) && isId(value.operation_id) && isId(value.device_key) && isSequence(value.epoch) && ['send','edit','delete','typing'].includes(value.action as string) && (value.target_id===null || isId(value.target_id)) && isWire(value.ciphertext) && typeof value.signature==='string' && /^[a-f0-9]{128}$/.test(value.signature) }
+function isCommit(value:unknown):value is CommitUpload { return isRecord(value) && isId(value.operation_id) && isId(value.device_key) && isSequence(value.expected_epoch) && isMembers(value.members) && (value.authorization===undefined||value.authorization===null||isChannelAuthorization(value.authorization)) && isWire(value.commit) && typeof value.signature==='string' && /^[a-f0-9]{128}$/.test(value.signature) && Array.isArray(value.welcomes) && value.welcomes.length<=128 && value.welcomes.every(w=>isRecord(w) && isId(w.device_key) && isId(w.package_hash) && isWire(w.ciphertext)) }
+function isMessageUpload(value:unknown):value is MessageUpload { return isRecord(value) && (value.archive===undefined||value.archive===null||isRecord(value.archive)&&isMember(value.archive.member)&&isWire(value.archive.ciphertext)) && isId(value.operation_id) && isId(value.device_key) && isSequence(value.epoch) && ['send','edit','delete','typing','reaction','pin','control'].includes(value.action as string) && (['edit','delete','reaction','pin'].includes(value.action as string)?isId(value.target_id):value.target_id===null) && isWire(value.ciphertext) && typeof value.signature==='string' && /^[a-f0-9]{128}$/.test(value.signature) }
 export function validateDeliveryEvent(value:unknown):value is DeliveryEvent {
   if(!isRecord(value) || !isSequence(value.seq) || value.seq===0 || !isId(value.conversation_id) || !isRecord(value.data))return false
   const data=value.data

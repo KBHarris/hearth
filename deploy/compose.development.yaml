@@ -7,3 +7,8 @@ services:
       - "127.0.0.1:18088:8080"
     environment:
       HEARTH_CLIENT_ORIGINS: http://127.0.0.1:5174,http://localhost:5174,http://tauri.localhost,tauri://localhost
+      HEARTH_S3_PUBLIC_ENDPOINT: http://127.0.0.1:18333
+  storage:
+    ports: !override
+      - "127.0.0.1:18333:8333"
+    command: server -dir=/data -s3 -s3.port=8333 -s3.config=/etc/hearth/s3.json -s3.allowedOrigins=http://127.0.0.1:5174,http://localhost:5174,http://tauri.localhost,tauri://localhost -master.telemetry=false
