@@ -1,0 +1,73 @@
+{
+  "source_commit": "a590d32ced373c921b2c0bd0c6d70db790fab316",
+  "hosted_run": "https://github.com/KBHarris/hearth/actions/runs/37870006242",
+  "attempt": 2,
+  "runtime": "Tauri system webview (win32)",
+  "capabilities": {
+    "audioContext": true,
+    "canvasCapture": true,
+    "legacyEncodedStreams": true,
+    "peerConnection": true,
+    "scriptTransform": true,
+    "sdkE2eeSupported": true,
+    "secureContext": true,
+    "userAgent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/153.0.0.0 Safari/537.36 Edg/153.0.0.0",
+    "webCrypto": true,
+    "worker": true
+  },
+  "checks": {
+    "native_mls_over_webview_ipc": true,
+    "signaling_connected_publisher": true
+  },
+  "diagnostics": {
+    "audioContextState": "running",
+    "audioSubscribed": false,
+    "candidateCounts": {
+      "publisher": {
+        "local": 1,
+        "localLoopback": 0,
+        "localMdns": 0,
+        "remote": 4,
+        "remoteLoopback": 4
+      }
+    },
+    "connectionReason": 2,
+    "connectionStates": {
+      "publisher": {
+        "publisher": [
+          "new",
+          "checking"
+        ],
+        "subscriber": []
+      }
+    },
+    "matchingAudio": {
+      "energy": 0,
+      "packets": 0,
+      "samples": 0
+    },
+    "matchingKeyErrors": 0,
+    "matchingVideo": {
+      "decoded": 0,
+      "packets": 0
+    },
+    "receivePeak": 0,
+    "sourcePeak": 0,
+    "wrongKeyErrors": 0,
+    "wrongVideo": {
+      "decoded": 0,
+      "packets": 0
+    }
+  },
+  "durationMs": 15439,
+  "errorClass": "ConnectionError",
+  "failedStage": "connect publisher",
+  "measuredAt": "2026-10-09T05:18:26.314Z",
+  "outcome": "fail",
+  "testProfile": {
+    "generatedAudioAutoplay": true,
+    "macosBackgroundSuspensionDisabled": false,
+    "windowsLoopbackCandidatesAllowed": true,
+    "windowsMdnsObfuscationDisabled": true
+  }
+}

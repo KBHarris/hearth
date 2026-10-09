@@ -3,7 +3,7 @@ import { test } from 'node:test'
 import { mkdtempSync, readFileSync, writeFileSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join, dirname, basename, resolve } from 'node:path'
-import { initializeConfig, publicAddress } from '../setup.mjs'
+import { initializeConfig, initializeStorage, publicAddress } from '../setup.mjs'
 
 function fixture(t) {
   const directory = mkdtempSync(join(tmpdir(), 'hearth-setup-test-'))
@@ -15,6 +15,14 @@ function fixture(t) {
   writeFileSync(join(directory, '.env.example'), 'HEARTH_PORT=8080\nPOSTGRES_PASSWORD=change-me\n')
   return directory
 }
+
+test('storage bootstrap preserves credentials and rejects conflicting private S3 configuration',t=>{
+  const directory=fixture(t);initializeConfig(directory);initializeStorage(directory)
+  const env=readFileSync(join(directory,'.env'),'utf8'),config=readFileSync(join(directory,'s3.json'),'utf8')
+  initializeStorage(directory);assert.equal(readFileSync(join(directory,'.env'),'utf8'),env);assert.equal(readFileSync(join(directory,'s3.json'),'utf8'),config)
+  const identity=JSON.parse(config).identities[0];assert.match(identity.credentials[0].accessKey,/^[a-f0-9]{32}$/);assert.match(identity.credentials[0].secretKey,/^[a-f0-9]{64}$/)
+  writeFileSync(join(directory,'s3.json'),'different');assert.throws(()=>initializeStorage(directory),/preserved/);assert.equal(readFileSync(join(directory,'.env'),'utf8'),env)
+})
 
 test('first run creates unique URL-safe secrets and subsequent runs preserve exact configuration', (t) => {
   const first = fixture(t)

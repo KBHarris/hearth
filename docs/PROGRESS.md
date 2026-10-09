@@ -1,6 +1,6 @@
 # Hearth implementation progress
 
-Updated: 2026-10-08. This file records implementation and validation separately. The
+Updated: 2026-10-09. This file records implementation and validation separately. The
 full product backlog and phase exit criteria are in [ROADMAP.md](ROADMAP.md).
 
 ## Current phase
@@ -17,9 +17,13 @@ Owner/invitation onboarding, immutable cross-signed devices, linking/recovery, M
 and group DMs, gateway/offline delivery and encrypted durable local storage are verified.
 [PR #2](https://github.com/KBHarris/hearth/pull/2) remains a draft for review; no merge
 has been performed. The next checkpoint is the [two-PC encrypted DM test](TWO_PC_DM_TEST.md).
-The Windows test package and server image are prepared. Public certificate issuance,
+The original Phase 1 server and data are preserved. Its bundle files have been replaced
+by the validated Phase 2 Windows/server bundle from `7cc8852`. Public certificate issuance,
 router forwarding, clean installation on the other PC and actual two-house reachability
-remain human acceptance steps. Phase 2 has not started.
+remain human acceptance. The full Phase 2 implementation passes 49 HTTP/WASM, 18 Chrome
+UI and ten packaged Windows checks; eight assembled-bundle checks also pass.
+[The two-PC guide](TWO_PC_PHASE2_TEST.md) covers DMs and communities. All twelve expanded hosted
+checks pass for `7cc8852` in [run 37925276507](https://github.com/KBHarris/hearth/actions/runs/37925276507); a 50-person community running for a week remains open.
 
 | Todo | Implementation | Validation |
 |---|---|---|
@@ -38,9 +42,172 @@ remain human acceptance steps. Phase 2 has not started.
 | Encrypted message store | Complete | Browser IndexedDB and Windows/Linux/macOS SQLCipher/OS-store CAS, new-process, canary and missing-key checks pass |
 | Phase 1 exit criteria | Complete | All 12 hosted jobs pass for implementation 43ac92b |
 | Two-PC public HTTPS DM test | Prepared | Installer/guide and local proxy checks ready; actual WAN reachability and clean buddy-PC installation remain untested |
+| Phase 2 community structure and invitations | Implemented | Membership/invite boundaries and all 12 hosted jobs pass for 7cc8852 |
+| Phase 2 channel MLS and encrypted text | Implemented | 49 HTTP/WASM, 18 local UI, 16 hosted UI and all 12 hosted jobs pass for 7cc8852 |
+| Phase 2 client-verifiable admission | Implemented | Owner-signed grants/policies, pinned roots and malicious delivery-host rejection pass native and HTTP/WASM checks |
+| Phase 2 reactions, pins, threads, Markdown, mentions, read markers and search | Implemented | 49 HTTP/WASM and 18 Chrome UI outcomes pass, including custom emoji |
+| Phase 2 profiles, presence and sender-created embeds | Implemented | Encrypted control/state and profile/presence/embed UI checks pass |
+| Phase 2 history | Implemented | Native and real HTTP/WASM none/full/since-invite, device binding, tamper and sealed restart and signed history UI handoff pass |
+| Phase 2 encrypted files, thumbnails and custom emoji | Implemented | Expanded suite passes 49 HTTP/WASM outcomes; canary absent from database, logs and private S3 volume bytes; actual UI file upload/download and custom emoji pass |
+| Phase 2 MLS load measurement | Complete | 1,000 synthetic native OpenMLS members; rotation median 11.47 ms, p95 12.52 ms, final member decrypts; product remains bounded to 128 devices |
+| Phase 2 replacement test bundle | Prepared | 7cc8852 installer/image hashes, secret-free friend ZIP, fresh migrations, private S3 and restart pass all eight checks; old bundle files removed |
 | Threat model | Draft maintained | Discovery exposure and saved server address documented; no independent security audit |
 
 ## Iteration log
+
+### 2026-10-09: Phase 2 implementation ready for two-PC acceptance
+
+- All twelve [hosted jobs](https://github.com/KBHarris/hearth/actions/runs/37925276507)
+  pass for `7cc8852` ([CI record](evidence/phase2-ci-2026-10-09.json)). Expanded private
+  S3/HTTP/WASM passes all 49 outcomes; Windows UI passes 16 (local storage-enabled UI: 18).
+  Windows/macOS/Linux packaged webviews pass nine core outcomes each; all ten Linux
+  repetitions pass. Local Windows with private S3 passes ten, including file transfer.
+- The final `phase2-7cc8852` bundle passes all eight assembled-artifact checks and keeps
+  operator secrets out of the friend ZIP. The original Phase 1 bundle files were removed;
+  the original running backend/proxy, images, signing keys and volumes remain untouched.
+- The earlier `phase2-ee0a90f` build is retained with a `SUPERSEDED.md` marker: automatic
+  approval review rejected removing it because the user's removal request covered Phase 1.
+  Use `phase2-7cc8852` for the actual test. No operator credentials were copied into it.
+- Updated the original checkout's roadmap/progress and [two-PC guide](TWO_PC_PHASE2_TEST.md).
+  The engineering checklist is complete. Actual WAN/certificate issuance, a clean buddy-PC
+  installation and a 50-person community running for a week remain human acceptance gates.
+
+### 2026-10-09: Linux private-storage ownership correction
+
+- Hosted HTTP acceptance found that SeaweedFS drops to its service UID, which cannot
+  read a Linux host's mode-0600 configuration owned by another UID. Windows bind mounts
+  had masked this. The host configuration stays private/read-only; startup copies it into
+  a mode-0600 service-owned container file before the normal privilege drop.
+- The [Linux ownership reproduction](evidence/phase2-storage-permissions-2026-10-09.json)
+  passes locally inside the real Linux image: the original file stays unreadable to the
+  service UID, its private copy is readable and anonymous S3 requests still fail.
+  All 49 HTTP/WASM checks and fresh Compose checks pass again with the corrected startup.
+- Expanded macOS native acceptance passed in the first hosted run. Hosted checks and the
+  final bundle are being refreshed with this deployment correction; no gate is waived.
+
+### 2026-10-09: validated replacement bundle
+
+- Built `Hearth Phase 2 Test` 0.2.0 with identifier `chat.hearth.phase2-test`, independent
+  from the installed Phase 1 app. The friend ZIP contains only installer, guide and hash.
+- The host bundle pins the archived server image by content ID, uses project
+  `hearth-phase2-test` and fresh data, and generates new operator credentials on startup.
+  Its [eight-check report](evidence/phase2-bundle-2026-10-09.json) passes hash checks,
+  archive load, fresh schema 13, discovery/owner bootstrap, anonymous S3 rejection and
+  signing-key persistence. Caddy configuration validates; public issuance remains untested.
+- Removed only `target/manual-test/phase1-43ac92b` after checking that no running container
+  mounts it. The original backend remains healthy at port 8181; proxy, keys and volumes
+  are preserved. [The new guide](TWO_PC_PHASE2_TEST.md) explains the manual proxy handover.
+- Hosted cross-platform checks for implementation `ee0a90f` are running in
+  [run 37923945571](https://github.com/KBHarris/hearth/actions/runs/37923945571).
+  The 50-person/week exit criterion and actual two-house installation remain human gates.
+
+### 2026-10-09: full text-layer browser validation and packaging
+
+- All 18 expanded Chrome UI checks pass against isolated accounts and a real private S3
+  service. The [report](evidence/phase2-history-files-ui-2026-10-09.json) includes signed
+  history handoff, profiles/presence, sender-written previews without metadata fetching,
+  actual file-picker upload/download and encrypted custom emoji rendering.
+- Default and combined-feature Rust checks/tests, protocol drift, npm verification and
+  WASM portability pass. Native desktop compilation and fresh isolated Compose checks pass.
+  The expanded Windows packaged webview suite passes all ten checks, including encrypted
+  files and signed history ([report](evidence/phase2-packaged-windows-2026-10-09.json)).
+  Replacement installer assembly and hosted validation remain in progress.
+- Kept the existing server request budgets. Client synchronization now avoids unnecessary
+  repeated directory/channel requests; UI acceptance paces account request bursts.
+- Phase 2 installs with a separate application identifier and uses independent server
+  data. Replacement files are removed only after validation; the running Phase 1 stack,
+  keys and volumes remain intact. WAN installation and the 50-person/week test stay open.
+
+### 2026-10-09: owner admission, text controls and history development
+
+- Owner-signed community roots, admissions and channel policies are verified by receiving
+  clients. Pending members require explicit owner approval after fingerprint comparison.
+  [ADR 0011](adr/0011-owner-signed-channel-admission.md) records first-contact trust.
+- Reactions, owner channel pins, threads, safe Markdown/mentions, encrypted read markers,
+  profiles and expiring presence are implemented. Search runs over decrypted local state;
+  remote images and automatic link metadata fetching remain disabled. The expanded local
+  suite passes 42 HTTP/WASM and 13 Chrome UI outcomes before the history additions.
+- The [1k-member benchmark](evidence/mls-load-1000-2026-10-09.json) passes in a release
+  native build with synthetic credentials. These measurements do not raise the product's
+  128-device limit or claim network, browser or 1k-member product acceptance.
+- History invitations rotate epochs first and carry owner-signed channel cutoffs. Wrapped
+  epoch keys are bound to requesting devices. Native policy/recipient/restart checks pass;
+  the real HTTP fixture caught a delivery race and now waits for the current epoch before
+  issuing a history request. Integration validation continues.
+- These changes have not yet been submitted to hosted CI. The original running Phase 1
+  server and data remain untouched. Its bundle files will be removed only after a validated
+  Phase 2 replacement is ready.
+
+### 2026-10-09: resume the remaining Phase 2 checklist
+
+- Confirmed all 12 hosted jobs pass for `7f8aed2` in
+  [run 37890119377](https://github.com/KBHarris/hearth/actions/runs/37890119377), including
+  Windows channel UI and media. The earlier ICE failure remains historical evidence;
+  no gate was disabled to obtain the new pass.
+- Converted every remaining Phase 2 roadmap item to an explicit checkbox. The roadmap
+  and progress log are also mirrored into the original project folder so the user can
+  inspect current work without switching to the managed development checkout.
+- Working next on client-verifiable owner admission, followed by history, attachments,
+  text features, profiles/presence/embeds, local search and load measurements.
+- The user requested a separate Phase 2 test bundle for two PCs and authorized removing
+  the Phase 1 bundle after the replacement is validated. Existing server data stays intact.
+
+### 2026-10-09: encrypted channel iteration
+
+- Added migration 0008 binding channel IDs to MLS conversations, member-only public
+  roster snapshots and community/approved-device checks on signed commits/messages.
+  Existing DM audiences stay fixed. Channels allow solo initialization and append-only
+  account/device rekeys; an existing device must be online for a later join.
+- Integrated channels into the existing encrypted engine, store and outbox. Channel
+  names identify conversations; owner-only announcements disable member publishing.
+  Retry messaging reopens saved state after startup failure. New devices receive only
+  post-Welcome messages; neither the host nor directory joining supplies old epoch keys.
+- Required npm verification, Rustfmt/clippy/default and combined-feature tests, generated
+  protocol checks and WASM portability pass. The
+  [HTTP/WASM report](evidence/channels-http-wasm-2026-10-09.json) passes 38 outcomes,
+  including eight channel outcomes and all previous auth/DM/community checks. The
+  [Chrome UI report](evidence/channels-ui-2026-10-09.json) passes nine outcomes with two
+  real isolated clients, no-history admission, automatic rekey, announcements, outage
+  recovery and narrow layout. Desktop/narrow screenshots were reviewed.
+- Browser tests caught asynchronous selection assumptions and the need for messaging
+  startup retry. The composer now disables while opening another channel. HTTP tests
+  verify stale-epoch rejection rather than assuming recipient commits arrive instantly;
+  older directory tests now allow previously joined communities in the same fixture.
+- The first directory commit `a590d32` passes 11/12 hosted jobs in
+  [run 37870006242](https://github.com/KBHarris/hearth/actions/runs/37870006242). Windows
+  packaged messaging passes, but the later WebView2 media publisher ICE connection fails
+  on both attempts. Saved the [failed retry report](evidence/windows-media-failure-2026-10-09.json).
+  No media gate is waived. New channel CI has not yet completed.
+- The original Phase 1 checkout stays clean, its public server remains healthy with
+  migration 6, and the frozen installer/image were not replaced. All new acceptance
+  fixtures use disposable data and signing keys in the Phase 2 checkout.
+- Limits: 128 devices/channel; larger loads and other-platform channel UI are unverified.
+  Admission currently trusts the host directory, so client-verifiable owner approval
+  must precede a hostile-host privacy claim. Next: admission hardening, history policies
+  and encrypted attachments. The 50-person/week and remaining Phase 2 exit gates stay open.
+
+### 2026-10-08: first Phase 2 community iteration
+
+- Added migration 0007, generated protocol types, validated SDK methods and authenticated
+  community/category/channel/invitation APIs. Member-only reads and owner-only changes
+  apply independently of server ownership. Invitations serialize competing joins and
+  count only new members; category foreign keys cannot cross communities.
+- The client creates/joins communities, manages structure and creates/hides invitations.
+  Failed directory loads show an explicit retry state rather than an empty directory.
+  Channel messaging is visibly unavailable until the MLS/channel slice is implemented.
+- Required npm verification, Rust formatting/clippy/default tests, protocol drift and
+  WASM portability checks pass. [HTTP/WASM acceptance](evidence/communities-http-wasm-2026-10-08.json)
+  passes 30 outcomes; [Chrome UI acceptance](evidence/communities-ui-2026-10-08.json)
+  passes five with actual controls and desktop/narrow screenshots reviewed locally.
+- Acceptance uses disposable PostgreSQL clusters and fresh server keys in this worktree.
+  The development overlay uses independent `hearth-phase2` volumes and ports 18088/5174,
+  with no public proxy. No Phase 2 migration or restart touched the live Phase 1 stack.
+- The first runs caught a reused fixture account, a collection-route slash mismatch and
+  a test helper assuming every error body was JSON; all are corrected. UI readiness
+  waits now cover IPv4 binding and account-unlock/remount readiness.
+- Next: bind channels to MLS conversations, enforce roster synchronization and implement
+  encrypted channel text. History policies, attachments, text extras, load benchmarks
+  and the 50-person/week exit criterion remain pending. Hosted Phase 2 CI is not yet verified.
 
 ### 2026-10-08: preserve the pending two-PC test
 

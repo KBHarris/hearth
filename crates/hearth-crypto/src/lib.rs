@@ -7,6 +7,8 @@
 //! `opaque-spike` features run ephemeral feasibility flows; product MLS, encrypted storage,
 //! attachment encryption, and SFrame key export land in Phases 1-4.
 
+#[cfg(feature = "messaging")]
+pub mod community;
 pub mod identity;
 #[cfg(feature = "messaging")]
 pub mod messaging;

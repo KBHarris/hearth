@@ -72,8 +72,9 @@ jobs:
           node-version: 22
       - run: npm run spike:tools
       - run: cargo test -p hearth-server --test auth --test device --test delivery -- --ignored
-      - run: node scripts/verify-auth.mjs
-        timeout-minutes: 5
+      - run: node scripts/verify-storage-permissions.mjs
+      - run: node scripts/verify-auth.mjs --storage
+        timeout-minutes: 8
         env:
           HEARTH_TEST_POSTGRES_CONTAINER: ${{ job.services.postgres.id }}
       - uses: actions/upload-artifact@v4
@@ -151,7 +152,7 @@ jobs:
           name: product-auth-wasm
           path: apps/client/src/crypto/generated/
       - run: npm run desktop:build -- --debug --no-bundle
-      - name: Build packaged Phase 1 acceptance
+      - name: Build packaged identity, DM and community acceptance
         run: npm run build
         env:
           HEARTH_PHASE1_HARNESS: '1'
@@ -168,7 +169,7 @@ jobs:
           node scripts/verify-auth.mjs --desktop --native-postgres
       - name: Linux Secret Service, SQLCipher and packaged client acceptance
         if: runner.os == 'Linux'
-        timeout-minutes: 7
+        timeout-minutes: 15
         run: |
           for attempt in 1 2 3 4 5 6 7 8 9 10; do
             echo "Linux packaged acceptance repetition $attempt"
@@ -180,6 +181,15 @@ jobs:
         with:
           name: phase1-desktop-${{ matrix.os }}
           path: target/phase1-evidence/
+      - name: Windows community and encrypted channel UI acceptance
+        if: runner.os == 'Windows'
+        timeout-minutes: 10
+        run: node scripts/verify-community-ui.mjs
+      - uses: actions/upload-artifact@v4
+        if: always() && runner.os == 'Windows'
+        with:
+          name: phase2-community-ui-windows
+          path: target/phase2-evidence/
       - run: npm run spike:media:build
       - run: cargo build -p hearth-desktop --features phase0-spike
       - run: node scripts/verify-desktop-mls.mjs

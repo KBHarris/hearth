@@ -11,3 +11,4 @@ apps/desktop/src-tauri/gen
 deploy/.env
 **/.env
 deploy/data
+**/s3.json

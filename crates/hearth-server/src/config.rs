@@ -15,6 +15,7 @@ pub struct Config {
     pub federation_enabled: bool,
     /// Explicit frontend origins. Bearer requests never use credentialed CORS.
     pub client_origins: Vec<String>,
+    pub storage: Option<crate::attachments::StorageConfig>,
 }
 
 impl Config {
@@ -34,6 +35,7 @@ impl Config {
                 "HEARTH_CLIENT_ORIGINS",
                 "http://127.0.0.1:5173,http://localhost:5173,http://tauri.localhost,tauri://localhost",
             ))?,
+            storage: crate::attachments::StorageConfig::from_env()?,
         })
     }
 }

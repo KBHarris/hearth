@@ -6,13 +6,18 @@ edition.workspace = true
 license = "Apache-2.0 OR MIT"
 rust-version.workspace = true
 
+[[bin]]
+name = "mls-load-benchmark"
+path = "src/bin/mls-load-benchmark.rs"
+required-features = ["mls-spike"]
+
 [features]
 # In-memory feasibility experiment, never enabled by the server.
-mls-spike = ["dep:openmls", "dep:openmls_rust_crypto", "dep:openmls_basic_credential", "dep:getrandom04"]
+mls-spike = ["dep:openmls", "dep:openmls_rust_crypto", "dep:openmls_basic_credential", "dep:getrandom04", "dep:serde_json"]
 opaque-spike = ["dep:opaque-ke", "dep:argon2", "dep:sha2", "dep:zeroize"]
 auth = ["dep:opaque-ke", "dep:argon2", "dep:sha2", "dep:zeroize"]
 local-vault = ["auth", "dep:chacha20poly1305", "dep:hkdf", "dep:serde_json"]
-messaging = ["local-vault", "dep:hearth-proto", "dep:openmls", "dep:openmls_rust_crypto", "dep:openmls_basic_credential", "dep:getrandom04"]
+messaging = ["local-vault", "dep:hearth-proto", "dep:openmls", "dep:openmls_rust_crypto", "dep:openmls_basic_credential", "dep:getrandom04", "dep:x25519-dalek"]
 
 [dependencies]
 ed25519-dalek.workspace = true
@@ -31,6 +36,7 @@ zeroize = { version = "1", optional = true }
 chacha20poly1305 = { version = "0.10", optional = true }
 hkdf = { version = "0.12", optional = true }
 serde_json = { workspace = true, optional = true }
+x25519-dalek = { version = "2", features = ["static_secrets"], optional = true }
 
 [target.'cfg(target_arch = "wasm32")'.dependencies]
 openmls = { version = "0.9.0", optional = true, features = ["js"] }

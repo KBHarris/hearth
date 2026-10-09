@@ -1,7 +1,11 @@
-import {useEffect,useRef,useState,type FormEvent} from 'react'
-import {type Session,type DeviceEnrollment,type LocalMessage} from '@hearth/sdk'
+import {useCallback,useEffect,useRef,useState,type FormEvent} from 'react'
+import {type Session,type DeviceEnrollment,type LocalMessage,type HistoryPolicy} from '@hearth/sdk'
 import {AuthCrypto} from './crypto/client'
-import {MessagingSession,initialChat} from './crypto/messaging-session'
+import {MessagingSession,initialChat,admitted} from './crypto/messaging-session'
+import {CommunityPanel} from './CommunityPanel'
+import {MessageBody} from './MessageBody'
+import {LinkPreview} from './LinkPreview'
+import {Attachment,EncryptedImage,type FileDownloader} from './Attachment'
 
 export function ChatPanel({crypto,session,device,server,url}:{crypto:AuthCrypto;session:Session;device:DeviceEnrollment;server:string;url:string}) {
   const [state,setState]=useState(initialChat)
@@ -13,23 +17,50 @@ export function ChatPanel({crypto,session,device,server,url}:{crypto:AuthCrypto;
   const [editText,setEditText]=useState('')
   const [busy,setBusy]=useState(false)
   const [error,setError]=useState('')
+  const [attempt,setAttempt]=useState(0)
   const [now,setNow]=useState(Date.now)
+  const [thread,setThread]=useState('')
+  const [pins,setPins]=useState(false)
+  const [query,setQuery]=useState('')
+  const [results,setResults]=useState<LocalMessage[]|null>(null)
+  const [displayName,setDisplayName]=useState('')
+  const [bio,setBio]=useState('')
+  const [presence,setPresence]=useState<'online'|'idle'|'offline'>('online')
+  const [embedUrl,setEmbedUrl]=useState('')
+  const [embedTitle,setEmbedTitle]=useState('')
+  const [embedDescription,setEmbedDescription]=useState('')
+  const [file,setFile]=useState<File|null>(null)
+  const fileInput=useRef<HTMLInputElement|null>(null)
+  const [emojiAlias,setEmojiAlias]=useState('')
+  const [emojiFile,setEmojiFile]=useState<File|null>(null)
+  const searchThread=useRef<string|null>(null)
   const service=useRef<MessagingSession|null>(null)
+  const download=useCallback<FileDownloader>((id,file)=>{if(!service.current)return Promise.reject(new Error('Messaging is opening.'));return service.current.downloadAttachment(id,file)},[])
   const bottom=useRef<HTMLDivElement|null>(null)
   useEffect(()=>{
     let active=true
+    setState(initialChat)
     const client=new MessagingSession(crypto,session,device,server,url,next=>{if(active)setState(next)})
     service.current=client
     void client.start().catch(()=>{})
     const clock=setInterval(()=>setNow(Date.now()),1000)
     return ()=>{active=false;clearInterval(clock);client.close();service.current=null}
-  },[crypto,session,device,server,url])
+  },[crypto,session,device,server,url,attempt])
   const activeId=selected || state.conversations[0]?.id || ''
   const active=state.conversations.find(conversation=>conversation.id===activeId)
+  const channel=state.channels[activeId]
+  const canWrite=!channel || channel.channel.kind!=='announcement' || channel.community.owner_id===session.account.id
   const joined=state.joined.includes(activeId)
-  const messages=state.messages.filter(message=>message.conversation_id===activeId)
+  const channelMessages=state.messages.filter(message=>message.conversation_id===activeId)
+  const messages=channelMessages.filter(message=>pins?message.pinned:thread?message.thread===thread || message.id===thread:!message.thread)
+  const participants=Object.fromEntries(Object.values(state.people).map(person=>[person.account.username,person.account.id]))
+  useEffect(()=>{setThread(searchThread.current??'');searchThread.current=null;setPins(false)},[activeId])
+  useEffect(()=>{const clock=setInterval(()=>{if(service.current)void service.current.setPresence(document.hidden && presence==='online'?'idle':presence).catch(()=>{})},45000);return()=>clearInterval(clock)},[presence])
   useEffect(()=>{bottom.current?.scrollIntoView({block:'nearest'})},[messages.length,activeId])
-  const name=(id:string)=>id===session.account.id?session.account.username:state.people[id]?.account.username ?? id.slice(0,8)
+  const name=(id:string)=>{const username=id===session.account.id?session.account.username:state.people[id]?.account.username ?? id.slice(0,8);const display=state.profiles[id]?.display_name;return display && display!==username?`${display} (@${username})`:username}
+  async function runSearch(event:FormEvent){event.preventDefault();setError('');try{setResults(await service.current?.search(query,null) ?? [])}catch(error){setError(error instanceof Error?error.message:'Search failed.')}}
+  async function control(content:Parameters<MessagingSession['send']>[1]){setBusy(true);setError('');try{await service.current?.send(activeId,content)}catch(error){setError(error instanceof Error?error.message:'The update could not be sent.')}finally{setBusy(false)}}
+  async function history(policy?:HistoryPolicy){setBusy(true);setError('');try{if(!service.current)throw new Error('Messaging is opening.');if(policy)await service.current.setHistory(activeId,policy);else await service.current.requestHistory(activeId)}catch(error){setError(error instanceof Error?error.message:'History could not be prepared.')}finally{setBusy(false)}}
   async function create(event:FormEvent) {
     event.preventDefault();setBusy(true);setError('')
     try {
@@ -41,12 +72,13 @@ export function ChatPanel({crypto,session,device,server,url}:{crypto:AuthCrypto;
     finally {setBusy(false)}
   }
   async function send(event:FormEvent) {
-    event.preventDefault();if(!activeId || !draft.trim())return
+    event.preventDefault();if(!canWrite || !activeId || (!draft.trim()&&!file))return
     setBusy(true);setError('')
     try {
       if(new TextEncoder().encode(draft).length>16000)throw new Error('Use a message of no more than 16,000 bytes.')
-      await service.current?.send(activeId,{kind:'text',text:draft,reply_to:reply?.id ?? null})
-      setDraft('');setReply(null)
+      if(embedUrl){const url=new URL(embedUrl);if(!['http:','https:'].includes(url.protocol)||url.username||url.password)throw new Error('Use an HTTP or HTTPS link without embedded credentials.');}
+      if(file){if(thread||embedUrl)throw new Error('Send this file outside a thread or link preview.');await service.current?.sendAttachment(activeId,file,draft);setFile(null);if(fileInput.current)fileInput.current.value=''}else await service.current?.send(activeId,thread?{kind:'thread',text:draft,parent:thread}:embedUrl?{kind:'rich_text',text:draft,reply_to:reply?.id??null,embed:{url:embedUrl,title:embedTitle,description:embedDescription}}:{kind:'text',text:draft,reply_to:reply?.id ?? null})
+      setDraft('');setReply(null);setEmbedUrl('');setEmbedTitle('');setEmbedDescription('')
     }catch(error){setError(error instanceof Error?error.message:'The message could not be sent.')}
     finally {setBusy(false)}
   }
@@ -66,41 +98,54 @@ export function ChatPanel({crypto,session,device,server,url}:{crypto:AuthCrypto;
     finally {setBusy(false)}
   }
   const typing=(state.typing[activeId] ?? []).filter(peer=>peer.until>now)
-  return <section className="chat-panel" aria-labelledby="chat-heading">
-    <header className="chat-header"><h2 id="chat-heading">Direct messages</h2><small role="status">{state.connection}{state.pending>0 && ` · ${state.pending} queued`}</small></header>
+  return <><CommunityPanel session={session} url={url} onSecure={async(kind,id,code)=>{if(!service.current)throw new Error('Messaging is opening. Retry shortly.');await (kind==='community'?service.current.secureCommunity(id):kind==='join'?service.current.secureJoin(id,code??''):service.current.secureChannel(id))}} onInvite={(id,expiry,uses)=>{if(!service.current)throw new Error('Messaging is opening. Retry shortly.');return service.current.createInvite(id,expiry,uses)}} onOpenChannel={async id=>{setBusy(true);try{const opened=await service.current?.openChannel(id);if(!opened)throw new Error('Encrypted messaging is still opening. Retry shortly.');setSelected(opened);setDraft('');setReply(null);setEditing('')}finally{setBusy(false)}}}/>
+  <section className="chat-panel" aria-labelledby="chat-heading">
+    <header className="chat-header"><h2 id="chat-heading">Messages</h2><small role="status">{state.connection}{state.pending>0 && ` · ${state.pending} queued`}</small></header>
+    <details className="local-profile"><summary>Your profile and presence</summary><form onSubmit={event=>{event.preventDefault();setBusy(true);void service.current?.updateProfile(displayName,bio).catch(error=>setError(error instanceof Error?error.message:'Profile could not be saved.')).finally(()=>setBusy(false))}}><label htmlFor="profile-name">Display name</label><input id="profile-name" maxLength={80} value={displayName} onChange={event=>setDisplayName(event.target.value)}/><label htmlFor="profile-bio">About you</label><textarea id="profile-bio" maxLength={512} value={bio} onChange={event=>setBio(event.target.value)}/><button disabled={busy || state.fatal || !state.joined.length}>Share profile with your conversations</button></form><label htmlFor="presence-state">Presence</label><select id="presence-state" value={presence} onChange={event=>{const value=event.target.value as typeof presence;setPresence(value);void service.current?.setPresence(value).catch(error=>setError(error instanceof Error?error.message:'Presence could not be shared.'))}}><option value="online">Online</option><option value="idle">Idle</option><option value="offline">Invisible</option></select><small>Only people in your encrypted conversations receive these updates.</small></details>
+    <form className="local-search" onSubmit={event=>void runSearch(event)}><label htmlFor="message-search">Search this device</label><input id="message-search" value={query} onChange={event=>setQuery(event.target.value)} maxLength={256} required/><button disabled={state.fatal}>Search</button>{results!==null && <><button type="button" onClick={()=>setResults(null)}>Close results</button><p>{results.length} local matches{results.length===100?' (first 100)':''}</p><ul>{results.map(message=><li key={message.id}><button type="button" onClick={()=>{if(activeId!==message.conversation_id)searchThread.current=message.thread??'';setSelected(message.conversation_id);setPins(false);setThread(message.thread??'');setResults(null)}}>{name(message.author_id)}: {message.text.slice(0,140)}</button></li>)}</ul></>}</form>
     <form className="new-conversation" onSubmit={event=>void create(event)}>
       <label htmlFor="dm-recipients">Start a conversation</label>
       <div><input id="dm-recipients" value={recipients} onChange={event=>setRecipients(event.target.value)} placeholder="username, another_username" spellCheck={false} autoComplete="off" required disabled={busy || state.fatal}/><button type="submit" className="primary-button" disabled={busy || state.fatal}>Start</button></div>
       <small>Add one person for a DM, or several for a group DM.</small>
     </form>
+    <div className="admission-requests">{Object.values(state.channels).filter((r,index,all)=>r.community.owner_id===session.account.id && all.findIndex(other=>other.community.id===r.community.id)===index).flatMap(roster=>roster.people.filter(p=>!admitted(roster,p)).map(person=><div key={roster.community.id+person.account.id}><p>{person.account.username} requests encrypted access to {roster.community.name}.</p><code>{person.devices[0]?.identity_key.match(/.{1,4}/g)?.join(' ') ?? 'Waiting for their first device'}</code><p className="input-help">Compare this identity with the person using a trusted channel before approving.</p><button disabled={busy || state.fatal || !person.devices.length} onClick={()=>{setBusy(true);void service.current?.approveMember(roster.channel.id,person.account.id,person.devices[0].identity_key).catch(error=>setError(error instanceof Error?error.message:'Member approval failed.')).finally(()=>setBusy(false))}}>Approve {person.account.username}</button></div>))}</div>
     <div className="chat-layout">
-      <nav className="conversation-list" aria-label="Direct conversations">
+      <nav className="conversation-list" aria-label="Encrypted conversations">
         {state.conversations.length===0 && <p>No conversations yet.</p>}
-        {state.conversations.map(conversation=><button key={conversation.id} className={conversation.id===activeId?'selected':''} aria-current={conversation.id===activeId?'page':undefined} onClick={()=>{setSelected(conversation.id);setReply(null);setEditing('');setDraft('')}}>{conversation.accounts.filter(id=>id!==session.account.id).map(name).join(', ')}<small>{state.joined.includes(conversation.id)?'Encrypted':'Preparing this device…'}</small></button>)}
+        {state.conversations.map(conversation=><button key={conversation.id} className={conversation.id===activeId?'selected':''} aria-current={conversation.id===activeId?'page':undefined} onClick={()=>{setSelected(conversation.id);setReply(null);setEditing('');setDraft('')}}>{conversation.channel_id?`# ${state.channels[conversation.id]?.channel.name ?? 'Channel'}`:conversation.accounts.filter(id=>id!==session.account.id).map(name).join(', ')}<small>{state.joined.includes(conversation.id)?'Encrypted':'Preparing this device…'}</small></button>)}
       </nav>
       <div className="conversation">
         {!active ? <div className="chat-empty">Start a conversation to send your first encrypted message.</div> : <>
-          <header className="conversation-header"><strong>{active.accounts.filter(id=>id!==session.account.id).map(name).join(', ')}</strong><details><summary>Check identities</summary>{active.accounts.map(id=><p key={id}>{name(id)}<code>{(state.people[id]?.devices[0]?.identity_key ?? active.members.find(member=>member.account_id===id)?.enrollment.identity_key)?.match(/.{1,4}/g)?.join(' ')}</code></p>)}<small>Compare these fingerprints with your recipients using a trusted channel.</small></details></header>
-          {!joined && <p className="input-help">Waiting for a participant’s linked device to update encryption. Keep an existing device signed in. Old history isn’t copied to this install.</p>}
+          <header className="conversation-header"><strong>{channel?`# ${channel.channel.name}`:active.accounts.filter(id=>id!==session.account.id).map(name).join(', ')}</strong><details><summary>Check identities and profiles</summary>{active.accounts.map(id=><p key={id}>{name(id)}<small>{state.profiles[id]?.bio}</small><code>{(state.people[id]?.devices[0]?.identity_key ?? active.members.find(member=>member.account_id===id)?.enrollment.identity_key)?.match(/.{1,4}/g)?.join(' ')}</code></p>)}<small>Compare these fingerprints with your recipients using a trusted channel.</small></details></header>
+          <div className="conversation-tools"><button onClick={()=>{setPins(value=>!value);setThread('')}}>{pins?'Show messages':'Pinned messages'}</button>{thread && <><span>Thread</span><button onClick={()=>setThread('')}>Back to channel</button></>}{joined && messages.length>0 && <button disabled={busy} onClick={()=>void control({kind:'read',id:messages.at(-1)!.id})}>Mark viewed messages read</button>}</div>
+          {channel && <div className="history-controls"><label htmlFor="channel-history">History</label>{channel.community.owner_id===session.account.id?<select id="channel-history" value={channel.policy?.history??'none'} disabled={!joined||busy||state.fatal} onChange={event=>void history(event.target.value as HistoryPolicy)}><option value="none">New messages only</option><option value="since_invite">Since invitation</option><option value="full">Full retained history</option></select>:<span>{channel.policy?.history==='full'?'Full retained history':channel.policy?.history==='since_invite'?'Since invitation':'New messages only'}</span>}{channel.policy?.history!=='none' && <button disabled={!joined||busy||state.fatal||state.history_waiting.includes(activeId)} onClick={()=>void history()}>{state.history_waiting.includes(activeId)?'Waiting for owner’s history keys…':'Request available history'}</button>}<small>Backfill needs an existing owner device online. Messages sent before archiving was enabled cannot be restored. Previously shared history cannot be recalled.</small></div>}
+          {!joined && <p className="input-help">{channel && !admitted(channel,{account:session.account,devices:[device]})?'Waiting for the community owner to approve this identity.':'Waiting for a participant’s linked device to update encryption. Keep an existing device signed in. Old history isn’t copied to this install.'}</p>}
           <div className="message-log" role="log" aria-label="Encrypted messages" aria-live="polite" aria-relevant="additions text">
             {joined && messages.length===0 && <p className="chat-empty">New messages will appear here. Your server stores only ciphertext.</p>}
             {messages.map(message=><article key={message.id} className="chat-message">
-              <header><strong>{name(message.author_id)}</strong>{message.edited && !message.deleted && <small>edited</small>}</header>
+              <header><strong>{name(message.author_id)}</strong>{state.presence[message.author_id]?.until>now && state.presence[message.author_id]?.state!=='offline' && <small>{state.presence[message.author_id].state}</small>}{message.pinned && <small>Pinned</small>}{message.edited && !message.deleted && <small>edited</small>}</header>
               {message.reply_to && <blockquote>Reply to {state.messages.find(original=>original.id===message.reply_to)?.text.slice(0,100) || 'an earlier message'}</blockquote>}
-              {editing===message.id ? <form onSubmit={event=>void edit(event)}><label htmlFor="edit-message">Edit message</label><textarea id="edit-message" value={editText} onChange={event=>setEditText(event.target.value)} maxLength={16000} required/><button type="submit" disabled={busy || state.fatal}>Save edit</button><button type="button" onClick={()=>setEditing('')}>Cancel</button></form> : <p>{message.deleted?<em>Message deleted</em>:message.text}</p>}
-              {!message.deleted && joined && !state.fatal && <div className="message-actions"><button disabled={busy} onClick={()=>setReply(message)} aria-label={`Reply to ${name(message.author_id)}`}>Reply</button>{message.author_id===session.account.id && <><button disabled={busy} onClick={()=>{setEditing(message.id);setEditText(message.text)}}>Edit</button><button disabled={busy} onClick={()=>void remove(message)}>Delete</button></>}</div>}
+              {editing===message.id ? <form onSubmit={event=>void edit(event)}><label htmlFor="edit-message">Edit message</label><textarea id="edit-message" value={editText} onChange={event=>setEditText(event.target.value)} maxLength={16000} required/><button type="submit" disabled={busy || state.fatal}>Save edit</button><button type="button" onClick={()=>setEditing('')}>Cancel</button></form> : message.deleted?<p><em>Message deleted</em></p>:<MessageBody text={message.text} participants={participants} emoji={Object.keys(state.emoji[activeId]??{})} renderEmoji={alias=><EncryptedImage conversation={activeId} file={state.emoji[activeId][alias]} download={download} emoji/>}/>}
+              {!message.deleted && message.embed && <LinkPreview embed={message.embed}/>}
+              {!message.deleted && message.attachments.map(file=><Attachment key={file.id} conversation={activeId} file={file} download={download}/>)}
+              {!message.deleted && joined && <div className="message-reactions">{Object.entries(message.reactions).map(([emoji,actors])=><button key={emoji} aria-pressed={actors.includes(session.account.id)} disabled={busy || state.fatal} onClick={()=>void control({kind:'reaction',id:message.id,emoji,active:!actors.includes(session.account.id)})}>{state.emoji[activeId]?.[emoji.replace(/^:|:$/g,'')]?<EncryptedImage conversation={activeId} file={state.emoji[activeId][emoji.replace(/^:|:$/g,'')]} download={download} emoji/>:emoji} {actors.length}</button>)}<button aria-label="React with thumbs up" disabled={busy || state.fatal} onClick={()=>void control({kind:'reaction',id:message.id,emoji:'👍',active:!message.reactions['👍']?.includes(session.account.id)})}>👍</button>{(!channel || channel.community.owner_id===session.account.id) && <button disabled={busy || state.fatal} onClick={()=>void control({kind:'pin',id:message.id,active:!message.pinned})}>{message.pinned?'Unpin':'Pin'}</button>}</div>}
+              {Object.entries(state.read[activeId]??{}).filter(([id,target])=>id!==session.account.id && target===message.id).length>0 && <small>Read by {Object.entries(state.read[activeId]??{}).filter(([id,target])=>id!==session.account.id && target===message.id).map(([id])=>name(id)).join(', ')}</small>}
+              {!message.deleted && joined && canWrite && !state.fatal && <div className="message-actions"><button disabled={busy} onClick={()=>setReply(message)} aria-label={`Reply to ${name(message.author_id)}`}>Reply</button><button onClick={()=>{setThread(message.thread??message.id);setPins(false);setDraft('');setReply(null)}}>Open thread{channelMessages.some(child=>child.thread===message.id)?` (${channelMessages.filter(child=>child.thread===message.id).length})`:''}</button>{message.author_id===session.account.id && <><button disabled={busy} onClick={()=>{setEditing(message.id);setEditText(message.text)}}>Edit</button><button disabled={busy} onClick={()=>void remove(message)}>Delete</button></>}</div>}
             </article>)}
             <div ref={bottom}/>
           </div>
           <div className="typing-status" aria-live="polite">{typing.length>0?`${typing.map(peer=>name(peer.account)).join(', ')} ${typing.length===1?'is':'are'} typing…`:''}</div>
           {reply && <div className="reply-bar">Replying to {name(reply.author_id)}<button type="button" onClick={()=>setReply(null)}>Cancel reply</button></div>}
-          <form className="message-composer" onSubmit={event=>void send(event)}>
-            <label htmlFor="message-text">Message</label><textarea id="message-text" rows={2} value={draft} onChange={event=>{setDraft(event.target.value);service.current?.typing(activeId,!!event.target.value)}} placeholder={joined?'Write a message…':'Waiting for encryption…'} maxLength={16000} disabled={!joined || busy || state.fatal} required/>
-            <button type="submit" className="primary-button" disabled={!joined || busy || state.fatal || !draft.trim()}>Send</button>
-          </form>
+          <>{!canWrite && <p className="input-help">Only the community owner can publish announcements.</p>}<form className="message-composer" onSubmit={event=>void send(event)}>
+            <label htmlFor="message-text">Message</label><textarea id="message-text" rows={2} value={draft} onChange={event=>{setDraft(event.target.value);service.current?.typing(activeId,!!event.target.value)}} placeholder={joined?'Write a message…':'Waiting for encryption…'} maxLength={16000} disabled={!joined || !canWrite || busy || state.fatal} required={!file}/>
+            {!thread && <details className="preview-composer"><summary>Add a link preview</summary><label htmlFor="preview-url">Link</label><input id="preview-url" type="url" maxLength={2048} value={embedUrl} disabled={!joined||!canWrite||busy||state.fatal} onChange={event=>{setEmbedUrl(event.target.value);try{setEmbedTitle(new URL(event.target.value).hostname)}catch{setEmbedTitle('')}}}/><label htmlFor="preview-title">Preview title</label><input id="preview-title" maxLength={160} value={embedTitle} required={!!embedUrl} onChange={event=>setEmbedTitle(event.target.value)}/><label htmlFor="preview-description">Summary</label><textarea id="preview-description" maxLength={512} value={embedDescription} onChange={event=>setEmbedDescription(event.target.value)}/><small>You choose the preview text. The URL is never fetched by Hearth's server or a recipient viewing this message.</small></details>}
+            {!thread&&<label>Attach a file (up to 8 MiB)<input id="message-file" ref={fileInput} type="file" disabled={!joined||!canWrite||busy||state.fatal} onChange={event=>setFile(event.target.files?.[0]??null)}/></label>}
+            <button type="submit" className="primary-button" disabled={!joined || !canWrite || busy || state.fatal || (!draft.trim()&&!file)}>Send</button>
+          </form>{channel&&joined&&channel.community.owner_id===session.account.id&&<details className="emoji-settings"><summary>Custom emoji for this channel</summary><p>New members receive emoji definitions when you publish them. Publish again after a member joins.</p><form onSubmit={event=>{event.preventDefault();if(!service.current||!emojiFile)return;setBusy(true);setError('');void service.current.sendAttachment(activeId,emojiFile,'',emojiAlias).then(()=>setEmojiAlias('')).catch(error=>setError(error instanceof Error?error.message:'Emoji could not be published.')).finally(()=>setBusy(false))}}><label htmlFor="emoji-alias">Emoji name</label><input id="emoji-alias" pattern="[a-z0-9_]{1,32}" maxLength={32} required value={emojiAlias} onChange={event=>setEmojiAlias(event.target.value)}/><label htmlFor="emoji-file">Emoji image</label><input id="emoji-file" type="file" accept="image/png,image/jpeg,image/webp" required onChange={event=>setEmojiFile(event.target.files?.[0]??null)}/><button disabled={busy||state.fatal||!emojiAlias||!emojiFile}>Publish emoji</button></form></details>}{Object.keys(state.emoji[activeId]??{}).length>0&&<div className="emoji-picker">{Object.entries(state.emoji[activeId]).map(([alias,file])=><button key={alias} type="button" disabled={!canWrite||busy||state.fatal} title={`Insert :${alias}:`} onClick={()=>setDraft(value=>`${value}:${alias}:`)}><EncryptedImage conversation={activeId} file={file} download={download} emoji/> :{alias}:</button>)}</div>}</>
         </>}
       </div>
     </div>
     {(error || state.error) && <p className="input-error" role="alert">{error || state.error}</p>}
-  </section>
+    {state.fatal && <button className="retry-button" onClick={()=>setAttempt(value=>value+1)}>Retry messaging</button>}
+  </section></>
 }

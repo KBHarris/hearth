@@ -17,6 +17,7 @@ apps/client/src/crypto/generated/
 .env
 deploy/.env
 deploy/data/
+deploy/s3.json
 
 # OS / editor
 .DS_Store

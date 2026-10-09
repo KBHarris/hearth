@@ -1,13 +1,23 @@
-import {HearthClient,HearthError,PROTOCOL_VERSION,validateDeliveryEvent,type Session,type DeviceEnrollment,type Conversation,type LocalMessage,type KeyPackageRecord,type CommitUpload,type MessageUpload,type MessageContent,type Person,type DeliveryEvent} from '@hearth/sdk'
+import {HearthClient,HearthError,PROTOCOL_VERSION,validateDeliveryEvent,type Session,type DeviceEnrollment,type Conversation,type LocalMessage,type KeyPackageRecord,type CommitUpload,type MessageUpload,type MessageContent,type Person,type DeliveryEvent,type ChannelRoster} from '@hearth/sdk'
 import {AuthCrypto} from './client'
 import {messageScope,readMessages,writeMessages} from './message-store'
 import {storageDeadline} from './vault-store'
+import type {CommunityAuthority,CommunityAdmission,CommunityInvitation,ChannelPolicy,ChannelAuthorization,CommunityInvite,HistoryPolicy} from '@hearth/sdk'
+import type {LocalProfile,LocalPresence} from '@hearth/sdk'
+import type {LocalAttachment} from '@hearth/sdk'
+import {MAX_FILE,hex,unhex,thumbnail} from './file-tools'
+import {cachedFile,cacheFile} from './file-cache'
+
+export function admitted(roster:ChannelRoster,person:Person):boolean {
+  const key=person.devices[0]?.identity_key
+  return !!key && ((person.account.id===roster.authority?.owner.account_id && key===roster.authority.owner.enrollment.identity_key)||roster.admissions.some(g=>g.account_id===person.account.id&&g.identity_key===key))
+}
 
 type Pending={kind:'commit';conversation_id:string;upload:CommitUpload}|{kind:'message';conversation_id:string;upload:MessageUpload}
-type EngineView={last_seq:number;messages:LocalMessage[];groups:Conversation[];pending:Pending[];pending_packages:KeyPackageRecord[]}
-export type ChatState={conversations:Conversation[];joined:string[];messages:LocalMessage[];people:Record<string,Person>;typing:Record<string,{account:string;until:number}[]>;pending:number;connection:string;error:string;fatal:boolean}
-const initialView:EngineView={last_seq:0,messages:[],groups:[],pending:[],pending_packages:[]}
-export const initialChat:ChatState={conversations:[],joined:[],messages:[],people:{},typing:{},pending:0,connection:'Opening encrypted storage…',error:'',fatal:false}
+type EngineView={last_seq:number;messages:LocalMessage[];groups:Conversation[];pending:Pending[];pending_packages:KeyPackageRecord[];profiles:Record<string,LocalProfile>;presence:Record<string,LocalPresence>;read:Record<string,Record<string,string>>;history_backfill:string[];history_waiting:string[];emoji:Record<string,Record<string,LocalAttachment>>}
+export type ChatState={conversations:Conversation[];channels:Record<string,ChannelRoster>;joined:string[];messages:LocalMessage[];people:Record<string,Person>;typing:Record<string,{account:string;until:number}[]>;pending:number;connection:string;error:string;fatal:boolean;profiles:Record<string,LocalProfile>;presence:Record<string,LocalPresence>;read:Record<string,Record<string,string>>;history_waiting:string[];emoji:Record<string,Record<string,LocalAttachment>>}
+const initialView:EngineView={last_seq:0,messages:[],groups:[],pending:[],pending_packages:[],profiles:{},presence:{},read:{},history_backfill:[],history_waiting:[],emoji:{}}
+export const initialChat:ChatState={conversations:[],channels:{},joined:[],messages:[],people:{},typing:{},pending:0,connection:'Opening encrypted storage…',error:'',fatal:false,profiles:{},presence:{},read:{},history_waiting:[],emoji:{}}
 
 /** One serialized stream owns the in-memory ratchets; CAS detects competing tabs/processes. */
 export class MessagingSession {
@@ -47,7 +57,7 @@ export class MessagingSession {
     if(this.closed && !patch.fatal)return
     const now=Date.now()
     const typing=Object.fromEntries(Object.entries(this.state.typing).map(([id,peers])=>[id,peers.filter(peer=>peer.until>now)]))
-    this.state={...this.state,typing,...patch,messages:this.view.messages,joined:this.view.groups.map(g=>g.id),pending:this.view.pending.length+this.view.pending_packages.length}
+    this.state={...this.state,typing,...patch,messages:this.view.messages,profiles:this.view.profiles,presence:this.view.presence,read:this.view.read,history_waiting:this.view.history_waiting,emoji:this.view.emoji,joined:this.view.groups.map(g=>g.id),pending:this.view.pending.length+this.view.pending_packages.length}
     this.changed(this.state)
   }
   private async inspect() {this.view=JSON.parse(await this.crypto.message('view')) as EngineView}
@@ -75,7 +85,7 @@ export class MessagingSession {
       await this.synchronize()
       await this.refresh()
       this.openGateway()
-      this.maintenance=setInterval(()=>{if(this.closed || this.refreshing)return;this.refreshing=true;void this.enqueue(()=>this.refresh()).catch(error=>this.report(error)).finally(()=>{this.refreshing=false})},15000)
+      this.maintenance=setInterval(()=>{if(this.closed || this.refreshing)return;this.refreshing=true;void this.enqueue(()=>this.refresh()).catch(error=>this.report(error)).finally(()=>{this.refreshing=false})},30000)
     }).catch(error=>{if(!this.closed){this.close();this.publish({fatal:true,error:error instanceof Error?error.message:'Could not open encrypted messaging.',connection:'Messaging could not start'})}throw error})
   }
   private async flush() {
@@ -126,17 +136,24 @@ export class MessagingSession {
     // application secrets for messages still waiting in the ordered backlog.
     await this.synchronize()
     const conversations=await this.client.conversations(this.session.token,this.options)
-    const ids=new Set(conversations.flatMap(conversation=>conversation.accounts))
+    const ids=new Set(conversations.filter(conversation=>!conversation.channel_id).flatMap(conversation=>conversation.accounts))
     const people={...this.state.people}
     for(const id of ids)people[id]=await this.client.personById(this.session.token,id,this.options)
+    const channels:Record<string,ChannelRoster>={}
+    for(const conversation of conversations.filter(c=>c.channel_id)) {
+      const roster=await this.prepareChannel(conversation.id)
+      if(roster.channel.id!==conversation.id || !roster.people.some(p=>p.account.id===this.session.account.id))throw new Error('The channel roster could not be verified.')
+      channels[conversation.id]=roster
+      for(const person of roster.people)people[person.account.id]=person
+    }
     const peers=Object.values(people).flatMap(person=>person.devices.map(enrollment=>({account_id:person.account.id,enrollment})))
-    try {for(let offset=0;offset<peers.length;offset+=160)await this.operation('verify_peers',peers.slice(offset,offset+160))}
+    try {for(let offset=0;offset<peers.length;offset+=128)await this.operation('verify_peers',peers.slice(offset,offset+128))}
     catch {throw new Error('A participant’s identity changed or could not be verified. Saved fingerprints were preserved. Compare identities using a trusted channel before adding devices.')}
     await this.persist()
-    this.publish({conversations,people})
+    this.publish({conversations,people,channels})
     const count=await this.client.packageCount(this.session.token,this.device.device_key,this.options)
-    if(count.available===0 && this.view.pending_packages.length===0){
-      await this.operation('package');await this.persist();await this.flush()
+    if(count.available<4 && this.view.pending_packages.length===0){
+      for(let available=count.available;available<4;available++){await this.operation('package');await this.persist();await this.flush()}
     }
     // Any current member may add an approved new device of an existing DM participant.
     for(const conversation of conversations){
@@ -144,9 +161,12 @@ export class MessagingSession {
       if(!local || local.epoch!==conversation.epoch || this.view.pending.some(p=>p.conversation_id===conversation.id))continue
       const known=new Set(local.members.map(member=>member.enrollment.device_key))
       const packages:KeyPackageRecord[]=[]
-      for(const account of conversation.accounts){
+      const audience=conversation.channel_id?channels[conversation.id].people.filter(p=>admitted(channels[conversation.id],p)).map(p=>p.account.id):conversation.accounts
+      for(const account of audience){
         for(const proof of people[account]?.devices ?? []) {
+          if(conversation.channel_id && packages.length>=8)break
           if(known.has(proof.device_key))continue
+          if(known.size+packages.length>= (conversation.channel_id?128:32))throw new Error('This encrypted group has reached its device limit.')
           try {
             const claimed=await this.client.claimPackages(this.session.token,[proof.device_key],this.options)
             this.verifyClaim(claimed,account,proof);packages.push(...claimed)
@@ -154,7 +174,20 @@ export class MessagingSession {
         }
       }
       if(packages.length){
-        await this.operation('add',{id:conversation.id,packages,create:false});await this.persist();await this.flush()
+        await this.operation(conversation.channel_id?'add_channel':'add',{id:conversation.id,packages,create:false});await this.persist();await this.flush()
+      }
+    }
+    for(const roster of Object.values(channels))if(roster.community.owner_id===this.session.account.id && this.view.groups.some(g=>g.id===roster.channel.id)) {
+      const offered=await this.operation<MessageUpload|null>('offer_history',roster.channel.id);await this.persist();if(offered)await this.flush()
+    }
+    for(const id of this.view.history_backfill){
+      let cursor=0
+      for(let page=0;page<128;page++) {
+        const archive=await this.client.history(this.session.token,id,this.device.device_key,cursor,this.options)
+        if(archive.items.length && archive.next<=cursor)throw new Error('History did not advance. Retry the request.')
+        await this.operation('import_history',{id,uploads:archive.items});await this.persist();cursor=archive.next
+        if(archive.items.length<128){await this.operation('finish_history',id);await this.persist();break}
+        if(page===127)throw new Error('History exceeds the current device backfill limit.')
       }
     }
     this.publish()
@@ -162,15 +195,97 @@ export class MessagingSession {
   private verifyClaim(packages:KeyPackageRecord[],account:string,proof:DeviceEnrollment){
     if(packages.length!==1 || packages[0].member.account_id!==account || Object.keys(proof).some(key=>packages[0].member.enrollment[key as keyof DeviceEnrollment]!==proof[key as keyof DeviceEnrollment]))throw new Error('A recipient device changed. Compare fingerprints before trying again.')
   }
+  private async prepareCommunity(id:string):Promise<CommunityAuthority> {
+    const structure=await this.client.communityStructure(this.session.token,id,this.options)
+    let root=structure.authority
+    if(!root) {
+      if(structure.community.owner_id!==this.session.account.id)throw new Error('The community owner needs to prepare its encryption identity.')
+      root=await this.operation<CommunityAuthority>('sign_authority',id);await this.persist()
+      root=await this.client.communityAuthority(this.session.token,id,root,this.options)
+    }
+    if(root.owner.account_id!==structure.community.owner_id)throw new Error('The community owner identity did not match. Compare fingerprints before continuing.')
+    await this.operation('verify_authority',root);await this.persist()
+    return root
+  }
+  secureCommunity(id:string):Promise<void>{return this.enqueue(async()=>{await this.prepareCommunity(id)})}
+  secureJoin(id:string,code:string):Promise<void>{return this.enqueue(async()=>{const authority=await this.prepareCommunity(id);const invitation=await this.client.memberInvitation(this.session.token,id,this.options);if(!invitation)throw new Error('Ask the owner for a signed community invite.');await this.operation('pin_invitation',{authority,code,invitation});await this.persist()})}
+  async createInvite(id:string,expires_in_seconds:number,max_uses:number):Promise<CommunityInvite>{
+    const structure=await this.client.communityStructure(this.session.token,id,this.options)
+    for(const channel of structure.channels)if(!this.view.groups.some(g=>g.id===channel.id))await this.openChannel(channel.id)
+    return this.enqueue(async()=>{
+      const authority=await this.prepareCommunity(id);await this.refresh()
+      const history_from:Record<string,number>={}
+      for(const channel of structure.channels){
+        if(!this.view.groups.some(g=>g.id===channel.id))throw new Error('Keep an existing owner device online until this device joins every channel.')
+        await this.operation('add_channel',{id:channel.id,packages:[],create:false});await this.persist();if(await this.flush())throw new Error('An epoch rotation was rejected. Retry creating the invite.');history_from[channel.id]=this.view.groups.find(g=>g.id===channel.id)!.epoch
+      }
+      const [code,authorization]=await this.operation<[string,CommunityInvitation]>('sign_invitation',{authority,history_from,issued_at:Date.now()});await this.persist()
+      return this.client.createCommunityInvite(this.session.token,id,{code,authorization,expires_in_seconds,max_uses},this.options)
+    })
+  }
+  setHistory(id:string,history:HistoryPolicy):Promise<void>{return this.enqueue(async()=>{await this.flush();const roster=await this.prepareChannel(id);if(roster.community.owner_id!==this.session.account.id || !roster.authority || !roster.policy)throw new Error('Only the community owner can change history.');const policy=await this.operation<ChannelPolicy>('sign_policy',{authority:roster.authority,channel_id:id,kind:roster.channel.kind,history,revision:roster.policy.revision+1});await this.persist();await this.client.channelPolicy(this.session.token,id,policy,this.options);await this.prepareChannel(id);await this.operation('add_channel',{id,packages:[],create:false});await this.persist();await this.flush();await this.refresh()})}
+  requestHistory(id:string):Promise<void>{return this.enqueue(async()=>{await this.flush();await this.operation('request_history',id);await this.persist();await this.flush();await this.refresh()})}
+  secureChannel(id:string):Promise<void>{return this.enqueue(async()=>{await this.prepareChannel(id)})}
+  private async prepareChannel(id:string):Promise<ChannelRoster> {
+    let roster=await this.client.channelRoster(this.session.token,id,this.options)
+    const root=roster.authority ?? await this.prepareCommunity(roster.community.id)
+    if(root.owner.account_id!==roster.community.owner_id || root.community_id!==roster.community.id)throw new Error('The channel owner identity could not be verified.')
+    if(!roster.policy) {
+      if(root.owner.account_id!==this.session.account.id)throw new Error('This channel needs its owner to prepare encryption.')
+      const policy=await this.operation<ChannelPolicy>('sign_policy',{authority:root,channel_id:id,kind:roster.channel.kind,history:'none',revision:1,created_at:Date.now(),history_open_for:[...new Set(roster.invitations.map(i=>i.invitation.invite_id))]});await this.persist()
+      await this.client.channelPolicy(this.session.token,id,policy,this.options)
+      roster=await this.client.channelRoster(this.session.token,id,this.options)
+    }
+    if(!roster.authority||!roster.policy)throw new Error('The channel encryption policy is incomplete.')
+    const authorization:ChannelAuthorization={authority:roster.authority,policy:roster.policy,admissions:roster.admissions}
+    await this.operation('authorize_channel',{id,authorization});await this.persist()
+    return roster
+  }
+  approveMember(channel:string,account:string,expectedKey:string):Promise<void>{return this.enqueue(async()=>{
+    const roster=await this.prepareChannel(channel)
+    if(roster.community.owner_id!==this.session.account.id || !roster.authority)throw new Error('Only the community owner can approve a new member.')
+    const person=roster.people.find(p=>p.account.id===account)
+    if(!person?.devices.length || person.devices.some(d=>d.identity_key!==expectedKey))throw new Error('The member identity changed. Compare fingerprints before trying again.')
+    await this.operation('verify_peers',person.devices.map(enrollment=>({account_id:account,enrollment})));await this.persist()
+    const history_from=Object.fromEntries(Object.values(this.state.channels).filter(r=>r.community.id===roster.community.id).map(r=>[r.channel.id,this.state.conversations.find(c=>c.id===r.channel.id)?.epoch ?? 0]))
+    const invitation=roster.invitations.find(i=>i.account_id===account)?.invitation
+    const grant=await this.operation<CommunityAdmission>('sign_admission',{authority:roster.authority,account_id:account,identity_key:expectedKey,history_from,invitation});await this.persist()
+    await this.client.communityAdmission(this.session.token,roster.community.id,grant,this.options)
+    await this.refresh()
+  })}
+  async openChannel(id:string):Promise<string> {
+    return this.enqueue(async()=>{
+      await this.synchronize()
+      const roster=await this.prepareChannel(id)
+      if(roster.channel.id!==id || !roster.people.some(p=>p.account.id===this.session.account.id))throw new Error('The channel roster could not be verified.')
+      const peers=roster.people.flatMap(p=>p.devices.map(enrollment=>({account_id:p.account.id,enrollment})))
+      for(let offset=0;offset<peers.length;offset+=128)await this.operation('verify_peers',peers.slice(offset,offset+128))
+      await this.persist()
+      if(!this.state.conversations.some(c=>c.id===id) && admitted(roster,roster.people.find(p=>p.account.id===this.session.account.id)!)) {
+        const packages:KeyPackageRecord[]=[]
+        for(const person of roster.people.filter(p=>admitted(roster,p)))for(const proof of person.devices) {
+          if(packages.length>=8)break
+          if(proof.device_key===this.device.device_key)continue
+          if(packages.length>=127)throw new Error('This channel has reached its device limit.')
+          try {const claimed=await this.client.claimPackages(this.session.token,[proof.device_key],this.options);this.verifyClaim(claimed,person.account.id,proof);packages.push(...claimed)}
+          catch(error){if(!(error instanceof HearthError) || ![404,409].includes(error.status))throw error}
+        }
+        await this.operation('add_channel',{id,packages,create:true});await this.persist();await this.flush()
+      }
+      await this.refresh()
+      return id
+    })
+  }
   async create(usernames:string[]):Promise<string> {
     return this.enqueue(async()=>{
       const people=await Promise.all([...new Set([this.session.account.username,...usernames])].map(username=>this.client.person(this.session.token,username,this.options)))
       if(people.length<2 || people.length>10)throw new Error('Choose one to nine other people for this conversation.')
-      try {await this.operation('verify_peers',people.flatMap(person=>person.devices.map(enrollment=>({account_id:person.account.id,enrollment}))))}
+      const peers=people.flatMap(person=>person.devices.map(enrollment=>({account_id:person.account.id,enrollment})))
+      try {for(let offset=0;offset<peers.length;offset+=128)await this.operation('verify_peers',peers.slice(offset,offset+128))}
       catch {throw new Error('A recipient’s identity changed or could not be verified. Saved fingerprints were preserved. Compare identities using a trusted channel before trying again.')}
       await this.persist()
       const audience=people.map(person=>person.account.id).sort().join(':')
-      const existing=this.state.conversations.find(conversation=>[...conversation.accounts].sort().join(':')===audience)
+      const existing=this.state.conversations.find(conversation=>!conversation.channel_id && [...conversation.accounts].sort().join(':')===audience)
       if(existing)return existing.id
       const packages:KeyPackageRecord[]=[]
       for(const person of people){
@@ -201,6 +316,55 @@ export class MessagingSession {
       }
     })
   }
+  search(query:string,conversation:string|null):Promise<LocalMessage[]>{return this.enqueue(()=>this.operation<LocalMessage[]>('search',{query,conversation}))}
+  async sendAttachment(id:string,file:File,text:string,emoji?:string){
+    if(!file.size||file.size>MAX_FILE)throw new Error('Choose a file between 1 byte and 8 MiB.')
+    if(new TextEncoder().encode(file.name).length>160||/[\u0000-\u001f/\\]/.test(file.name))throw new Error('Rename this file using no more than 160 bytes and no control characters.')
+    if(emoji&&!/^[a-z0-9_]{1,32}$/.test(emoji))throw new Error('Use a custom emoji name of 1–32 lowercase letters, numbers or underscores.')
+    const preview=await thumbnail(file)
+    if(emoji&&!preview)throw new Error('Custom emoji must be a PNG, JPEG or WebP image.')
+    return this.enqueue(async()=>{
+      const prepare=async(blob:Blob,name:string,mime:string)=>{
+        const result=await this.operation<{file:LocalAttachment;ciphertext:string}>('prepare_file',{id,name,mime,plaintext:hex(new Uint8Array(await blob.arrayBuffer()))})
+        await this.persist()
+        const reserved=await this.client.reserveBlob(this.session.token,id,{id:result.file.id,device_key:this.device.device_key,cipher_bytes:result.file.cipher_bytes,digest:result.file.digest},this.options)
+        this.checkBlobUrl(reserved.url,id,result.file.id)
+        const encrypted=unhex(result.ciphertext)
+        const response=await fetch(reserved.url,{method:'PUT',headers:{'Content-Type':'application/octet-stream'},body:new Blob([encrypted as BlobPart]),credentials:'omit',referrerPolicy:'no-referrer',redirect:'error',signal:AbortSignal.any([this.controller.signal,AbortSignal.timeout(30000)])})
+        if(!response.ok)throw new Error('Encrypted file upload failed. Try again.')
+        await this.client.completeBlob(this.session.token,id,result.file.id,this.device.device_key,this.options)
+        await cacheFile(`${this.scope}:${id}:${result.file.id}`,encrypted).catch(()=>{})
+        return result.file.id
+      }
+      const asset=await prepare(emoji?preview!:file,emoji?`${emoji}.png`:file.name,emoji?'image/png':file.type)
+      const thumb=!emoji&&preview?await prepare(preview,'preview.png','image/png'):null
+      await this.synchronize()
+      await this.operation('send_file',{id,file:asset,thumbnail:thumb,text,emoji:emoji??null});await this.persist()
+      if(await this.flush())throw new Error('Encryption changed during upload. Retry when channel updates arrive.')
+      this.publish({error:''})
+    })
+  }
+  private checkBlobUrl(value:string,id:string,file:string){if(new URL(value).pathname!==`/hearth-blobs/${id}/${file}`)throw new Error('The encrypted file URL does not match this attachment.')}
+  async downloadAttachment(id:string,file:LocalAttachment):Promise<Blob>{
+    const scope=`${this.scope}:${id}:${file.id}`
+    let encrypted=await cachedFile(scope).catch(()=>null)
+    if(!encrypted){
+      const result=await this.client.downloadBlob(this.session.token,id,file.id,this.device.device_key,this.options);this.checkBlobUrl(result.url,id,file.id)
+      const response=await fetch(result.url,{credentials:'omit',referrerPolicy:'no-referrer',redirect:'error',signal:AbortSignal.any([this.controller.signal,AbortSignal.timeout(30000)])})
+      if(!response.ok||Number(response.headers.get('content-length'))!==file.cipher_bytes)throw new Error('Encrypted file download failed or its size changed.')
+      const reader=response.body?.getReader();if(!reader)throw new Error('Encrypted download has no body.')
+      const chunks:Uint8Array[]=[];let count=0
+      try{for(;;){const result=await reader.read();if(result.done)break;count+=result.value.length;if(count>file.cipher_bytes)throw new Error('Encrypted file exceeds its declared size.');chunks.push(result.value)}}finally{await reader.cancel()}
+      if(count!==file.cipher_bytes)throw new Error('Encrypted file was truncated.')
+      encrypted=new Uint8Array(count);let offset=0;for(const chunk of chunks){encrypted.set(chunk,offset);offset+=chunk.length}
+    }
+    const ciphertext=encrypted
+    const plaintext=await this.enqueue(()=>this.operation<string>('open_file',{id,file:file.id,ciphertext:hex(ciphertext)}))
+    await cacheFile(scope,ciphertext).catch(()=>{})
+    return new Blob([unhex(plaintext) as BlobPart],{type:file.mime})
+  }
+  async updateProfile(display_name:string,bio:string){for(const group of this.view.groups)await this.send(group.id,{kind:'profile',display_name,bio})}
+  async setPresence(state:'online'|'idle'|'offline'){for(const group of this.view.groups)await this.send(group.id,{kind:'presence',state,until:Date.now()+90000})}
   typing(id:string,active:boolean){
     if(Date.now()-this.lastTyping<2000 || this.closed || !this.initialized)return
     this.lastTyping=Date.now();void this.send(id,{kind:'typing',active}).catch(error=>this.report(error))

@@ -76,7 +76,9 @@ browser media regressions, Docker and Podman pass. [ADR 0008](adr/0008-encrypted
 records the slice's scope and limits. The next checkpoint is the
 [two-PC encrypted DM test](TWO_PC_DM_TEST.md) using the prepared Windows installer and
 optional public-IP HTTPS front end. Public certificate issuance and two-house reachability
-remain part of that human test. Phase 2 has not started; PR #2 remains a draft.
+remain part of that human test. Phase 2 now uses a separate development checkout;
+PR #2 remains a draft. The original server/data are preserved; the old bundle files
+were replaced by the validated Phase 2 bundle on 2026-10-09.
 
 - [x] Guided first-run owner creation, closed registration, OPAQUE owner login/logout,
   and PostgreSQL sessions. Test concurrent claims, replay, expiry, restart and revocation.
@@ -110,14 +112,34 @@ new messages after linking. A restore from the recovery kit works. Offline deliv
 
 **Goal:** a usable Discord-like text community.
 
-- Communities, categories, text and announcement channels, and invites (expiry, max uses).
-- The MLS group per channel, roster to MLS sync, and the rekey agent.
-- History policies (`none`, `since-invite`, `full`) and wrapped epoch-key handoff.
-- Encrypted attachments via presigned S3 upload, with local thumbnails.
-- Reactions, pins, threads, Markdown, custom emoji, mentions, and read state.
-- Profiles, presence, and client-generated link embeds.
-- Local full-text search.
-- Start the MLS load benchmark (1k-member channel, commit latency).
+Implementation and automated validation are complete for `7cc8852`, 2026-10-09.
+All twelve hosted jobs pass in [run 37925276507](https://github.com/KBHarris/hearth/actions/runs/37925276507),
+including Windows/macOS/Linux native acceptance, ten isolated Linux repetitions, private
+S3/HTTP checks, Docker, Podman, Rust, web/WASM and browser media regressions.
+The local suite passes 49 HTTP/WASM, 18 Chrome UI and ten packaged Windows checks;
+hosted Windows UI passes 16 checks (files also have local UI/native and hosted HTTP evidence).
+Owner-signed admission, signed history policies, encrypted files/thumbnails/custom emoji,
+reactions/pins/threads, Markdown/mentions/read state, profiles/presence/embeds and local
+search are implemented. [ADR 0012](adr/0012-signed-history-and-encrypted-files.md)
+and [the development guide](PHASE2_DEVELOPMENT.md) record scope and limits.
+
+The versioned `7cc8852` Windows/server bundle passes eight assembled-artifact checks;
+its HTTPS proxy configuration validates. Old Phase 1 bundle files are removed, with the
+running server and data preserved. Follow [the two-PC Phase 2 guide](TWO_PC_PHASE2_TEST.md).
+WAN/clean buddy-PC installation and the separate 50-person/week exit criterion remain open.
+
+- [x] Communities, categories, text/announcement channel records and invites (expiry, max uses).
+- [x] MLS group per channel, server-authorized roster sync and online rekey agent (128-device initial bound).
+- [x] Client-verifiable owner authorization for new account admission; signed policies and pinned owner identities (first contact requires fingerprint comparison).
+- [x] History policies (`none`, `since-invite`, `full`) and wrapped epoch-key handoff (native and HTTP/WASM policy/tamper/restart checks pass).
+- [x] Encrypted attachments via presigned S3 upload, with local thumbnails (real private S3, tamper/scope/restart and host canary and Chrome UI checks pass).
+- [x] Reactions and pins (native, HTTP/WASM, local and hosted UI checks pass).
+- [x] Threads, Markdown, custom emoji, mentions and read state (expanded 18-outcome Chrome UI suite passes).
+- [x] Profiles, presence and client-generated link embeds (encrypted state and expanded Chrome UI checks pass).
+- [x] Local full-text search (case/token matching, deletion and absence of host search requests checked).
+- [x] MLS load benchmark (1k synthetic members: rotation median 11.47 ms, p95 12.52 ms; product limit remains 128 devices).
+- [x] Versioned Phase 2 Windows client/server test bundle and two-PC guide (`7cc8852`, eight bundle checks pass); old bundle files removed after validation.
+- [ ] Human exit test: a 50-person community runs for a week (automated history/attachment policy and canary checks pass).
 
 **Exit:** a 50-person test community runs for a week. History policy tests pass. The
 attachment canary passes.

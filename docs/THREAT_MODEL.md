@@ -41,18 +41,84 @@
 | Registration mode and server name in `instance_settings` | Owner-controlled onboarding policy and public discovery | Until changed, including backups |
 | `mls_key_packages`: package hash, account/device IDs, signed public KeyPackage bytes, claimed flag, creation/expiry | Single-use public MLS join material; private package secrets remain in the encrypted client store | Consumed at accepted commit or one-hour expiry plus cleanup delay, including possible backups |
 | `consumed_mls_packages`: public package digest, device ID, consumption time | Prevent a delayed upload retry from re-advertising a consumed package, including after pool expiry | Device lifetime, including backups |
-| `conversations`: random ID, MLS epoch, public device-proof manifest, creation time | Serialize commits and validate the roster against approved devices | Conversation lifetime; deletion is not implemented, including backups |
-| `conversation_accounts` and `conversation_devices` | Fixed Phase 1 DM audience and per-device fan-out; exposes the social graph | Conversation lifetime, including backups |
+| `conversations`: random ID, optional unique channel ID equal to that ID, MLS epoch, public device-proof manifest, creation time | Bind a channel to its MLS group, serialize commits and validate approved devices | Conversation lifetime; deletion is not implemented, including backups |
+| `conversation_accounts` and `conversation_devices` | Fixed Phase 1 DM audience, append-only admitted channel audience and per-device fan-out; exposes the social graph | Conversation lifetime, including backups |
 | `delivery_operations`: random operation ID, conversation/account/device IDs, action, optional target operation, payload digest, creation time | Idempotent retry and author-only edits/deletes; operation kinds and reply timing are visible, reply targets remain encrypted | Conversation lifetime, including backups |
 | `device_delivery_cursors`: device public key, next sequence | Gap-free, persistent ordering for offline delivery | Device lifetime, including backups |
 | `delivery_events`: recipient device, sequence, conversation/operation IDs, public signed envelope, ciphertext, ephemeral flag, creation time | Ordered Welcome/commit/message backlog without decryption | Conversation lifetime; deletion replaces originals/edits with markers; typing is hidden after ten seconds, with backup retention possible |
 | Gateway challenge, token digest, authenticated account/device, resume scope ID, sent/acknowledged cursor and heartbeat times | Bind each connection to possession of an approved device and bound delivery window | Connection memory only; sequence metadata remains in the database |
+| `communities`: random ID, display name, owner account ID, creation time; `community_members`: community/account IDs and join time | Authenticated directory and authorization; names and membership are server-visible metadata, not encrypted message content | Community lifetime, including backups; deletion/retention follows later |
+| `community_categories` and `community_channels`: random IDs, community/category relationship, display name, channel type and creation time | Member-visible navigation, MLS routing and owner-only announcement authorization; only the community owner creates structure | Community lifetime, including backups |
+| Channel roster responses: community/channel metadata, account IDs/usernames/owner flags and approved public device enrollment proofs | Member-visible audience preparation and local identity pinning; contains no package private secrets or epoch/history keys | No additional server table; no-store HTTP responses; public identity pins remain in the encrypted client snapshot |
+| `community_invites`: SHA-256 digest of random 256-bit capability, community/creator IDs, expiry, max uses, used count and creation time | Authorize atomic community admission; member retries do not consume a use. Account registration invitations remain separate | Expired/exhausted rows pruned when creating invites; remaining rows and backups persist until later retention work |
+| `communities.authority`, `community_members.admission`, `community_channels.policy` | Public owner/device proof and signatures binding owner, admitted account identity, channel kind, history policy, revision and per-channel history epoch floors; receivers verify independently of the host | Community lifetime, including backups; revocation follows Phase 3 |
+| `community_invites.certificate` and `community_members.invitation` | Owner-signed invite digest, issuer proof, issue time and channel epoch cutoffs; the joining client pins the certificate against the typed capability. Policy `created_at` and `history_open_for` are signed immutable public metadata; only explicit invite IDs authorize later-created channels | Community lifetime, including backups |
+| `channel_archives`: sequence, operation/conversation IDs, epoch and signed ciphertext upload with sender public proof | Policy-scoped encrypted backfill. Device-targeted exporter-key handoff stays inside MLS and X25519/XChaCha wrapping | Conversation lifetime; message deletion removes original/edit archives, including possible backup retention |
+| `encrypted_blobs`: opaque ID, conversation/account/device IDs, ciphertext byte count/SHA-256 digest, ready flag and creation time | Authorize private S3 leases, membership checks and upload quotas. No filename, MIME, thumbnail, file key or plaintext digest reaches the server | Ready objects remain until future retention work; incomplete leases expire after 20 minutes plus cleanup delay |
+| Private S3 objects, access credentials and short-lived signed PUT/GET URLs | Store only chunk ciphertext. URLs authorize one opaque object for five minutes; already-issued URLs cannot be recalled immediately | Persistent storage volume; credentials in private operator configuration; URLs remain valid until expiry |
+| Local encrypted file cache | Ciphertext only, indexed by local account/server/device/conversation/object scope; 32 entries/32 MiB bound. Worker authenticates digest and every chunk before returning plaintext | Browser/webview profile lifetime or bounded eviction; decrypted object URLs are temporary |
 | Optional HTTPS proxy: public IPv4/domain, TLS certificate/private key and ACME account data | Authenticate public transport and automate renewal; public certificates disclose the certified address to the CA and certificate-transparency ecosystem | Persistent Caddy volumes; public certificates/CA records have external retention |
 | Optional HTTPS proxy: transient request headers/bodies, paths, peer addresses and operational errors | Route REST and gateway traffic to Hearth without decrypting MLS; control requests can contain bearer/invite/bootstrap secrets, so access/body logging is not enabled | Connection memory and Docker operational logs; operator controls log retention |
 | OPAQUE spike setup, password file, and pending login state | Opt-in, fixed-user feasibility test only; no product auth endpoint | Test process lifetime; memory only |
 | Media spike API secret, scoped JWTs, room/participant IDs, signaling, and RTP metadata | Loopback synthetic fixture only; no product media API | Fixture lifetime; generated secret configuration removed on normal shutdown |
 
 All routing information above is metadata. MLS private content is never decoded by the server.
+
+## Phase 2 community directory
+
+The first community slice exposes structure only to authenticated members. A server owner
+has no implicit read/manage access to communities created by other accounts. Community
+owners alone create categories, text/announcement channel records and invitations.
+Channel IDs now bind to MLS conversations. Community members obtain public rosters;
+online existing devices admit eligible accounts/devices through signed private commits.
+Announcement publishing requires the community owner. The server still never decrypts
+content or creates epoch keys. Governance and revocation remain Phase 3 work.
+
+Community, category and channel names are explicitly server-visible navigation metadata.
+Do not put private message content in directory names. Community creation/admission locks
+the account row; structure/invitation mutations lock the community row. Joining locks and
+checks an unexpired invite with wall-clock time after contention, then inserts membership
+and increments usage atomically. A join requires an existing server account and does not
+register an account, enroll a device or grant access to any past MLS epoch.
+
+Requests have a 64 KiB body bound, explicit CORS origins, no-store responses and the existing
+admission/request budgets. Limits are 100 communities per account, 1,024 members per
+community, 256 categories, 512 channels and 32 active invites. Invites allow 1–1,000 new
+members and expire in 60 seconds–7 days. These bounds are not large-channel MLS evidence.
+
+Channel admission/messages lock the community before conversation and device rows;
+admission verifies every account against current membership. The client drains backlog,
+pins account/device proofs and persists before transmission. With history `none`, new
+members/devices receive only post-Welcome messages. A waiting new device needs an
+existing epoch holder online. Channels currently support at most 128 devices, and roster
+reads reject communities above 128 accounts. See [ADR 0010](adr/0010-encrypted-channels.md).
+
+Clients pin owner roots and verify owner-signed account admissions and channel policies
+before accepting roster expansion or Welcome/commit delivery. Compare first-contact
+owner/member fingerprints out of band; TOFU does not authenticate a malicious first
+directory response. The host can still deny, delay and replay delivery. Fixed DM audiences
+retain their account-expansion rejection. See [ADR 0011](adr/0011-owner-signed-channel-admission.md).
+
+History `full` or `since_invite` deliberately retains per-epoch MLS exporter keys inside
+encrypted client snapshots. This weakens retrospective forward secrecy for retained
+archives: compromise of a device holding those keys can decrypt its permitted retained
+history. Owners rotate epochs before signing invites. Since-invite handoff uses the signed
+cutoff, including for later linked devices, with explicit signed invite IDs for channels
+created afterward. The host cannot lower those floors. An online existing owner device
+wraps available keys to a requester's ephemeral X25519 key inside MLS. `none` creates no
+new archives and denies handoff; switching policies cannot recall previously shared keys,
+plaintext or recipient copies, or restore messages sent before archives were enabled.
+
+Files use random per-file XChaCha20 keys with 1 MiB independently authenticated chunks.
+AAD binds server, conversation, opaque object, byte count, chunk size and index. Descriptors
+and generated thumbnail keys travel inside MLS; local UI views omit keys. Initial bounds:
+8 MiB/file, 128 MiB reserved ciphertext/account, 2,048 objects/account and 16 incomplete
+uploads. S3 PUT signatures bind exact Content-Length and application/octet-stream. The
+server checks object size on completion; receiving workers verify ciphertext SHA-256 and
+AEAD, including truncation and ordering. URLs contain no bearer session token. No automatic
+remote Markdown image or link-metadata fetch occurs. Raster previews/custom emoji use
+temporary decrypted blob URLs; SVG/HTML attachments are download-only. Deleting a message
+does not yet purge ready S3 objects or all prior recipient copies; retention follows Phase 3.
 
 ## Phase 0 discovery and client storage
 
@@ -205,6 +271,9 @@ Deployment bootstrap generates a URL-safe database password once, refuses placeh
 preserves existing files, and binds the stack to loopback by default. Generated `.env` files
 and fixture configuration contain secrets and stay ignored. POSIX file modes are requested;
 Windows access still depends on the directory ACL and user profile protection.
+SeaweedFS starts through a wrapper that copies its private, read-only host credentials
+into a mode-0600 service-owned container file before the standard privilege drop.
+The host file is not made readable to other users.
 
 ## Out of scope (stated honestly)
 
