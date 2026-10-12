@@ -2110,11 +2110,14 @@ mod tests {
     }
     #[test]
     fn wrapped_history_enforces_none_full_since_cutoff_and_recipient_binding() {
-        for policy in [
+        for (policy, governance_enabled) in [
             HistoryPolicy::None,
             HistoryPolicy::Full,
             HistoryPolicy::SinceInvite,
-        ] {
+        ]
+        .into_iter()
+        .flat_map(|policy| [false, true].map(|enabled| (policy, enabled)))
+        {
             let owner_identity = LocalIdentity::new();
             let member_identity = LocalIdentity::new();
             let spy_identity = LocalIdentity::new();
@@ -2150,6 +2153,29 @@ mod tests {
                 )
                 .unwrap();
             owner.accept(&before.operation_id).unwrap();
+            if governance_enabled {
+                let governance = owner
+                    .sign_governance(
+                        &authority,
+                        hearth_proto::governance::Governance {
+                            community_id: community.clone(),
+                            revision: 1,
+                            everyone: hearth_proto::governance::DEFAULT,
+                            roles: vec![],
+                            assignments: vec![],
+                            overrides: vec![],
+                            sanctions: vec![],
+                            limits: vec![],
+                            rules: String::new(),
+                            screening: false,
+                            owner: authority.owner.clone(),
+                            signature: String::new(),
+                        },
+                    )
+                    .unwrap();
+                auth.governance = Some(governance);
+                owner.authorize_channel(&id, &auth).unwrap();
+            }
             let rotate = owner.add_channel(&id, &[], false).unwrap();
             owner.accept(&rotate.operation_id).unwrap();
             let after = owner

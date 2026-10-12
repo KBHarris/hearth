@@ -8,6 +8,7 @@ on:
 
 env:
   CARGO_TERM_COLOR: always
+  HEARTH_TEST_TARGET_DIR: target
 
 concurrency:
   group: ci-${{ github.ref }}

@@ -31,7 +31,8 @@ node scripts/verify-community-ui.mjs --phase3
 
 The separate native target directory avoids overwriting an older executable while
 its preview is running. Disposable `--serve` fixtures copy the binary into their
-own directory. Browser validation must finish before changing client source,
+own directory. Isolated CI sets `HEARTH_TEST_TARGET_DIR=target` to reuse its normal
+Cargo cache. Browser validation must finish before changing client source,
 regenerating product WASM or running a build that reloads its Vite profiles.
 
 With Docker and private S3 available, also run both acceptance scripts with

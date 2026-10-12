@@ -20,6 +20,10 @@ currently lacks a discoverable Visual Studio C++ installation. Ownership transfe
 delegated moderation/kicks/server bans, reports, account lifecycle, forum/polls and
 Web Push remain open. [ADR 0013](adr/0013-signed-community-governance.md) records the
 security design. The [development guide](PHASE3_DEVELOPMENT.md) gives validation commands.
+The native history test also passes all six combinations of history policy with
+governance enabled/disabled, including legacy epoch handoff and later linked devices.
+Draft [PR #4](https://github.com/KBHarris/hearth/pull/4) hosts the Phase 3 checkpoint;
+its expanded CI is in progress.
 The Phase 2 test bundle
 is unchanged for the pending human test. A separate development fixture keeps the
 existing preview running while the new backend is tested.

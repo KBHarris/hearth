@@ -29,7 +29,8 @@ function command(name, args, quiet = false, env = process.env) {
   if (result.error || result.status !== 0) throw new Error(`${name} acceptance command failed`)
   return result.stdout?.trim()
 }
-const serverTarget=process.argv.includes('--phase3')?'target/phase3-build':'target'
+// Isolated CI can reuse its normal Cargo cache; local Phase 3 keeps preview builds separate.
+const serverTarget=process.env.HEARTH_TEST_TARGET_DIR ?? (process.argv.includes('--phase3')?'target/phase3-build':'target')
 command('cargo', ['build', '--locked', '-p', 'hearth-server', '--target-dir', serverTarget])
 let wasm
 let legacyWasm
