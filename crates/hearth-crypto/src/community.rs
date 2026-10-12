@@ -121,11 +121,20 @@ pub fn verify_policy(
     )
 }
 pub fn authorized(value: &ChannelAuthorization, member: &GroupMember) -> bool {
-    (member.account_id == value.authority.owner.account_id
+    let admitted = (member.account_id == value.authority.owner.account_id
         && member.enrollment.identity_key == value.authority.owner.enrollment.identity_key)
         || value.admissions.iter().any(|a| {
             a.account_id == member.account_id && a.identity_key == member.enrollment.identity_key
-        })
+        });
+    admitted
+        && hearth_proto::governance::permissions(
+            value.governance.as_ref(),
+            &value.authority.owner.account_id,
+            &member.account_id,
+            Some(&value.policy.channel_id),
+            u64::MAX,
+        ) & hearth_proto::governance::READ
+            != 0
 }
 pub fn verify_authorization(
     server: &str,
@@ -134,6 +143,9 @@ pub fn verify_authorization(
     members: &[GroupMember],
 ) -> Result<()> {
     verify_policy(server, &value.authority, &value.policy)?;
+    if let Some(governance) = &value.governance {
+        verify_governance(server, &value.authority, governance)?;
+    }
     require(value.policy.channel_id == id && value.admissions.len() <= 1024)?;
     let mut seen = std::collections::HashSet::new();
     for grant in &value.admissions {
@@ -145,4 +157,105 @@ pub fn verify_authorization(
         require(authorized(value, member))?;
     }
     Ok(())
+}
+
+pub(crate) fn governance_statement(
+    server: &str,
+    value: &hearth_proto::governance::Governance,
+) -> Result<Vec<u8>> {
+    let mut value = value.clone();
+    value.signature.clear();
+    serde_json::to_vec(&("hearth/v1/community-governance", server, value))
+        .map_err(|_| "Invalid governance".into())
+}
+pub fn verify_governance(
+    server: &str,
+    authority: &CommunityAuthority,
+    value: &hearth_proto::governance::Governance,
+) -> Result<()> {
+    use hearth_proto::governance::*;
+    issuer(server, authority, &value.owner)?;
+    require(
+        value.community_id == authority.community_id
+            && value.revision > 0
+            && value.revision < 9_007_199_254_740_991
+            && value.everyone & !ALL == 0
+            && value.roles.len() <= 64
+            && value.assignments.len() <= 128
+            && value.overrides.len() <= 512
+            && value.sanctions.len() <= 128
+            && value.limits.len() <= 512
+            && value.rules.len() <= 4096
+            && (!value.screening || !value.rules.trim().is_empty())
+            && !value
+                .rules
+                .chars()
+                .any(|c| c.is_control() && c != '\n' && c != '\t'),
+    )?;
+    let mut ids = std::collections::HashSet::new();
+    for r in &value.roles {
+        require(
+            valid_id(&r.id)
+                && ids.insert(&r.id)
+                && !r.name.trim().is_empty()
+                && r.name.len() <= 80
+                && !r.name.chars().any(char::is_control)
+                && r.permissions & !ALL == 0,
+        )?;
+    }
+    let mut accounts = std::collections::HashSet::new();
+    for a in &value.assignments {
+        require(
+            valid_id(&a.account_id)
+                && accounts.insert(&a.account_id)
+                && a.role_ids.len() <= 64
+                && a.role_ids.iter().all(|r| ids.contains(r)),
+        )?;
+        let mut seen = std::collections::HashSet::new();
+        require(a.role_ids.iter().all(|r| seen.insert(r)))?;
+    }
+    let mut overrides = std::collections::HashSet::new();
+    for o in &value.overrides {
+        require(
+            valid_id(&o.channel_id)
+                && o.allow & !ALL == 0
+                && o.deny & !ALL == 0
+                && o.allow & o.deny == 0
+                && match o.kind {
+                    OverrideKind::Everyone => o.target_id.is_empty(),
+                    OverrideKind::Role => ids.contains(&o.target_id),
+                    OverrideKind::Member => valid_id(&o.target_id),
+                }
+                && overrides.insert((&o.channel_id, o.kind as u8, &o.target_id)),
+        )?;
+    }
+    let mut limits = std::collections::HashSet::new();
+    for l in &value.limits {
+        require(
+            valid_id(&l.channel_id)
+                && limits.insert(&l.channel_id)
+                && l.slowmode_seconds <= 21600
+                && l.retention_days.is_none_or(|d| (1..=3650).contains(&d)),
+        )?;
+    }
+    let mut sanctions = std::collections::HashSet::new();
+    for sanction in &value.sanctions {
+        require(
+            valid_id(&sanction.account_id)
+                && sanction.account_id != authority.owner.account_id
+                && sanction.channel_id.as_ref().is_none_or(|c| valid_id(c))
+                && sanctions.insert((&sanction.account_id, &sanction.channel_id))
+                && match sanction.kind {
+                    SanctionKind::Timeout => {
+                        sanction.until.is_some_and(|t| t < 9_007_199_254_740_991)
+                    }
+                    _ => sanction.until.is_none(),
+                },
+        )?;
+    }
+    verify_signature(
+        &value.owner.enrollment.device_key,
+        &value.signature,
+        &governance_statement(server, value)?,
+    )
 }

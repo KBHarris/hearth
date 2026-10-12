@@ -5,8 +5,11 @@ import { createIdentity, readIdentity, identityScope, identityStorageLabel, stor
 import { RecoveryPanel } from './RecoveryPanel'
 import { AdminPanel } from './AdminPanel'
 import { ChatPanel } from './ChatPanel'
+import { Modal } from './Modal'
+import { Icon } from './Icons'
 
-export function AuthPanel({ url, info, setupFinished,configured }: { url: string; info: ServerInfo; setupFinished: () => void;configured:(settings:ServerSettings)=>void }) {
+export function AuthPanel({ url, info, setupFinished,configured,onSessionChange }: { url: string; info: ServerInfo; setupFinished: () => void;configured:(settings:ServerSettings)=>void;onSessionChange:(signedIn:boolean)=>void }) {
+  const [panel, setPanel] = useState<'account' | 'server' | null>(null)
   const [session, setSession] = useState<Session | null>(null)
   const [created, setCreated] = useState(false)
   const [signup,setSignup] = useState(false)
@@ -18,6 +21,7 @@ export function AuthPanel({ url, info, setupFinished,configured }: { url: string
   const [clientCrypto, setClientCrypto] = useState<AuthCrypto | null>(null)
   const unlocked = useRef<AuthCrypto | null>(null)
   const active = useRef<{ crypto: AuthCrypto; controller: AbortController } | null>(null)
+  useEffect(() => { onSessionChange(!!session) }, [session,onSessionChange])
   const ownerSetup = !info.setup.setup_complete && !created
   const register = ownerSetup || signup
   useEffect(() => { if (ownerSetup) return; const controller = new AbortController();void new HearthClient(url).registration({signal:controller.signal}).then(value => setRegistrationMode(value.registration_mode)).catch(() => {});return () => controller.abort() },[ownerSetup,url])
@@ -121,27 +125,36 @@ export function AuthPanel({ url, info, setupFinished,configured }: { url: string
     unlocked.current?.close(); unlocked.current = null; setDevice(null); setUnlinked(false)
     setClientCrypto(null)
     setSession(null)
-    setError('')
+    setError(''); setPanel(null)
     try { await new HearthClient(url).logout(token) }
     catch { setError('Signed out on this device. The server session could not be revoked; it expires within 24 hours.') }
   }
-  return <section className="auth-panel" aria-labelledby="auth-heading">
-    <h2 id="auth-heading">{session ? `Welcome, ${session.account.username}.` : ownerSetup ? 'Set up your server' : signup ? 'Create your account' : 'Sign in'}</h2>
-    {session ? <>
-      <p>You’re signed in{session.account.owner ? ' as the server owner' : ''}.</p>
-      {device && <div className="device-status">
-        <p className="device-ready">This device is ready.</p>
-        <small>{identityStorageLabel()} protects your account and device keys. Signing out locks them.</small>
-        <details><summary>Identity fingerprint</summary><code>{device.identity_key.match(/.{1,4}/g)?.join(' ')}</code><small>Keep this fingerprint when checking your account’s identity.</small></details>
-      </div>}
-      {unlinked && <p className="input-error">This install isn’t linked to your account. Use an approved device or your recovery kit below.</p>}
-      {!device && !unlinked && <p className="input-error">Your account is signed in, but its keys could not be unlocked. Sign out and try again after resolving the storage or identity issue below.</p>}
-      {clientCrypto && device && <ChatPanel crypto={clientCrypto} session={session} device={device} server={info.wellKnown.server_key.toLowerCase()} url={url}/>}
-      {clientCrypto && <RecoveryPanel crypto={clientCrypto} session={session} serverKey={info.wellKnown.server_key.toLowerCase()} url={url} ready={!!device} restored={enrollment => {setDevice(enrollment);setUnlinked(false)}}/>}
-      {session.account.owner && <AdminPanel session={session} url={url} configured={settings => {setRegistrationMode(settings.registration_mode);configured(settings)}}/>}
-      <button className="retry-button" onClick={() => void signOut()}>Sign out</button>
-    </> : <>
-      <p>{ownerSetup ? 'Create the owner account using the setup code from your server’s installer.' : signup ? registrationMode === 'invite' ? 'Enter the invite code shared by this server’s owner.' : 'Create an account on this server.' : 'Use your existing account on this server.'}</p>
+  const accountControls = <div className="account-controls">
+    <div className="account-avatar">{session?.account.username.slice(0,2).toUpperCase()}</div>
+    <div className="account-label"><strong>{session?.account.username}</strong><small>{session?.account.owner ? 'Server owner' : 'Signed in'}</small></div>
+    <button className="icon-button" aria-label="Account & devices" title="Account & devices" onClick={() => setPanel('account')}><Icon name="settings" /></button>
+  </div>
+  if (session) return <div className="authenticated-shell">
+    {clientCrypto && device ? <ChatPanel crypto={clientCrypto} session={session} device={device} server={info.wellKnown.server_key.toLowerCase()} url={url}
+      accountControls={accountControls} serverControls={session.account.owner ? <button className="sidebar-action" onClick={() => setPanel('server')}><Icon name="server" />Server settings</button> : null} /> :
+      <section className="auth-screen"><h1>Finish linking this device</h1><p>{unlinked ? 'Sign-in worked. Link this install from an approved device or restore your recovery kit to open your messages.' : 'Your account is signed in, but its keys could not be unlocked. Resolve the storage or identity issue before continuing.'}</p>
+        {clientCrypto && <RecoveryPanel crypto={clientCrypto} session={session} serverKey={info.wellKnown.server_key.toLowerCase()} url={url} ready={false} restored={enrollment => {setDevice(enrollment);setUnlinked(false)}} />}
+        <button onClick={() => void signOut()}>Sign out</button></section>}
+    {panel === 'account' && <Modal title="Account & devices" description="Keep your identity safe and connect your other devices." onClose={() => setPanel(null)}>
+      <p>Signed in as <strong>{session.account.username}</strong>.</p>
+      {device && <div className="device-status"><p className="device-ready">This device is ready.</p><small>{identityStorageLabel()} protects your account and device keys. Signing out locks them.</small>
+        <details><summary>Identity fingerprint</summary><code>{device.identity_key.match(/.{1,4}/g)?.join(' ')}</code><small>Compare this fingerprint with your friends using a trusted channel.</small></details></div>}
+      {clientCrypto && <RecoveryPanel crypto={clientCrypto} session={session} serverKey={info.wellKnown.server_key.toLowerCase()} url={url} ready={!!device} restored={enrollment => {setDevice(enrollment);setUnlinked(false)}} />}
+      <button className="danger-button" onClick={() => void signOut()}>Sign out</button>
+    </Modal>}
+    {panel === 'server' && session.account.owner && <Modal title="Server settings" description="Manage this server’s name and who can create an account. Community settings apply to each group separately." onClose={() => setPanel(null)}>
+      <AdminPanel session={session} url={url} configured={settings => {setRegistrationMode(settings.registration_mode);configured(settings)}} />
+    </Modal>}
+    {error && <p className="input-error workspace-error" role="alert">{error}</p>}
+  </div>
+  return <section className="auth-screen auth-panel" aria-labelledby="auth-heading">
+    <div className="auth-intro"><p className="eyebrow">{info.wellKnown.server_name}</p><h1 id="auth-heading">{ownerSetup ? 'Set up your server' : signup ? 'Create your account' : 'Welcome back.'}</h1>
+      <p>{ownerSetup ? 'Create the owner account using the setup code from your server’s installer.' : signup ? registrationMode === 'invite' ? 'Enter the account invite shared by this server’s owner. Community invites are used after signing in.' : 'Create an account on this server.' : 'Sign in to open your messages and communities.'}</p></div>
       <form onSubmit={(event) => void authenticate(event)} aria-busy={busy}>
         <fieldset disabled={busy}>
           {ownerSetup && <><label htmlFor="setup-code">Setup code</label><input id="setup-code" name="setup-code" type="password" required minLength={64} maxLength={64} autoComplete="off" /><small>Run the installer with --show-setup-code on the server to retrieve it.</small></>}
@@ -155,7 +168,7 @@ export function AuthPanel({ url, info, setupFinished,configured }: { url: string
       </form>
       {!ownerSetup && registrationMode !== 'closed' && <button type="button" className="retry-button" disabled={busy} onClick={() => {setSignup(!signup);setError('')}}>{signup ? 'Already have an account? Sign in' : 'Create an account'}</button>}
       <small>Your password stays on this device. Reloading or changing servers signs you out of this client.</small>
-    </>}
+
     {error && <p className="input-error" role="alert">{error}</p>}
   </section>
 }

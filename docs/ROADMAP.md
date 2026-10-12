@@ -75,8 +75,9 @@ messaging outcomes; Linux passes ten isolated repetitions. SQLCipher and OS-stor
 browser media regressions, Docker and Podman pass. [ADR 0008](adr/0008-encrypted-direct-messages.md)
 records the slice's scope and limits. The next checkpoint is the
 [two-PC encrypted DM test](TWO_PC_DM_TEST.md) using the prepared Windows installer and
-optional public-IP HTTPS front end. Public certificate issuance and two-house reachability
-remain part of that human test. Phase 2 now uses a separate development checkout;
+optional public-IP HTTPS front end. Public certificate issuance and trusted public-IP
+health now pass from the host PC; two-house reachability remains part of the human test.
+Phase 2 now uses a separate development checkout;
 PR #2 remains a draft. The original server/data are preserved; the old bundle files
 were replaced by the validated Phase 2 bundle on 2026-10-09.
 
@@ -125,8 +126,10 @@ and [the development guide](PHASE2_DEVELOPMENT.md) record scope and limits.
 
 The versioned `7cc8852` Windows/server bundle passes eight assembled-artifact checks;
 its HTTPS proxy configuration validates. Old Phase 1 bundle files are removed, with the
-running server and data preserved. Follow [the two-PC Phase 2 guide](TWO_PC_PHASE2_TEST.md).
-WAN/clean buddy-PC installation and the separate 50-person/week exit criterion remain open.
+server data preserved. Follow [the two-PC Phase 2 guide](TWO_PC_PHASE2_TEST.md).
+Live Let's Encrypt IP certificate issuance and trusted HTTPS health from the host PC
+pass on 2026-10-09. Another-network reachability, clean buddy-PC installation and the
+separate 50-person/week exit criterion remain open.
 
 - [x] Communities, categories, text/announcement channel records and invites (expiry, max uses).
 - [x] MLS group per channel, server-authorized roster sync and online rekey agent (128-device initial bound).
@@ -148,13 +151,34 @@ attachment canary passes.
 
 **Goal:** communities can govern themselves safely.
 
-- Roles, the permission bitset, channel overrides, and ownership transfer.
-- A content-free audit log.
-- Bans (channel, user, and server-wide), kicks, timeouts, slow mode, and rate limits.
-- Verifiable reports (plaintext + MLS signature + context), and a moderator queue.
-- Retention policies, per-user data export, and account deletion.
-- Onboarding flows, rules screening, and forum channels and polls.
-- Web Push with generic payloads.
+- [x] Menu and navigation usability pass: preserve the current palette and overall feel.
+  Use persistent community/channel navigation, move setup and management into focused
+  panels, and give common actions clear labels, visible focus and keyboard navigation.
+  Use feedback from the two-PC test to prioritize confusing or repetitive steps.
+
+  Local 2026-10-11 validation passes 29 two-client Chrome checks, including Add Server,
+  focus/Escape, preserved drafts and keys, and a 430-pixel layout.
+
+Phase 3 is in progress on `codex/phase3-navigation`. Local validation passes 57 real
+HTTP/product-WASM checks and the 29-check Chrome UI suite. Native Rust, web build,
+clippy, WASM and generated-protocol checks pass. [ADR 0013](adr/0013-signed-community-governance.md)
+and [the development guide](PHASE3_DEVELOPMENT.md) record the implementation and limits.
+Hosted and packaged Phase 3 validation remain open. The frozen Phase 2 bundle is unchanged.
+
+- [x] Owner-signed roles, active permission bits, assignments and channel overrides; client rollback/tamper rejection and epoch-bound history authorization.
+- [x] READ revocation across REST and gateway, with MLS audience removal before new publishing.
+- [x] Content-free governance audit log and owner management UI.
+- [x] Owner-managed community/channel bans, timeouts, serialized slow mode and existing abuse limits.
+- [x] Signed community rules and read-only screening, digest-bound acceptance and renewed consent after changes.
+- [x] Signed channel retention, immediate read filtering, database ciphertext expiry and retry-digest preservation.
+- [ ] Physical private-S3 retention acceptance (implemented; local Docker daemon unavailable).
+- [ ] Ownership transfer with pinned root and historical authorization continuity.
+- [ ] Delegated moderation, kicks and user/server-wide bans; complete endpoint/gateway permission matrix.
+- [ ] Verifiable reports (plaintext + MLS-authenticated sender proof + selected context), and a moderator queue.
+- [ ] Per-user data export and account deletion.
+- [ ] Forum channels and encrypted polls.
+- [ ] Web Push with generic payloads.
+- [ ] Hosted cross-platform and packaged desktop Phase 3 acceptance.
 
 **Exit:** the permission-matrix test suite is green for every endpoint and gateway op. A
 report is verifiable by a moderator. Retention expiry deletes the ciphertext.

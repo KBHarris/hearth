@@ -11,6 +11,9 @@ import {isInvitation} from './community.ts'
 import type {BlobReservation,BlobUrl} from './protocol.ts'
 
 export * from './protocol.ts'
+export {Permission,permissions} from './governance.ts'
+import {isGovernance,isGovernanceView,isAudit} from './governance.ts'
+import type {Governance,GovernanceView,AuditEntry} from './protocol.ts'
 
 export type ErrorKind = 'invalid_url' | 'http' | 'network' | 'timeout' | 'invalid_response' | 'incompatible' | 'degraded'
 
@@ -77,6 +80,10 @@ export class HearthClient {
   createChannel(token:string,id:string,body:CreateChannel,options?:RequestOptions):Promise<Channel> { checkedId(id);return this.community(`${id}/channels`,token,isChannel,body,options) }
   createCommunityInvite(token:string,id:string,body:CreateCommunityInvite,options?:RequestOptions):Promise<CommunityInvite> { checkedId(id);return this.community(`${id}/invites`,token,isCommunityInvite,body,options) }
   joinCommunity(token:string,code:string,options?:RequestOptions):Promise<Community> { checkedId(code);return this.community('join',token,isCommunity,{code},options) }
+  governance(token:string,id:string,options?:RequestOptions):Promise<GovernanceView>{checkedId(id);return this.community(`${id}/governance`,token,isGovernanceView,undefined,options)}
+  setGovernance(token:string,id:string,policy:Governance,options?:RequestOptions):Promise<Governance>{checkedId(id);return this.community(`${id}/governance`,token,isGovernance,policy,options)}
+  audit(token:string,id:string,options?:RequestOptions):Promise<AuditEntry[]>{checkedId(id);return this.community(`${id}/audit`,token,isAudit,undefined,options)}
+  acceptRules(token:string,id:string,digest:string,options?:RequestOptions):Promise<GovernanceView>{checkedId(id);checkedId(digest);return this.community(`${id}/rules/accept`,token,isGovernanceView,{digest},options)}
   channelRoster(token:string,id:string,options?:RequestOptions):Promise<ChannelRoster> { checkedId(id);return this.community(`channels/${id}/roster`,token,isChannelRoster,undefined,options) }
   communityAuthority(token:string,id:string,value:CommunityAuthority,options?:RequestOptions):Promise<CommunityAuthority>{checkedId(id);return this.community(`${id}/authority`,token,isAuthority,value,options)}
   communityAdmission(token:string,id:string,value:CommunityAdmission,options?:RequestOptions):Promise<CommunityAdmission>{checkedId(id);return this.community(`${id}/admissions`,token,isAdmission,value,options)}

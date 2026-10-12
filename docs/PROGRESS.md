@@ -1,9 +1,28 @@
 # Hearth implementation progress
 
-Updated: 2026-10-09. This file records implementation and validation separately. The
+Updated: 2026-10-11. This file records implementation and validation separately. The
 full product backlog and phase exit criteria are in [ROADMAP.md](ROADMAP.md).
 
 ## Current phase
+
+Phase 3 is in progress on `codex/phase3-navigation`. Persistent navigation and focused
+management dialogs replace the stacked setup/chat screen. Add Server validates
+discovery and server identity before switching. All 29 real two-client Chrome UI
+checks pass, including history/draft preservation, keyboard focus and narrow layout.
+Signed roles, channel overrides, owner-managed bans/timeouts/slow mode, MLS removal,
+content-free audit, signed rules screening and channel retention are implemented.
+The expanded native HTTP/product-WASM suite passes 57 checks, including database
+ciphertext expiry and prevention of retry resurrection. Rust tests/clippy/fmt, web
+typecheck/lint/tests/build, WASM and generated-protocol checks pass. Physical S3
+retention is implemented with a new acceptance case but awaits a running Docker
+daemon or hosted CI. Packaged Phase 3 checks remain open; the local desktop toolchain
+currently lacks a discoverable Visual Studio C++ installation. Ownership transfer,
+delegated moderation/kicks/server bans, reports, account lifecycle, forum/polls and
+Web Push remain open. [ADR 0013](adr/0013-signed-community-governance.md) records the
+security design. The [development guide](PHASE3_DEVELOPMENT.md) gives validation commands.
+The Phase 2 test bundle
+is unchanged for the pending human test. A separate development fixture keeps the
+existing preview running while the new backend is tested.
 
 Phase 0 is complete. [PR #1](https://github.com/KBHarris/hearth/pull/1) merged the verified
 foundations and spike ADRs into `main` on 2026-10-07 (commit `8f6db29`). All 11 final
@@ -18,9 +37,10 @@ and group DMs, gateway/offline delivery and encrypted durable local storage are 
 [PR #2](https://github.com/KBHarris/hearth/pull/2) remains a draft for review; no merge
 has been performed. The next checkpoint is the [two-PC encrypted DM test](TWO_PC_DM_TEST.md).
 The original Phase 1 server and data are preserved. Its bundle files have been replaced
-by the validated Phase 2 Windows/server bundle from `7cc8852`. Public certificate issuance,
-router forwarding, clean installation on the other PC and actual two-house reachability
-remain human acceptance. The full Phase 2 implementation passes 49 HTTP/WASM, 18 Chrome
+by the validated Phase 2 Windows/server bundle from `7cc8852`. Public certificate issuance
+and trusted HTTPS health through the public IP pass from the host PC. Clean installation
+on the other PC and actual two-house reachability remain human acceptance.
+The full Phase 2 implementation passes 49 HTTP/WASM, 18 Chrome
 UI and ten packaged Windows checks; eight assembled-bundle checks also pass.
 [The two-PC guide](TWO_PC_PHASE2_TEST.md) covers DMs and communities. All twelve expanded hosted
 checks pass for `7cc8852` in [run 37925276507](https://github.com/KBHarris/hearth/actions/runs/37925276507); a 50-person community running for a week remains open.
@@ -41,7 +61,7 @@ checks pass for `7cc8852` in [run 37925276507](https://github.com/KBHarris/heart
 | MLS delivery, authenticated gateway, DMs and group DMs | Complete | 23 HTTP/WASM outcomes, browser checks and all three packaged webview runtimes pass |
 | Encrypted message store | Complete | Browser IndexedDB and Windows/Linux/macOS SQLCipher/OS-store CAS, new-process, canary and missing-key checks pass |
 | Phase 1 exit criteria | Complete | All 12 hosted jobs pass for implementation 43ac92b |
-| Two-PC public HTTPS DM test | Prepared | Installer/guide and local proxy checks ready; actual WAN reachability and clean buddy-PC installation remain untested |
+| Two-PC public HTTPS DM test | Host HTTPS verified | Let's Encrypt IP certificate and trusted public-IP health pass from the host PC; another-network reachability and clean buddy-PC installation remain untested |
 | Phase 2 community structure and invitations | Implemented | Membership/invite boundaries and all 12 hosted jobs pass for 7cc8852 |
 | Phase 2 channel MLS and encrypted text | Implemented | 49 HTTP/WASM, 18 local UI, 16 hosted UI and all 12 hosted jobs pass for 7cc8852 |
 | Phase 2 client-verifiable admission | Implemented | Owner-signed grants/policies, pinned roots and malicious delivery-host rejection pass native and HTTP/WASM checks |
@@ -54,6 +74,25 @@ checks pass for `7cc8852` in [run 37925276507](https://github.com/KBHarris/heart
 | Threat model | Draft maintained | Discovery exposure and saved server address documented; no independent security audit |
 
 ## Iteration log
+
+### 2026-10-09: live Phase 2 public-IP HTTPS setup
+
+- Caddy obtained a publicly trusted Let's Encrypt certificate for the configured public IPv4.
+  Windows curl and Node HTTPS passed the public-IP health check with certificate verification.
+- The installer's Node fetch initially timed out; a later fetch and a complete rerun of
+  `node deploy/setup.mjs --https` passed. The exact transient cause remains unconfirmed.
+  No certificate trust bypass, firewall change or installer patch was needed.
+- The existing Phase 2 stack and data were reused. The friend must use the HTTPS public
+  address on the standard port 443; port 8182 remains the host-only backend.
+  Another-network connectivity and the actual two-person messaging test remain open.
+
+### 2026-10-09: menu usability direction
+
+- The user likes the current overall feel and color scheme and wants menus to become
+  better-looking and easier to use. Preserve that visual direction while simplifying
+  navigation and separating everyday chat from setup/management forms.
+- Added a Phase 3 navigation/usability task, guided by feedback from the two-PC test.
+  This records design direction; the validated Phase 2 bundle and running server are unchanged.
 
 ### 2026-10-09: Phase 2 implementation ready for two-PC acceptance
 

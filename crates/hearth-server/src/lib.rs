@@ -10,8 +10,10 @@ pub mod config;
 pub mod delivery;
 pub mod device;
 pub mod gateway;
+mod governance;
 pub mod keys;
 pub mod registration;
+pub mod retention;
 pub mod routes;
 
 use std::sync::Arc;

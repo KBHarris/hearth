@@ -73,15 +73,15 @@ jobs:
       - run: npm run spike:tools
       - run: cargo test -p hearth-server --test auth --test device --test delivery -- --ignored
       - run: node scripts/verify-storage-permissions.mjs
-      - run: node scripts/verify-auth.mjs --storage
+      - run: node scripts/verify-auth.mjs --storage --phase3
         timeout-minutes: 8
         env:
           HEARTH_TEST_POSTGRES_CONTAINER: ${{ job.services.postgres.id }}
       - uses: actions/upload-artifact@v4
         if: always()
         with:
-          name: phase1-auth
-          path: target/phase1-evidence/
+          name: phase3-auth
+          path: target/phase3-evidence/
 
   web:
     runs-on: ubuntu-latest
@@ -184,12 +184,12 @@ jobs:
       - name: Windows community and encrypted channel UI acceptance
         if: runner.os == 'Windows'
         timeout-minutes: 10
-        run: node scripts/verify-community-ui.mjs
+        run: node scripts/verify-community-ui.mjs --phase3
       - uses: actions/upload-artifact@v4
         if: always() && runner.os == 'Windows'
         with:
-          name: phase2-community-ui-windows
-          path: target/phase2-evidence/
+          name: phase3-community-ui-windows
+          path: target/phase3-evidence/
       - run: npm run spike:media:build
       - run: cargo build -p hearth-desktop --features phase0-spike
       - run: node scripts/verify-desktop-mls.mjs

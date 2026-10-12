@@ -80,6 +80,12 @@ async fn main() -> anyhow::Result<()> {
             {
                 tracing::warn!("expired encrypted upload cleanup unavailable");
             }
+            if hearth_server::retention::cleanup(&cleanup_state)
+                .await
+                .is_err()
+            {
+                tracing::warn!("retained ciphertext cleanup unavailable");
+            }
         }
     });
     axum::serve(listener, router(state))

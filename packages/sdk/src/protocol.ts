@@ -4,6 +4,28 @@
 
 export const PROTOCOL_VERSION = 1 as const
 
+export type Role = { id: string, name: string, permissions: number, };
+
+export type RoleAssignment = { account_id: string, role_ids: Array<string>, };
+
+export type OverrideKind = "everyone" | "role" | "member";
+
+export type PermissionOverride = { channel_id: string, kind: OverrideKind, target_id: string, allow: number, deny: number, };
+
+export type SanctionKind = "ban" | "kick" | "timeout";
+
+export type Sanction = { account_id: string, channel_id: string | null, kind: SanctionKind, until: number | null, };
+
+export type ChannelLimits = { channel_id: string, slowmode_seconds: number, retention_days: number | null, };
+
+export type Governance = { community_id: string, revision: number, everyone: number, roles: Array<Role>, assignments: Array<RoleAssignment>, overrides: Array<PermissionOverride>, sanctions: Array<Sanction>, limits: Array<ChannelLimits>, rules: string, screening: boolean, owner: GroupMember, signature: string, };
+
+export type GovernanceView = { governance: Governance | null, members: Array<Account>, rules_accepted: boolean, };
+
+export type RulesAcceptance = { digest: string, };
+
+export type AuditEntry = { revision: number, actor_id: string, action: string, digest: string, };
+
 export type CreateCommunity = { name: string, };
 
 export type Community = { id: string, name: string, owner_id: string, };
@@ -16,7 +38,7 @@ export type CreateChannel = { name: string, category_id: string | null, kind: Ch
 
 export type Channel = { id: string, community_id: string, name: string, category_id: string | null, kind: ChannelKind, };
 
-export type ChannelRoster = { community: Community, channel: Channel, people: Array<Person>, authority: CommunityAuthority | null, policy: ChannelPolicy | null, admissions: Array<CommunityAdmission>, invitations: Array<MemberInvitation>, };
+export type ChannelRoster = { community: Community, channel: Channel, people: Array<Person>, authority: CommunityAuthority | null, policy: ChannelPolicy | null, admissions: Array<CommunityAdmission>, invitations: Array<MemberInvitation>, governance?: Governance, rules_accepted?: boolean, };
 
 export type CommunityAuthority = { community_id: string, owner: GroupMember, signature: string, };
 
@@ -30,7 +52,7 @@ export type HistoryPolicy = "none" | "since_invite" | "full";
 
 export type ChannelPolicy = { channel_id: string, community_id: string, kind: ChannelKind, history: HistoryPolicy, revision: number, created_at: number, history_open_for: Array<string>, owner: GroupMember, signature: string, };
 
-export type ChannelAuthorization = { authority: CommunityAuthority, policy: ChannelPolicy, admissions: Array<CommunityAdmission>, };
+export type ChannelAuthorization = { authority: CommunityAuthority, policy: ChannelPolicy, admissions: Array<CommunityAdmission>, governance?: Governance, };
 
 export type CommunityStructure = { community: Community, categories: Array<Category>, channels: Array<Channel>, authority: CommunityAuthority | null, };
 

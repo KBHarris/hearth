@@ -155,6 +155,21 @@ async fn access(
     let mut tx = state.db.begin().await.map_err(unavailable)?;
     if let Some(channel) = crate::community::channel_access(&mut tx, conversation, &account).await?
     {
+        if publishing
+            && crate::governance::bits(
+                &mut tx,
+                &channel.community_id,
+                &channel.owner_id,
+                &account,
+                Some(conversation),
+                channel.governance.as_ref(),
+            )
+            .await?
+                & (hearth_proto::governance::SEND | hearth_proto::governance::ATTACH)
+                != (hearth_proto::governance::SEND | hearth_proto::governance::ATTACH)
+        {
+            return Err(StatusCode::FORBIDDEN);
+        }
         if channel.authority.is_none()
             || channel.policy.is_none()
             || (publishing && channel.announcement && channel.owner_id != account)
@@ -330,6 +345,9 @@ async fn download(
     if !exists {
         return Err(StatusCode::NOT_FOUND);
     }
+    if crate::retention::expired_blob(&state, &conversation, &id).await? {
+        return Err(StatusCode::GONE);
+    }
     let storage = state
         .config
         .storage
@@ -367,6 +385,33 @@ pub async fn cleanup_expired(state: &SharedState) -> std::result::Result<(), Sta
                 .await
                 .map_err(unavailable)?;
         }
+    }
+    Ok(())
+}
+
+/// Delete storage objects before forgetting their IDs; failed deletes remain retryable.
+pub async fn cleanup_retained(state: &SharedState) -> std::result::Result<(), StatusCode> {
+    let Some(storage) = &state.config.storage else {
+        return Ok(());
+    };
+    let rows = sqlx::query("SELECT id,conversation_id FROM encrypted_blobs WHERE hearth_retention_expired(conversation_id,created_at) ORDER BY created_at LIMIT 32")
+        .fetch_all(&state.db).await.map_err(unavailable)?;
+    for row in rows {
+        let id: String = row.get("id");
+        let conversation: String = row.get("conversation_id");
+        let response = storage
+            .bucket(false)?
+            .delete_object(format!("{conversation}/{id}"))
+            .await
+            .map_err(|_| StatusCode::SERVICE_UNAVAILABLE)?;
+        if !matches!(response.status_code(), 200 | 204 | 404) {
+            return Err(StatusCode::SERVICE_UNAVAILABLE);
+        }
+        sqlx::query("DELETE FROM encrypted_blobs WHERE id=$1")
+            .bind(id)
+            .execute(&state.db)
+            .await
+            .map_err(unavailable)?;
     }
     Ok(())
 }

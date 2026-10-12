@@ -8,6 +8,7 @@ pub mod auth;
 pub mod community;
 pub mod device;
 pub mod gateway;
+pub mod governance;
 pub mod messaging;
 
 #[cfg(feature = "typescript")]

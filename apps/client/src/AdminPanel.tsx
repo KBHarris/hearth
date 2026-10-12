@@ -21,7 +21,7 @@ export function AdminPanel({session,url,configured}:{session:Session;url:string;
     catch(error) {setError(error instanceof Error ? error.message : 'Could not create an invite.')}
     finally {setBusy(false)}
   }
-  return <details className="recovery-panel"><summary>Server settings</summary>
+  return <section className="recovery-panel">
     {settings && <form onSubmit={event => void save(event)}><fieldset disabled={busy}>
       <label htmlFor="server-name">Server name</label><input id="server-name" name="server-name" defaultValue={settings.server_name} required maxLength={80}/>
       <label htmlFor="registration-mode">Registration</label><select id="registration-mode" name="registration-mode" defaultValue={settings.registration_mode}>
@@ -33,5 +33,5 @@ export function AdminPanel({session,url,configured}:{session:Session;url:string;
     <button type="button" disabled={busy} onClick={() => void createInvite()}>Create account invite</button>
     {invite && <><label htmlFor="account-invite">Single-use account invite</label><input id="account-invite" readOnly value={invite}/></>}
     {error && <p className="input-error" role="alert">{error}</p>}
-  </details>
+  </section>
 }

@@ -78,6 +78,12 @@ struct ClientState {
     #[serde(default)]
     channels: BTreeMap<String, ChannelAuthorization>,
     #[serde(default)]
+    governance: BTreeMap<String, hearth_proto::governance::Governance>,
+    #[serde(default)]
+    epoch_authorizations: BTreeMap<String, BTreeMap<u64, ChannelAuthorization>>,
+    #[serde(default)]
+    epoch_rosters: BTreeMap<String, BTreeMap<u64, Vec<GroupMember>>>,
+    #[serde(default)]
     profiles: BTreeMap<String, LocalProfile>,
     #[serde(default)]
     presence: BTreeMap<String, LocalPresence>,
@@ -111,6 +117,7 @@ struct Snapshot {
 #[derive(Serialize)]
 pub struct MessagingView {
     pub last_seq: u64,
+    pub governance_epochs: BTreeMap<String, u64>,
     pub messages: Vec<LocalMessage>,
     pub pending: Vec<PendingOperation>,
     pub pending_packages: Vec<KeyPackageRecord>,
@@ -147,11 +154,28 @@ fn channel_action_allowed(
     if account == auth.authority.owner.account_id {
         return true;
     }
-    if action == MessageAction::Pin {
+    let required = match action {
+        MessageAction::Pin => hearth_proto::governance::PIN,
+        MessageAction::Reaction => hearth_proto::governance::REACT,
+        MessageAction::Control => hearth_proto::governance::READ,
+        _ => hearth_proto::governance::SEND,
+    };
+    if hearth_proto::governance::permissions(
+        auth.governance.as_ref(),
+        &auth.authority.owner.account_id,
+        account,
+        Some(&auth.policy.channel_id),
+        u64::MAX,
+    ) & required
+        == 0
+    {
         return false;
     }
     auth.policy.kind != ChannelKind::Announcement
-        || matches!(action, MessageAction::Reaction | MessageAction::Control)
+        || matches!(
+            action,
+            MessageAction::Reaction | MessageAction::Control | MessageAction::Pin
+        )
 }
 pub fn random_id() -> String {
     let mut bytes = [0; 32];
@@ -606,6 +630,81 @@ impl Messaging {
             .insert(authority.community_id.clone(), pin);
         Ok(())
     }
+    fn record_epoch(
+        &mut self,
+        id: &str,
+        authorization: Option<&ChannelAuthorization>,
+    ) -> Result<(), String> {
+        let epoch = self.groups.get(id).ok_or(ERROR)?.epoch().as_u64();
+        let roster = self.roster(id)?;
+        let rosters = self.state.epoch_rosters.entry(id.into()).or_default();
+        rosters.insert(epoch, roster);
+        rosters.retain(|e, _| *e + 1 >= epoch);
+        if let Some(auth) = authorization {
+            let snapshots = self
+                .state
+                .epoch_authorizations
+                .entry(id.into())
+                .or_default();
+            require(snapshots.get(&epoch).is_none_or(|old| old == auth))?;
+            snapshots.insert(epoch, auth.clone());
+            if auth.policy.history == HistoryPolicy::None {
+                snapshots.retain(|e, _| *e + 1 >= epoch);
+            }
+            require(snapshots.len() <= 512)?;
+        }
+        Ok(())
+    }
+    pub fn pin_governance(
+        &mut self,
+        authority: &CommunityAuthority,
+        policy: Option<&hearth_proto::governance::Governance>,
+    ) -> Result<(), String> {
+        self.transaction(|this| {
+            this.pin_authority(authority)?;
+            if let Some(policy) = policy {
+                crate::community::verify_governance(&this.server, authority, policy)?;
+                if let Some(old) = this.state.governance.get(&policy.community_id) {
+                    require(
+                        policy.revision >= old.revision
+                            && (policy.revision != old.revision || policy == old),
+                    )?;
+                }
+                this.state
+                    .governance
+                    .insert(policy.community_id.clone(), policy.clone());
+            } else {
+                require(!this.state.governance.contains_key(&authority.community_id))?;
+            }
+            Ok(())
+        })
+    }
+    pub fn sign_governance(
+        &mut self,
+        authority: &CommunityAuthority,
+        mut policy: hearth_proto::governance::Governance,
+    ) -> Result<hearth_proto::governance::Governance, String> {
+        self.pin_authority(authority)?;
+        require(
+            authority.owner.account_id == self.own.account_id
+                && authority.owner.enrollment.identity_key == self.own.enrollment.identity_key,
+        )?;
+        require(
+            policy.revision
+                == self
+                    .state
+                    .governance
+                    .get(&policy.community_id)
+                    .map_or(1, |p| p.revision + 1),
+        )?;
+        policy.owner = self.own.clone();
+        policy.signature.clear();
+        policy.signature = hex::encode(self.device.sign_scoped(
+            &crate::community::governance_statement(&self.server, &policy)?,
+        ));
+        crate::community::verify_governance(&self.server, authority, &policy)?;
+        Ok(policy)
+    }
     pub fn sign_admission(
         &mut self,
         authority: &CommunityAuthority,
@@ -784,6 +883,17 @@ impl Messaging {
                 require(grant.invitation.as_ref() == Some(expected))?;
             }
             this.pin_authority(&auth.authority)?;
+            // Capture a legacy group's current epoch before accepting a newer policy.
+            if this.groups.contains_key(id)
+                && this
+                    .state
+                    .epoch_rosters
+                    .get(id)
+                    .is_none_or(|r| r.is_empty())
+            {
+                let old = this.state.channels.get(id).cloned();
+                this.record_epoch(id, old.as_ref())?;
+            }
             if let Some(old) = this.state.channels.get(id) {
                 require(
                     old.authority.community_id == auth.authority.community_id
@@ -794,10 +904,26 @@ impl Messaging {
                             || auth.policy == old.policy),
                 )?;
             }
+            if let Some(governance) = &auth.governance {
+                if let Some(old) = this.state.governance.get(&governance.community_id) {
+                    require(
+                        governance.revision >= old.revision
+                            && (governance.revision != old.revision || governance == old),
+                    )?;
+                }
+                this.state
+                    .governance
+                    .insert(governance.community_id.clone(), governance.clone());
+            } else {
+                require(
+                    !this
+                        .state
+                        .governance
+                        .contains_key(&auth.authority.community_id),
+                )?;
+            }
             if this.groups.contains_key(id) {
                 require(this.state.channels.contains_key(id))?;
-                let members = this.roster(id)?;
-                crate::community::verify_authorization(&this.server, id, auth, &members)?;
             }
             this.state.channels.insert(id.into(), auth.clone());
             if this.groups.contains_key(id) {
@@ -954,6 +1080,63 @@ impl Messaging {
             Ok(upload)
         })
     }
+    /// Rotate the epoch and remove only accounts denied by the verified owner policy.
+    pub fn prune_channel(&mut self, id: &str) -> Result<Option<CommitUpload>, String> {
+        self.transaction(|this| {
+            require(!this.state.pending.iter().any(|p| p.conversation() == id))?;
+            let auth = this.state.channels.get(id).ok_or(ERROR)?.clone();
+            require(crate::community::authorized(&auth, &this.own))?;
+            let group = this.groups.get_mut(id).ok_or(ERROR)?;
+            let leaves = group
+                .members()
+                .map(|leaf| {
+                    Ok((
+                        leaf.index,
+                        member(&leaf.credential, &leaf.signature_key, &this.server)?,
+                    ))
+                })
+                .collect::<Result<Vec<_>, String>>()?;
+            let removed = leaves
+                .iter()
+                .filter(|(_, m)| !crate::community::authorized(&auth, m))
+                .map(|(index, _)| *index)
+                .collect::<Vec<_>>();
+            if removed.is_empty() {
+                return Ok(None);
+            }
+            let mut members = leaves
+                .into_iter()
+                .filter(|(_, m)| crate::community::authorized(&auth, m))
+                .map(|(_, m)| m)
+                .collect::<Vec<_>>();
+            members.sort_by(|a, b| a.enrollment.device_key.cmp(&b.enrollment.device_key));
+            let mut upload = CommitUpload {
+                operation_id: random_id(),
+                device_key: this.own.enrollment.device_key.clone(),
+                expected_epoch: group.epoch().as_u64(),
+                members,
+                commit: String::new(),
+                welcomes: vec![],
+                signature: String::new(),
+                authorization: Some(auth),
+            };
+            group.set_aad(commit_aad(id, &upload)?);
+            let (commit, _, _) =
+                fail(group.remove_members(&this.provider, &this.signer, &removed))?;
+            upload.commit = hex::encode(fail(commit.tls_serialize_detached())?);
+            upload.signature = hex::encode(this.device.sign_scoped(&signed_commit(
+                id,
+                &this.server,
+                &upload,
+            )?));
+            verify_commit(id, &this.server, &upload)?;
+            this.state.pending.push(PendingOperation::Commit {
+                conversation_id: id.into(),
+                upload: Box::new(upload.clone()),
+            });
+            Ok(Some(upload))
+        })
+    }
     pub fn accept(&mut self, operation: &str) -> Result<(), String> {
         self.transaction(|this| {
             if let Some(index) = this
@@ -978,6 +1161,7 @@ impl Messaging {
                 fail(group.merge_pending_commit(&this.provider))?;
                 require(group.epoch().as_u64() == upload.expected_epoch + 1)?;
                 this.match_roster(conversation_id, &upload.members)?;
+                this.record_epoch(conversation_id, upload.authorization.as_ref())?;
                 this.capture_history_key(conversation_id)?;
             } else {
                 let content = this.state.pending_contents.remove(operation).ok_or(ERROR)?;
@@ -1051,7 +1235,27 @@ impl Messaging {
             require(!this.state.pending.iter().any(|p| p.conversation() == id))?;
             let (action, target_id) = content_metadata(&content);
             if let Some(auth) = this.state.channels.get(id) {
+                let epoch = this.groups.get(id).ok_or(ERROR)?.epoch().as_u64();
+                let bound = this
+                    .state
+                    .epoch_authorizations
+                    .get(id)
+                    .and_then(|e| e.get(&epoch))
+                    .unwrap_or(auth);
+                require(bound.governance == auth.governance)?;
                 require(crate::community::authorized(auth, &this.own))?;
+                if matches!(content, MessageContent::Attachment { .. }) {
+                    require(
+                        hearth_proto::governance::permissions(
+                            auth.governance.as_ref(),
+                            &auth.authority.owner.account_id,
+                            &this.own.account_id,
+                            Some(id),
+                            u64::MAX,
+                        ) & hearth_proto::governance::ATTACH
+                            != 0,
+                    )?;
+                }
                 require(channel_action_allowed(auth, &this.own.account_id, action))?;
             }
             validate_content(&content)?;
@@ -1196,9 +1400,7 @@ impl Messaging {
                 }
             }
             MessageContent::Pin { id, active } => {
-                if let Some(auth) = self.state.channels.get(group) {
-                    require(auth.authority.owner.account_id == author)?;
-                }
+                // send/receive/history validate the role against the originating epoch.
                 if let Some(message) = self
                     .state
                     .messages
@@ -1309,6 +1511,7 @@ impl Messaging {
                     this.groups.insert(id.clone(), group);
                     this.state.groups.push(id.clone());
                     this.match_roster(id, &upload.members)?;
+                    this.record_epoch(id, upload.authorization.as_ref())?;
                     this.capture_history_key(id)?;
                     this.state
                         .pending_packages
@@ -1359,6 +1562,7 @@ impl Messaging {
                         fail(group.merge_staged_commit(&this.provider, *commit))?;
                         require(group.epoch().as_u64() == upload.expected_epoch + 1)?;
                         this.match_roster(id, &upload.members)?;
+                        this.record_epoch(id, upload.authorization.as_ref())?;
                         this.capture_history_key(id)?;
                     }
                 }
@@ -1381,7 +1585,15 @@ impl Messaging {
                             this.accept(&upload.operation_id)?;
                         }
                     } else {
-                        let peers = this.roster(id)?;
+                        let peers = match this
+                            .state
+                            .epoch_rosters
+                            .get(id)
+                            .and_then(|r| r.get(&upload.epoch))
+                        {
+                            Some(peers) => peers.clone(),
+                            None => this.roster(id)?,
+                        };
                         let peer = peers
                             .iter()
                             .find(|p| p.enrollment.device_key == upload.device_key)
@@ -1392,7 +1604,13 @@ impl Messaging {
                                 .as_ref()
                                 .is_none_or(|archive| archive.member == *peer),
                         )?;
-                        if let Some(auth) = this.state.channels.get(id) {
+                        let bound = this
+                            .state
+                            .epoch_authorizations
+                            .get(id)
+                            .and_then(|e| e.get(&upload.epoch))
+                            .or_else(|| this.state.channels.get(id));
+                        if let Some(auth) = bound {
                             require(crate::community::authorized(auth, peer))?;
                             require(channel_action_allowed(
                                 auth,
@@ -1416,6 +1634,20 @@ impl Messaging {
                         let plaintext = Zeroizing::new(message.into_bytes());
                         let content: MessageContent = fail(serde_json::from_slice(&plaintext))?;
                         validate_content(&content)?;
+                        if matches!(content, MessageContent::Attachment { .. })
+                            && let Some(auth) = bound
+                        {
+                            require(
+                                hearth_proto::governance::permissions(
+                                    auth.governance.as_ref(),
+                                    &auth.authority.owner.account_id,
+                                    &peer.account_id,
+                                    Some(id),
+                                    u64::MAX,
+                                ) & hearth_proto::governance::ATTACH
+                                    != 0,
+                            )?;
+                        }
                         require(
                             content_metadata(&content) == (upload.action, upload.target_id.clone()),
                         )?;
@@ -1454,6 +1686,21 @@ impl Messaging {
         }
         Ok(MessagingView {
             last_seq: self.state.last_seq,
+            governance_epochs: self
+                .groups
+                .iter()
+                .map(|(id, g)| {
+                    (
+                        id.clone(),
+                        self.state
+                            .epoch_authorizations
+                            .get(id)
+                            .and_then(|e| e.get(&g.epoch().as_u64()))
+                            .and_then(|a| a.governance.as_ref())
+                            .map_or(0, |p| p.revision),
+                    )
+                })
+                .collect(),
             messages: self.state.messages.clone(),
             pending: self.state.pending.clone(),
             pending_packages: self.state.pending_packages.clone(),
@@ -1633,6 +1880,162 @@ mod tests {
         }
     }
     #[test]
+    fn governance_epoch_binding_preserves_queued_messages_and_removes_denied_members() {
+        use hearth_proto::governance::*;
+        let server = random_id();
+        let community = random_id();
+        let id = random_id();
+        let owner_id = random_id();
+        let member_id = random_id();
+        let owner_identity = LocalIdentity::new();
+        let member_identity = LocalIdentity::new();
+        let mut owner = Messaging::new(&owner_identity, &owner_id, &server).unwrap();
+        let mut member = Messaging::new(&member_identity, &member_id, &server).unwrap();
+        let authority = owner.sign_authority(&community).unwrap();
+        let policy = owner
+            .sign_policy(&authority, &id, ChannelKind::Text, HistoryPolicy::None, 1)
+            .unwrap();
+        let package = member.key_package().unwrap();
+        let grant = owner
+            .sign_admission(
+                &authority,
+                &member_id,
+                &package.member.enrollment.identity_key,
+                BTreeMap::new(),
+            )
+            .unwrap();
+        let mut auth = ChannelAuthorization {
+            authority: authority.clone(),
+            policy,
+            admissions: vec![grant],
+            governance: None,
+        };
+        owner.authorize_channel(&id, &auth).unwrap();
+        let initial = owner.add_channel(&id, &[package], true).unwrap();
+        owner.accept(&initial.operation_id).unwrap();
+        member
+            .receive(&event(
+                1,
+                &id,
+                DeliveryData::Welcome {
+                    welcome: initial.welcomes[0].clone(),
+                    upload: initial,
+                },
+            ))
+            .unwrap();
+        let g = owner
+            .sign_governance(
+                &authority,
+                Governance {
+                    community_id: community,
+                    revision: 1,
+                    everyone: DEFAULT,
+                    roles: vec![],
+                    assignments: vec![],
+                    overrides: vec![],
+                    sanctions: vec![],
+                    limits: vec![],
+                    rules: String::new(),
+                    screening: false,
+                    owner: authority.owner.clone(),
+                    signature: String::new(),
+                },
+            )
+            .unwrap();
+        auth.governance = Some(g);
+        owner.authorize_channel(&id, &auth).unwrap();
+        assert!(
+            owner
+                .send(
+                    &id,
+                    MessageContent::Text {
+                        text: "wait for rotation".into(),
+                        reply_to: None
+                    }
+                )
+                .is_err()
+        );
+        let rotate = owner.add_channel(&id, &[], false).unwrap();
+        owner.accept(&rotate.operation_id).unwrap();
+        member
+            .receive(&event(2, &id, DeliveryData::Commit { upload: rotate }))
+            .unwrap();
+        let inflight = member
+            .send(
+                &id,
+                MessageContent::Text {
+                    text: "accepted before role change".into(),
+                    reply_to: None,
+                },
+            )
+            .unwrap();
+        member.accept(&inflight.operation_id).unwrap();
+        let mut next = auth.governance.clone().unwrap();
+        next.revision = 2;
+        next.overrides.push(PermissionOverride {
+            channel_id: id.clone(),
+            kind: OverrideKind::Member,
+            target_id: member_id.clone(),
+            allow: 0,
+            deny: SEND,
+        });
+        auth.governance = Some(owner.sign_governance(&authority, next).unwrap());
+        owner.authorize_channel(&id, &auth).unwrap();
+        let rotate = owner.add_channel(&id, &[], false).unwrap();
+        owner.accept(&rotate.operation_id).unwrap();
+        member
+            .receive(&event(3, &id, DeliveryData::Commit { upload: rotate }))
+            .unwrap();
+        owner
+            .receive(&event(1, &id, DeliveryData::Message { upload: inflight }))
+            .unwrap();
+        assert_eq!(
+            owner.view().unwrap().messages[0].text,
+            "accepted before role change"
+        );
+        assert!(
+            member
+                .send(
+                    &id,
+                    MessageContent::Text {
+                        text: "new denied post".into(),
+                        reply_to: None
+                    }
+                )
+                .is_err()
+        );
+        member.state.channels.remove(&id);
+        let attack = member
+            .send(
+                &id,
+                MessageContent::Text {
+                    text: "bypassed own client".into(),
+                    reply_to: None,
+                },
+            )
+            .unwrap();
+        assert!(
+            owner
+                .receive(&event(2, &id, DeliveryData::Message { upload: attack }))
+                .is_err()
+        );
+        let mut next = auth.governance.clone().unwrap();
+        next.revision = 3;
+        next.overrides[0].deny = READ;
+        auth.governance = Some(owner.sign_governance(&authority, next).unwrap());
+        owner.authorize_channel(&id, &auth).unwrap();
+        let removed = owner.prune_channel(&id).unwrap().unwrap();
+        assert_eq!(removed.members.len(), 1);
+        owner.accept(&removed.operation_id).unwrap();
+        assert_eq!(owner.view().unwrap().groups[0].members.len(), 1);
+        let preserved = owner.seal().unwrap();
+        let restored = Messaging::open(&owner_identity, &owner_id, &server, &preserved).unwrap();
+        assert_eq!(
+            restored.state.governance.values().next().unwrap().revision,
+            3
+        );
+    }
+    #[test]
     fn later_channel_history_requires_explicit_signed_invite_id() {
         for permitted in [false, true] {
             let owner_identity = LocalIdentity::new();
@@ -1684,6 +2087,7 @@ mod tests {
                     &ChannelAuthorization {
                         authority,
                         policy,
+                        governance: None,
                         admissions: vec![grant],
                     },
                 )
@@ -1730,6 +2134,7 @@ mod tests {
             let mut auth = ChannelAuthorization {
                 authority: authority.clone(),
                 policy,
+                governance: None,
                 admissions: vec![],
             };
             owner.authorize_channel(&id, &auth).unwrap();
@@ -1921,6 +2326,7 @@ mod tests {
         let mut authorization = ChannelAuthorization {
             authority: authority.clone(),
             policy,
+            governance: None,
             admissions: vec![],
         };
         owner.authorize_channel(&id, &authorization).unwrap();

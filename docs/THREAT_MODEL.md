@@ -281,3 +281,46 @@ The host file is not made readable to other users.
 - Traffic analysis by an operator (timing, sizes, and membership are visible to the home
   server).
 - A compromised client device.
+
+
+## Phase 3 governance metadata (implementation in progress)
+
+`communities.governance` stores owner-signed public roles, permission bits, account-role
+assignments, channel overrides, bans/timeouts, channel limits and optional rules. These
+are host-visible administration metadata, never message plaintext. Signatures bind
+the server identity and community root. Clients retain the highest observed revision
+and reject rollback/removal of a pinned policy. Existing clients must upgrade before
+a host enables governance: commits omitting the current snapshot are rejected.
+Owner access cannot be denied; signed admission and policy edits remain owner-managed.
+Management bits are reserved until delegation is implemented.
+
+`community_audit` records community ID, revision, actor ID, action, snapshot digest and
+time. It excludes message content and moderation reasons, persists for the community
+lifetime and can remain in backups. It is not an external transparency log.
+`community_rules_acceptance` records community/account IDs, accepted rules digest
+and acceptance time; changed rules require a new acknowledgement when screening is enabled.
+
+Read revocation blocks REST history, roster and blobs and replaces shared HTTP/gateway
+backlog content with ordering markers. New uploads are blocked while a denied member
+remains in the MLS group; an online authorized device removes it before posting resumes.
+Previously received keys/plaintext/backups cannot be recalled. Issued blob leases can
+remain valid for five minutes. Timeouts and slow mode are authenticated host controls;
+clients enforce signed static permissions independently of the host, not sender clocks.
+
+Channel epochs retain verified authorization snapshots and actual member device proofs
+in the encrypted client store. Historical message validation uses that epoch's roles;
+history key handoffs encrypt those snapshots to the selected device. They disclose no
+additional plaintext to the host. A bounded cache limits history handoff and store size.
+
+Rules screening permits reading before acceptance and blocks posting, reactions, pins
+and file uploads. Rules themselves are public metadata, limited to 4,096 bytes. The host
+sees each member's consent digest/time; it is not a cryptographic confidentiality gate.
+
+Retention days and slow-mode seconds are public signed channel metadata. Reads immediately
+filter expired message ciphertext. A minute-based worker deletes archives and redacts
+stored delivery events, preserving cursor markers, idempotency digests and MLS commit/
+Welcome material for offline devices. Blob objects are deleted before their index rows;
+failed storage deletion remains retryable. Expired blobs cannot obtain new download
+leases. Existing leases, recipient copies, WAL/storage recovery and host backups cannot
+be recalled; physical backup expiry remains an operator responsibility. A dishonest host
+can retain ciphertext outside this cleanup mechanism.

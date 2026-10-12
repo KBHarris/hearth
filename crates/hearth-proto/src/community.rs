@@ -11,6 +11,12 @@ pub struct ChannelRoster {
     pub policy: Option<ChannelPolicy>,
     pub admissions: Vec<CommunityAdmission>,
     pub invitations: Vec<MemberInvitation>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[cfg_attr(feature = "typescript", ts(optional))]
+    pub governance: Option<crate::governance::Governance>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[cfg_attr(feature = "typescript", ts(optional))]
+    pub rules_accepted: Option<bool>,
 }
 
 #[derive(Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -86,6 +92,9 @@ pub struct ChannelAuthorization {
     pub authority: CommunityAuthority,
     pub policy: ChannelPolicy,
     pub admissions: Vec<CommunityAdmission>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[cfg_attr(feature = "typescript", ts(optional))]
+    pub governance: Option<crate::governance::Governance>,
 }
 
 #[derive(Clone, Serialize, Deserialize)]

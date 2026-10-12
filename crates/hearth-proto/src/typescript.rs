@@ -10,6 +10,17 @@ use crate::{
 pub fn generate() -> String {
     let config = Config::new();
     let declarations = [
+        crate::governance::Role::decl(&config),
+        crate::governance::RoleAssignment::decl(&config),
+        crate::governance::OverrideKind::decl(&config),
+        crate::governance::PermissionOverride::decl(&config),
+        crate::governance::SanctionKind::decl(&config),
+        crate::governance::Sanction::decl(&config),
+        crate::governance::ChannelLimits::decl(&config),
+        crate::governance::Governance::decl(&config),
+        crate::governance::GovernanceView::decl(&config),
+        crate::governance::RulesAcceptance::decl(&config),
+        crate::governance::AuditEntry::decl(&config),
         crate::community::CreateCommunity::decl(&config),
         crate::community::Community::decl(&config),
         crate::community::Category::decl(&config),

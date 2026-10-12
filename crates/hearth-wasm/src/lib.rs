@@ -203,6 +203,25 @@ impl AuthClient {
                         .map_err(error)?,
                 )
             }
+            "pin_governance" => {
+                let v: serde_json::Value = serde_json::from_str(input).map_err(|_| invalid())?;
+                let authority =
+                    serde_json::from_value(v["authority"].clone()).map_err(|_| invalid())?;
+                let policy: Option<hearth_proto::governance::Governance> =
+                    serde_json::from_value(v["policy"].clone()).map_err(|_| invalid())?;
+                engine
+                    .pin_governance(&authority, policy.as_ref())
+                    .map_err(error)?;
+                Ok(serde_json::Value::Null)
+            }
+            "sign_governance" => {
+                let v: serde_json::Value = serde_json::from_str(input).map_err(|_| invalid())?;
+                let authority =
+                    serde_json::from_value(v["authority"].clone()).map_err(|_| invalid())?;
+                let policy = serde_json::from_value(v["policy"].clone()).map_err(|_| invalid())?;
+                serde_json::to_value(engine.sign_governance(&authority, policy).map_err(error)?)
+            }
+            "prune_channel" => serde_json::to_value(engine.prune_channel(input).map_err(error)?),
             "sign_policy" => {
                 let v: serde_json::Value = serde_json::from_str(input).map_err(|_| invalid())?;
                 let authority =

@@ -3,12 +3,12 @@ import assert from 'node:assert/strict'
 import { randomBytes } from 'node:crypto'
 import { verifyChannels } from './phase2-channel-acceptance.mjs'
 
-export async function verifyMessaging({wasm,request,login,origin,serverId,owner,password,prepared,linked,start,stop,healthy,checks,scanDatabase,storage}) {
+export async function verifyMessaging({wasm,request,login,origin,serverId,owner,password,prepared,linked,start,stop,healthy,checks,scanDatabase,storage,retentionFixture}) {
   const clients=[]
   const sockets=[]
   const wire=[]
   const typing=[]
-  const op=(client,name,input='')=>client.messagingOperation(name,typeof input==='string'?input:JSON.stringify(input))
+  const op=(client,name,input='')=>{try{return client.messagingOperation(name,typeof input==='string'?input:JSON.stringify(input))}catch(error){throw new Error(`Product crypto operation ${name} failed`,{cause:error})}}
   const json=(client,name,input)=>JSON.parse(op(client,name,input))
   const view=client=>json(client,'view')
   async function unlock(username,secret,envelope) {
@@ -169,7 +169,7 @@ export async function verifyMessaging({wasm,request,login,origin,serverId,owner,
     await until(()=>typing.some(value=>value.device===alice.identity.enrollment.device_key && value.indicator[0]===carol.session.account.id && value.indicator[1]))
     assert.equal(view(alice.client).messages.length,beforeTyping)
     checks.open_registration_three_person_group_dm_and_encrypted_typing=true
-    await verifyChannels({alice,bob:resumed,carol,linked:linkedInstall,dmId:id,request,json,op,view,uploadedPackage,submitted,connect,until,pause,sockets,start,stop,healthy,checks,wire,scanDatabase,storage})
+    await verifyChannels({alice,bob:resumed,carol,linked:linkedInstall,dmId:id,request,json,op,view,uploadedPackage,submitted,connect,until,pause,sockets,start,stop,healthy,checks,wire,scanDatabase,storage,retentionFixture})
     // Channel restart closed earlier gateways; open a current one for revocation.
     const revocationGateway=await connect(carol)
     assert.equal((await request('/api/v1/auth/logout',{},carol.session.token)).status,204)

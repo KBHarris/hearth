@@ -1,9 +1,9 @@
-import {HearthClient,HearthError,PROTOCOL_VERSION,validateDeliveryEvent,type Session,type DeviceEnrollment,type Conversation,type LocalMessage,type KeyPackageRecord,type CommitUpload,type MessageUpload,type MessageContent,type Person,type DeliveryEvent,type ChannelRoster} from '@hearth/sdk'
+import {permissions,Permission,HearthClient,HearthError,PROTOCOL_VERSION,validateDeliveryEvent,type Session,type DeviceEnrollment,type Conversation,type LocalMessage,type KeyPackageRecord,type CommitUpload,type MessageUpload,type MessageContent,type Person,type DeliveryEvent,type ChannelRoster} from '@hearth/sdk'
 import {AuthCrypto} from './client'
 import {messageScope,readMessages,writeMessages} from './message-store'
 import {storageDeadline} from './vault-store'
 import type {CommunityAuthority,CommunityAdmission,CommunityInvitation,ChannelPolicy,ChannelAuthorization,CommunityInvite,HistoryPolicy} from '@hearth/sdk'
-import type {LocalProfile,LocalPresence} from '@hearth/sdk'
+import type {Governance,GovernanceView,LocalProfile,LocalPresence} from '@hearth/sdk'
 import type {LocalAttachment} from '@hearth/sdk'
 import {MAX_FILE,hex,unhex,thumbnail} from './file-tools'
 import {cachedFile,cacheFile} from './file-cache'
@@ -14,9 +14,9 @@ export function admitted(roster:ChannelRoster,person:Person):boolean {
 }
 
 type Pending={kind:'commit';conversation_id:string;upload:CommitUpload}|{kind:'message';conversation_id:string;upload:MessageUpload}
-type EngineView={last_seq:number;messages:LocalMessage[];groups:Conversation[];pending:Pending[];pending_packages:KeyPackageRecord[];profiles:Record<string,LocalProfile>;presence:Record<string,LocalPresence>;read:Record<string,Record<string,string>>;history_backfill:string[];history_waiting:string[];emoji:Record<string,Record<string,LocalAttachment>>}
+type EngineView={last_seq:number;governance_epochs:Record<string,number>;messages:LocalMessage[];groups:Conversation[];pending:Pending[];pending_packages:KeyPackageRecord[];profiles:Record<string,LocalProfile>;presence:Record<string,LocalPresence>;read:Record<string,Record<string,string>>;history_backfill:string[];history_waiting:string[];emoji:Record<string,Record<string,LocalAttachment>>}
 export type ChatState={conversations:Conversation[];channels:Record<string,ChannelRoster>;joined:string[];messages:LocalMessage[];people:Record<string,Person>;typing:Record<string,{account:string;until:number}[]>;pending:number;connection:string;error:string;fatal:boolean;profiles:Record<string,LocalProfile>;presence:Record<string,LocalPresence>;read:Record<string,Record<string,string>>;history_waiting:string[];emoji:Record<string,Record<string,LocalAttachment>>}
-const initialView:EngineView={last_seq:0,messages:[],groups:[],pending:[],pending_packages:[],profiles:{},presence:{},read:{},history_backfill:[],history_waiting:[],emoji:{}}
+const initialView:EngineView={last_seq:0,governance_epochs:{},messages:[],groups:[],pending:[],pending_packages:[],profiles:{},presence:{},read:{},history_backfill:[],history_waiting:[],emoji:{}}
 export const initialChat:ChatState={conversations:[],channels:{},joined:[],messages:[],people:{},typing:{},pending:0,connection:'Opening encrypted storage…',error:'',fatal:false,profiles:{},presence:{},read:{},history_waiting:[],emoji:{}}
 
 /** One serialized stream owns the in-memory ratchets; CAS detects competing tabs/processes. */
@@ -159,6 +159,12 @@ export class MessagingSession {
     for(const conversation of conversations){
       const local=this.view.groups.find(group=>group.id===conversation.id)
       if(!local || local.epoch!==conversation.epoch || this.view.pending.some(p=>p.conversation_id===conversation.id))continue
+      if(conversation.channel_id && local.members.some(m=>!(permissions(channels[conversation.id].governance,channels[conversation.id].community.owner_id,m.account_id,conversation.id,Number.MAX_SAFE_INTEGER)&Permission.read))) {
+        const pruned=await this.operation<CommitUpload|null>('prune_channel',conversation.id);await this.persist();if(pruned)await this.flush();continue
+      }
+      if(conversation.channel_id && channels[conversation.id].community.owner_id===this.session.account.id && (this.view.governance_epochs?.[conversation.id]??0)!==(channels[conversation.id].governance?.revision??0)) {
+        await this.operation('add_channel',{id:conversation.id,packages:[],create:false});await this.persist();await this.flush();continue
+      }
       const known=new Set(local.members.map(member=>member.enrollment.device_key))
       const packages:KeyPackageRecord[]=[]
       const audience=conversation.channel_id?channels[conversation.id].people.filter(p=>admitted(channels[conversation.id],p)).map(p=>p.account.id):conversation.accounts
@@ -207,6 +213,23 @@ export class MessagingSession {
     await this.operation('verify_authority',root);await this.persist()
     return root
   }
+  loadGovernance(id:string):Promise<GovernanceView>{return this.enqueue(async()=>{
+    const authority=await this.prepareCommunity(id),view=await this.client.governance(this.session.token,id,this.options)
+    await this.operation('pin_governance',{authority,policy:view.governance});await this.persist();return view
+  })}
+  saveGovernance(id:string,policy:Governance):Promise<Governance>{return this.enqueue(async()=>{
+    await this.synchronize();const authority=await this.prepareCommunity(id)
+    const signed=await this.operation<Governance>('sign_governance',{authority,policy});await this.persist()
+    const saved=await this.client.setGovernance(this.session.token,id,signed,this.options)
+    await this.refresh();return saved
+  })}
+  acceptRules(id:string,expectedRules:string):Promise<void>{return this.enqueue(async()=>{
+    const authority=await this.prepareCommunity(id),view=await this.client.governance(this.session.token,id,this.options)
+    await this.operation('pin_governance',{authority,policy:view.governance});await this.persist()
+    if(!view.governance?.screening||view.governance.rules!==expectedRules)throw new Error('The rules changed. Read the updated rules before accepting.')
+    const digest=Array.from(new Uint8Array(await globalThis.crypto.subtle.digest('SHA-256',new TextEncoder().encode(expectedRules))),b=>b.toString(16).padStart(2,'0')).join('')
+    await this.client.acceptRules(this.session.token,id,digest,this.options);await this.refresh()
+  })}
   secureCommunity(id:string):Promise<void>{return this.enqueue(async()=>{await this.prepareCommunity(id)})}
   secureJoin(id:string,code:string):Promise<void>{return this.enqueue(async()=>{const authority=await this.prepareCommunity(id);const invitation=await this.client.memberInvitation(this.session.token,id,this.options);if(!invitation)throw new Error('Ask the owner for a signed community invite.');await this.operation('pin_invitation',{authority,code,invitation});await this.persist()})}
   async createInvite(id:string,expires_in_seconds:number,max_uses:number):Promise<CommunityInvite>{
@@ -237,7 +260,7 @@ export class MessagingSession {
       roster=await this.client.channelRoster(this.session.token,id,this.options)
     }
     if(!roster.authority||!roster.policy)throw new Error('The channel encryption policy is incomplete.')
-    const authorization:ChannelAuthorization={authority:roster.authority,policy:roster.policy,admissions:roster.admissions}
+    const authorization:ChannelAuthorization={authority:roster.authority,policy:roster.policy,admissions:roster.admissions,governance:roster.governance}
     await this.operation('authorize_channel',{id,authorization});await this.persist()
     return roster
   }

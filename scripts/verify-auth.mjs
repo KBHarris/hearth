@@ -3,7 +3,7 @@ import assert from 'node:assert/strict'
 import { spawn, spawnSync } from 'node:child_process'
 import { randomBytes, randomUUID } from 'node:crypto'
 import { createRequire } from 'node:module'
-import { existsSync, mkdirSync, readFileSync, renameSync, rmSync, writeFileSync } from 'node:fs'
+import { copyFileSync, existsSync, mkdirSync, readFileSync, renameSync, rmSync, writeFileSync } from 'node:fs'
 import { createServer } from 'node:net'
 import { createInterface } from 'node:readline'
 import { fileURLToPath } from 'node:url'
@@ -14,7 +14,7 @@ import {blobFixture} from './blob-fixture.mjs'
 
 const root = fileURLToPath(new URL('../', import.meta.url))
 if(process.env.PGBIN)process.env.PATH=process.env.PGBIN+delimiter+process.env.PATH
-const reportPath = join(root, 'target/phase1-evidence/auth.json')
+const reportPath = join(root, process.argv.includes('--phase3')?'target/phase3-evidence/auth.json':'target/phase1-evidence/auth.json')
 if (!process.argv.includes('--serve') && !process.argv.includes('--desktop')) rmSync(reportPath, { force: true })
 if(process.argv.includes('--desktop'))rmSync(join(root,'target/phase1-evidence',`packaged-${process.platform}.json`),{force:true})
 const id = randomUUID()
@@ -29,7 +29,8 @@ function command(name, args, quiet = false, env = process.env) {
   if (result.error || result.status !== 0) throw new Error(`${name} acceptance command failed`)
   return result.stdout?.trim()
 }
-command('cargo', ['build', '--locked', '-p', 'hearth-server'])
+const serverTarget=process.argv.includes('--phase3')?'target/phase3-build':'target'
+command('cargo', ['build', '--locked', '-p', 'hearth-server', '--target-dir', serverTarget])
 let wasm
 let legacyWasm
 if(!process.argv.includes('--desktop') && !process.argv.includes('--serve')) {
@@ -46,7 +47,9 @@ await new Promise((resolve) => lease.listen(0, '127.0.0.1', resolve))
 const port = lease.address().port
 await new Promise((resolve) => lease.close(resolve))
 const origin = `http://127.0.0.1:${port}`
-const binary = join(root, 'target/debug', process.platform === 'win32' ? 'hearth-server.exe' : 'hearth-server')
+const compiledBinary = join(root, serverTarget, 'debug', process.platform === 'win32' ? 'hearth-server.exe' : 'hearth-server')
+const binary = process.argv.includes('--serve') ? join(directory, process.platform === 'win32' ? 'hearth-server.exe' : 'hearth-server') : compiledBinary
+if(process.argv.includes('--serve'))copyFileSync(compiledBinary,binary)
 let child
 let container
 let postgresDirectory
@@ -297,6 +300,15 @@ try {
       checks.single_use_invite_creates_second_account = true
       checks.owner_only_registration_settings_survive_restart = true
       await verifyMessaging({wasm,request,login,origin,serverId,owner:token,password,prepared,linked,start,stop,healthy,checks,storage,
+        retentionFixture:async (operation,age=false,blob=false)=>{
+          assert.match(operation,/^[a-f0-9]{64}$/)
+          const sql=blob?(age?`UPDATE encrypted_blobs SET created_at=now()-interval '2 days' WHERE id='${operation}'`:`SELECT json_build_object('blobs',(SELECT count(*) FROM encrypted_blobs WHERE id='${operation}'))`):(age?`UPDATE delivery_operations SET created_at=now()-interval '2 days' WHERE operation_id='${operation}'; UPDATE delivery_events SET created_at=now()-interval '2 days' WHERE operation_id='${operation}'`:`SELECT json_build_object('messages',(SELECT count(*) FROM delivery_events WHERE operation_id='${operation}' AND data->>'kind'='message'),'archives',(SELECT count(*) FROM channel_archives WHERE operation_id='${operation}'),'operations',(SELECT count(*) FROM delivery_operations WHERE operation_id='${operation}'),'redactions',(SELECT count(*) FROM delivery_events WHERE operation_id='${operation}' AND data->>'kind'='redacted'))`);
+          const dbContainer=container ?? process.env.HEARTH_TEST_POSTGRES_CONTAINER
+          let output
+          if(dbContainer)output=command('docker',['exec',dbContainer,'psql','-U','hearth','-d','hearth','-v','ON_ERROR_STOP=1','-t','-A','-c',sql],true)
+          else {const db=new URL(databaseUrl);output=command('psql',['-v','ON_ERROR_STOP=1','-t','-A','-c',sql],true,{...process.env,PGHOST:db.hostname,PGPORT:db.port,PGUSER:decodeURIComponent(db.username),PGPASSWORD:decodeURIComponent(db.password),PGDATABASE:db.pathname.slice(1)})}
+          return age?undefined:JSON.parse(output)
+        },
         scanDatabase:async canary=>{
           const dumpContainer=container ?? process.env.HEARTH_TEST_POSTGRES_CONTAINER
           if (dumpContainer) {
@@ -344,7 +356,7 @@ try {
       checks.no_password_on_wire_or_secrets_in_logs = true
     } finally { client.free() }
     const report = { measuredAt: new Date().toISOString(), outcome: 'pass', client: 'product WASM', server: 'native HTTP + PostgreSQL', checks }
-    mkdirSync(join(root, 'target/phase1-evidence'), { recursive: true })
+    mkdirSync(join(root, process.argv.includes('--phase3')?'target/phase3-evidence':'target/phase1-evidence'), { recursive: true })
     writeFileSync(reportPath, JSON.stringify(report, null, 2) + '\n')
     console.log(JSON.stringify(report, null, 2))
   }
