@@ -143,7 +143,7 @@ export function AuthPanel({ url, info, setupFinished,configured,onSessionChange 
     {panel === 'account' && <Modal title="Account & devices" description="Keep your identity safe and connect your other devices." onClose={() => setPanel(null)}>
       <p>Signed in as <strong>{session.account.username}</strong>.</p>
       {device && <div className="device-status"><p className="device-ready">This device is ready.</p><small>{identityStorageLabel()} protects your account and device keys. Signing out locks them.</small>
-        <details><summary>Identity fingerprint</summary><code>{device.identity_key.match(/.{1,4}/g)?.join(' ')}</code><small>Compare this fingerprint with your friends using a trusted channel.</small></details></div>}
+        <details><summary>This device ID</summary><code>{device.device_key.match(/.{1,4}/g)?.join(' ')}</code><small>Use this ID when choosing which device will accept a community ownership transfer.</small></details><details><summary>Identity fingerprint</summary><code>{device.identity_key.match(/.{1,4}/g)?.join(' ')}</code><small>Compare this fingerprint with your friends using a trusted channel.</small></details></div>}
       {clientCrypto && <RecoveryPanel crypto={clientCrypto} session={session} serverKey={info.wellKnown.server_key.toLowerCase()} url={url} ready={!!device} restored={enrollment => {setDevice(enrollment);setUnlinked(false)}} />}
       <button className="danger-button" onClick={() => void signOut()}>Sign out</button>
     </Modal>}

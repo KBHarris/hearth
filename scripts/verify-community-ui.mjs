@@ -34,7 +34,9 @@ async function verifyOwnershipUi(owner,buddy,checks){
   await pace(owner);await owner.findElement(By.xpath('//button[text()="Ownership"]')).click()
   await owner.wait(async()=>await owner.findElements(By.id('ownership-member')).then(e=>e.length>0),15000)
   await new Select(owner.findElement(By.id('ownership-member'))).selectByVisibleText('@uibuddy')
+  await owner.wait(()=>owner.findElement(By.id('ownership-device')).getAttribute('value').then(value=>!!value),15000)
   await owner.findElement(By.xpath('//label[contains(.,"I want this member")]/input')).click()
+  await owner.wait(()=>owner.findElement(By.xpath('//button[text()="Offer ownership transfer"]')).isEnabled(),15000)
   await pace(owner);await owner.findElement(By.xpath('//button[text()="Offer ownership transfer"]')).click()
   await owner.wait(async()=>await owner.findElements(By.xpath('//button[text()="Cancel transfer"]')).then(e=>e.length>0),30000)
   await buddy.findElement(By.css('[aria-label="Community settings"]')).click()
@@ -54,7 +56,9 @@ async function verifyOwnershipUi(owner,buddy,checks){
   await buddy.findElement(By.xpath('//button[text()="Ownership"]')).click()
   await buddy.wait(async()=>await buddy.findElements(By.id('ownership-member')).then(e=>e.length>0),15000)
   await new Select(buddy.findElement(By.id('ownership-member'))).selectByVisibleText('@uiowner')
+  await buddy.wait(()=>buddy.findElement(By.id('ownership-device')).getAttribute('value').then(value=>!!value),15000)
   await buddy.findElement(By.xpath('//label[contains(.,"I want this member")]/input')).click()
+  await buddy.wait(()=>buddy.findElement(By.xpath('//button[text()="Offer ownership transfer"]')).isEnabled(),15000)
   await buddy.findElement(By.xpath('//button[text()="Offer ownership transfer"]')).click()
   await buddy.wait(async()=>await buddy.findElements(By.xpath('//button[text()="Cancel transfer"]')).then(e=>e.length>0),30000)
   await owner.findElement(By.css('[aria-label="Community settings"]')).click()
@@ -224,7 +228,11 @@ async function verifyPrivacyUi(owner,buddy,checks){
   assert.equal(await deleting.isEnabled(),true)
   const boxes=await buddy.executeScript('return [...document.querySelectorAll("dialog[open] input[type=checkbox]")].map(el=>({width:el.getBoundingClientRect().width,height:el.getBoundingClientRect().height,labelWidth:el.parentElement.getBoundingClientRect().width}))')
   assert.ok(boxes.length>0&&boxes.every(box=>box.width>=14&&box.width<=20&&box.height>=14&&box.height<=20&&box.labelWidth>box.width+20))
-  await buddy.findElement(By.id('delete-account-name')).clear();assert.equal(await deleting.isEnabled(),false)
+  // Use actual editing keys: WebDriver clear() can change the DOM value without
+  // dispatching the input event React uses for a controlled confirmation field.
+  await buddy.findElement(By.id('delete-account-name')).sendKeys(Key.chord(Key.CONTROL,'a'),Key.BACK_SPACE)
+  await buddy.wait(async()=>!(await deleting.isEnabled()),5000,'Removing the confirmation must disable deletion')
+  assert.equal(await buddy.findElement(By.id('delete-account-name')).getAttribute('value'),'')
   checks.account_deletion_requires_exact_username_and_acknowledgement_with_compact_checkboxes=true
   await closePanel(buddy)
 }
@@ -339,6 +347,7 @@ try {
   await driver.findElement(By.xpath('//button[text()="Add channel"]')).click()
   await driver.wait(async()=>await driver.findElement(By.css('.community-structure')).getText().then(text=>text.includes('news')),15000)
   checks.create_category_text_and_announcement_channels=true
+  await pace(driver)
   await driver.findElement(By.id('channel-name')).sendKeys('history')
   await driver.findElement(By.css('#channel-kind option[value="text"]')).click()
   await driver.findElement(By.xpath('//button[text()="Add channel"]')).click()
@@ -368,6 +377,7 @@ try {
   await driver.findElement(By.xpath('//button[text()="Hide code"]')).click()
   assert.equal((await driver.findElements(By.id('created-community-invite'))).length,0)
   checks.create_and_hide_invite_without_persisting_it=true
+  await pace(driver)
   await closePanel(driver)
   await driver.findElement(By.css('.channel-directory button[data-channel-name="history"]')).click()
   await driver.wait(async()=>await activeChannel(driver,'history') && await enabled(driver,'message-text'),30000)
@@ -376,6 +386,7 @@ try {
   await driver.wait(async()=>await driver.findElement(By.css('.message-log')).getText().then(text=>text.includes('UI history after invitation')),15000)
   await driver.findElement(By.css('.channel-directory button[data-channel-name="chat"]')).click()
   await driver.wait(async()=>await activeChannel(driver,'chat') && await enabled(driver,'message-text'),30000)
+  await pace(driver)
   await driver.findElement(By.xpath('//button[normalize-space(.)="Server settings"]')).click()
   await driver.findElement(By.xpath('//button[text()="Create account invite"]')).click()
   const accountCode=await (await wait('account-invite')).getAttribute('value')
@@ -397,6 +408,7 @@ try {
   await driver.wait(async()=>{const buttons=await driver.findElements(By.css('.access-action'));return buttons[0]??false},45000).then(button=>button.click())
   const approval=await driver.wait(async()=>{const buttons=await driver.findElements(By.xpath('//button[normalize-space(.)="Approve uibuddy"]'));return buttons[0] ?? false},45000,'Owner should see the pending member at the next directory refresh')
   assert.equal(await buddy.findElement(By.id('message-text')).isEnabled(),false)
+  await pace(driver)
   await approval.click()
   await closePanel(driver)
   await buddy.wait(()=>enabled(buddy,'message-text'),45000)

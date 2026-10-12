@@ -25,6 +25,7 @@ export function CommunityPanel({session,url,onOpenChannel,onSecure,onInvite,acti
   const [structure,setStructure]=useState<CommunityStructure|null>(null)
 
   const [error,setError]=useState('')
+  const [refreshError,setRefreshError]=useState('')
 
   const [loading,setLoading]=useState(true)
 
@@ -67,6 +68,23 @@ export function CommunityPanel({session,url,onOpenChannel,onSecure,onInvite,acti
     return ()=>controller.abort()
 
   },[selected,url,session.token,retry])
+
+  // Changes made on another device should appear without closing a panel or
+  // resetting its form. Abort stale reads while a local action changes structure.
+  useEffect(()=>{
+    setRefreshError('')
+    if(!selected||busy)return
+    const controller=new AbortController(),client=new HearthClient(url)
+    let pending=false
+    const timer=setInterval(()=>{
+      if(pending)return
+      pending=true
+      void client.communityStructure(session.token,selected,{signal:controller.signal}).then(next=>{
+        if(!controller.signal.aborted){setStructure(previous=>previous?.community.id===selected?next:previous);setRefreshError('')}
+      }).catch(()=>{if(!controller.signal.aborted)setRefreshError('The channel list could not refresh. Your current view is preserved.')}).finally(()=>{pending=false})
+    },15000)
+    return()=>{clearInterval(timer);controller.abort()}
+  },[selected,url,session.token,busy,retry])
 
   async function action(event:FormEvent<HTMLFormElement>,kind:'create'|'join'|'category'|'channel'|'invite') {
 
@@ -146,7 +164,7 @@ export function CommunityPanel({session,url,onOpenChannel,onSecure,onInvite,acti
 
     <header className="navigation-heading"><h2 id="communities-heading">Communities</h2><button className="icon-button" aria-label="Create or join a community" title="Create or join a community" onClick={()=>setPanel('join')}><Icon name="plus" /></button></header>
 
-    {error && !panel && <p className="input-error" role="alert">{error} <button disabled={busy} onClick={()=>setRetry(value=>value+1)}>Refresh communities</button></p>}
+    {(error||refreshError) && !panel && <p className="input-error" role="alert">{error||refreshError} <button disabled={busy} onClick={()=>setRetry(value=>value+1)}>Refresh communities</button></p>}
 
     <nav aria-label="Your communities">
 

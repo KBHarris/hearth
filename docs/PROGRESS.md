@@ -1,19 +1,30 @@
 # Progress
 
 Phase 3 is in active validation on `codex/phase3-navigation` (2026-10-12).
-The local HTTP/product-WASM suite passes 85 checks. The complete route inventory
-and every gateway operation now have valid and rejected access fixtures. Account
-deletion passes isolated signed-departure, linked-session revocation, erasure,
-late-credential-write fencing and restart-retry checks. Physical S3 erasure and
-packaged cross-platform validation remain pending.
+The local HTTP/product-WASM suite passes 90 checks with private S3, including
+valid and rejected access across the complete REST inventory and every gateway
+operation. Signed account deletion revokes linked sessions, fences late credential
+writes, survives restart retries and physically erases retained file ciphertext.
+The packaged Windows client passes 17 checks with private S3, including the full Phase 3 workflow
+and native SQLCipher/credential cleanup. The native shutdown-barrier regression passes.
 
-The second menu pass has been visually reviewed: compact actions, aligned
-checkboxes, paperclip attachments, automatic address-derived link cards with an
-off setting, clear permission rows and empty states, and ownership content below
-its navigation tabs. A full two-client workflow found that a valid successor
-commit can arrive before REST advances the other client's ownership pin. The fix
-and targeted native regression are being verified before rerunning that workflow.
-The frozen Phase 2 test bundle and user data remain unchanged.
+The second menu pass includes compact actions, aligned checkboxes, paperclip
+attachments, automatic address-derived link cards with an off setting, clear
+permission rows, useful empty states and explicit ownership device selection.
+Successor-authority ordering and opening a newly created encrypted channel are
+fixed. The sidebar now refreshes channel changes from another device without
+resetting open management forms. All 41 two-client browser/private-S3 checks pass,
+including ownership in both directions, selected reports, polls, account privacy,
+exact deletion confirmation and narrow layout. Automated setup stays within the
+real server rate limits. Sanitized local evidence is saved for
+[HTTP/WASM](evidence/phase3-http-private-s3-2026-10-12.json),
+[Windows](evidence/phase3-windows-private-s3-2026-10-12.json) and
+[browser controls](evidence/phase3-ui-private-s3-2026-10-12.json).
+[Haven parity and setup requirements](HAVEN_PARITY_AND_SETUP.md) now define a guided
+Host/Join installation checkpoint before media expansion.
+GitHub checks currently return `startup_failure` before any job starts, including a
+manual dispatch. Current macOS/Linux packaged validation remains pending; the API
+provides no cause. The frozen Phase 2 test bundle and user data remain unchanged.
 
 Phase 0 is complete. [PR #1](https://github.com/KBHarris/hearth/pull/1) merged the verified
 foundations and spike ADRs into `main` on 2026-10-07 (commit `8f6db29`). All 11 final

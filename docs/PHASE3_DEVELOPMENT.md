@@ -39,9 +39,33 @@ With Docker and private S3 available, also run both acceptance scripts with
 `--storage`. Database expiry does not validate physical S3 object deletion.
 The scripts use isolated accounts and databases and never target bundle data.
 
+### Packaged Windows fixture
+
+Use the installed MSVC Build Tools and Git for Windows Perl for vendored OpenSSL.
+The acceptance features are fixture-only and do not enable a production test API.
+Build the harness before starting browser validation; rebuilding can reload its
+Vite profiles.
+
+```powershell
+$env:PGBIN='C:\Program Files\PostgreSQL\17\bin'
+$env:PERL='C:\Program Files\Git\usr\bin\perl.exe'
+$env:OPENSSL_NO_ASM='1'
+$env:HEARTH_PHASE1_HARNESS='1'
+npm run build
+cargo build --manifest-path apps/desktop/src-tauri/Cargo.toml --features phase1-acceptance,phase1-storage-test
+node scripts/verify-auth.mjs --desktop --native-postgres --phase3 --storage
+Remove-Item Env:\HEARTH_PHASE1_HARNESS
+```
+
+The private-S3 variant requires running Docker. Its accounts, database, credentials,
+files and storage container are disposable. The native report confirms outstanding
+storage calls have drained before fixture credentials and files are removed.
+
 ## Current Phase 3 implementation
 
 Ownership offers require a currently approved successor device in every channel.
+Choose the accepting device explicitly when a member has several; they can compare
+its public Device ID in Account & devices. Acceptance requires that exact device.
 The outgoing owner signs the exact public authorization digest set, and the successor
 explicitly accepts. The owner signing root advances after the HTTP compare-and-swap
 succeeds; historical epochs keep their original authorization. A moderation edit after
@@ -94,14 +118,24 @@ upload leases to expire. Received copies, local history and backups remain. See
 
 ## Verification status
 
-The latest completed local HTTP/WASM run passes 82 checks on 2026-10-12, including
-kick/rejoin, report verification, export, push opt-in, private blocks and server bans.
-Account deletion, linked-device revocation and restart retry pass. Expanded endpoint
-cases and the full UI rerun are in progress; the UI found an authorization
-synchronization failure after delegated moderation which is being resolved. Packaged Phase 3
-acceptance now exercises forums, polls, report verification, delegated moderation,
-ownership transfer, private blocks and export in the product worker and native stores;
-its cross-platform result is pending.
+The current local HTTP/product-WASM suite passes 90 checks with private S3 on
+2026-10-12, including the complete REST permission matrix, every gateway operation,
+kick/rejoin, reports, export, push opt-in, blocks, bans and signed account deletion.
+Linked-device revocation, late credential-write fencing, restart retry and physical
+S3 ciphertext erasure pass. Windows packaged acceptance passes all 17 outcomes with private S3,
+including forums, polls, reports, delegation, ownership transfer in both directions,
+private blocks, export and account departure. Its native storage calls drain and
+fixture credentials/files are removed; the shutdown-barrier regression passes.
+
+The two-client browser/private-S3 workflow passes all 41 checks, including selected
+reports, poll closure, exports, blocking, exact deletion confirmation and narrow
+layout, with paced setup under the real rate limits. Sanitized dated local
+[HTTP/WASM](evidence/phase3-http-private-s3-2026-10-12.json),
+[Windows](evidence/phase3-windows-private-s3-2026-10-12.json) and
+[browser](evidence/phase3-ui-private-s3-2026-10-12.json) reports are checked in.
+GitHub returns `startup_failure` before any jobs start, including
+manual dispatch; no cause is available through its API. Current macOS/Linux
+packaged acceptance remains pending.
 
 The `e5c99a8` checkpoint passes all twelve hosted jobs in run `38205711382`.
 Those older artifacts contain 61 HTTP/WASM and 29 Chrome UI checks and packaged

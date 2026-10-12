@@ -148,9 +148,6 @@ fn phase1_config(window: tauri::WebviewWindow) -> Result<serde_json::Value, Stri
 fn phase1_finish(window: tauri::WebviewWindow, report: serde_json::Value) -> Result<(), String> {
     crate::vault_store::allowed(&window)?;
     let fixture = window.app_handle().state::<Fixture>();
-    if fixture.finished.swap(true, Ordering::SeqCst) {
-        return Err("Fixture already finished".into());
-    }
     let checks = report["checks"].as_object().ok_or("Invalid report")?;
     if checks.is_empty()
         || checks.len() > 32
@@ -161,6 +158,9 @@ fn phase1_finish(window: tauri::WebviewWindow, report: serde_json::Value) -> Res
         })
     {
         return Err("Invalid report".into());
+    }
+    if fixture.finished.swap(true, Ordering::SeqCst) {
+        return Err("Fixture already finished".into());
     }
     let (drained, credentials_removed, files_removed) = cleanup(&fixture);
     let cleaned = drained && credentials_removed && files_removed;
@@ -234,7 +234,13 @@ pub fn run() {
             builder.build()?;
             let handle = app.handle().clone();
             std::thread::spawn(move || {
-                std::thread::sleep(std::time::Duration::from_secs(180));
+                let duration = if handle.state::<Fixture>().config["phase3"].as_bool() == Some(true)
+                {
+                    410
+                } else {
+                    180
+                };
+                std::thread::sleep(std::time::Duration::from_secs(duration));
                 let fixture = handle.state::<Fixture>();
                 if !fixture.finished.swap(true, Ordering::SeqCst) {
                     cleanup(&fixture);

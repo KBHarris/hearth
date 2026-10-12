@@ -18,6 +18,11 @@ async function until(predicate:()=>boolean){for(let i=0;i<400;i++){for(const ins
 async function run(){
   require(isTauri())
   const config=await invoke<{origin:string;serverKey:string;setupCode:string;storage?:boolean;phase3?:boolean}>('phase1_config')
+  // Pace multi-account automated bursts against the unchanged server limits.
+  const requestTimes:number[]=[]
+  const fixtureFetch=window.fetch.bind(window)
+  window.fetch=(...args)=>{if(String(args[0]).includes('/api/v1/'))requestTimes.push(Date.now());return fixtureFetch(...args)}
+  const pace=async()=>{for(let i=0;i<900;i++){if(requestTimes.filter(at=>Date.now()-at<65000).length<50)return;await pause(100)}throw new Error('Acceptance timed out')}
   const client=new HearthClient(config.origin)
   const server=config.serverKey
   const password='HEARTH_PACKAGED_FIXTURE_PASSWORD_private_only'
@@ -170,7 +175,7 @@ async function run(){
     require(await (await resumed.service!.downloadAttachment(channel.id,file)).text()===canary+' file')
     checks.packaged_encrypted_file_upload_and_download_pass=true
   }
-  if(config.phase3){linked.service?.close();await verifyPackagedPhase3(client,alice,resumed,checks,until,label=>{stage=label},community.id,canary)}
+  if(config.phase3){linked.service?.close();await verifyPackagedPhase3(client,alice,resumed,checks,until,label=>{stage=label},community.id,canary,pace)}
   for(const install of installs){install.service?.close();install.crypto.close()}
   await pause(200)
   await invoke('phase1_finish',{report:{outcome:'pass',checks}})

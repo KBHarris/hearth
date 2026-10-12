@@ -72,6 +72,9 @@ export class MessagingSession {
       this.revision=saved.revision
       await this.inspect()
     }catch(error){
+      // A normal sign-out/close can cancel a pending native write. The native
+      // fixture/store barrier drains it; the closed view must not become a failure.
+      if(this.closed)throw error
       this.close();this.publish({fatal:true,connection:'Encrypted storage needs attention',error:error instanceof Error?error.message:'Encrypted storage could not be saved. Sign in again.'});throw error
     }
   }
@@ -233,10 +236,12 @@ export class MessagingSession {
     if(state.offer){if(JSON.stringify(state.offer.previous)!==JSON.stringify(state.authority))throw new Error('The ownership offer is stale. Ask the owner to prepare it again.');await this.operation('verify_ownership',state.offer)}
     await this.persist();return state
   })}
-  offerOwnership(id:string,account:string):Promise<void>{return this.enqueue(async()=>{
+  offerOwnership(id:string,account:string,deviceKey?:string):Promise<void>{return this.enqueue(async()=>{
     await this.refresh();const authority=await this.prepareCommunity(id),state=await this.client.ownership(this.session.token,id,this.options),person=await this.client.personById(this.session.token,account,this.options)
     const structure=await this.client.communityStructure(this.session.token,id,this.options),conversations=await this.client.conversations(this.session.token,this.options)
-    const enrollment=person.devices.find(d=>structure.channels.every(c=>conversations.find(g=>g.id===c.id)?.members.some(m=>m.enrollment.device_key===d.device_key)))
+    const eligible=person.devices.filter(d=>structure.channels.every(c=>conversations.find(g=>g.id===c.id)?.members.some(m=>m.enrollment.device_key===d.device_key)))
+    if(!deviceKey&&eligible.length>1)throw new Error("Choose the member’s device for this transfer.")
+    const enrollment=eligible.find(d=>!deviceKey||d.device_key===deviceKey)
     if(!enrollment)throw new Error('Ask this member to open every channel on the same approved device before offering ownership.')
     const successor={account_id:account,enrollment};const offer=await this.operation<OwnershipHandoff>('offer_ownership',{authority,successor,endorsed:state.endorsed});await this.persist()
     await this.client.offerOwnership(this.session.token,id,offer,this.options)
@@ -318,7 +323,10 @@ export class MessagingSession {
       const peers=roster.people.flatMap(p=>p.devices.map(enrollment=>({account_id:p.account.id,enrollment})))
       for(let offset=0;offset<peers.length;offset+=128)await this.operation('verify_peers',peers.slice(offset,offset+128))
       await this.persist()
-      if(!this.state.conversations.some(c=>c.id===id) && admitted(roster,roster.people.find(p=>p.account.id===this.session.account.id)!)) {
+      // A Welcome may arrive before the directory refresh adds this new channel.
+      // Check current routing and the crypto store before attempting group creation.
+      const conversations=await this.client.conversations(this.session.token,this.options)
+      if(!conversations.some(c=>c.id===id) && !this.view.groups.some(g=>g.id===id) && admitted(roster,roster.people.find(p=>p.account.id===this.session.account.id)!)) {
         const packages:KeyPackageRecord[]=[]
         for(const person of roster.people.filter(p=>admitted(roster,p)))for(const proof of person.devices) {
           if(packages.length>=8)break
