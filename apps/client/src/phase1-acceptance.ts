@@ -1,3 +1,4 @@
+import {verifyPackagedPhase3} from './phase3-acceptance'
 // Opt-in bundled harness: uses the product worker, SDK, session and storage commands.
 import {invoke,isTauri} from '@tauri-apps/api/core'
 import {HearthClient,HearthError,type Session,type DeviceEnrollment} from '@hearth/sdk'
@@ -16,7 +17,7 @@ async function until(predicate:()=>boolean){for(let i=0;i<400;i++){for(const ins
 
 async function run(){
   require(isTauri())
-  const config=await invoke<{origin:string;serverKey:string;setupCode:string;storage?:boolean}>('phase1_config')
+  const config=await invoke<{origin:string;serverKey:string;setupCode:string;storage?:boolean;phase3?:boolean}>('phase1_config')
   const client=new HearthClient(config.origin)
   const server=config.serverKey
   const password='HEARTH_PACKAGED_FIXTURE_PASSWORD_private_only'
@@ -169,6 +170,7 @@ async function run(){
     require(await (await resumed.service!.downloadAttachment(channel.id,file)).text()===canary+' file')
     checks.packaged_encrypted_file_upload_and_download_pass=true
   }
+  if(config.phase3){linked.service?.close();await verifyPackagedPhase3(client,alice,resumed,checks,until,label=>{stage=label},community.id,canary)}
   for(const install of installs){install.service?.close();install.crypto.close()}
   await pause(200)
   await invoke('phase1_finish',{report:{outcome:'pass',checks}})

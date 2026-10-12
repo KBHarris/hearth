@@ -242,6 +242,21 @@ pub fn routes(origins: &[String]) -> Router<SharedState> {
         .route("/login/finish", post(login_finish))
         .route("/session", get(session))
         .route("/logout", post(logout))
+        .route("/account/export", get(crate::data_export::export))
+        .route("/account/delete", post(crate::account_departure::erase))
+        .route(
+            "/push",
+            get(crate::push::configuration).post(crate::push::subscribe),
+        )
+        .route("/push/disable", post(crate::push::unsubscribe))
+        .route(
+            "/blocks",
+            get(crate::safety::blocks).post(crate::safety::block),
+        )
+        .route(
+            "/admin/bans",
+            get(crate::safety::bans).post(crate::safety::ban),
+        )
         .route("/identity", get(crate::device::identity))
         .route("/device/first", post(crate::device::enroll_first))
         .route("/device/restore", post(crate::device::restore))
@@ -350,7 +365,7 @@ async fn login_start(
         return Err(StatusCode::TOO_MANY_REQUESTS);
     }
     let row = sqlx::query(
-        "SELECT id,password_file FROM accounts WHERE username=$1 AND opaque_profile=$2",
+        "SELECT id,password_file FROM accounts WHERE username=$1 AND opaque_profile=$2 AND NOT deleted AND NOT EXISTS(SELECT 1 FROM server_bans WHERE account_id=accounts.id)",
     )
     .bind(&request.username)
     .bind(PROFILE)
@@ -405,22 +420,33 @@ async fn login_finish(
     let id: String = row
         .get::<Option<String>, _>("account_id")
         .ok_or(StatusCode::UNAUTHORIZED)?;
-    let row = sqlx::query("SELECT id,username,owner FROM accounts WHERE id=$1")
+    let mut tx = state.db.begin().await.map_err(unavailable)?;
+    let row = sqlx::query("SELECT id,username,owner,deleted FROM accounts WHERE id=$1 FOR SHARE")
         .bind(&id)
-        .fetch_one(&state.db)
+        .fetch_one(&mut *tx)
         .await
         .map_err(unavailable)?;
+    let banned: bool =
+        sqlx::query_scalar("SELECT EXISTS(SELECT 1 FROM server_bans WHERE account_id=$1)")
+            .bind(&id)
+            .fetch_one(&mut *tx)
+            .await
+            .map_err(unavailable)?;
+    if banned || row.get::<bool, _>("deleted") {
+        return Err(StatusCode::UNAUTHORIZED);
+    }
     let token = random_token();
-    sqlx::query("DELETE FROM auth_sessions WHERE expires_at <= now()")
-        .execute(&state.db)
+    sqlx::query("DELETE FROM auth_sessions WHERE expires_at<=now()")
+        .execute(&mut *tx)
         .await
         .map_err(unavailable)?;
-    sqlx::query("INSERT INTO auth_sessions (token_hash,account_id) VALUES ($1,$2)")
+    sqlx::query("INSERT INTO auth_sessions(token_hash,account_id) VALUES($1,$2)")
         .bind(hash_token(&token)?)
         .bind(&id)
-        .execute(&state.db)
+        .execute(&mut *tx)
         .await
         .map_err(unavailable)?;
+    tx.commit().await.map_err(unavailable)?;
     Ok(Json(Session {
         token,
         expires_in_seconds: SESSION_SECONDS,

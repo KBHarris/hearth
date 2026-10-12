@@ -151,37 +151,50 @@ attachment canary passes.
 
 **Goal:** communities can govern themselves safely.
 
-- [x] Menu and navigation usability pass: preserve the current palette and overall feel.
-  Use persistent community/channel navigation, move setup and management into focused
-  panels, and give common actions clear labels, visible focus and keyboard navigation.
-  Use feedback from the two-PC test to prioritize confusing or repetitive steps.
+Phase 3 is in active validation on `codex/phase3-navigation` (2026-10-12).
+The latest local real HTTP/product-WASM suite passes 85 checks, including the
+complete REST inventory, negative cases for every gateway operation, signed
+account departure, linked-session revocation, erasure and restart retry.
+The second menu pass includes paperclip attachments, automatic address-derived
+link cards with a display setting, compact actions, aligned checkboxes, permission
+rows and useful empty states. The frozen Phase 2 bundle and data are unchanged.
 
-  Local 2026-10-11 validation passes 29 two-client Chrome checks, including Add Server,
-  focus/Escape, preserved drafts and keys, and a 430-pixel layout.
+The full browser workflow exposed a successor-authority ordering bug during
+ownership transfer after delegated moderation. A targeted regression and fix are
+being validated; full browser and packaged Windows/macOS/Linux acceptance remain
+required before completion. The earlier `e5c99a8` checkpoint passes all twelve
+hosted jobs in [run 38205711382](https://github.com/KBHarris/hearth/actions/runs/38205711382),
+including physical private-S3 retention expiry. This is evidence for that
+checkpoint, not completion evidence for the remaining features.
 
-Phase 3 is in progress on `codex/phase3-navigation`. Local validation passes 57 real
-HTTP/product-WASM checks and the 29-check Chrome UI suite. Native Rust, web build,
-clippy, WASM and generated-protocol checks pass. [ADR 0013](adr/0013-signed-community-governance.md)
-and [the development guide](PHASE3_DEVELOPMENT.md) record the implementation and limits.
-Hosted and packaged Phase 3 validation remain open. The frozen Phase 2 bundle is unchanged.
+See [the development guide](PHASE3_DEVELOPMENT.md),
+[the permission matrix](PHASE3_PERMISSION_MATRIX.md),
+[governance ADR](adr/0013-signed-community-governance.md),
+[ownership ADR](adr/0014-community-ownership-transfer.md),
+[reports ADR](adr/0015-selected-encrypted-reports.md) and
+[account departure ADR](adr/0016-signed-account-departure.md).
 
-- [x] Owner-signed roles, active permission bits, assignments and channel overrides; client rollback/tamper rejection and epoch-bound history authorization.
-- [x] READ revocation across REST and gateway, with MLS audience removal before new publishing.
+- [x] Menu and navigation structure: persistent communities/channels, focused
+  management panels, Add Server, keyboard focus/Escape and preserved drafts/keys.
+- [ ] Final menu polish and complete current two-client UI acceptance.
+- [x] Owner-signed roles, active permission bits, assignments and channel overrides;
+  rollback/tamper rejection and epoch-bound history authorization.
+- [x] READ revocation across REST and gateway, with MLS audience removal before publishing.
 - [x] Content-free governance audit log and owner management UI.
-- [x] Owner-managed community/channel bans, timeouts, serialized slow mode and existing abuse limits.
-- [x] Signed community rules and read-only screening, digest-bound acceptance and renewed consent after changes.
-- [x] Signed channel retention, immediate read filtering, database ciphertext expiry and retry-digest preservation.
-- [ ] Physical private-S3 retention acceptance (implemented; local Docker daemon unavailable).
-- [ ] Ownership transfer with pinned root and historical authorization continuity.
-- [ ] Delegated moderation, kicks and user/server-wide bans; complete endpoint/gateway permission matrix.
-- [ ] Verifiable reports (plaintext + MLS-authenticated sender proof + selected context), and a moderator queue.
-- [ ] Per-user data export and account deletion.
+- [x] Owner-managed community/channel bans, timeouts, serialized slow mode and abuse limits.
+- [x] Signed rules and read-only screening with renewed consent after changes.
+- [x] Signed retention, immediate filtering, database expiry and retry-digest preservation.
+- [x] Physical private-S3 retention acceptance for the earlier hosted checkpoint.
+- [ ] Ownership transfer: final ordering regression, two-client and packaged acceptance.
+- [ ] Delegated moderation, kicks, private blocks and operator bans; complete permission matrix.
+- [ ] Verifiable selected reports and encrypted moderator queue.
+- [ ] Per-user data export and signed account deletion, including physical S3 erasure.
 - [ ] Forum channels and encrypted polls.
 - [ ] Web Push with generic payloads.
 - [ ] Hosted cross-platform and packaged desktop Phase 3 acceptance.
 
-**Exit:** the permission-matrix test suite is green for every endpoint and gateway op. A
-report is verifiable by a moderator. Retention expiry deletes the ciphertext.
+**Exit:** the permission-matrix test suite is green for every endpoint and gateway op.
+A report is verifiable by a moderator. Retention expiry deletes the ciphertext.
 
 ## Phase 4: Voice, video, and events
 

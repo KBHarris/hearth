@@ -38,7 +38,7 @@ pub(crate) async fn rules_accepted(
         return Ok(true);
     };
     sqlx::query_scalar("SELECT EXISTS(SELECT 1 FROM community_rules_acceptance WHERE community_id=$1 AND account_id=$2 AND digest=$3)")
-        .bind(community).bind(account).bind(rules_digest(p)).fetch_one(tx).await.map_err(unavailable)
+        .bind(community).bind(account).bind(rules_digest(p)).fetch_one(&mut *tx).await.map_err(unavailable)
 }
 pub(crate) async fn bits(
     tx: &mut PgConnection,
@@ -49,7 +49,7 @@ pub(crate) async fn bits(
     policy: Option<&Governance>,
 ) -> Result<u32> {
     let member: bool = sqlx::query_scalar(
-        "SELECT EXISTS(SELECT 1 FROM community_members WHERE community_id=$1 AND account_id=$2)",
+        "SELECT EXISTS(SELECT 1 FROM community_members m JOIN accounts a ON a.id=m.account_id WHERE community_id=$1 AND account_id=$2 AND NOT a.deleted)",
     )
     .bind(community)
     .bind(account)
@@ -59,7 +59,12 @@ pub(crate) async fn bits(
     if !member {
         return Ok(0);
     }
-    let mut value = permissions(policy, owner, account, channel, now());
+    let invite:Option<serde_json::Value>=sqlx::query_scalar("SELECT CASE WHEN admission IS NOT NULL THEN admission->'invitation' ELSE invitation END FROM community_members WHERE community_id=$1 AND account_id=$2").bind(community).bind(account).fetch_optional(&mut *tx).await.map_err(unavailable)?.flatten();
+    let issued = invite
+        .as_ref()
+        .and_then(|v| v.get("issued_at"))
+        .and_then(serde_json::Value::as_u64);
+    let mut value = permissions_with_invite(policy, owner, account, channel, now(), issued);
     if !rules_accepted(tx, community, owner, account, policy).await? {
         // Screening permits read-only onboarding and does not change the MLS audience.
         value &= !(SEND | REACT | ATTACH | PIN);
@@ -83,15 +88,15 @@ async fn member(tx: &mut PgConnection, id: &str, account: &str) -> Result<sqlx::
             .map_err(unavailable)?
             .ok_or(StatusCode::NOT_FOUND)?;
     let member: bool = sqlx::query_scalar(
-        "SELECT EXISTS(SELECT 1 FROM community_members WHERE community_id=$1 AND account_id=$2)",
+        "SELECT EXISTS(SELECT 1 FROM community_members m JOIN accounts a ON a.id=m.account_id WHERE community_id=$1 AND account_id=$2 AND NOT a.deleted)",
     )
     .bind(id)
     .bind(account)
-    .fetch_one(tx)
+    .fetch_one(&mut *tx)
     .await
     .map_err(unavailable)?;
     let p = decode(row.get("governance"))?;
-    if !member || permissions(p.as_ref(), row.get("owner_id"), account, None, now()) & READ == 0 {
+    if !member || bits(tx, id, row.get("owner_id"), account, None, p.as_ref()).await? & READ == 0 {
         return Err(StatusCode::FORBIDDEN);
     }
     Ok(row)
@@ -114,7 +119,22 @@ pub(crate) async fn get(
         governance.as_ref(),
     )
     .await?;
+    let admission: Option<serde_json::Value> = sqlx::query_scalar(
+        "SELECT admission FROM community_members WHERE community_id=$1 AND account_id=$2",
+    )
+    .bind(&id)
+    .bind(&account)
+    .fetch_optional(&mut *tx)
+    .await
+    .map_err(unavailable)?
+    .flatten();
+    let admission = admission
+        .map(serde_json::from_value)
+        .transpose()
+        .map_err(|_| StatusCode::SERVICE_UNAVAILABLE)?
+        .map(Box::new);
     Ok(Json(GovernanceView {
+        admission,
         governance,
         members,
         rules_accepted,
@@ -139,9 +159,7 @@ pub(crate) async fn set(
             .await
             .map_err(unavailable)?
             .ok_or(StatusCode::NOT_FOUND)?;
-    if row.get::<String, _>("owner_id") != account {
-        return Err(StatusCode::FORBIDDEN);
-    }
+    let owner = row.get::<String, _>("owner_id") == account;
     crate::delivery::approved(&state, &account, &policy.owner.enrollment.device_key).await?;
     let authority: hearth_proto::community::CommunityAuthority = serde_json::from_value(
         row.get::<Option<serde_json::Value>, _>("authority")
@@ -153,10 +171,41 @@ pub(crate) async fn set(
         &authority,
         &policy,
     )
-    .map_err(|_| StatusCode::BAD_REQUEST)?;
+    .map_err(|_| {
+        if owner {
+            StatusCode::BAD_REQUEST
+        } else {
+            StatusCode::FORBIDDEN
+        }
+    })?;
     let old = decode(row.get("governance"))?;
+    if old
+        .as_ref()
+        .is_some_and(|p| !hearth_proto::governance::kicks_preserved(p, &policy))
+    {
+        return Err(StatusCode::CONFLICT);
+    }
+    if let Some(grant) = &policy.moderator_admission {
+        let current: Option<serde_json::Value> = sqlx::query_scalar(
+            "SELECT admission FROM community_members WHERE community_id=$1 AND account_id=$2",
+        )
+        .bind(&id)
+        .bind(&account)
+        .fetch_optional(&mut *tx)
+        .await
+        .map_err(unavailable)?
+        .flatten();
+        if current.as_ref()
+            != Some(&serde_json::to_value(grant).map_err(|_| StatusCode::BAD_REQUEST)?)
+        {
+            return Err(StatusCode::FORBIDDEN);
+        }
+    }
     if old.as_ref() == Some(&policy) {
         return Ok(Json(policy));
+    }
+    if !owner && policy.delegation.as_deref() != old.as_ref() {
+        return Err(StatusCode::CONFLICT);
     }
     if policy.revision != old.as_ref().map_or(1, |p| p.revision + 1) {
         return Err(StatusCode::CONFLICT);
@@ -214,7 +263,18 @@ pub(crate) async fn audit(
     let mut tx = state.db.begin().await.map_err(unavailable)?;
     let row = member(&mut tx, &id, &account).await?;
     let policy = decode(row.get("governance"))?;
-    if permissions(policy.as_ref(), row.get("owner_id"), &account, None, now()) & AUDIT == 0 {
+    if bits(
+        &mut tx,
+        &id,
+        row.get("owner_id"),
+        &account,
+        None,
+        policy.as_ref(),
+    )
+    .await?
+        & AUDIT
+        == 0
+    {
         return Err(StatusCode::FORBIDDEN);
     }
     let entries = sqlx::query("SELECT revision,actor_id,action,digest FROM community_audit WHERE community_id=$1 ORDER BY revision DESC LIMIT 100").bind(id).fetch_all(&mut *tx).await.map_err(unavailable)?.iter().map(|r|AuditEntry{revision:r.get::<i64,_>("revision") as u64,actor_id:r.get("actor_id"),action:r.get("action"),digest:r.get("digest")}).collect();

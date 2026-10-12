@@ -1,4 +1,4 @@
-//! Owner-authenticated channel admission. First authority use is TOFU; later pins are immutable.
+//! Owner-authenticated admission and jointly signed ownership lineage.
 use crate::messaging::{valid_id, verify_member, verify_signature};
 use hearth_proto::{community::*, messaging::GroupMember};
 
@@ -57,13 +57,99 @@ pub fn verify_invitation(
     )
 }
 pub fn verify_authority(server: &str, value: &CommunityAuthority) -> Result<()> {
+    verify_authority_depth(server, value, 0)
+}
+fn verify_authority_depth(server: &str, value: &CommunityAuthority, depth: usize) -> Result<()> {
+    require(depth <= 8)?;
     require(valid_id(server) && valid_id(&value.community_id))?;
     verify_member(&value.owner, server)?;
+    if let Some(handoff) = &value.handoff {
+        require(
+            handoff.successor == value.owner && handoff.previous.community_id == value.community_id,
+        )?;
+        verify_handoff_depth(server, handoff, depth + 1)?;
+    }
     verify_signature(
         &value.owner.enrollment.device_key,
         &value.signature,
         &authority_statement(server, value)?,
     )
+}
+pub fn object_digest(value: &impl serde::Serialize) -> Result<String> {
+    use sha2::{Digest, Sha256};
+    Ok(hex::encode(Sha256::digest(
+        serde_json::to_vec(value).map_err(|_| "Invalid signed object")?,
+    )))
+}
+pub(crate) fn handoff_statement(server: &str, value: &OwnershipHandoff) -> Result<Vec<u8>> {
+    let mut value = value.clone();
+    value.signature.clear();
+    serde_json::to_vec(&("hearth/v1/ownership-handoff", server, value))
+        .map_err(|_| "Invalid handoff".into())
+}
+pub fn verify_handoff(server: &str, value: &OwnershipHandoff) -> Result<()> {
+    verify_handoff_depth(server, value, 1)
+}
+fn verify_handoff_depth(server: &str, value: &OwnershipHandoff, depth: usize) -> Result<()> {
+    verify_authority_depth(server, &value.previous, depth)?;
+    verify_member(&value.issuer, server)?;
+    verify_member(&value.successor, server)?;
+    require(
+        value.issuer.account_id == value.previous.owner.account_id
+            && value.issuer.enrollment.identity_key == value.previous.owner.enrollment.identity_key
+            && value.successor.account_id != value.previous.owner.account_id
+            && value.successor.enrollment.identity_key
+                != value.previous.owner.enrollment.identity_key
+            && value.endorsed.len() <= 2048
+            && value.endorsed.iter().all(|d| valid_id(d))
+            && value.endorsed.windows(2).all(|w| w[0] < w[1]),
+    )?;
+    verify_signature(
+        &value.issuer.enrollment.device_key,
+        &value.signature,
+        &handoff_statement(server, value)?,
+    )
+}
+/// Equality or exact ancestor; an ancestor may verify old epochs, never roll back a pin.
+pub fn authority_descends(value: &CommunityAuthority, ancestor: &CommunityAuthority) -> bool {
+    let mut current = value;
+    for _ in 0..=8 {
+        if current == ancestor {
+            return true;
+        }
+        let Some(handoff) = &current.handoff else {
+            return false;
+        };
+        current = &handoff.previous;
+    }
+    false
+}
+fn object_authority<'a>(
+    authority: &'a CommunityAuthority,
+    owner: &GroupMember,
+    object: &impl serde::Serialize,
+) -> Result<&'a CommunityAuthority> {
+    if owner.account_id == authority.owner.account_id
+        && owner.enrollment.identity_key == authority.owner.enrollment.identity_key
+    {
+        return Ok(authority);
+    }
+    let digest = object_digest(object)?;
+    let mut current = authority;
+    for _ in 0..8 {
+        let handoff = current
+            .handoff
+            .as_ref()
+            .ok_or("Object is not endorsed by the new owner")?;
+        require(handoff.endorsed.contains(&digest))?;
+        current = &handoff.previous;
+        if owner.account_id == current.owner.account_id
+            && owner.enrollment.identity_key == current.owner.enrollment.identity_key
+        {
+            return Ok(current);
+        }
+    }
+    Err("Ownership lineage limit exceeded".into())
 }
 fn issuer(server: &str, authority: &CommunityAuthority, owner: &GroupMember) -> Result<()> {
     verify_authority(server, authority)?;
@@ -78,6 +164,8 @@ pub fn verify_admission(
     authority: &CommunityAuthority,
     value: &CommunityAdmission,
 ) -> Result<()> {
+    verify_authority(server, authority)?;
+    let authority = object_authority(authority, &value.owner, value)?;
     issuer(server, authority, &value.owner)?;
     if let Some(invitation) = &value.invitation {
         verify_invitation(server, authority, invitation)?;
@@ -104,6 +192,8 @@ pub fn verify_policy(
     authority: &CommunityAuthority,
     value: &ChannelPolicy,
 ) -> Result<()> {
+    verify_authority(server, authority)?;
+    let authority = object_authority(authority, &value.owner, value)?;
     issuer(server, authority, &value.owner)?;
     require(
         value.community_id == authority.community_id
@@ -120,21 +210,36 @@ pub fn verify_policy(
         &policy_statement(server, value)?,
     )
 }
+pub fn permissions(value: &ChannelAuthorization, account: &str, now: u64) -> u32 {
+    let issued = value
+        .admissions
+        .iter()
+        .find(|a| a.account_id == account)
+        .and_then(|a| a.invitation.as_ref())
+        .map(|i| i.issued_at);
+    hearth_proto::governance::permissions_with_invite(
+        value.governance.as_ref(),
+        &value.authority.owner.account_id,
+        account,
+        Some(&value.policy.channel_id),
+        now,
+        issued,
+    )
+}
 pub fn authorized(value: &ChannelAuthorization, member: &GroupMember) -> bool {
+    if value.departures.iter().any(|d| {
+        d.member.account_id == member.account_id
+            && d.member.enrollment.identity_key == member.enrollment.identity_key
+    }) {
+        return false;
+    }
     let admitted = (member.account_id == value.authority.owner.account_id
         && member.enrollment.identity_key == value.authority.owner.enrollment.identity_key)
         || value.admissions.iter().any(|a| {
             a.account_id == member.account_id && a.identity_key == member.enrollment.identity_key
         });
     admitted
-        && hearth_proto::governance::permissions(
-            value.governance.as_ref(),
-            &value.authority.owner.account_id,
-            &member.account_id,
-            Some(&value.policy.channel_id),
-            u64::MAX,
-        ) & hearth_proto::governance::READ
-            != 0
+        && permissions(value, &member.account_id, u64::MAX) & hearth_proto::governance::READ != 0
 }
 pub fn verify_authorization(
     server: &str,
@@ -143,6 +248,12 @@ pub fn verify_authorization(
     members: &[GroupMember],
 ) -> Result<()> {
     verify_policy(server, &value.authority, &value.policy)?;
+    require(value.departures.len() <= 128)?;
+    let mut departed = std::collections::HashSet::new();
+    for d in &value.departures {
+        crate::messaging::reports::verify_departure(server, d)?;
+        require(departed.insert(&d.member.account_id))?;
+    }
     if let Some(governance) = &value.governance {
         verify_governance(server, &value.authority, governance)?;
     }
@@ -173,8 +284,108 @@ pub fn verify_governance(
     authority: &CommunityAuthority,
     value: &hearth_proto::governance::Governance,
 ) -> Result<()> {
+    verify_governance_depth(server, authority, value, 0)
+}
+fn verify_governance_depth(
+    server: &str,
+    authority: &CommunityAuthority,
+    value: &hearth_proto::governance::Governance,
+    depth: usize,
+) -> Result<()> {
     use hearth_proto::governance::*;
-    issuer(server, authority, &value.owner)?;
+    require(depth <= 8)?;
+    if let Some(parent) = &value.delegation {
+        verify_governance_depth(server, authority, parent, depth + 1)?;
+        verify_member(&value.owner, server)?;
+        require(value.revision == parent.revision + 1 && kicks_preserved(parent, value))?;
+        let mut baseline = parent.as_ref().clone();
+        baseline.owner = value.owner.clone();
+        baseline.signature = value.signature.clone();
+        baseline.revision = value.revision;
+        baseline.sanctions = value.sanctions.clone();
+        baseline.limits = value.limits.clone();
+        baseline.delegation = None;
+        baseline.moderator_admission = value.moderator_admission.clone();
+        let mut candidate = value.clone();
+        candidate.delegation = None;
+        require(baseline == candidate)?;
+        if let Some(grant) = &value.moderator_admission {
+            verify_admission(server, authority, grant)?;
+            require(
+                grant.account_id == value.owner.account_id
+                    && grant.identity_key == value.owner.enrollment.identity_key,
+            )?;
+        }
+        let issued = value
+            .moderator_admission
+            .as_ref()
+            .and_then(|a| a.invitation.as_ref())
+            .map(|i| i.issued_at);
+        let allowed = |scope: Option<&str>, target: Option<&str>| {
+            let actor = permissions_with_invite(
+                Some(parent),
+                &authority.owner.account_id,
+                &value.owner.account_id,
+                scope,
+                u64::MAX,
+                issued,
+            );
+            let mut unconstrained = parent.as_ref().clone();
+            unconstrained.sanctions.clear();
+            actor & MODERATE != 0
+                && target.is_none_or(|target| {
+                    target != authority.owner.account_id
+                        && permissions(
+                            Some(&unconstrained),
+                            &authority.owner.account_id,
+                            target,
+                            scope,
+                            u64::MAX,
+                        ) & MODERATE
+                            == 0
+                })
+        };
+        for sanction in value
+            .sanctions
+            .iter()
+            .filter(|s| !parent.sanctions.contains(s))
+            .chain(
+                parent
+                    .sanctions
+                    .iter()
+                    .filter(|s| !value.sanctions.contains(s)),
+            )
+        {
+            require(allowed(
+                sanction.channel_id.as_deref(),
+                Some(&sanction.account_id),
+            ))?;
+        }
+        for limit in value
+            .limits
+            .iter()
+            .filter(|l| !parent.limits.contains(l))
+            .chain(parent.limits.iter().filter(|l| !value.limits.contains(l)))
+        {
+            require(allowed(Some(&limit.channel_id), None))?;
+            let before = parent
+                .limits
+                .iter()
+                .find(|l| l.channel_id == limit.channel_id)
+                .and_then(|l| l.retention_days);
+            let after = value
+                .limits
+                .iter()
+                .find(|l| l.channel_id == limit.channel_id)
+                .and_then(|l| l.retention_days);
+            require(before == after)?;
+        }
+        // A delegated signature must carry an actual authorized moderation change.
+        require(value.sanctions != parent.sanctions || value.limits != parent.limits)?;
+    } else {
+        issuer(server, authority, &value.owner)?;
+        require(value.moderator_admission.is_none())?;
+    }
     require(
         value.community_id == authority.community_id
             && value.revision > 0
@@ -244,12 +455,24 @@ pub fn verify_governance(
             valid_id(&sanction.account_id)
                 && sanction.account_id != authority.owner.account_id
                 && sanction.channel_id.as_ref().is_none_or(|c| valid_id(c))
-                && sanctions.insert((&sanction.account_id, &sanction.channel_id))
+                && sanctions.insert((
+                    &sanction.account_id,
+                    &sanction.channel_id,
+                    sanction.kind == SanctionKind::Kick,
+                ))
                 && match sanction.kind {
                     SanctionKind::Timeout => {
-                        sanction.until.is_some_and(|t| t < 9_007_199_254_740_991)
+                        sanction.kick_after.is_none()
+                            && sanction.until.is_some_and(|t| t < 9_007_199_254_740_991)
                     }
-                    _ => sanction.until.is_none(),
+                    SanctionKind::Kick => {
+                        sanction.until.is_none()
+                            && sanction.channel_id.is_none()
+                            && sanction
+                                .kick_after
+                                .is_none_or(|t| t > 0 && t < 9_007_199_254_740_991)
+                    }
+                    _ => sanction.until.is_none() && sanction.kick_after.is_none(),
                 },
         )?;
     }

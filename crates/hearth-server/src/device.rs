@@ -14,7 +14,7 @@ pub(crate) async fn account_id(
     headers: &HeaderMap,
 ) -> Result<String, StatusCode> {
     sqlx::query_scalar(
-        "SELECT account_id FROM auth_sessions WHERE token_hash=$1 AND expires_at > now()",
+        "SELECT s.account_id FROM auth_sessions s JOIN accounts a ON a.id=s.account_id WHERE token_hash=$1 AND expires_at > now() AND NOT a.deleted",
     )
     .bind(crate::auth::bearer(headers)?)
     .fetch_optional(&state.db)

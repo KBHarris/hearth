@@ -324,3 +324,39 @@ failed storage deletion remains retryable. Expired blobs cannot obtain new downl
 leases. Existing leases, recipient copies, WAL/storage recovery and host backups cannot
 be recalled; physical backup expiry remains an operator responsibility. A dishonest host
 can retain ciphertext outside this cleanup mechanism.
+
+Ownership transfer adds public lineage metadata: outgoing/successor account identities
+and approved device certificates, previous signed roots, exact signed-object digests,
+the pending offer and a content-free acceptance audit digest. Digests cover public
+certificates and policies, never plaintext messages. Both owners sign the transition;
+the host cannot replace a pinned owner. Unused invites are invalidated. Accepted
+historical epochs retain their original authority; old-owner objects must be explicitly
+endorsed to remain current. The client keeps a retryable acceptance outbox inside its
+encrypted snapshot and advances the pin after the server CAS succeeds. First-contact
+trust remains a fingerprint comparison. See ADR 0014 for limits and recovery scope.
+
+
+### Phase 3 account safety, export and browser push metadata
+
+User blocks store the blocker and blocked account IDs privately per account. They deny direct-message delivery between that pair; shared-community ciphertext still arrives and is hidden by the client. Server bans record the operator and banned account IDs and revoke server sessions; they do not give the operator community signing authority or remove previously distributed encryption keys.
+
+Account exports contain account-owned metadata, public device certificates, membership and block lists, blob metadata, authored delivery-operation metadata with opaque envelopes, and opaque reports submitted by or addressed to the account. No password verifier, session token, authentication exchange or private key is included. Pagination is a live view: concurrent writes can change the dataset between pages. The browser optionally adds readable messages from its local decrypted store, with an explicit checkbox. Those files are plaintext and do not replace the recovery kit.
+
+Opt-in Web Push stores an approved device key, account ID, provider endpoint, P-256 subscription public key and subscription authentication secret, pending timestamp and last-attempt timestamp. These are routing credentials: do not log them or include them in unauthenticated responses. Supported provider endpoints are HTTPS FCM, Mozilla and Apple. The transport validates DNS answers and pins public addresses, disables redirects and proxy environment routing, and limits delivery attempts. Subscription ownership cannot move to another account or device through an upsert.
+
+Push bodies contain only the fixed string `New activity in Hearth.` under RFC 8291 encryption; VAPID uses a separately derived P-256 signing key scoped to this feature. The push provider can observe timing, endpoint and application-server identity. New sends enqueue generic activity for recipient subscriptions, excluding the author, with a 30-second attempt interval and a ten-minute expiry. Typing, edits, reactions, control messages and MLS commits do not enqueue notifications. The service worker ignores pushed content and always displays fixed copy, then opens the local application origin. Desktop-native notifications remain a later platform integration; the web UI reports unsupported contexts explicitly.
+
+## Account departure and local link cards
+
+Account deletion requires an approved device signature and current session, and
+retains an exact signed retry proof after revocation. Public identity/admission and
+MLS transcript evidence remain; deletion is not complete metadata anonymization.
+Late account writes are fenced by database locks and triggers. New publishing
+requires removal of departed devices; recipient copies, private local history,
+old presigned URL leases and backups cannot be recalled. Physical private storage
+cleanup follows upload-lease expiry. See [ADR 0016](adr/0016-signed-account-departure.md).
+
+Automatic link cards parse addresses locally and fetch no remote website data.
+The preference is scoped to account and server. Disabling cards changes display
+on this device, including already received embeds; it does not alter message
+ciphertext or another participant's display preference.

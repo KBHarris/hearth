@@ -14,6 +14,14 @@ use sqlx::{PgConnection, Row, postgres::PgRow};
 use tower_http::cors::CorsLayer;
 
 type Result<T> = std::result::Result<T, StatusCode>;
+fn decode_kind(value: &str) -> Result<ChannelKind> {
+    match value {
+        "text" => Ok(ChannelKind::Text),
+        "announcement" => Ok(ChannelKind::Announcement),
+        "forum" => Ok(ChannelKind::Forum),
+        _ => Err(StatusCode::SERVICE_UNAVAILABLE),
+    }
+}
 fn unavailable(_: sqlx::Error) -> StatusCode {
     StatusCode::SERVICE_UNAVAILABLE
 }
@@ -63,6 +71,18 @@ pub fn routes(origins: &[String]) -> Router<SharedState> {
         .route("/", get(list).post(create))
         .route("/join", post(join))
         .route("/channels/{id}/roster", get(channel_roster))
+        .route(
+            "/channels/{id}/report-keys",
+            get(crate::reports::keys).post(crate::reports::register),
+        )
+        .route(
+            "/channels/{id}/reports",
+            get(crate::reports::queue).post(crate::reports::submit),
+        )
+        .route(
+            "/channels/{channel}/reports/{id}/resolve",
+            post(crate::reports::resolve),
+        )
         .route("/{id}", get(structure))
         .route("/{id}/categories", post(create_category))
         .route("/{id}/channels", post(create_channel))
@@ -77,7 +97,13 @@ pub fn routes(origins: &[String]) -> Router<SharedState> {
         )
         .route("/{id}/audit", get(crate::governance::audit))
         .route("/{id}/rules/accept", post(crate::governance::accept_rules))
-        .layer(DefaultBodyLimit::max(64 * 1024))
+        .route(
+            "/{id}/ownership",
+            get(crate::ownership::get).post(crate::ownership::offer),
+        )
+        .route("/{id}/ownership/accept", post(crate::ownership::accept))
+        .route("/{id}/ownership/cancel", post(crate::ownership::cancel))
+        .layer(DefaultBodyLimit::max(1024 * 1024))
         .layer(
             CorsLayer::new()
                 .allow_origin(
@@ -95,6 +121,7 @@ pub(crate) struct ChannelAccess {
     pub community_id: String,
     pub owner_id: String,
     pub announcement: bool,
+    pub kind: ChannelKind,
     pub authority: Option<CommunityAuthority>,
     pub policy: Option<ChannelPolicy>,
     pub governance: Option<hearth_proto::governance::Governance>,
@@ -140,6 +167,7 @@ pub(crate) async fn channel_access(
         governance,
         owner_id: row.get("owner_id"),
         announcement: row.get::<&str, _>("kind") == "announcement",
+        kind: decode_kind(row.get("kind"))?,
         authority: decode_optional(row.get("authority"))?,
         policy: decode_optional(row.get("policy"))?,
     }))
@@ -170,14 +198,21 @@ async fn channel_roster(
             .fetch_one(&mut *tx)
             .await
             .map_err(unavailable)?;
-    let accounts = sqlx::query("SELECT a.id,a.username,a.owner,m.admission,m.invitation FROM accounts a JOIN community_members m ON m.account_id=a.id WHERE m.community_id=$1 ORDER BY a.id").bind(&access.community_id).fetch_all(&mut *tx).await.map_err(unavailable)?;
+    let accounts = sqlx::query("SELECT a.id,a.username,a.owner,a.departure,m.admission,m.invitation FROM accounts a JOIN community_members m ON m.account_id=a.id WHERE m.community_id=$1 ORDER BY a.id").bind(&access.community_id).fetch_all(&mut *tx).await.map_err(unavailable)?;
     if accounts.len() > 128 {
         return Err(StatusCode::CONFLICT);
     }
     let mut people = Vec::new();
     let mut admissions = Vec::new();
     let mut invitations = Vec::new();
+    let mut departures = Vec::new();
     for a in accounts {
+        if let Some(value) =
+            decode_optional::<hearth_proto::lifecycle::AccountDeparture>(a.get("departure"))?
+        {
+            departures.push(value);
+            continue;
+        }
         if crate::governance::bits(
             &mut tx,
             &access.community_id,
@@ -228,15 +263,12 @@ async fn channel_roster(
             community_id: h.get("community_id"),
             name: h.get("name"),
             category_id: h.get("category_id"),
-            kind: if access.announcement {
-                ChannelKind::Announcement
-            } else {
-                ChannelKind::Text
-            },
+            kind: access.kind,
         },
         people,
         authority: access.authority,
         policy: access.policy,
+        departures,
         admissions,
         invitations,
         governance: access.governance,
@@ -394,7 +426,7 @@ async fn set_policy(
             .await
             .map_err(unavailable)?
             .ok_or(StatusCode::FORBIDDEN)?;
-    if (row.get::<&str, _>("kind") == "announcement") != (value.kind == ChannelKind::Announcement) {
+    if decode_kind(row.get("kind"))? != value.kind {
         return Err(StatusCode::BAD_REQUEST);
     }
     let old = decode_optional::<ChannelPolicy>(row.get("policy"))?;
@@ -488,7 +520,7 @@ async fn structure(
     let categories = sqlx::query("SELECT id,community_id,name FROM community_categories WHERE community_id=$1 ORDER BY created_at,id").bind(&community_id).fetch_all(&mut *tx).await.map_err(unavailable)?
         .iter().map(|r| Category { id:r.get("id"), community_id:r.get("community_id"), name:r.get("name") }).collect();
     let channels = sqlx::query("SELECT id,community_id,category_id,name,kind FROM community_channels WHERE community_id=$1 ORDER BY created_at,id").bind(&community_id).fetch_all(&mut *tx).await.map_err(unavailable)?
-        .iter().map(|r| Ok(Channel { id:r.get("id"), community_id:r.get("community_id"), name:r.get("name"), category_id:r.get("category_id"), kind: match r.get::<&str,_>("kind") { "text"=>ChannelKind::Text,"announcement"=>ChannelKind::Announcement,_=>return Err(StatusCode::SERVICE_UNAVAILABLE) } })).collect::<Result<Vec<_>>>()?;
+        .iter().map(|r| Ok(Channel { id:r.get("id"), community_id:r.get("community_id"), name:r.get("name"), category_id:r.get("category_id"), kind: match r.get::<&str,_>("kind") { "text"=>ChannelKind::Text,"announcement"=>ChannelKind::Announcement,"forum"=>ChannelKind::Forum,_=>return Err(StatusCode::SERVICE_UNAVAILABLE) } })).collect::<Result<Vec<_>>>()?;
     let governance = crate::governance::decode(row.get("governance"))?;
     let mut permitted = Vec::new();
     for channel in channels {
@@ -592,7 +624,7 @@ async fn create_channel(
         category_id: request.category_id,
         kind: request.kind,
     };
-    sqlx::query("INSERT INTO community_channels(id,community_id,category_id,name,kind) VALUES($1,$2,$3,$4,$5)").bind(&result.id).bind(&result.community_id).bind(&result.category_id).bind(&result.name).bind(match result.kind {ChannelKind::Text=>"text",ChannelKind::Announcement=>"announcement"}).execute(&mut *tx).await.map_err(unavailable)?;
+    sqlx::query("INSERT INTO community_channels(id,community_id,category_id,name,kind) VALUES($1,$2,$3,$4,$5)").bind(&result.id).bind(&result.community_id).bind(&result.category_id).bind(&result.name).bind(match result.kind {ChannelKind::Text=>"text",ChannelKind::Announcement=>"announcement",ChannelKind::Forum=>"forum"}).execute(&mut *tx).await.map_err(unavailable)?;
     tx.commit().await.map_err(unavailable)?;
     Ok(Json(result))
 }
@@ -704,17 +736,6 @@ async fn join(
             .await
             .map_err(unavailable)?;
     let policy = crate::governance::decode(row.get("governance"))?;
-    if hearth_proto::governance::permissions(
-        policy.as_ref(),
-        row.get("owner_id"),
-        &account,
-        None,
-        crate::governance::now(),
-    ) & hearth_proto::governance::READ
-        == 0
-    {
-        return Err(StatusCode::FORBIDDEN);
-    }
     // clock_timestamp, unlike now(), advances while concurrent joins wait for locks.
     let invitation = sqlx::query("SELECT uses,max_uses,certificate FROM community_invites WHERE code_hash=$1 AND expires_at>clock_timestamp() FOR UPDATE").bind(&digest).fetch_optional(&mut *tx).await.map_err(unavailable)?.ok_or(StatusCode::FORBIDDEN)?;
     let joined: bool = sqlx::query_scalar(
@@ -725,7 +746,38 @@ async fn join(
     .fetch_one(&mut *tx)
     .await
     .map_err(unavailable)?;
-    if !joined {
+    let certificate = decode_optional::<CommunityInvitation>(invitation.get("certificate"))?;
+    let issued = certificate.as_ref().map(|i| i.issued_at);
+    if hearth_proto::governance::permissions_with_invite(
+        policy.as_ref(),
+        row.get("owner_id"),
+        &account,
+        None,
+        crate::governance::now(),
+        issued,
+    ) & hearth_proto::governance::READ
+        == 0
+    {
+        return Err(StatusCode::FORBIDDEN);
+    }
+    let kicked = joined
+        && crate::governance::bits(
+            &mut tx,
+            &community_id,
+            row.get("owner_id"),
+            &account,
+            None,
+            policy.as_ref(),
+        )
+        .await?
+            & hearth_proto::governance::READ
+            == 0
+        && policy.as_ref().is_some_and(|p| {
+            p.sanctions.iter().any(|s| {
+                s.account_id == account && s.kind == hearth_proto::governance::SanctionKind::Kick
+            })
+        });
+    if !joined || kicked {
         if invitation.get::<i32, _>("uses") >= invitation.get::<i32, _>("max_uses") {
             return Err(StatusCode::FORBIDDEN);
         }
@@ -741,11 +793,11 @@ async fn join(
                 .fetch_one(&mut *tx)
                 .await
                 .map_err(unavailable)?;
-        if total >= 1024 || own >= 100 {
+        if !joined && (total >= 1024 || own >= 100) {
             return Err(StatusCode::CONFLICT);
         }
         sqlx::query(
-            "INSERT INTO community_members(community_id,account_id,invitation) VALUES($1,$2,$3)",
+            "INSERT INTO community_members(community_id,account_id,invitation) VALUES($1,$2,$3) ON CONFLICT(community_id,account_id) DO UPDATE SET invitation=excluded.invitation,admission=NULL,joined_at=now()",
         )
         .bind(&community_id)
         .bind(account)

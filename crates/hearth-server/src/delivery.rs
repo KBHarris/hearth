@@ -63,7 +63,7 @@ pub(crate) async fn approved(state: &SharedState, account: &str, device: &str) -
         return Err(StatusCode::BAD_REQUEST);
     }
     let exists: bool = sqlx::query_scalar(
-        "SELECT EXISTS(SELECT 1 FROM account_devices WHERE account_id=$1 AND device_key=$2)",
+        "SELECT EXISTS(SELECT 1 FROM account_devices d JOIN accounts a ON a.id=d.account_id WHERE account_id=$1 AND device_key=$2 AND NOT a.deleted)",
     )
     .bind(account)
     .bind(device)
@@ -356,6 +356,15 @@ async fn commit(
         return Err(StatusCode::FORBIDDEN);
     }
     let mut tx = state.db.begin().await.map_err(unavailable)?;
+    let live = sqlx::query("SELECT deleted FROM accounts WHERE id=ANY($1) ORDER BY id FOR SHARE")
+        .bind(&accounts)
+        .fetch_all(&mut *tx)
+        .await
+        .map_err(unavailable)?;
+    if live.len() != accounts.len() || live.iter().any(|r| r.get::<bool, _>("deleted")) {
+        return Err(StatusCode::FORBIDDEN);
+    };
+
     // The insert's uniqueness lock and the existing-row lock order creation and all commits.
     let channel = crate::community::channel_access(&mut tx, &id, &account).await?;
     if let Some(channel) = &channel {
@@ -417,6 +426,12 @@ async fn commit(
         || upload.members.len() > 32
     {
         return Err(StatusCode::FORBIDDEN);
+    }
+    if channel.is_none() {
+        let blocked:bool=sqlx::query_scalar("SELECT EXISTS(SELECT 1 FROM user_blocks WHERE account_id=ANY($1) AND blocked_id=ANY($1))").bind(&accounts).fetch_one(&mut *tx).await.map_err(unavailable)?;
+        if blocked {
+            return Err(StatusCode::FORBIDDEN);
+        }
     }
     let inserted = sqlx::query(
         "INSERT INTO conversations(id,epoch,members,channel_id) VALUES($1,0,'[]',$2) ON CONFLICT DO NOTHING",
@@ -631,6 +646,9 @@ async fn message(
     ));
     let mut tx = state.db.begin().await.map_err(unavailable)?;
     let channel = crate::community::channel_access(&mut tx, &id, &account).await?;
+    if channel.is_none() {
+        crate::safety::dm_allowed(&mut tx, &id, &account).await?;
+    }
     if !matches!(
         upload.action,
         MessageAction::Typing | MessageAction::Control
@@ -703,6 +721,19 @@ async fn message(
     .map_err(unavailable)?
     .ok_or(StatusCode::NOT_FOUND)?;
     let members: Vec<GroupMember> = parsed(row.get("members"))?;
+    let audience = members
+        .iter()
+        .map(|m| m.account_id.clone())
+        .collect::<Vec<_>>();
+    let live = sqlx::query("SELECT deleted FROM accounts WHERE id=ANY($1) ORDER BY id FOR SHARE")
+        .bind(&audience)
+        .fetch_all(&mut *tx)
+        .await
+        .map_err(unavailable)?;
+    if live.iter().any(|r| r.get::<bool, _>("deleted")) {
+        return Err(StatusCode::CONFLICT);
+    };
+
     if let Some(channel) = &channel {
         for member in &members {
             if crate::governance::bits(
@@ -814,6 +845,17 @@ async fn message(
         upload.action == MessageAction::Typing,
     )
     .await?;
+    if upload.action == MessageAction::Send {
+        crate::push::enqueue(
+            &mut tx,
+            &members
+                .iter()
+                .map(|m| m.account_id.clone())
+                .collect::<Vec<_>>(),
+            &account,
+        )
+        .await?;
+    }
     tx.commit().await.map_err(unavailable)?;
     Ok(StatusCode::NO_CONTENT)
 }

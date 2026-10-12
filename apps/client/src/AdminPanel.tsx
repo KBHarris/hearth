@@ -1,3 +1,4 @@
+import {BlockedPeople} from './BlockedPeople'
 import { useEffect, useState, type FormEvent } from 'react'
 import { HearthClient,type Session,type ServerSettings,type RegistrationMode } from '@hearth/sdk'
 
@@ -32,6 +33,7 @@ export function AdminPanel({session,url,configured}:{session:Session;url:string;
     <p>Invite codes create one account and expire after 24 hours. Share the server address and code with the person you want to invite.</p>
     <button type="button" disabled={busy} onClick={() => void createInvite()}>Create account invite</button>
     {invite && <><label htmlFor="account-invite">Single-use account invite</label><input id="account-invite" readOnly value={invite}/></>}
+    <BlockedPeople url={url} session={session} operator/>
     {error && <p className="input-error" role="alert">{error}</p>}
   </section>
 }

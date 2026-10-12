@@ -394,7 +394,7 @@ pub async fn cleanup_retained(state: &SharedState) -> std::result::Result<(), St
     let Some(storage) = &state.config.storage else {
         return Ok(());
     };
-    let rows = sqlx::query("SELECT id,conversation_id FROM encrypted_blobs WHERE hearth_retention_expired(conversation_id,created_at) ORDER BY created_at LIMIT 32")
+    let rows = sqlx::query("SELECT id,conversation_id FROM encrypted_blobs WHERE hearth_retention_expired(conversation_id,created_at) OR erased_at<now()-interval '20 minutes' ORDER BY created_at LIMIT 32")
         .fetch_all(&state.db).await.map_err(unavailable)?;
     for row in rows {
         let id: String = row.get("id");

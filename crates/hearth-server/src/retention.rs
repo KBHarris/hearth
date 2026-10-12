@@ -8,7 +8,7 @@ pub(crate) async fn expired_blob(
     conversation: &str,
     id: &str,
 ) -> Result<bool, StatusCode> {
-    sqlx::query_scalar("SELECT EXISTS(SELECT 1 FROM encrypted_blobs WHERE id=$1 AND conversation_id=$2 AND hearth_retention_expired(conversation_id,created_at))")
+    sqlx::query_scalar("SELECT EXISTS(SELECT 1 FROM encrypted_blobs WHERE id=$1 AND conversation_id=$2 AND (erased_at IS NOT NULL OR hearth_retention_expired(conversation_id,created_at)))")
         .bind(id).bind(conversation).fetch_one(&state.db).await.map_err(|_|StatusCode::SERVICE_UNAVAILABLE)
 }
 pub async fn cleanup(state: &SharedState) -> Result<(), StatusCode> {

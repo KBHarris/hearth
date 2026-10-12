@@ -27,4 +27,4 @@ done
 if [[ "$service_ready" != true ]]; then echo 'Private Secret Service startup timed out.' >&2; exit 1; fi
 node scripts/verify-local-vault.mjs
 node scripts/verify-message-store.mjs
-node scripts/verify-auth.mjs --desktop --native-postgres
+node scripts/verify-auth.mjs --desktop --native-postgres "$@"

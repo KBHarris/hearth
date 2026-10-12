@@ -17,6 +17,8 @@ const paths = {
   home: 'm3 10 9-7 9 7 M5 9v12h5v-7h4v7h5V9',
   device: 'M3 4h18v13H3z M8 21h8 M12 17v4',
   plus: 'M12 5v14 M5 12h14',
+  paperclip: 'm21 11-8 8a6 6 0 0 1-8-8l9-9a4 4 0 0 1 6 6l-9 9a2 2 0 0 1-3-3l8-8',
+  close: 'm6 6 12 12 M18 6 6 18',
   check: 'm5 12 4 4L19 6',
   alert: 'M12 3 2 21h20z M12 9v5 M12 17h.01',
   settings: 'M12 8a4 4 0 1 0 0 8 4 4 0 0 0 0-8 M9 3h6l1 3 3 1 2 5-2 5-3 1-1 3H9l-1-3-3-1-2-5 2-5 3-1z',

@@ -2364,12 +2364,17 @@ dependencies = [
 name = "hearth-server"
 version = "0.1.0"
 dependencies = [
+ "aes-gcm",
  "anyhow",
  "axum",
+ "base64 0.22.1",
  "hearth-crypto",
  "hearth-proto",
  "hex",
+ "hkdf 0.12.4",
+ "p256",
  "rand_core 0.6.4",
+ "reqwest 0.12.28",
  "rust-s3",
  "serde",
  "serde_json",

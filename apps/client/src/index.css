@@ -45,3 +45,10 @@ button, input, summary {
 ::selection {
   background: #e8b68135;
 }
+
+.message-poll { display: grid; gap: .5rem; max-width: 32rem; margin: .75rem 0; }
+.message-poll > button { display: flex; justify-content: space-between; text-align: left; gap: 1rem; }
+.message-poll > button[aria-pressed="true"] { border-color: var(--accent); background: var(--bg-hover); }
+.forum-post { border: 1px solid var(--border); border-radius: .5rem; padding: 1rem; margin: .75rem 0; }
+.forum-post h3 { margin: 0 0 .5rem; }
+.forum-post h3 button { font: inherit; text-align: left; }

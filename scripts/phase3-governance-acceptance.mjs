@@ -60,6 +60,24 @@ export async function verifyGovernance({alice,bob,carol,request,json:cryptoJson,
   assert.throws(()=>json(alice.client,'authorize_channel',{id,authorization:{...authorization,governance:stale}}))
   assert.throws(()=>json(alice.client,'authorize_channel',{id,authorization:{...authorization,governance:undefined}}))
   mark('governance_member_override_rejects_stale_send_and_client_rollback')
+  stage='permission matrix'
+  await revision({overrides:[]});await rotate()
+  // Sign in an allowed epoch, then remove permission before HTTP submission.
+  for(const [bit,content] of [[4,{kind:'reaction',id:first.operation_id,emoji:'👍',active:true}],[16,{kind:'pin',id:first.operation_id,active:false}]]){
+    const candidate=json(bob.client,'send',{id,content})
+    await revision({overrides:[{channel_id:id,kind:'member',target_id:account,allow:0,deny:bit}]})
+    assert.equal((await request(`/api/v1/chat/conversations/${id}/message`,candidate,bob.session.token)).status,403);op(bob.client,'reject',candidate.operation_id)
+    await rotate();assert.throws(()=>json(bob.client,'send',{id,content}))
+    await revision({overrides:[]});await rotate()
+  }
+  await revision({roles:[{id:role,name:'Reserved management bits',permissions:32|64|128}],assignments:[{account_id:account,role_ids:[role]}]});await rotate()
+  for(const [path,body] of [[`${base}/${community.id}/categories`,{name:'Unauthorized category'}],[`${base}/${community.id}/channels`,{name:'unauthorized-channel',kind:'text',category_id:null}],[`${base}/${community.id}/invites`,{code:invitation.code,authorization:certificate,expires_in_seconds:3600,max_uses:2}],[`${base}/${community.id}/authority`,authority],[`${base}/${community.id}/admissions`,admission],[`${base}/channels/${id}/policy`,policy]])assert.equal((await request(path,body,bob.session.token)).status,403,path)
+  for(const path of [`${base}/${community.id}`,`${base}/${community.id}/invitation`,`${base}/${community.id}/governance`,`${base}/${community.id}/ownership`,`${base}/channels/${id}/roster`,`${base}/channels/${id}/report-keys`,`${base}/channels/${id}/reports`,`/api/v1/chat/conversations/${id}/history?after=0&device=${bob.identity.enrollment.device_key}`]){
+    assert.equal((await request(path)).status,401,path)
+    assert.equal((await request(path,undefined,carol.session.token)).status,403,path)
+  }
+  await revision({roles:[{id:role,name:'Pinners',permissions:16}]});await rotate()
+  mark('permission_matrix_react_pin_owner_only_management_and_nonmember_read_endpoints')
   stage='slowmode'
   await revision({overrides:[],limits:[{channel_id:id,slowmode_seconds:60,retention_days:null}]});await rotate()
   const post=inflight // The last accepted send also counts when slow mode is enabled.

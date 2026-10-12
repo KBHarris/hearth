@@ -1,3 +1,5 @@
+import type {ReportKey,ReportEvidence,QueuedReport,ReportEnvelope} from '@hearth/sdk'
+export type ReportReview=QueuedReport&{evidence?:ReportEvidence;error?:string}
 import {permissions,Permission,HearthClient,HearthError,PROTOCOL_VERSION,validateDeliveryEvent,type Session,type DeviceEnrollment,type Conversation,type LocalMessage,type KeyPackageRecord,type CommitUpload,type MessageUpload,type MessageContent,type Person,type DeliveryEvent,type ChannelRoster} from '@hearth/sdk'
 import {AuthCrypto} from './client'
 import {messageScope,readMessages,writeMessages} from './message-store'
@@ -5,6 +7,7 @@ import {storageDeadline} from './vault-store'
 import type {CommunityAuthority,CommunityAdmission,CommunityInvitation,ChannelPolicy,ChannelAuthorization,CommunityInvite,HistoryPolicy} from '@hearth/sdk'
 import type {Governance,GovernanceView,LocalProfile,LocalPresence} from '@hearth/sdk'
 import type {LocalAttachment} from '@hearth/sdk'
+import type {OwnershipState,OwnershipHandoff,OwnershipAcceptance} from '@hearth/sdk'
 import {MAX_FILE,hex,unhex,thumbnail} from './file-tools'
 import {cachedFile,cacheFile} from './file-cache'
 
@@ -15,9 +18,9 @@ export function admitted(roster:ChannelRoster,person:Person):boolean {
 
 type Pending={kind:'commit';conversation_id:string;upload:CommitUpload}|{kind:'message';conversation_id:string;upload:MessageUpload}
 type EngineView={last_seq:number;governance_epochs:Record<string,number>;messages:LocalMessage[];groups:Conversation[];pending:Pending[];pending_packages:KeyPackageRecord[];profiles:Record<string,LocalProfile>;presence:Record<string,LocalPresence>;read:Record<string,Record<string,string>>;history_backfill:string[];history_waiting:string[];emoji:Record<string,Record<string,LocalAttachment>>}
-export type ChatState={conversations:Conversation[];channels:Record<string,ChannelRoster>;joined:string[];messages:LocalMessage[];people:Record<string,Person>;typing:Record<string,{account:string;until:number}[]>;pending:number;connection:string;error:string;fatal:boolean;profiles:Record<string,LocalProfile>;presence:Record<string,LocalPresence>;read:Record<string,Record<string,string>>;history_waiting:string[];emoji:Record<string,Record<string,LocalAttachment>>}
+export type ChatState={blocked:string[];conversations:Conversation[];channels:Record<string,ChannelRoster>;joined:string[];messages:LocalMessage[];people:Record<string,Person>;typing:Record<string,{account:string;until:number}[]>;pending:number;connection:string;error:string;fatal:boolean;profiles:Record<string,LocalProfile>;presence:Record<string,LocalPresence>;read:Record<string,Record<string,string>>;history_waiting:string[];emoji:Record<string,Record<string,LocalAttachment>>}
 const initialView:EngineView={last_seq:0,governance_epochs:{},messages:[],groups:[],pending:[],pending_packages:[],profiles:{},presence:{},read:{},history_backfill:[],history_waiting:[],emoji:{}}
-export const initialChat:ChatState={conversations:[],channels:{},joined:[],messages:[],people:{},typing:{},pending:0,connection:'Opening encrypted storage…',error:'',fatal:false,profiles:{},presence:{},read:{},history_waiting:[],emoji:{}}
+export const initialChat:ChatState={blocked:[],conversations:[],channels:{},joined:[],messages:[],people:{},typing:{},pending:0,connection:'Opening encrypted storage…',error:'',fatal:false,profiles:{},presence:{},read:{},history_waiting:[],emoji:{}}
 
 /** One serialized stream owns the in-memory ratchets; CAS detects competing tabs/processes. */
 export class MessagingSession {
@@ -72,7 +75,7 @@ export class MessagingSession {
       this.close();this.publish({fatal:true,connection:'Encrypted storage needs attention',error:error instanceof Error?error.message:'Encrypted storage could not be saved. Sign in again.'});throw error
     }
   }
-  private async operation<T>(name:string,input:unknown=''):Promise<T> {return JSON.parse(await this.crypto.message(name,input)) as T}
+  private async operation<T>(name:string,input:unknown=''):Promise<T> {try{return JSON.parse(await this.crypto.message(name,input)) as T}catch(error){if(import.meta.env.DEV)console.warn('Encrypted operation failed: '+name+(name==='receive'&&typeof input==='object'&&input!==null&&'data' in input?'/'+String((input as {data:{kind?:string}}).data.kind):''));throw error}}
   async start() {
     return this.enqueue(async()=>{
       const saved=await storageDeadline(readMessages(this.scope),this.controller.signal)
@@ -102,6 +105,10 @@ export class MessagingSession {
         await this.operation('accept',pending.upload.operation_id);await this.persist()
       }catch(error){
         if(error instanceof HearthError && [400,403,409].includes(error.status)) {
+          // A prior successful request can lose its reply just before policy changes.
+          // Consume authenticated ordered delivery while the pending proof is retained.
+          for(;;){const backlog=await this.client.events(this.session.token,this.device.device_key,this.view.last_seq,this.options);for(const event of backlog)await this.receive(event);if(backlog.length<128)break}
+          if(!this.view.pending.some(p=>p.upload.operation_id===pending.upload.operation_id))continue
           await this.operation('reject',pending.upload.operation_id);await this.persist()
           this.publish({error:'Encryption or permissions changed. The queued operation was rejected; retry after updates arrive.'})
           rejected=true
@@ -131,6 +138,7 @@ export class MessagingSession {
       if(backlog.length<128)break
     }
   }
+  refreshBlocks():Promise<void>{return this.enqueue(async()=>{this.publish({blocked:(await this.client.blocks(this.session.token,this.options)).map(person=>person.id)})})}
   private async refresh() {
     // Drain the preceding epoch before adding a device. A commit must not discard
     // application secrets for messages still waiting in the ordered backlog.
@@ -150,7 +158,7 @@ export class MessagingSession {
     try {for(let offset=0;offset<peers.length;offset+=128)await this.operation('verify_peers',peers.slice(offset,offset+128))}
     catch {throw new Error('A participant’s identity changed or could not be verified. Saved fingerprints were preserved. Compare identities using a trusted channel before adding devices.')}
     await this.persist()
-    this.publish({conversations,people,channels})
+    this.publish({conversations,people,channels,blocked:(await this.client.blocks(this.session.token,this.options)).map(person=>person.id)})
     const count=await this.client.packageCount(this.session.token,this.device.device_key,this.options)
     if(count.available<4 && this.view.pending_packages.length===0){
       for(let available=count.available;available<4;available++){await this.operation('package');await this.persist();await this.flush()}
@@ -159,7 +167,7 @@ export class MessagingSession {
     for(const conversation of conversations){
       const local=this.view.groups.find(group=>group.id===conversation.id)
       if(!local || local.epoch!==conversation.epoch || this.view.pending.some(p=>p.conversation_id===conversation.id))continue
-      if(conversation.channel_id && local.members.some(m=>!(permissions(channels[conversation.id].governance,channels[conversation.id].community.owner_id,m.account_id,conversation.id,Number.MAX_SAFE_INTEGER)&Permission.read))) {
+      if(conversation.channel_id && local.members.some(m=>channels[conversation.id].departures?.some(d=>d.member.account_id===m.account_id&&d.member.enrollment.identity_key===m.enrollment.identity_key)||!(permissions(channels[conversation.id].governance,channels[conversation.id].community.owner_id,m.account_id,conversation.id,Number.MAX_SAFE_INTEGER,channels[conversation.id].admissions.find(a=>a.account_id===m.account_id)?.invitation?.issued_at??null)&Permission.read))) {
         const pruned=await this.operation<CommitUpload|null>('prune_channel',conversation.id);await this.persist();if(pruned)await this.flush();continue
       }
       if(conversation.channel_id && channels[conversation.id].community.owner_id===this.session.account.id && (this.view.governance_epochs?.[conversation.id]??0)!==(channels[conversation.id].governance?.revision??0)) {
@@ -214,9 +222,35 @@ export class MessagingSession {
     return root
   }
   loadGovernance(id:string):Promise<GovernanceView>{return this.enqueue(async()=>{
+    await this.synchronize()
     const authority=await this.prepareCommunity(id),view=await this.client.governance(this.session.token,id,this.options)
     await this.operation('pin_governance',{authority,policy:view.governance});await this.persist();return view
   })}
+  loadOwnership(id:string):Promise<OwnershipState>{return this.enqueue(async()=>{
+    await this.synchronize()
+    await this.prepareCommunity(id);const state=await this.client.ownership(this.session.token,id,this.options)
+    await this.operation('verify_authority',state.authority)
+    if(state.offer){if(JSON.stringify(state.offer.previous)!==JSON.stringify(state.authority))throw new Error('The ownership offer is stale. Ask the owner to prepare it again.');await this.operation('verify_ownership',state.offer)}
+    await this.persist();return state
+  })}
+  offerOwnership(id:string,account:string):Promise<void>{return this.enqueue(async()=>{
+    await this.refresh();const authority=await this.prepareCommunity(id),state=await this.client.ownership(this.session.token,id,this.options),person=await this.client.personById(this.session.token,account,this.options)
+    const structure=await this.client.communityStructure(this.session.token,id,this.options),conversations=await this.client.conversations(this.session.token,this.options)
+    const enrollment=person.devices.find(d=>structure.channels.every(c=>conversations.find(g=>g.id===c.id)?.members.some(m=>m.enrollment.device_key===d.device_key)))
+    if(!enrollment)throw new Error('Ask this member to open every channel on the same approved device before offering ownership.')
+    const successor={account_id:account,enrollment};const offer=await this.operation<OwnershipHandoff>('offer_ownership',{authority,successor,endorsed:state.endorsed});await this.persist()
+    await this.client.offerOwnership(this.session.token,id,offer,this.options)
+  })}
+  acceptOwnership(id:string):Promise<void>{return this.enqueue(async()=>{
+    await this.synchronize();const authority=await this.prepareCommunity(id),state=await this.client.ownership(this.session.token,id,this.options),view=await this.client.governance(this.session.token,id,this.options)
+    if(!state.offer)throw new Error('There is no pending ownership transfer.')
+    await this.operation('pin_governance',{authority,policy:view.governance});await this.persist()
+    const old=view.governance??{community_id:id,revision:0,everyone:15,roles:[],assignments:[],overrides:[],sanctions:[],limits:[],rules:'',screening:false,owner:authority.owner,signature:''}
+    const acceptance=await this.operation<OwnershipAcceptance>('accept_ownership',{offer:state.offer,policy:{...old,revision:old.revision+1}});await this.persist()
+    const root=await this.client.acceptOwnership(this.session.token,id,acceptance,this.options)
+    await this.operation('pin_governance',{authority:root,policy:acceptance.governance});await this.persist();await this.refresh()
+  })}
+  cancelOwnership(id:string):Promise<void>{return this.enqueue(async()=>{await this.client.cancelOwnership(this.session.token,id,this.options)})}
   saveGovernance(id:string,policy:Governance):Promise<Governance>{return this.enqueue(async()=>{
     await this.synchronize();const authority=await this.prepareCommunity(id)
     const signed=await this.operation<Governance>('sign_governance',{authority,policy});await this.persist()
@@ -231,7 +265,7 @@ export class MessagingSession {
     await this.client.acceptRules(this.session.token,id,digest,this.options);await this.refresh()
   })}
   secureCommunity(id:string):Promise<void>{return this.enqueue(async()=>{await this.prepareCommunity(id)})}
-  secureJoin(id:string,code:string):Promise<void>{return this.enqueue(async()=>{const authority=await this.prepareCommunity(id);const invitation=await this.client.memberInvitation(this.session.token,id,this.options);if(!invitation)throw new Error('Ask the owner for a signed community invite.');await this.operation('pin_invitation',{authority,code,invitation});await this.persist()})}
+  secureJoin(id:string,code:string):Promise<void>{return this.enqueue(async()=>{await this.flush();const authority=await this.prepareCommunity(id);const invitation=await this.client.memberInvitation(this.session.token,id,this.options);if(!invitation)throw new Error('Ask the owner for a signed community invite.');const hash=Array.from(new Uint8Array(await crypto.subtle.digest('SHA-256',new TextEncoder().encode(code))),b=>b.toString(16).padStart(2,'0')).join('');if(hash!==invitation.invite_id)return;const policy=(await this.client.governance(this.session.token,id,this.options)).governance;const rejoining=policy?.sanctions.some(s=>s.account_id===this.session.account.id&&s.kind==='kick'&&s.kick_after!=null&&invitation.issued_at>s.kick_after);await this.operation(rejoining?'rejoin_invitation':'pin_invitation',{authority,code,invitation,policy});await this.persist()})}
   async createInvite(id:string,expires_in_seconds:number,max_uses:number):Promise<CommunityInvite>{
     const structure=await this.client.communityStructure(this.session.token,id,this.options)
     for(const channel of structure.channels)if(!this.view.groups.some(g=>g.id===channel.id))await this.openChannel(channel.id)
@@ -260,7 +294,7 @@ export class MessagingSession {
       roster=await this.client.channelRoster(this.session.token,id,this.options)
     }
     if(!roster.authority||!roster.policy)throw new Error('The channel encryption policy is incomplete.')
-    const authorization:ChannelAuthorization={authority:roster.authority,policy:roster.policy,admissions:roster.admissions,governance:roster.governance}
+    const authorization:ChannelAuthorization={authority:roster.authority,policy:roster.policy,admissions:roster.admissions,governance:roster.governance,departures:roster.departures}
     await this.operation('authorize_channel',{id,authorization});await this.persist()
     return roster
   }
@@ -339,6 +373,12 @@ export class MessagingSession {
       }
     })
   }
+  deleteAccount():Promise<void>{return this.enqueue(async()=>{await this.flush();const proof=await this.operation<import('@hearth/sdk').AccountDeparture>('sign_departure');await this.persist();await this.client.deleteAccount(this.session.token,proof,this.options);this.close()})}
+  reportKeys(id:string):Promise<ReportKey[]>{return this.enqueue(async()=>{await this.prepareChannel(id);return this.client.reportKeys(this.session.token,id,this.options)})}
+  reportPreview(id:string,selected:string[],reason:string):Promise<ReportEvidence>{return this.enqueue(()=>this.operation('report_preview',{id,selected,reason}))}
+  submitReport(id:string,selected:string[],reason:string,key:ReportKey):Promise<void>{return this.enqueue(async()=>{await this.prepareChannel(id);const envelope=await this.operation<ReportEnvelope>('prepare_report',{id,selected,reason,key});await this.client.submitReport(this.session.token,id,envelope,this.options)})}
+  reportQueue(id:string):Promise<ReportReview[]>{return this.enqueue(async()=>{const roster=await this.prepareChannel(id),key=await this.operation<ReportKey>('report_key',roster.community.id);await this.client.registerReportKey(this.session.token,id,key,this.options);const reports=await this.client.reportQueue(this.session.token,id,this.options);return Promise.all(reports.map(async report=>{try{return {...report,evidence:await this.operation<ReportEvidence>('open_report',report.envelope)}}catch{return {...report,error:'This report could not be verified on this device. It may belong to another approved device.'}}}))})}
+  resolveReport(id:string,report:string):Promise<void>{return this.enqueue(async()=>{await this.client.resolveReport(this.session.token,id,report,this.options)})}
   search(query:string,conversation:string|null):Promise<LocalMessage[]>{return this.enqueue(()=>this.operation<LocalMessage[]>('search',{query,conversation}))}
   async sendAttachment(id:string,file:File,text:string,emoji?:string){
     if(!file.size||file.size>MAX_FILE)throw new Error('Choose a file between 1 byte and 8 MiB.')

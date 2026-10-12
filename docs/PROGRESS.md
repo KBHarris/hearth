@@ -1,32 +1,19 @@
-# Hearth implementation progress
+# Progress
 
-Updated: 2026-10-11. This file records implementation and validation separately. The
-full product backlog and phase exit criteria are in [ROADMAP.md](ROADMAP.md).
+Phase 3 is in active validation on `codex/phase3-navigation` (2026-10-12).
+The local HTTP/product-WASM suite passes 85 checks. The complete route inventory
+and every gateway operation now have valid and rejected access fixtures. Account
+deletion passes isolated signed-departure, linked-session revocation, erasure,
+late-credential-write fencing and restart-retry checks. Physical S3 erasure and
+packaged cross-platform validation remain pending.
 
-## Current phase
-
-Phase 3 is in progress on `codex/phase3-navigation`. Persistent navigation and focused
-management dialogs replace the stacked setup/chat screen. Add Server validates
-discovery and server identity before switching. All 29 real two-client Chrome UI
-checks pass, including history/draft preservation, keyboard focus and narrow layout.
-Signed roles, channel overrides, owner-managed bans/timeouts/slow mode, MLS removal,
-content-free audit, signed rules screening and channel retention are implemented.
-The expanded native HTTP/product-WASM suite passes 57 checks, including database
-ciphertext expiry and prevention of retry resurrection. Rust tests/clippy/fmt, web
-typecheck/lint/tests/build, WASM and generated-protocol checks pass. Physical S3
-retention is implemented with a new acceptance case but awaits a running Docker
-daemon or hosted CI. Packaged Phase 3 checks remain open; the local desktop toolchain
-currently lacks a discoverable Visual Studio C++ installation. Ownership transfer,
-delegated moderation/kicks/server bans, reports, account lifecycle, forum/polls and
-Web Push remain open. [ADR 0013](adr/0013-signed-community-governance.md) records the
-security design. The [development guide](PHASE3_DEVELOPMENT.md) gives validation commands.
-The native history test also passes all six combinations of history policy with
-governance enabled/disabled, including legacy epoch handoff and later linked devices.
-Draft [PR #4](https://github.com/KBHarris/hearth/pull/4) hosts the Phase 3 checkpoint;
-its expanded CI is in progress.
-The Phase 2 test bundle
-is unchanged for the pending human test. A separate development fixture keeps the
-existing preview running while the new backend is tested.
+The second menu pass has been visually reviewed: compact actions, aligned
+checkboxes, paperclip attachments, automatic address-derived link cards with an
+off setting, clear permission rows and empty states, and ownership content below
+its navigation tabs. A full two-client workflow found that a valid successor
+commit can arrive before REST advances the other client's ownership pin. The fix
+and targeted native regression are being verified before rerunning that workflow.
+The frozen Phase 2 test bundle and user data remain unchanged.
 
 Phase 0 is complete. [PR #1](https://github.com/KBHarris/hearth/pull/1) merged the verified
 foundations and spike ADRs into `main` on 2026-10-07 (commit `8f6db29`). All 11 final

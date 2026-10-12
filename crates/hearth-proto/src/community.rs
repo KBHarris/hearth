@@ -10,6 +10,9 @@ pub struct ChannelRoster {
     pub authority: Option<CommunityAuthority>,
     pub policy: Option<ChannelPolicy>,
     pub admissions: Vec<CommunityAdmission>,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    #[cfg_attr(feature = "typescript", ts(optional, as = "Option<_>"))]
+    pub departures: Vec<crate::lifecycle::AccountDeparture>,
     pub invitations: Vec<MemberInvitation>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     #[cfg_attr(feature = "typescript", ts(optional))]
@@ -26,6 +29,36 @@ pub struct CommunityAuthority {
     pub community_id: String,
     pub owner: crate::messaging::GroupMember,
     pub signature: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[cfg_attr(feature = "typescript", ts(optional))]
+    pub handoff: Option<Box<OwnershipHandoff>>,
+}
+/// The outgoing owner endorses an exact predecessor and existing signed objects.
+/// The successor accepts by signing the new CommunityAuthority containing this offer.
+#[derive(Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+#[cfg_attr(feature = "typescript", derive(ts_rs::TS))]
+pub struct OwnershipHandoff {
+    pub previous: CommunityAuthority,
+    pub issuer: crate::messaging::GroupMember,
+    pub successor: crate::messaging::GroupMember,
+    pub endorsed: Vec<String>,
+    pub signature: String,
+}
+#[derive(Clone, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+#[cfg_attr(feature = "typescript", derive(ts_rs::TS))]
+pub struct OwnershipAcceptance {
+    pub authority: CommunityAuthority,
+    pub former_owner: CommunityAdmission,
+    pub governance: crate::governance::Governance,
+}
+#[derive(Clone, Serialize, Deserialize)]
+#[cfg_attr(feature = "typescript", derive(ts_rs::TS))]
+pub struct OwnershipState {
+    pub authority: CommunityAuthority,
+    pub endorsed: Vec<String>,
+    pub offer: Option<OwnershipHandoff>,
 }
 #[derive(Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
@@ -92,6 +125,9 @@ pub struct ChannelAuthorization {
     pub authority: CommunityAuthority,
     pub policy: ChannelPolicy,
     pub admissions: Vec<CommunityAdmission>,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    #[cfg_attr(feature = "typescript", ts(optional, as = "Option<_>"))]
+    pub departures: Vec<crate::lifecycle::AccountDeparture>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     #[cfg_attr(feature = "typescript", ts(optional))]
     pub governance: Option<crate::governance::Governance>,
@@ -126,6 +162,7 @@ pub struct Category {
 pub enum ChannelKind {
     Text,
     Announcement,
+    Forum,
 }
 
 #[derive(Clone, Serialize, Deserialize)]

@@ -35,7 +35,11 @@ fn scope(server: &str, id: &str, request: &str, device: &str) -> Result<Vec<u8>,
         device,
     )))
 }
-fn shared(secret: &StaticSecret, public: &str, aad: &[u8]) -> Result<Zeroizing<[u8; 32]>, String> {
+pub(super) fn shared(
+    secret: &StaticSecret,
+    public: &str,
+    aad: &[u8],
+) -> Result<Zeroizing<[u8; 32]>, String> {
     let shared = Zeroizing::new(
         secret
             .diffie_hellman(&PublicKey::from(array(public)?))
@@ -46,7 +50,7 @@ fn shared(secret: &StaticSecret, public: &str, aad: &[u8]) -> Result<Zeroizing<[
     fail(Hkdf::<Sha256>::new(None, &*shared).expand(aad, &mut *key))?;
     Ok(key)
 }
-fn encrypt(key: &[u8; 32], aad: &[u8], plaintext: &[u8]) -> Result<String, String> {
+pub(super) fn encrypt(key: &[u8; 32], aad: &[u8], plaintext: &[u8]) -> Result<String, String> {
     let mut nonce = [0; 24];
     OsRng.fill_bytes(&mut nonce);
     let mut wire = nonce.to_vec();
@@ -59,7 +63,11 @@ fn encrypt(key: &[u8; 32], aad: &[u8], plaintext: &[u8]) -> Result<String, Strin
     ))?);
     Ok(hex::encode(wire))
 }
-fn decrypt(key: &[u8; 32], aad: &[u8], wire: &str) -> Result<Zeroizing<Vec<u8>>, String> {
+pub(super) fn decrypt(
+    key: &[u8; 32],
+    aad: &[u8],
+    wire: &str,
+) -> Result<Zeroizing<Vec<u8>>, String> {
     let wire = decode(wire)?;
     require(wire.len() >= 40)?;
     Ok(Zeroizing::new(fail(
@@ -335,7 +343,10 @@ impl Messaging {
                 for (hash, auth) in &authorizations {
                     require(
                         *hash == hex::encode(Sha256::digest(fail(serde_json::to_vec(auth))?))
-                            && auth.authority == current.authority,
+                            && crate::community::authority_descends(
+                                &current.authority,
+                                &auth.authority,
+                            ),
                     )?;
                     crate::community::verify_authorization(&self.server, id, auth, &[])?;
                 }
@@ -411,10 +422,11 @@ impl Messaging {
                             .get(id)
                             .filter(|a| a.governance.is_none())
                     })
+                    .cloned()
                     .ok_or(ERROR)?;
                 require(
-                    crate::community::authorized(auth, &archive.member)
-                        && channel_action_allowed(auth, &archive.member.account_id, upload.action),
+                    crate::community::authorized(&auth, &archive.member)
+                        && channel_action_allowed(&auth, &archive.member.account_id, upload.action),
                 )?;
                 require(!matches!(
                     upload.action,
@@ -426,17 +438,13 @@ impl Messaging {
                     &archive_aad(&this.server, id, upload)?,
                     &archive.ciphertext,
                 )?;
-                let content: MessageContent = fail(serde_json::from_slice(&plaintext))?;
+                let content = this.decode_content(id, upload, &archive.member, &plaintext)?;
                 validate_content(&content)?;
+                require(content_channel_allowed(Some(&auth), &content))?;
                 if matches!(content, MessageContent::Attachment { .. }) {
                     require(
-                        hearth_proto::governance::permissions(
-                            auth.governance.as_ref(),
-                            &auth.authority.owner.account_id,
-                            &archive.member.account_id,
-                            Some(id),
-                            u64::MAX,
-                        ) & hearth_proto::governance::ATTACH
+                        crate::community::permissions(&auth, &archive.member.account_id, u64::MAX)
+                            & hearth_proto::governance::ATTACH
                             != 0,
                     )?;
                 }

@@ -65,6 +65,10 @@ pub struct Sanction {
     pub kind: SanctionKind,
     #[cfg_attr(feature = "typescript", ts(type = "number | null"))]
     pub until: Option<u64>,
+    /// Kicks deny every admission tied to an invitation issued at or before this cutoff.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[cfg_attr(feature = "typescript", ts(optional, type = "number"))]
+    pub kick_after: Option<u64>,
 }
 #[derive(Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
@@ -91,10 +95,20 @@ pub struct Governance {
     pub screening: bool,
     pub owner: GroupMember,
     pub signature: String,
+    /// A delegated moderator signs a restricted successor of this verified policy.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[cfg_attr(feature = "typescript", ts(optional))]
+    pub delegation: Option<Box<Governance>>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[cfg_attr(feature = "typescript", ts(optional))]
+    pub moderator_admission: Option<Box<crate::community::CommunityAdmission>>,
 }
 #[derive(Clone, Serialize, Deserialize)]
 #[cfg_attr(feature = "typescript", derive(ts_rs::TS))]
 pub struct GovernanceView {
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[cfg_attr(feature = "typescript", ts(optional))]
+    pub admission: Option<Box<crate::community::CommunityAdmission>>,
     pub governance: Option<Governance>,
     pub members: Vec<crate::auth::Account>,
     pub rules_accepted: bool,
@@ -115,6 +129,23 @@ pub struct AuditEntry {
     pub digest: String,
 }
 
+pub fn kicks_preserved(old: &Governance, new: &Governance) -> bool {
+    old.sanctions
+        .iter()
+        .filter(|s| s.kind == SanctionKind::Kick)
+        .all(|previous| {
+            new.sanctions.iter().any(|s| {
+                s.kind == SanctionKind::Kick
+                    && s.account_id == previous.account_id
+                    && s.channel_id == previous.channel_id
+                    && match (previous.kick_after, s.kick_after) {
+                        (Some(before), Some(after)) => after >= before,
+                        (None, _) => true,
+                        _ => false,
+                    }
+            })
+        })
+}
 /// Owner bypass, base role union, everyone override, aggregated role override, member override.
 /// Sanctions are applied last and never grant permissions. Time is Unix milliseconds.
 pub fn permissions(
@@ -123,6 +154,16 @@ pub fn permissions(
     account: &str,
     channel: Option<&str>,
     now: u64,
+) -> u32 {
+    permissions_with_invite(policy, owner, account, channel, now, None)
+}
+pub fn permissions_with_invite(
+    policy: Option<&Governance>,
+    owner: &str,
+    account: &str,
+    channel: Option<&str>,
+    now: u64,
+    invite_issued_at: Option<u64>,
 ) -> u32 {
     if account == owner {
         return ALL;
@@ -172,7 +213,14 @@ pub fn permissions(
             && (s.channel_id.is_none() || s.channel_id.as_deref() == channel)
         {
             match s.kind {
-                SanctionKind::Ban | SanctionKind::Kick => return 0,
+                SanctionKind::Ban => return 0,
+                SanctionKind::Kick => {
+                    if !s.kick_after.is_some_and(|cutoff| {
+                        invite_issued_at.is_some_and(|issued| issued > cutoff)
+                    }) {
+                        return 0;
+                    }
+                }
                 SanctionKind::Timeout => bits &= !(SEND | REACT | ATTACH | PIN),
             }
         }
@@ -236,6 +284,7 @@ mod tests {
             channel_id: None,
             kind: SanctionKind::Timeout,
             until: Some(100),
+            kick_after: None,
         });
         assert_eq!(
             permissions(Some(&p), "owner", "member", Some("room"), 99) & SEND,
@@ -250,6 +299,7 @@ mod tests {
             channel_id: Some("room".into()),
             kind: SanctionKind::Ban,
             until: None,
+            kick_after: None,
         });
         assert_eq!(
             permissions(Some(&p), "owner", "member", Some("room"), 101),

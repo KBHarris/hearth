@@ -10,6 +10,14 @@ use crate::{
 pub fn generate() -> String {
     let config = Config::new();
     let declarations = [
+        crate::lifecycle::AccountDeparture::decl(&config),
+        crate::lifecycle::ExportRecord::decl(&config),
+        crate::lifecycle::AccountExport::decl(&config),
+        crate::reports::SenderProof::decl(&config),
+        crate::reports::ReportKey::decl(&config),
+        crate::reports::ReportEvidence::decl(&config),
+        crate::reports::ReportEnvelope::decl(&config),
+        crate::reports::QueuedReport::decl(&config),
         crate::governance::Role::decl(&config),
         crate::governance::RoleAssignment::decl(&config),
         crate::governance::OverrideKind::decl(&config),
@@ -29,6 +37,9 @@ pub fn generate() -> String {
         crate::community::Channel::decl(&config),
         crate::community::ChannelRoster::decl(&config),
         crate::community::CommunityAuthority::decl(&config),
+        crate::community::OwnershipHandoff::decl(&config),
+        crate::community::OwnershipAcceptance::decl(&config),
+        crate::community::OwnershipState::decl(&config),
         crate::community::CommunityAdmission::decl(&config),
         crate::community::CommunityInvitation::decl(&config),
         crate::community::MemberInvitation::decl(&config),
@@ -73,6 +84,7 @@ pub fn generate() -> String {
         crate::messaging::DeliveryEvent::decl(&config),
         crate::messaging::MessageContent::decl(&config),
         crate::messaging::LocalMessage::decl(&config),
+        crate::messaging::LocalPoll::decl(&config),
         crate::messaging::LocalProfile::decl(&config),
         crate::messaging::LocalPresence::decl(&config),
         crate::messaging::LinkEmbed::decl(&config),

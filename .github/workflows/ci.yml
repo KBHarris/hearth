@@ -177,6 +177,19 @@ jobs:
             xvfb-run -a dbus-run-session -- bash scripts/verify-linux-key-store.sh
             cp target/phase1-evidence/packaged-linux.json "target/phase1-evidence/packaged-linux-repetition-$attempt.json"
           done
+      - name: Full Phase 3 packaged client acceptance
+        timeout-minutes: 10
+        run: node scripts/verify-auth.mjs --desktop --native-postgres --phase3
+        if: runner.os != 'Linux'
+      - name: Full Phase 3 packaged Linux acceptance
+        timeout-minutes: 10
+        if: runner.os == 'Linux'
+        run: xvfb-run -a dbus-run-session -- bash scripts/verify-linux-key-store.sh --phase3
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: phase3-desktop-${{ matrix.os }}
+          path: target/phase3-evidence/
       - uses: actions/upload-artifact@v4
         if: always()
         with:
@@ -184,7 +197,7 @@ jobs:
           path: target/phase1-evidence/
       - name: Windows community and encrypted channel UI acceptance
         if: runner.os == 'Windows'
-        timeout-minutes: 10
+        timeout-minutes: 25
         run: node scripts/verify-community-ui.mjs --phase3
       - uses: actions/upload-artifact@v4
         if: always() && runner.os == 'Windows'

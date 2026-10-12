@@ -1,9 +1,11 @@
+import {verifyDeletion} from './phase3-deletion-acceptance.mjs'
+import {verifySafety} from './phase3-safety-acceptance.mjs'
 // Product WASM over actual HTTP/WebSocket. Only disposable fixture accounts.
 import assert from 'node:assert/strict'
 import { randomBytes } from 'node:crypto'
 import { verifyChannels } from './phase2-channel-acceptance.mjs'
 
-export async function verifyMessaging({wasm,request,login,origin,serverId,owner,password,prepared,linked,start,stop,healthy,checks,scanDatabase,storage,retentionFixture}) {
+export async function verifyMessaging({wasm,request,login,origin,serverId,owner,password,prepared,linked,start,stop,healthy,checks,scanDatabase,storage,retentionFixture,inspectDeleted}) {
   const clients=[]
   const sockets=[]
   const wire=[]
@@ -83,6 +85,28 @@ export async function verifyMessaging({wasm,request,login,origin,serverId,owner,
     })
     await until(()=>{if(failure)throw failure;return rejected});socket.close()
   }
+  async function rejectedGatewayOp(install,mode) {
+    const socket=new WebSocket(origin.replace(/^http/,'ws')+'/gateway');sockets.push(socket)
+    let rejected=false,failure
+    socket.addEventListener('message',event=>{try{
+      const frame=JSON.parse(event.data),send=(op,d)=>socket.send(JSON.stringify({op,d}))
+      if(frame.op==='challenge'){
+        if(mode==='ack_before_identify'){send('ack',{last_seq:0});return}
+        if(mode==='heartbeat_before_identify'){send('heartbeat',{last_seq:0});return}
+        if(mode==='resume_before_identify'){send('resume',{session_id:'invalid',last_seq:0});return}
+        const signature=json(install.client,'gateway',{token:install.session.token,challenge:frame.d.challenge})
+        send('identify',{protocol:1,token:install.session.token,device_key:install.identity.enrollment.device_key,signature})
+      }else if(frame.op==='ready'){
+        if(mode==='duplicate_identify'){send('identify',{protocol:1,token:install.session.token,device_key:install.identity.enrollment.device_key,signature:'00'.repeat(64)});return}
+        if(mode==='ack_before_resume'){send('ack',{last_seq:0});return}
+        if(mode==='wrong_resume_session'){send('resume',{session_id:'invalid',last_seq:0});return}
+        send('resume',{session_id:frame.d.session_id,last_seq:view(install.client).last_seq})
+        if(mode==='duplicate_resume')send('resume',{session_id:frame.d.session_id,last_seq:view(install.client).last_seq})
+        else send(mode==='future_ack'?'ack':'heartbeat',{last_seq:Number.MAX_SAFE_INTEGER})
+      }else if(frame.op==='invalid_session')rejected=true
+    }catch(error){failure=error}})
+    await until(()=>{if(failure)throw failure;return rejected});socket.close()
+  }
   try {
     const alice=await unlock('owner',password,prepared.envelope)
     const bob=await unlock('bob','HEARTH_SECOND_ACCOUNT_PASSWORD_CANARY_private_only')
@@ -140,6 +164,10 @@ export async function verifyMessaging({wasm,request,login,origin,serverId,owner,
     await rejectedGateway(resumed,proof=>({...proof,token:alice.session.token}))
     await rejectedGateway(resumed,proof=>proof,true)
     checks.gateway_rejects_forged_device_token_binding_and_future_resume=true
+    if(process.argv.includes('--phase3')){
+      for(const mode of ['ack_before_identify','heartbeat_before_identify','resume_before_identify','duplicate_identify','ack_before_resume','wrong_resume_session','duplicate_resume','future_ack','future_heartbeat'])await rejectedGatewayOp(resumed,mode)
+      checks.permission_matrix_every_gateway_op_rejects_invalid_auth_order_or_cursor=true
+    }
     // Exercise the third account and group DM through the same product HTTP flow.
     // Restart also resets the fixture's deliberately small authentication budget.
     for(const socket of sockets)socket.close()
@@ -170,6 +198,8 @@ export async function verifyMessaging({wasm,request,login,origin,serverId,owner,
     assert.equal(view(alice.client).messages.length,beforeTyping)
     checks.open_registration_three_person_group_dm_and_encrypted_typing=true
     await verifyChannels({alice,bob:resumed,carol,linked:linkedInstall,dmId:id,request,json,op,view,uploadedPackage,submitted,connect,until,pause,sockets,start,stop,healthy,checks,wire,scanDatabase,storage,retentionFixture})
+    if(process.argv.includes('--phase3'))await verifySafety({alice,bob:resumed,dmId:id,request,json,op,login,serverId,connect,until,start,stop,healthy,checks})
+    if(process.argv.includes('--phase3'))await verifyDeletion({wasm,clients,unlock,alice,request,json,op,view,uploadedPackage,submitted,login,serverId,connect,until,start,stop,healthy,checks,inspectDeleted,scanDatabase,storage,retentionFixture})
     // Channel restart closed earlier gateways; open a current one for revocation.
     const revocationGateway=await connect(carol)
     assert.equal((await request('/api/v1/auth/logout',{},carol.session.token)).status,204)
