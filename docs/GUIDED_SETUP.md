@@ -108,5 +108,6 @@ the target. This pass does not complete the no-prerequisite hosting installer.
 5. Add opt-in background hosting/startup, backups, updates, rollback and fresh-host
    restore, then exercise clean-machine and two-house acceptance on each OS.
 
-Do not change the preserved Phase 2 test bundle or running server to test these
-features. Use isolated instances until an explicit deployment is requested.
+Use isolated disposable instances to validate these features. The current 0.3.0
+distribution remains pinned to its source and checksums; prepare a new versioned
+package after changing application or server code.

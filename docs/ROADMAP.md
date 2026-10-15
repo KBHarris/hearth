@@ -77,13 +77,9 @@ The real HTTP/product-WASM suite passes 23 outcomes, including existing credenti
 compatibility across build profiles. Packaged Windows/macOS/Linux webviews pass all seven
 messaging outcomes; Linux passes ten isolated repetitions. SQLCipher and OS-store checks,
 browser media regressions, Docker and Podman pass. [ADR 0008](adr/0008-encrypted-direct-messages.md)
-records the slice's scope and limits. The next checkpoint is the
-[two-PC encrypted DM test](TWO_PC_DM_TEST.md) using the prepared Windows installer and
-optional public-IP HTTPS front end. Public certificate issuance and trusted public-IP
-health now pass from the host PC; two-house reachability remains part of the human test.
-Phase 2 now uses a separate development checkout;
-PR #2 remains a draft. The original server/data are preserved; the old bundle files
-were replaced by the validated Phase 2 bundle on 2026-10-09.
+records the slice's scope and limits. Historical release reports are available in
+Git history. Current manual testing uses [the latest two-PC guide](TWO_PC_LATEST_TEST.md)
+and fresh server data; older test deployments and profiles have been retired.
 
 - [x] Guided first-run owner creation, closed registration, OPAQUE owner login/logout,
   and PostgreSQL sessions. Test concurrent claims, replay, expiry, restart and revocation.
@@ -126,14 +122,11 @@ hosted Windows UI passes 16 checks (files also have local UI/native and hosted H
 Owner-signed admission, signed history policies, encrypted files/thumbnails/custom emoji,
 reactions/pins/threads, Markdown/mentions/read state, profiles/presence/embeds and local
 search are implemented. [ADR 0012](adr/0012-signed-history-and-encrypted-files.md)
-and [the development guide](PHASE2_DEVELOPMENT.md) record scope and limits.
+records scope and limits.
 
-The versioned `7cc8852` Windows/server bundle passes eight assembled-artifact checks;
-its HTTPS proxy configuration validates. Old Phase 1 bundle files are removed, with the
-server data preserved. Follow [the two-PC Phase 2 guide](TWO_PC_PHASE2_TEST.md).
-Live Let's Encrypt IP certificate issuance and trusted HTTPS health from the host PC
-pass on 2026-10-09. Another-network reachability, clean buddy-PC installation and the
-separate 50-person/week exit criterion remain open.
+The Phase 2 staging bundle has been superseded by Hearth Test 0.3.0. Follow
+[the current two-PC guide](TWO_PC_LATEST_TEST.md). Clean buddy-PC installation,
+two-house reachability and the separate 50-person/week exit criterion remain open.
 
 - [x] Communities, categories, text/announcement channel records and invites (expiry, max uses).
 - [x] MLS group per channel, server-authorized roster sync and online rekey agent (128-device initial bound).
@@ -172,10 +165,8 @@ All 41 two-client browser/private-S3 checks pass, including forums/replies, repo
 polls, account privacy, exact deletion confirmation and narrow layout. Setup is
 paced under the real server rate limits. Dated sanitized local reports are linked
 from [PROGRESS.md](PROGRESS.md).
-The frozen Phase 2 bundle and data remain unchanged.
-
-Current hosted checks return `startup_failure` before any jobs start, including a
-manual dispatch; the API gives no reason. Current macOS/Linux packaged results
+The 2026-10-12 hosted attempts returned `startup_failure` before any jobs started,
+including a manual dispatch; the API gave no reason. Current macOS/Linux packaged results
 remain required. The earlier `e5c99a8` checkpoint passes all twelve hosted jobs in
 [run 38205711382](https://github.com/KBHarris/hearth/actions/runs/38205711382),
 which does not validate the newest Phase 3 additions.

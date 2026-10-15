@@ -12,7 +12,8 @@ assert.ok(outputRoot&&imageName&&installer,'Usage: node scripts/build-test-bundl
 function run(name,args){const result=spawnSync(name,args,{cwd:root,encoding:'utf8',windowsHide:true,maxBuffer:8*1024*1024});if(result.error||result.status!==0)throw new Error(`${name} bundle command failed: ${result.stderr?.slice(-1000)??''}`);return result.stdout.trim()}
 const commit=run('git',['rev-parse',sourceRef+'^{commit}']),packagingCommit=run('git',['rev-parse','HEAD']);assert.match(commit,/^[a-f0-9]{40}$/)
 const tooling=new Set(['scripts/build-test-bundle.mjs','scripts/verify-test-bundle.mjs','scripts/verify-installed-test-client.mjs'])
-assert.ok(run('git',['diff','--name-only',commit,'HEAD']).split('\n').filter(Boolean).every(path=>path.startsWith('docs/')||tooling.has(path)),'Application, server, dependencies and deployment must match the frozen source')
+const retired=new Set(['scripts/build-phase2-bundle.mjs','scripts/verify-phase2-bundle.mjs','deploy/phase2-client.json'])
+assert.ok(run('git',['diff','--name-status','--no-renames',commit,'HEAD']).split('\n').filter(Boolean).every(line=>{const [status,path]=line.split('\t');return path==='README.md'||path.startsWith('docs/')||tooling.has(path)||(status==='D'&&retired.has(path))}),'Application, server, dependencies and deployment must match the frozen source')
 run('git',['diff','--exit-code','HEAD','--']);assert.equal(run('git',['ls-files','--others','--exclude-standard']),'','Commit source changes before freezing a bundle')
 assert.equal(JSON.parse(run('docker',['image','inspect',imageName]))[0].Config.Labels?.['org.opencontainers.image.revision'],commit,'Server image must name the frozen source commit');
 const short=commit.slice(0,7),directory=resolve(outputRoot,`guided-${short}`)

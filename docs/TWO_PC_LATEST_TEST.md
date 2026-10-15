@@ -2,9 +2,9 @@
 
 This Windows x64 test bundle includes guided Host/Join, encrypted communities,
 files, roles, reports, forums and polls. Both people install **Hearth Test 0.3.0**.
-It has a separate app profile from the older Phase 1/2 test apps. This bundle
-creates a fresh server with fresh accounts and keys; it does not migrate an older
-test server. Keep old profiles, recovery kits and server data.
+This bundle creates a fresh server with fresh accounts and keys. The local older
+test deployments and profiles were retired on 2026-10-15. Create new accounts for
+this test and export fresh recovery kits after enrollment.
 
 ## What to send
 
@@ -44,10 +44,8 @@ owner account. This uses Compose project `hearth-guided-test`, backend 8183 and 
    firewall. Leave backend 8183, S3 18335 and the database private. If the router's
    WAN address is private/shared or differs from your public address, resolve the
    upstream routing/CGNAT situation before attempting direct public hosting.
-3. Only one proxy can own public ports 80/443. If an older Hearth test proxy is
-   running, stop only that proxy before starting the new one. For the old Phase 2
-   folder, use `docker compose -f deploy/compose.yaml -f deploy/compose.https.yaml
-   stop proxy` there. Keep its backend and volumes intact. Do not use `down -v`.
+3. Check that public ports 80/443 are available for this bundle's HTTPS proxy.
+   If another service owns them, resolve that conflict before starting the proxy.
 4. Back in this new bundle folder, run `node deploy/setup.mjs --https`.
 5. From a phone on cellular data, open `https://YOUR_PUBLIC_ADDRESS/health` and
    check for `"status":"ok"` with no certificate warning. A check from the host PC
@@ -109,6 +107,4 @@ node deploy/setup.mjs --https
 ```
 
 The first command stops this test without deleting its data. Use the second only
-when you want to resume hosting. Before returning ports 80/443 to an older test,
-stop this bundle's proxy, then restart that older proxy from its original folder.
-Remove router forwarding when public testing is finished.
+when you want to resume hosting. Remove router forwarding when public testing is finished.

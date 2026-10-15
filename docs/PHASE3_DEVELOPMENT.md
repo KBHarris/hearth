@@ -1,7 +1,8 @@
 # Phase 3 development
 
-Development branch: `codex/phase3-navigation`. This branch is separate from the
-frozen Phase 2 Windows/server bundle and its persistent server data.
+Current development branch: `codex/guided-setup`. The Phase 3 foundation is included
+in Hearth Test 0.3.0. Earlier test deployments and profiles have been retired; use
+[the latest two-PC guide](TWO_PC_LATEST_TEST.md) for a fresh manual test.
 
 The web client has a persistent server/community/channel sidebar and focused
 dialogs for server selection, account recovery, server settings, community settings,
@@ -141,8 +142,8 @@ The `e5c99a8` checkpoint passes all twelve hosted jobs in run `38205711382`.
 Those older artifacts contain 61 HTTP/WASM and 29 Chrome UI checks and packaged
 messaging coverage; they do not validate the newer Phase 3 additions.
 
-Phase 3 is not complete until its exit criteria pass. The frozen Phase 2 bundle and
-the two-person and 50-person/week human checkpoints remain separate and unchanged.
+Phase 3 is not complete until its exit criteria pass. The current two-person test
+and 50-person/week human checkpoint remain open.
 
 ## Menu refinements
 

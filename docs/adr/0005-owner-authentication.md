@@ -44,8 +44,8 @@ PostgreSQL tests cover concurrent owner/login submissions, hashed session storag
 invalid-proof consumption, revocation, unknown users, body rejection, rate limits and
 restart persistence. The actual product WASM client also passes HTTP acceptance against a
 native server, including missing-key startup rejection; see the
-[local report](../evidence/auth-wasm-native-2026-10-07.json) and
-[hosted report](../evidence/auth-wasm-native-hosted-2026-10-07.json).
+local report (historical report in Git history) and
+hosted report (historical report in Git history).
 
 Browser checks exercised owner setup, automatic sign-in, sign-out, wrong password,
 fresh sign-in and reload against a disposable database. Native packaged auth runtime
