@@ -69,7 +69,11 @@ seven-check mock failure suites, with the final source hashes. The broad run
 preceded the last hardening changes; the focused runs cover those changes.
 Final npm verification passes 38 tests and the production build. Rust formatting,
 clippy and 34 default tests pass (four PostgreSQL integration tests are ignored by
-the default command). No new packaged or clean-machine OS validation is claimed.
+the default command). The follow-up [Windows buddy bundle](TWO_PC_LATEST_TEST.md)
+has [installed-product smoke evidence](evidence/windows-buddy-bundle-2026-10-15.json)
+for the actual NSIS installer, production WebView2 flow and native IPC. It does
+not yet claim native account creation, a clean buddy PC, two-house messaging or
+new macOS/Linux packaging.
 
 - `node --experimental-strip-types --test packages/sdk/test/setup.test.mjs`
 - `HEARTH_PREBUILT_WASM=1 npm run verify` with the current Phase 3 product artifact.

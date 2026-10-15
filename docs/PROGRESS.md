@@ -1,5 +1,18 @@
 # Progress
 
+The latest two-PC Windows package is ready (2026-10-15):
+`target/manual-test/guided-efd4af6/Hearth_Test_efd4af6_Windows_x64.zip` is the
+friend-only installer/guide/checksum ZIP. Both PCs install Hearth Test 0.3.0;
+the matching host folder contains a pinned server archive and fresh
+`hearth-guided-test` deployment on backend 8183/S3 18335. It preserves the older
+test bundles and data. [Fifteen local package checks](evidence/windows-buddy-bundle-2026-10-15.json)
+pass, including real NSIS installation, the production WebView2 Host/Join screen,
+native version/profile/IPC, latest input guard, bundled-server discovery through
+owner setup, all 21 migrations, private S3, identity-preserving restart, HTTPS
+configuration and temporary-install cleanup. Native account creation and actual
+two-house reachability/messaging remain human acceptance. Follow
+[the latest two-PC guide](TWO_PC_LATEST_TEST.md); send only the friend ZIP.
+
 Guided Host/Join setup is in its first implementation pass on
 `codex/guided-setup` (2026-10-15). Fresh clients choose Host or Join, inspect a real
 server and explicitly confirm before changing servers. Invites carry an origin,
@@ -13,7 +26,8 @@ two-client/private-S3 browser checks followed by 12 final guided-join checks and
 seven mock-response failure/cancellation checks. Final npm verification passes
 38 tests, typecheck, lint and production build using the existing Phase 3 WASM.
 Rust fmt/clippy and 34 default tests pass; four PostgreSQL integration tests remain
-ignored by the default Rust command. New packaged/clean-machine acceptance is open.
+ignored by the default Rust command. Windows installed-product smoke acceptance is
+recorded above; clean-machine and current macOS/Linux packaging remain open.
 
 Phase 3 is in active validation on `codex/phase3-navigation` (2026-10-12).
 The local HTTP/product-WASM suite passes 90 checks with private S3, including

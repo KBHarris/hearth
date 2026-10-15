@@ -1,0 +1,55 @@
+{
+  "measuredAt": "2026-10-15T19:57:30.694Z",
+  "outcome": "pass",
+  "sourceCommit": "efd4af6ca9a259a2964444988e13f118e37deb0f",
+  "checks": {
+    "all_manifest_hashes_match": true,
+    "host_secrets_absent_from_distribution": true,
+    "friend_zip_contains_only_installer_guide_and_checksum": true,
+    "loaded_server_archive_matches_pinned_image": true,
+    "fresh_server_health_discovery_and_owner_bootstrap_pass": true,
+    "all_21_migrations_applied_to_fresh_data": true,
+    "storage_rejects_anonymous_requests": true,
+    "server_restart_preserves_signing_identity": true,
+    "actual_nsis_installer_installs_product": true,
+    "installed_release_has_correct_version_profile_and_native_ipc": true,
+    "installed_client_contains_latest_invite_input_guard": true,
+    "installed_client_checks_bundled_server_and_reaches_owner_setup": true,
+    "temporary_test_install_uninstalled_and_existing_profiles_preserved": true,
+    "packaged_https_configuration_validates_without_starting_public_host": true,
+    "temporary_test_uninstall_registry_entry_removed": true
+  },
+  "humanPending": [
+    "clean buddy-PC installation and two-house reachability",
+    "actual Windows SmartScreen experience on the buddy PC",
+    "manual encrypted messaging between the two households"
+  ],
+  "nativeClient": {
+    "checks": {
+      "actual_nsis_installer_installs_product": true,
+      "installed_release_has_correct_version_profile_and_native_ipc": true,
+      "installed_client_contains_latest_invite_input_guard": true,
+      "installed_client_checks_bundled_server_and_reaches_owner_setup": true,
+      "temporary_test_install_uninstalled_and_existing_profiles_preserved": true
+    },
+    "runtime": "installed production Windows x64 NSIS client / system WebView2",
+    "version": "0.3.0",
+    "identifier": "chat.hearth.phase3-test",
+    "screenshots": [
+      "evidence/installed-welcome.png",
+      "evidence/installed-host-check.png"
+    ],
+    "screenshotSha256": {
+      "evidence/installed-welcome.png": "6ae4c25032e0c41ad9f4e8ad4048fbb5d863d0e595ec0ddba6fc5c6e331d6120",
+      "evidence/installed-host-check.png": "ebecbcbf8c33c9eff88d11643d4dca41fcc6720bae46e22717bff676bc74e3f5"
+    }
+  },
+  "packagingCommit": "ea484b099265d555753a2080ac583f54f091e4c3",
+  "artifactDirectory": "target/manual-test/guided-efd4af6",
+  "clientZip": {
+    "name": "Hearth_Test_efd4af6_Windows_x64.zip",
+    "bytes": 4852472,
+    "sha256": "a688cc56041513be20b68825c09cc653c63a8900fa5c9664b7d90db6377e5d28"
+  },
+  "scope": "Local assembled-bundle and installed-product smoke acceptance; native account creation and two-house messaging remain human acceptance. No existing server was deployed or upgraded."
+}
