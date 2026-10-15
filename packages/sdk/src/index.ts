@@ -21,6 +21,8 @@ import type {Governance,GovernanceView,AuditEntry} from './protocol.ts'
 
 export type ErrorKind = 'invalid_url' | 'http' | 'network' | 'timeout' | 'invalid_response' | 'incompatible' | 'degraded'
 
+export { createHearthInvite, parseHearthInvite, setupTarget, addressScope, type HearthInvite } from './setup.ts'
+
 export class HearthError extends Error {
   readonly status: number
   readonly kind: ErrorKind
@@ -37,6 +39,8 @@ export class HearthError extends Error {
 export function normalizeServerUrl(input: string): string {
   const value = input.trim()
   if (!value) throw new HearthError(0, 'Enter a server address.', 'invalid_url')
+  // A pasted admission/bootstrap code is not a hostname. Do not leak it to DNS.
+  if (/^[a-f0-9]{64}$/i.test(value)) throw new HearthError(0, 'Paste the full Hearth invite or enter a server address. An invite code alone cannot locate a server.', 'invalid_url')
   let url: URL
   try {
     url = new URL(value.includes('://') ? value : `https://${value}`)

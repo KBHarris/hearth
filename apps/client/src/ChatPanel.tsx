@@ -1,5 +1,5 @@
 import {useCallback,useEffect,useMemo,useRef,useState,type FormEvent,type ReactNode} from 'react'
-import {Permission,permissions,type Session,type DeviceEnrollment,type LocalMessage,type HistoryPolicy} from '@hearth/sdk'
+import {Permission,permissions,type HearthInvite,type Session,type DeviceEnrollment,type LocalMessage,type HistoryPolicy} from '@hearth/sdk'
 import {AuthCrypto} from './crypto/client'
 import {MessagingSession,initialChat,admitted} from './crypto/messaging-session'
 import {CommunityPanel} from './CommunityPanel'
@@ -14,8 +14,8 @@ import {LinkPreview} from './LinkPreview'
 import {localLinkPreview} from './local-link-preview'
 import {Attachment,EncryptedImage,type FileDownloader} from './Attachment'
 
-export function ChatPanel({crypto,session,device,server,url,accountControls,serverControls}:{crypto:AuthCrypto;session:Session;device:DeviceEnrollment;server:string;url:string;accountControls:ReactNode;serverControls:ReactNode}) {
-  const [navigationOpen,setNavigationOpen]=useState(false)
+export function ChatPanel({crypto,session,device,server,url,accountControls,serverControls,invite,onInviteDone}:{crypto:AuthCrypto;session:Session;device:DeviceEnrollment;server:string;url:string;accountControls:ReactNode;serverControls:ReactNode;invite?:HearthInvite|null;onInviteDone?:()=>void}) {
+  const [navigationOpen,setNavigationOpen]=useState(!!invite?.community)
   const [panel,setPanel]=useState<'dm'|'profile'|'search'|'access'|'channel'|'people'|'rules'|'post'|'poll'|'privacy'|null>(null)
   const [state,setState]=useState(initialChat)
   const [selected,setSelected]=useState('')
@@ -133,13 +133,14 @@ export function ChatPanel({crypto,session,device,server,url,accountControls,serv
           {directMessages.map(conversation=><button key={conversation.id} className={conversation.id===activeId?'selected':''} aria-current={conversation.id===activeId?'page':undefined} onClick={()=>{setSelected(conversation.id);setNavigationOpen(false);setReply(null);setEditing('');setDraft('');setFile(null);setDismissedPreview('')}}><span className="conversation-avatar">{name(conversation.accounts.find(id=>id!==session.account.id)??session.account.id).slice(0,2).toUpperCase()}</span><span>{conversation.accounts.filter(id=>id!==session.account.id).map(name).join(', ')}<small>{state.joined.includes(conversation.id)?'Encrypted':'Preparing this device…'}</small></span></button>)}
         </nav>
       </section>
-<CommunityPanel ownership={ownership} onLoadGovernance={loadGovernance} onGovernance={(id,policy)=>{if(!service.current)throw new Error('Messaging is opening.');return service.current.saveGovernance(id,policy)}} activeChannel={active?.channel_id ?? undefined} session={session} url={url} onSecure={async(kind,id,code)=>{if(!service.current)throw new Error('Messaging is opening. Retry shortly.');await (kind==='community'?service.current.secureCommunity(id):kind==='join'?service.current.secureJoin(id,code??''):service.current.secureChannel(id))}} onInvite={(id,expiry,uses)=>{if(!service.current)throw new Error('Messaging is opening. Retry shortly.');return service.current.createInvite(id,expiry,uses)}} onOpenChannel={async id=>{setBusy(true);try{const opened=await service.current?.openChannel(id);if(!opened)throw new Error('Encrypted messaging is still opening. Retry shortly.');setSelected(opened);setNavigationOpen(false);setDraft('');setReply(null);setEditing('');setFile(null);setDismissedPreview('')}finally{setBusy(false)}}}/>
+<CommunityPanel serverKey={server} pendingInvite={invite} onInviteDone={onInviteDone} ownership={ownership} onLoadGovernance={loadGovernance} onGovernance={(id,policy)=>{if(!service.current)throw new Error('Messaging is opening.');return service.current.saveGovernance(id,policy)}} activeChannel={active?.channel_id ?? undefined} session={session} url={url} onSecure={async(kind,id,code)=>{if(!service.current)throw new Error('Messaging is opening. Retry shortly.');await (kind==='community'?service.current.secureCommunity(id):kind==='join'?service.current.secureJoin(id,code??''):service.current.secureChannel(id))}} onInvite={(id,expiry,uses)=>{if(!service.current)throw new Error('Messaging is opening. Retry shortly.');return service.current.createInvite(id,expiry,uses)}} onOpenChannel={async id=>{setBusy(true);try{const opened=await service.current?.openChannel(id);if(!opened)throw new Error('Encrypted messaging is still opening. Retry shortly.');setSelected(opened);setNavigationOpen(false);setDraft('');setReply(null);setEditing('');setFile(null);setDismissedPreview('')}finally{setBusy(false)}}}/>
       <div className="sidebar-bottom">{pendingAccess>0 && <button className="sidebar-action access-action" onClick={()=>setPanel('access')}><Icon name="shield" />Access requests <span className="count-badge">{pendingAccess}</span></button>}
         <button className="sidebar-action" onClick={()=>setPanel('privacy')}><Icon name="shield"/>Privacy & blocked people</button>
         <button className="sidebar-action" onClick={()=>setPanel('profile')}><Icon name="users" />Profile & presence</button>{serverControls}{accountControls}
       </div>
     </aside>
     <section className="chat-panel" aria-labelledby="chat-heading">
+      {invite?.community && !navigationOpen && <div className="mobile-invite-handoff"><button type="button" onClick={()=>setNavigationOpen(true)}>View community invite</button></div>}
       <div className="conversation">
         <header className="conversation-header"><button className="mobile-navigation-button" aria-expanded={navigationOpen} aria-controls="chat-navigation" onClick={()=>setNavigationOpen(value=>!value)}>Conversations</button><div><h2 id="chat-heading"><strong>{channel?`# ${channel.channel.name}`:active?active.accounts.filter(id=>id!==session.account.id).map(name).join(', '):'Your messages'}</strong></h2><small>{channel?channel.community.name:active?'Direct message':'Choose a channel or start a direct message'}</small></div>
           <div className="conversation-header-actions">{active && <><button className="icon-button" aria-label="Conversation members" title="Conversation members" onClick={()=>setPanel('people')}><Icon name="users" /></button>{channel && channel.community.owner_id===session.account.id && <button className="icon-button" aria-label="Channel settings" title="Channel settings" onClick={()=>setPanel('channel')}><Icon name="settings" /></button>}</>}</div>

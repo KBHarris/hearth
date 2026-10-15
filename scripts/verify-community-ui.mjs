@@ -10,7 +10,7 @@ import chrome from 'selenium-webdriver/chrome.js'
 import {verifyTextUI} from './phase2-text-ui.mjs'
 
 const root=fileURLToPath(new URL('../',import.meta.url))
-const output=join(root,process.argv.includes('--phase3')?'target/phase3-evidence':'target/phase2-evidence')
+const output=join(root,process.argv.includes('--setup-only')?'target/setup-join-evidence':process.argv.includes('--guided-setup')?'target/setup-evidence':process.argv.includes('--phase3')?'target/phase3-evidence':'target/phase2-evidence')
 mkdirSync(output,{recursive:true})
 mkdirSync(join(output,'downloads'),{recursive:true})
 const checks=new Proxy({}, {set(target,key,value){target[key]=value;console.log('UI check passed: '+String(key));return true}})
@@ -18,6 +18,7 @@ let succeeded=false
 const pause=ms=>new Promise(resolve=>setTimeout(resolve,ms))
 let fixture,vite,driver,buddy
 let fixtureOutput=''
+let fixtureErrors=''
 async function trackRequests(client){await client.executeScript("window.__apiTimes=[];const fixtureFetch=window.fetch.bind(window);window.fetch=(...args)=>{if(String(args[0]).includes('/api/v1/'))window.__apiTimes.push(Date.now());return fixtureFetch(...args)}")}
 // The real server retains its Phase 1 abuse controls. Pace bursts of automated
 // setup/actions rather than bypassing limits or accepting a queued message as delivered.
@@ -241,7 +242,8 @@ async function verifyNavigation(client,checks,fixtureOrigin){
   await message.sendKeys('UI draft survives management')
   await client.findElement(By.css('[aria-label="Add server"]')).click()
   assert.equal(await client.findElement(By.css('dialog[open] h2')).getText(),'Add a server')
-  await client.findElement(By.id('server-address')).sendKeys('javascript:invalid')
+  await client.findElement(By.xpath('//button[contains(.,"Join a server")]')).click()
+  await client.findElement(By.id('setup-address')).sendKeys('javascript:invalid')
   await client.findElement(By.css('dialog[open] form button[type="submit"]')).click()
   await client.wait(async()=>{const alerts=await client.findElements(By.css('dialog[open] [role="alert"]'));return alerts.length>0},5000)
   checks.add_server_opens_and_rejects_invalid_address_without_signing_out=true
@@ -273,15 +275,18 @@ async function verifyNavigation(client,checks,fixtureOrigin){
   await message.clear()
   await client.findElement(By.css('[aria-label="Add server"]')).click()
   await client.executeScript("window.__identityFetch=window.fetch;window.fetch=async(...args)=>{const response=await window.__identityFetch(...args);if(String(args[0]).includes('/.well-known/hearth')){const info=await response.json();return new Response(JSON.stringify({...info,server_key:'0'.repeat(64)}),{status:200,headers:{'Content-Type':'application/json'}})}return response}")
-  await client.findElement(By.id('server-address')).sendKeys('http://127.0.0.1:5174')
+  await client.findElement(By.xpath('//button[contains(.,"Join a server")]')).click()
+  await client.findElement(By.id('setup-address')).sendKeys('http://127.0.0.1:5174')
   await client.findElement(By.css('dialog[open] form button[type="submit"]')).click()
-  await client.wait(async()=>{const alerts=await client.findElements(By.css('dialog[open] [role="alert"]'));return alerts.length>0 && (await alerts[0].getText()).includes('identity changed')},15000)
+  await client.wait(async()=>{const alerts=await client.findElements(By.css('dialog[open] [role="alert"]'));return alerts.length>0 && (await alerts[0].getText()).includes('identity does not match')},15000)
   await client.executeScript('window.fetch=window.__identityFetch;delete window.__identityFetch')
   await closePanel(client)
   checks.reconnecting_changed_server_identity_preserves_current_session=true
   await client.findElement(By.css('[aria-label="Add server"]')).click()
-  await client.findElement(By.id('server-address')).sendKeys(fixtureOrigin)
+  await client.findElement(By.xpath('//button[contains(.,"Join a server")]')).click()
+  await client.findElement(By.id('setup-address')).sendKeys(fixtureOrigin)
   await client.findElement(By.css('dialog[open] form button[type="submit"]')).click()
+  await client.wait(async()=>{const buttons=await client.findElements(By.xpath('//button[text()="Continue to sign in"]'));return buttons[0]??false},15000).then(button=>button.click())
   await client.wait(async()=>{const fields=await client.findElements(By.id('username'));return fields[0]??false},15000)
   assert.equal(await client.executeScript('return localStorage.getItem("hearth.server-url")'),fixtureOrigin)
   assert.equal((await client.findElements(By.css('.server-tile:not(.add-server)'))).length,2)
@@ -295,12 +300,12 @@ async function verifyNavigation(client,checks,fixtureOrigin){
 try {
   fixture=spawn(process.execPath,['scripts/verify-auth.mjs','--serve','--native-postgres',...(process.argv.includes('--phase3')?['--phase3']:[]),...(process.argv.includes('--storage')?['--storage']:[])],{cwd:root,env:{...process.env,HEARTH_TEST_DATABASE_URL:'',HEARTH_CLIENT_ORIGINS:'http://127.0.0.1:5174'},windowsHide:true,stdio:['pipe','pipe','pipe']})
   fixture.stdout.on('data',chunk=>{fixtureOutput+=chunk})
-  fixture.stderr.on('data',()=>{})
+  fixture.stderr.on('data',chunk=>{fixtureErrors=(fixtureErrors+chunk).slice(-6000)})
   let match
-  for(let i=0;i<240;i++) {
+  for(let i=0;i<2400;i++) {
     match=fixtureOutput.match(/Disposable owner-setup fixture: (http:\/\/127\.0\.0\.1:\d+); setup code file: (.+?)\. Type stop/)
     if(match)break
-    if(fixture.exitCode!==null)throw new Error('Community UI fixture exited')
+    if(fixture.exitCode!==null)throw new Error('Community UI fixture exited before readiness: '+fixtureErrors.replace(/postgres(?:ql)?:\/\/[^\s]+/gi,'[database URL]').replace(/[a-f0-9]{64,}/gi,'[redacted ID]'))
     await pause(250)
   }
   assert.ok(match,'Fixture readiness timeout')
@@ -319,6 +324,23 @@ try {
   const wait=async id=>driver.wait(async()=>{const elements=await driver.findElements(By.id(id));return elements[0] ?? false},30000)
   const enabled=async(client,id)=>{const elements=await client.findElements(By.id(id));return elements.length>0 && await elements[0].isEnabled()}
   const activeChannel=async(client,name)=>{const headings=await client.findElements(By.css('.conversation-header strong'));return headings.length>0 && (await headings[0].getText())===`# ${name}`}
+  await driver.wait(async()=>await driver.findElements(By.css('.setup-choice')).then(items=>items.length===2),15000)
+  assert.equal(await driver.executeScript('return performance.getEntriesByType("resource").filter(e=>/\\/(health|\\.well-known|api)\\b/.test(new URL(e.name).pathname)).length'),0)
+  writeFileSync(join(output,'setup-welcome.png'),Buffer.from(await driver.takeScreenshot(),'base64'))
+  await driver.manage().window().setRect({width:430,height:1000})
+  assert.equal(await driver.executeScript('return document.documentElement.scrollWidth<=window.innerWidth'),true)
+  writeFileSync(join(output,'setup-welcome-narrow.png'),Buffer.from(await driver.takeScreenshot(),'base64'))
+  await driver.manage().window().setRect({width:1440,height:1100})
+  if(process.argv.includes('--guided-setup'))checks.fresh_install_offers_host_join_without_network_probe_and_fits_narrow_screen=true
+  await driver.findElement(By.xpath('//button[contains(.,"Host a server")]')).click()
+  await driver.findElement(By.css('.guided-setup form button[type="submit"]')).click()
+  await driver.wait(async()=>await driver.findElements(By.css('.setup-result')).then(items=>items.length===1),15000)
+  const readiness=await driver.findElement(By.css('.setup-result')).getText()
+  assert.ok(readiness.includes('Not checked')&&readiness.includes('only on this computer'))
+  assert.equal(await driver.executeScript('return localStorage.getItem("hearth.server-url")'),null)
+  writeFileSync(join(output,'setup-host-check.png'),Buffer.from(await driver.takeScreenshot(),'base64'))
+  if(process.argv.includes('--guided-setup'))checks.host_readiness_is_local_only_and_is_not_saved_until_confirmation=true
+  await driver.findElement(By.xpath('//button[text()="Set up owner account"]')).click()
   await (await wait('setup-code')).sendKeys(code)
   await driver.findElement(By.id('username')).sendKeys('uiowner')
   await driver.findElement(By.id('password')).sendKeys('HEARTH_UI_fixture_password_only')
@@ -370,10 +392,24 @@ try {
   checks.open_channel_and_send_encrypted_solo_message=true
   await driver.findElement(By.css('[aria-label="Manage community"]')).click()
   await driver.findElement(By.xpath('//button[text()="Invites"]')).click()
+  if(process.argv.includes('--guided-setup'))await driver.findElement(By.css('input[name="include-account"]')).click()
+  if(process.argv.includes('--setup-only'))await driver.executeScript('window.__setupInviteFetch=window.fetch;window.fetch=(...args)=>String(args[0]).endsWith("/auth/admin/invite")?new Promise(resolve=>{window.__releaseSetupInvite=()=>resolve(window.__setupInviteFetch(...args))}):window.__setupInviteFetch(...args)')
   await driver.findElement(By.xpath('//button[text()="Create community invite"]')).click()
+  if(process.argv.includes('--setup-only')){
+    await driver.wait(()=>driver.executeScript('return !!window.__releaseSetupInvite'),15000)
+    assert.equal((await driver.findElements(By.css('.share-invite'))).length,0)
+    await driver.executeScript('window.__releaseSetupInvite();window.fetch=window.__setupInviteFetch;delete window.__releaseSetupInvite;delete window.__setupInviteFetch')
+    checks.combined_invite_stays_hidden_until_account_capability_is_ready=true
+  }
   const invite=await wait('created-community-invite')
   assert.match(await invite.getAttribute('value'),/^[a-f0-9]{64}$/)
   const communityCode=await invite.getAttribute('value')
+  let combinedInvite=''
+  if(process.argv.includes('--guided-setup')){
+    await driver.wait(async()=>await driver.findElement(By.css('.share-invite input')).getAttribute('value').then(value=>new URLSearchParams(new URL(value).hash.slice(1)).has('account')),15000)
+    combinedInvite=await driver.findElement(By.css('.share-invite input')).getAttribute('value')
+    checks.owner_creates_one_invite_for_account_and_signed_community_admission=true
+  }
   await driver.findElement(By.xpath('//button[text()="Hide code"]')).click()
   assert.equal((await driver.findElements(By.id('created-community-invite'))).length,0)
   checks.create_and_hide_invite_without_persisting_it=true
@@ -394,16 +430,56 @@ try {
   buddy=await new Builder().forBrowser('chrome').setChromeOptions(new chrome.Options().addArguments('--headless=new','--window-size=1440,1100').setUserPreferences({'download.default_directory':join(output,'downloads'),'download.prompt_for_download':false})).build()
   await buddy.get('http://127.0.0.1:5174')
   await trackRequests(buddy)
-  await buddy.wait(async()=>{const buttons=await buddy.findElements(By.xpath('//button[text()="Create an account"]'));return buttons[0] ?? false},30000).then(button=>button.click())
-  await buddy.findElement(By.id('invite-code')).sendKeys(accountCode)
+  await buddy.findElement(By.xpath('//button[contains(.,"Join a server")]')).click()
+  const joinAddress=await buddy.findElement(By.id('setup-address'))
+  if(process.argv.includes('--guided-setup')){
+    const parts=new URL(combinedInvite),values=new URLSearchParams(parts.hash.slice(1));values.set('key','0'.repeat(64));parts.hash=values.toString()
+    await joinAddress.sendKeys(parts.toString())
+    await buddy.findElement(By.css('.guided-setup form button[type="submit"]')).click()
+    await buddy.wait(async()=>await buddy.findElements(By.css('.setup-error')).then(items=>items.length===1),15000)
+    assert.equal(await buddy.executeScript('return localStorage.getItem("hearth.server-url")'),null)
+    assert.equal((await buddy.findElements(By.id('username'))).length,0)
+    checks.mismatched_invite_identity_cannot_reach_account_creation_or_save_address=true
+    await joinAddress.clear();await joinAddress.sendKeys(combinedInvite)
+  } else await joinAddress.sendKeys('http://127.0.0.1:5174')
+  await buddy.findElement(By.css('.guided-setup form button[type="submit"]')).click()
+  await buddy.wait(async()=>await buddy.findElements(By.css('.setup-result .primary-button')).then(items=>items[0]??false),15000).then(button=>button.click())
+  if(!process.argv.includes('--guided-setup')){
+    await buddy.wait(async()=>{const buttons=await buddy.findElements(By.xpath('//button[text()="Create an account"]'));return buttons[0] ?? false},30000).then(button=>button.click())
+    await buddy.findElement(By.id('invite-code')).sendKeys(accountCode)
+  } else {
+    await buddy.wait(async()=>await buddy.findElement(By.id('auth-heading')).getText().then(text=>text==='Create your account'),15000)
+    assert.equal((await buddy.findElements(By.id('invite-code'))).length,0)
+  }
   await buddy.findElement(By.id('username')).sendKeys('uibuddy')
   await buddy.findElement(By.id('password')).sendKeys('HEARTH_UI_buddy_fixture_password_only')
   await buddy.findElement(By.id('confirm-password')).sendKeys('HEARTH_UI_buddy_fixture_password_only')
   await buddy.findElement(By.css('.auth-panel form button[type="submit"]')).click()
+  if(process.argv.includes('--guided-setup')){
+    await buddy.wait(async()=>{const buttons=await buddy.findElements(By.xpath('//button[text()="Join invited community"]'));return buttons.length>0&&await buttons[0].isEnabled()?buttons[0]:false},30000)
+    if(process.argv.includes('--setup-only')){
+      await buddy.sendDevToolsCommand('Emulation.setDeviceMetricsOverride',{width:430,height:1000,deviceScaleFactor:1,mobile:false})
+      assert.equal(await buddy.executeScript('return window.innerWidth'),430)
+      await buddy.findElement(By.xpath('//button[text()="Close navigation"]')).click()
+      assert.equal(await buddy.findElement(By.id('chat-navigation')).isDisplayed(),false)
+      await buddy.findElement(By.xpath('//button[text()="View community invite"]')).click()
+      assert.equal(await buddy.findElement(By.id('chat-navigation')).isDisplayed(),true)
+      assert.equal(await buddy.executeScript('return document.documentElement.scrollWidth<=window.innerWidth'),true)
+      checks.pending_invite_can_reopen_navigation_at_430px_without_overflow=true
+      await buddy.sendDevToolsCommand('Emulation.clearDeviceMetricsOverride')
+    }
+    await buddy.findElement(By.xpath('//button[text()="Join invited community"]')).click()
+    await buddy.wait(async()=>await buddy.findElements(By.xpath('//button[text()="Join invited community"]')).then(items=>items.length===0),30000)
+    const secrets=[communityCode,new URLSearchParams(new URL(combinedInvite).hash.slice(1)).get('account')]
+    const persisted=await buddy.executeScript('return JSON.stringify({...localStorage,...sessionStorage})')
+    assert.ok(secrets.every(secret=>!persisted.includes(secret)))
+    checks.combined_invite_creates_account_and_joins_community_without_persisting_capabilities=true
+  }else{
   await buddy.wait(async()=>{const buttons=await buddy.findElements(By.css('[aria-label="Create or join a community"]'));return buttons[0]??false},30000).then(button=>button.click())
   await buddy.wait(async()=>{const fields=await buddy.findElements(By.id('community-code'));return fields[0] ?? false},30000).then(field=>field.sendKeys(communityCode))
   await buddy.wait(async()=>await buddy.findElement(By.xpath('//button[text()="Join community"]')).isEnabled(),15000)
   await buddy.findElement(By.xpath('//button[text()="Join community"]')).click()
+  }
   await buddy.wait(async()=>{const buttons=await buddy.findElements(By.css('.channel-directory button[data-channel-name="chat"]'));return buttons[0] ?? false},15000).then(button=>button.click())
   await driver.wait(async()=>{const buttons=await driver.findElements(By.css('.access-action'));return buttons[0]??false},45000).then(button=>button.click())
   const approval=await driver.wait(async()=>{const buttons=await driver.findElements(By.xpath('//button[normalize-space(.)="Approve uibuddy"]'));return buttons[0] ?? false},45000,'Owner should see the pending member at the next directory refresh')
@@ -417,6 +493,7 @@ try {
   await buddy.findElement(By.css('.send-message')).click()
   await driver.wait(async()=>await driver.findElement(By.css('.message-log')).getText().then(text=>text.includes('UI private channel from buddy')),30000)
   checks.real_second_client_join_automatic_roster_rekey_and_no_old_history=true
+  if(!process.argv.includes('--setup-only')){
   await pace(driver);await pace(buddy)
   await buddy.findElement(By.css('.chat-message:last-of-type button[aria-label="React with thumbs up"]')).click()
   await driver.wait(async()=>{const reactions=await driver.findElements(By.css('.chat-message:last-of-type .message-reactions button[aria-pressed]'));return reactions.length>0 && (await reactions[0].getText()).includes('1')},15000)
@@ -511,7 +588,8 @@ try {
   writeFileSync(join(output,'community-ui-narrow.png'),Buffer.from(await driver.takeScreenshot(),'base64'))
   assert.equal(await driver.executeScript('return document.documentElement.scrollWidth<=window.innerWidth'),true)
   checks.narrow_layout_has_no_horizontal_overflow=true
-  assert.equal(Object.keys(checks).length,(process.argv.includes('--storage')?18:16)+(process.argv.includes('--phase3')?23:0))
+  }
+  assert.equal(Object.keys(checks).length,process.argv.includes('--setup-only')?12:(process.argv.includes('--storage')?18:16)+(process.argv.includes('--phase3')?23:0)+(process.argv.includes('--guided-setup')?5:0))
   succeeded=true
   console.log(JSON.stringify(checks))
 }catch(error) {

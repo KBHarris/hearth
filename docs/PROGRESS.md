@@ -1,5 +1,20 @@
 # Progress
 
+Guided Host/Join setup is in its first implementation pass on
+`codex/guided-setup` (2026-10-15). Fresh clients choose Host or Join, inspect a real
+server and explicitly confirm before changing servers. Invites carry an origin,
+public identity and account/community capabilities without saving those secrets.
+The account/device and signed community admission flows remain in force.
+Host currently connects an existing deployment; automatic service installation,
+native invite handling and independent outside reachability remain open. See
+[the guided setup development notes](GUIDED_SETUP.md) for scope and remaining work.
+The [dated setup record](evidence/guided-setup-2026-10-15.json) records 46 broad
+two-client/private-S3 browser checks followed by 12 final guided-join checks and
+seven mock-response failure/cancellation checks. Final npm verification passes
+38 tests, typecheck, lint and production build using the existing Phase 3 WASM.
+Rust fmt/clippy and 34 default tests pass; four PostgreSQL integration tests remain
+ignored by the default Rust command. New packaged/clean-machine acceptance is open.
+
 Phase 3 is in active validation on `codex/phase3-navigation` (2026-10-12).
 The local HTTP/product-WASM suite passes 90 checks with private S3, including
 valid and rejected access across the complete REST inventory and every gateway

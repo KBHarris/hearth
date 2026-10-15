@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState, type FormEvent } from 'react'
-import { HearthClient, type DeviceEnrollment, type ServerInfo, type Session, type RegistrationMode,type ServerSettings } from '@hearth/sdk'
+import { HearthClient, type HearthInvite, type DeviceEnrollment, type ServerInfo, type Session, type RegistrationMode,type ServerSettings } from '@hearth/sdk'
 import { AuthCrypto } from './crypto/client'
 import { createIdentity, readIdentity, identityScope, identityStorageLabel, storageDeadline } from './crypto/vault-store'
 import { RecoveryPanel } from './RecoveryPanel'
@@ -8,12 +8,16 @@ import { ChatPanel } from './ChatPanel'
 import { Modal } from './Modal'
 import { Icon } from './Icons'
 
-export function AuthPanel({ url, info, setupFinished,configured,onSessionChange }: { url: string; info: ServerInfo; setupFinished: () => void;configured:(settings:ServerSettings)=>void;onSessionChange:(signedIn:boolean)=>void }) {
+export function AuthPanel({ url, info, setupFinished,configured,onSessionChange,invite=null,onInviteChange }: { url: string; info: ServerInfo; setupFinished: () => void;configured:(settings:ServerSettings)=>void;onSessionChange:(signedIn:boolean)=>void;invite?:HearthInvite|null;onInviteChange?:(invite:HearthInvite|null)=>void }) {
   const [panel, setPanel] = useState<'account' | 'server' | null>(null)
   const [session, setSession] = useState<Session | null>(null)
   const [created, setCreated] = useState(false)
-  const [signup,setSignup] = useState(false)
+  const [accountMode,setAccountMode] = useState<'auto'|'signup'|'signin'>('auto')
+  const signup = accountMode === 'signup' || accountMode === 'auto' && !!invite?.account
   const [registrationMode,setRegistrationMode] = useState<RegistrationMode>('closed')
+  const [registrationReady,setRegistrationReady] = useState(false)
+  const [registrationError,setRegistrationError] = useState('')
+  const [registrationAttempt,setRegistrationAttempt] = useState(0)
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState('')
   const [device, setDevice] = useState<DeviceEnrollment | null>(null)
@@ -24,7 +28,14 @@ export function AuthPanel({ url, info, setupFinished,configured,onSessionChange 
   useEffect(() => { onSessionChange(!!session) }, [session,onSessionChange])
   const ownerSetup = !info.setup.setup_complete && !created
   const register = ownerSetup || signup
-  useEffect(() => { if (ownerSetup) return; const controller = new AbortController();void new HearthClient(url).registration({signal:controller.signal}).then(value => setRegistrationMode(value.registration_mode)).catch(() => {});return () => controller.abort() },[ownerSetup,url])
+  useEffect(() => {
+    if (ownerSetup) return
+    const controller = new AbortController()
+    void new HearthClient(url).registration({signal:controller.signal}).then(value => {
+      if(!controller.signal.aborted){setRegistrationMode(value.registration_mode);setRegistrationReady(true);setRegistrationError('')}
+    }).catch(() => {if(!controller.signal.aborted)setRegistrationError('Could not check whether this server accepts new accounts.')})
+    return () => controller.abort()
+  },[ownerSetup,url,registrationAttempt])
   useEffect(() => () => { active.current?.controller.abort(); active.current?.crypto.close(); unlocked.current?.close() }, [])
   useEffect(() => {
     if (!session) return
@@ -38,9 +49,10 @@ export function AuthPanel({ url, info, setupFinished,configured,onSessionChange 
     const data = new FormData(form)
     const username = String(data.get('username')).trim()
     let password = String(data.get('password'))
-    let code = String(data.get(ownerSetup ? 'setup-code' : 'invite-code') ?? '').trim()
+    let code = String(ownerSetup ? data.get('setup-code') ?? '' : signup && invite?.account ? invite.account : data.get('invite-code') ?? '').trim()
     const confirmation = String(data.get('confirm-password') ?? '')
     setError('')
+    if (signup && (!registrationReady || registrationMode === 'closed')) {setError('Ask the host to allow account creation, or sign in to an existing account.');return}
     setDevice(null); setUnlinked(false)
     if (register && (password.length < 12 || password !== confirmation)) { setError('Use at least 12 characters and enter the same password twice.'); return }
     if (password.length > 1024) { setError('Use a password of no more than 1024 characters.'); return }
@@ -72,7 +84,7 @@ export function AuthPanel({ url, info, setupFinished,configured,onSessionChange 
         const response = ownerSetup ? await client.ownerStart({ username, message, setup_code: code }, options) : await client.registerStart({username,message,invite_code:code || null},options)
         const upload = await crypto.request('registrationFinish', password, response.message, username, serverId)
         if (ownerSetup) {await client.ownerFinish({ username, message: upload, setup_code: code }, options);setCreated(true);setupFinished()}
-        else {await client.registerFinish({username,message:upload,invite_code:code || null},options);setSignup(false)}
+        else {await client.registerFinish({username,message:upload,invite_code:code || null},options);setAccountMode('signin');if(invite?.account)onInviteChange?.(invite.community?{...invite,account:undefined}:null)}
       }
       const message = await crypto.request('loginStart', password)
       const response = await client.loginStart({ username, message }, options)
@@ -107,7 +119,7 @@ export function AuthPanel({ url, info, setupFinished,configured,onSessionChange 
           unlocked.current = crypto; keepCrypto = true; setDevice(enrollment)
         }
       }
-      if (!controller.signal.aborted) {setSession(next);if (keepCrypto) setClientCrypto(crypto)}
+      if (!controller.signal.aborted) {setSession(next);if (keepCrypto) setClientCrypto(crypto);if(invite?.account)onInviteChange?.(invite.community?{...invite,account:undefined}:null)}
     } catch (error) {
       if (!controller.signal.aborted) {
         if (authenticated) setSession(authenticated)
@@ -136,6 +148,7 @@ export function AuthPanel({ url, info, setupFinished,configured,onSessionChange 
   </div>
   if (session) return <div className="authenticated-shell">
     {clientCrypto && device ? <ChatPanel crypto={clientCrypto} session={session} device={device} server={info.wellKnown.server_key.toLowerCase()} url={url}
+      invite={invite} onInviteDone={() => onInviteChange?.(null)}
       accountControls={accountControls} serverControls={session.account.owner ? <button className="sidebar-action" onClick={() => setPanel('server')}><Icon name="server" />Server settings</button> : null} /> :
       <section className="auth-screen"><h1>Finish linking this device</h1><p>{unlinked ? 'Sign-in worked. Link this install from an approved device or restore your recovery kit to open your messages.' : 'Your account is signed in, but its keys could not be unlocked. Resolve the storage or identity issue before continuing.'}</p>
         {clientCrypto && <RecoveryPanel crypto={clientCrypto} session={session} serverKey={info.wellKnown.server_key.toLowerCase()} url={url} ready={false} restored={enrollment => {setDevice(enrollment);setUnlinked(false)}} />}
@@ -148,25 +161,29 @@ export function AuthPanel({ url, info, setupFinished,configured,onSessionChange 
       <button className="danger-button" onClick={() => void signOut()}>Sign out</button>
     </Modal>}
     {panel === 'server' && session.account.owner && <Modal title="Server settings" description="Manage this server’s name and who can create an account. Community settings apply to each group separately." onClose={() => setPanel(null)}>
-      <AdminPanel session={session} url={url} configured={settings => {setRegistrationMode(settings.registration_mode);configured(settings)}} />
+      <AdminPanel session={session} url={url} serverKey={info.wellKnown.server_key.toLowerCase()} configured={settings => {setRegistrationMode(settings.registration_mode);configured(settings)}} />
     </Modal>}
     {error && <p className="input-error workspace-error" role="alert">{error}</p>}
   </div>
   return <section className="auth-screen auth-panel" aria-labelledby="auth-heading">
     <div className="auth-intro"><p className="eyebrow">{info.wellKnown.server_name}</p><h1 id="auth-heading">{ownerSetup ? 'Set up your server' : signup ? 'Create your account' : 'Welcome back.'}</h1>
-      <p>{ownerSetup ? 'Create the owner account using the setup code from your server’s installer.' : signup ? registrationMode === 'invite' ? 'Enter the account invite shared by this server’s owner. Community invites are used after signing in.' : 'Create an account on this server.' : 'Sign in to open your messages and communities.'}</p></div>
+      <p>{ownerSetup ? 'Create the owner account using the setup code from your server’s installer.' : signup ? invite?.account ? 'Your invite includes what you need to create an account here.' : registrationMode === 'invite' ? 'Enter the account invite shared by this server’s owner. Community invites are used after signing in.' : 'Create an account on this server.' : 'Sign in to open your messages and communities.'}</p></div>
+      {invite && <div className="pending-invite"><strong>Your invite is ready.</strong><p>{invite.community ? 'Sign in or create your account, then confirm joining the invited community. An approved member’s device may need to be online before encrypted channels open.' : 'Create your account with the included invite, or sign in to an existing account.'}</p><button type="button" disabled={busy} onClick={() => {onInviteChange?.(null);setAccountMode('signin')}}>Discard invite</button></div>}
+      {!ownerSetup && registrationError && <p className="input-error" role="alert">{registrationError} <button type="button" onClick={()=>{setRegistrationError('');setRegistrationAttempt(value=>value+1)}}>Check again</button></p>}
+      {signup && !registrationReady && !registrationError && <p role="status">Checking account registration…</p>}
+      {signup && registrationReady && registrationMode === 'closed' && <p className="notice">This server is not accepting new accounts. Sign in below or ask its host to enable invitations.</p>}
       <form onSubmit={(event) => void authenticate(event)} aria-busy={busy}>
         <fieldset disabled={busy}>
-          {ownerSetup && <><label htmlFor="setup-code">Setup code</label><input id="setup-code" name="setup-code" type="password" required minLength={64} maxLength={64} autoComplete="off" /><small>Run the installer with --show-setup-code on the server to retrieve it.</small></>}
-          {signup && registrationMode === 'invite' && <><label htmlFor="invite-code">Account invite code</label><input id="invite-code" name="invite-code" type="password" required minLength={64} maxLength={64} autoComplete="off"/></>}
+          {ownerSetup && <><label htmlFor="setup-code">Setup code</label><input id="setup-code" name="setup-code" type="password" required minLength={64} maxLength={64} autoComplete="off" /><small>Use the private owner setup code from the existing server’s installer. Keep it on the host computer.</small></>}
+          {signup && invite?.account ? <p className="notice">Account invite included.</p> : signup && registrationMode === 'invite' && <><label htmlFor="invite-code">Account invite code</label><input id="invite-code" name="invite-code" type="password" required minLength={64} maxLength={64} autoComplete="off"/></>}
           <label htmlFor="username">Username</label><input id="username" name="username" required pattern="[a-z0-9_]{3,32}" minLength={3} maxLength={32} autoComplete="username" spellCheck={false} /><small>3–32 lowercase letters, numbers, or underscores.</small>
           <label htmlFor="password">Password</label><input id="password" name="password" type="password" required maxLength={1024} minLength={register ? 12 : 1} autoComplete={register ? 'new-password' : 'current-password'} />
           {register && <><label htmlFor="confirm-password">Confirm password</label><input id="confirm-password" name="confirm-password" type="password" required autoComplete="new-password" /></>}
-          <button className="primary-button" type="submit">{busy ? 'Verifying…' : ownerSetup ? 'Create owner account' : signup ? 'Create account' : 'Sign in'}</button>
+          <button className="primary-button" type="submit" disabled={signup && (!registrationReady || registrationMode === 'closed')}>{busy ? 'Verifying…' : ownerSetup ? 'Create owner account' : signup ? 'Create account' : 'Sign in'}</button>
         </fieldset>
         {busy && <button className="retry-button" type="button" onClick={() => { active.current?.controller.abort(); active.current?.crypto.close() }}>Cancel</button>}
       </form>
-      {!ownerSetup && registrationMode !== 'closed' && <button type="button" className="retry-button" disabled={busy} onClick={() => {setSignup(!signup);setError('')}}>{signup ? 'Already have an account? Sign in' : 'Create an account'}</button>}
+      {!ownerSetup && (registrationMode !== 'closed' || signup) && <button type="button" className="retry-button" disabled={busy} onClick={() => {setAccountMode(signup?'signin':'signup');setError('')}}>{signup ? 'Already have an account? Sign in' : 'Create an account'}</button>}
       <small>Your password stays on this device. Reloading or changing servers signs you out of this client.</small>
 
     {error && <p className="input-error" role="alert">{error}</p>}

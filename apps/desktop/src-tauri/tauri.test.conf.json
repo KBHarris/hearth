@@ -1,0 +1,19 @@
+{
+  "$schema": "https://schema.tauri.app/config/2",
+  "productName": "Hearth Test",
+  "version": "0.3.0",
+  "identifier": "chat.hearth.phase3-test",
+  "app": {
+    "windows": [{
+      "title": "Hearth Test",
+      "width": 1280,
+      "height": 800,
+      "minWidth": 940,
+      "minHeight": 560
+    }]
+  },
+  "bundle": {
+    "targets": ["nsis"],
+    "windows": { "nsis": { "installMode": "currentUser" } }
+  }
+}

@@ -41,6 +41,11 @@ counts and platform release status are deliberately not treated as fixed require
 
 Primary user journey: **Install → Host or Join → Share an invite.**
 
+The [first guided client pass](GUIDED_SETUP.md), implemented 2026-10-15, provides
+Host/Join entry, readiness for an existing host and a single pasted invite through
+account creation and signed community admission. Automatic service installation,
+native click-to-open links and independent outside reachability are still open.
+
 1. A normal installer opens Hearth and asks whether to host on this PC or join
    someone else's server. Advanced deployment remains available separately.
 2. Hosting creates the server owner through the UI. It prepares required services,

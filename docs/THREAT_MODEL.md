@@ -64,6 +64,26 @@
 
 All routing information above is metadata. MLS private content is never decoded by the server.
 
+### Guided setup invitations
+
+The Host/Join client accepts a versioned `hearth://join/` invite carrying an
+origin, public server identity and account/community capabilities in its fragment.
+It rejects unknown/duplicate fields, credentials, paths and remote HTTP before
+performing public discovery, then checks the invite key and existing local pin.
+It also preserves the active server identity if storage is unavailable. Bare
+admission/bootstrap codes are rejected before they can be treated as DNS names.
+Invites are pasted into the client; OS protocol handling is a later gate. The
+client never sends the whole invite to an HTTP endpoint. Only the relevant
+capability goes to the existing authenticated registration/join flow when the
+user proceeds; owner bootstrap codes cannot be supplied through invites.
+
+Capabilities remain in component memory, are not added to browser storage or
+diagnostic exports, and must be pasted again after reload. Copying explicitly
+places them on the OS clipboard (including any enabled clipboard history/sync).
+Server origins/names and public-key pins keep their existing local storage policy.
+No third-party probe is used: passing local discovery does not establish outside
+reachability, and a timeout does not establish a CGNAT or NAT-loopback diagnosis.
+
 ## Phase 2 community directory
 
 The first community slice exposes structure only to authenticated members. A server owner

@@ -1,10 +1,12 @@
 import { useEffect, useRef, useState, type FormEvent } from 'react'
-import { HearthClient, HearthError, normalizeServerUrl, type ServerInfo } from '@hearth/sdk'
+import { HearthClient, HearthError, normalizeServerUrl, type HearthInvite, type ServerInfo } from '@hearth/sdk'
 import './App.css'
 import './Workspace.css'
 import { AuthPanel } from './AuthPanel'
 import { Modal } from './Modal'
 import { Flame, Icon } from './Icons'
+import { GuidedSetup, type CheckedServer } from './GuidedSetup'
+import './Setup.css'
 
 const defaultUrl = import.meta.env.VITE_HEARTH_SERVER_URL ??
   ('__TAURI_INTERNALS__' in window ? 'http://localhost:8080' : window.location.origin)
@@ -25,12 +27,18 @@ function initialUrl() {
   try { const saved = localStorage.getItem(storageKey); if (saved) return normalizeServerUrl(saved) } catch { /* Storage is optional for discovery. */ }
   return defaultUrl
 }
+function needsSetup() {
+  try { const saved = localStorage.getItem(storageKey); if (saved) { normalizeServerUrl(saved); return false } } catch { /* Start with the guided flow. */ }
+  return true
+}
 function connectionError(error: unknown) {
   return error instanceof HearthError || error instanceof Error ? error.message : 'Could not connect. Check the address and try again.'
 }
 
 export default function App() {
   const [url, setUrl] = useState(initialUrl)
+  const [welcome, setWelcome] = useState(needsSetup)
+  const [invite, setInvite] = useState<HearthInvite | null>(null)
   const [servers, setServers] = useState(savedServers)
   const [status, setStatus] = useState<Status>({ kind: 'loading' })
   const [attempt, setAttempt] = useState(0)
@@ -48,18 +56,24 @@ export default function App() {
     })
   }
   useEffect(() => {
+    if (welcome) return
     const controller = new AbortController()
     void new HearthClient(url).inspect({ signal: controller.signal }).then(info => {
       if (controller.signal.aborted) return
       setStatus({ kind: 'ok', info }); remember(url, info.wellKnown.server_name)
     }).catch(error => { if (!controller.signal.aborted) setStatus({ kind: 'error', message: connectionError(error) }) })
     return () => controller.abort()
-  }, [url, attempt])
+  }, [url, attempt, welcome])
   useEffect(() => () => candidate.current?.abort(), [])
   function openConnection(kind: 'add' | 'connection', next = url) {
     candidate.current?.abort(); setChecking(false); setError(''); setAddress(kind === 'add' && next === url ? '' : next); setPanel(kind)
   }
   function closePanel() { candidate.current?.abort(); setChecking(false); setPanel(null) }
+  function finishSetup(checked: CheckedServer) {
+    remember(checked.server, checked.info.wellKnown.server_name)
+    if (checked.server !== url) setSignedIn(false)
+    setInvite(checked.invite); setUrl(checked.server); setStatus({ kind: 'ok', info: checked.info }); setWelcome(false); setPanel(null)
+  }
   async function connect(event: FormEvent) {
     event.preventDefault(); candidate.current?.abort()
     const controller = new AbortController(); candidate.current = controller
@@ -70,6 +84,7 @@ export default function App() {
       if (controller.signal.aborted) return
       if (nextUrl === url && status.kind === 'ok' && info.wellKnown.server_key.toLowerCase() !== status.info.wellKnown.server_key.toLowerCase()) throw new Error('This server’s identity changed. Contact its host before reconnecting. Your current session and saved keys were preserved.')
       remember(nextUrl, info.wellKnown.server_name)
+      setInvite(null); setWelcome(false)
       if (nextUrl !== url) setSignedIn(false)
       setUrl(nextUrl); setStatus({ kind: 'ok', info }); setAddress(nextUrl); setPanel(null)
     } catch (error) { if (!controller.signal.aborted) setError(connectionError(error)) }
@@ -97,7 +112,8 @@ export default function App() {
       <header className="app-header"><div className="app-brand">hearth<span className="brand-dot">.</span><span className="preview-tag">PREVIEW</span></div>
         <button className="server-connection-button" onClick={() => openConnection('connection')}><span className={`dot ${status.kind}`} />{name}<Icon name="chevron" /></button>
       </header>
-      {status.kind === 'ok' ? <AuthPanel key={url} url={url} info={status.info} onSessionChange={setSignedIn}
+      {welcome ? <div className="setup-screen"><GuidedSetup defaultServer={defaultUrl} onConnect={finishSetup} /></div> : status.kind === 'ok' ? <AuthPanel key={url} url={url} info={status.info} onSessionChange={setSignedIn}
+        invite={invite} onInviteChange={next => setInvite(current => current === invite ? next : current)}
         setupFinished={() => setStatus({ kind: 'ok', info: { ...status.info, setup: { setup_complete: true } } })}
         configured={settings => { remember(url, settings.server_name); setStatus({ kind: 'ok', info: { ...status.info, wellKnown: { ...status.info.wellKnown, server_name: settings.server_name } } }) }} /> :
         <section className="connection-screen"><Icon name="server" /><h1>{status.kind === 'loading' ? 'Connecting to your server…' : 'Let’s get you connected.'}</h1>
@@ -107,7 +123,8 @@ export default function App() {
         </section>}
     </main>
     {panel && <Modal title={panel === 'add' ? 'Add a server' : 'Server connection'} onClose={closePanel}
-      description="A server is the home for your account and communities. Enter the address shared by its host.">
+      description={panel === 'connection' ? 'A server is the home for your account and communities. Enter the address shared by its host.' : undefined}>
+      {panel === 'add' ? <GuidedSetup defaultServer={defaultUrl} signedIn={signedIn} currentServer={status.kind === 'ok' ? {url,key:status.info.wellKnown.server_key.toLowerCase()} : undefined} onConnect={finishSetup} /> : <>
       <form onSubmit={event => void connect(event)} className="connection-form" aria-busy={checking}>
         <label htmlFor="server-address">Server address</label><input id="server-address" type="text" inputMode="url" autoComplete="url" spellCheck={false}
           placeholder="https://chat.example.org" value={address} required autoFocus aria-invalid={!!error} aria-describedby="address-help"
@@ -122,6 +139,7 @@ export default function App() {
         <details><summary>Server identity</summary><p>Compare this public key with your host using a trusted channel.</p><code>{status.info.wellKnown.server_key}</code></details>
         {servers.some(item => item.url === url) && <button type="button" onClick={forgetServer}>Forget saved address</button>}
       </details>}
+      </>}
     </Modal>}
   </div>
 }

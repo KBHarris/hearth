@@ -216,6 +216,16 @@ A report is verifiable by a moderator. Retention expiry deletes the ciphertext.
 installed development dependencies. This moves essential user-facing operations
 ahead of media expansion; advanced deployment remains available.
 
+The first [guided setup pass](GUIDED_SETUP.md) adds Host/Join entry points, real
+readiness for an existing host, identity-checked pasteable account/community
+invites and a handoff through account creation and signed community admission.
+Service installation, native click-to-open links and outside-network verification
+remain separate implementation gates.
+
+- [x] Host/Join client entry and explicit confirmation after checking an address.
+- [x] Single pasted invite carries server identity, account and community admission;
+  invite capabilities stay in memory, with existing device approval preserved.
+
 - [ ] A normal installer prepares services, storage, migrations and server identity;
   owner enrollment and joining happen in the UI.
 - [ ] Guided local/internet hosting checks firewall, routing, HTTPS and actual outside
