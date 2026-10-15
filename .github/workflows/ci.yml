@@ -1,11 +1,14 @@
 name: CI
 
 on:
-  push:
-    branches: [main]
-  pull_request:
-  merge_group:
   workflow_dispatch:
+    inputs:
+      suite:
+        description: 'Hosted budget: checks only, Linux core, or full milestone acceptance'
+        type: choice
+        required: true
+        default: checks
+        options: [checks, core, full]
 
 permissions:
   contents: read
@@ -15,13 +18,13 @@ env:
   HEARTH_TEST_TARGET_DIR: target
 
 concurrency:
-  group: ci-${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  group: ci-${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
 
 jobs:
   workflow-policy:
     runs-on: ubuntu-latest
-    timeout-minutes: 10
+    timeout-minutes: 5
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
@@ -31,8 +34,14 @@ jobs:
           node-version: 22
       - name: Install workflow validation dependencies
         run: |
-          sudo apt-get update
-          sudo apt-get install -y --no-install-recommends shellcheck python3-yaml
+          if ! command -v shellcheck >/dev/null 2>&1 || ! python3 -c 'import yaml'; then
+            sudo apt-get update
+            sudo apt-get install -y --no-install-recommends shellcheck python3-yaml
+          fi
+      - name: Validate the selected budget tier
+        run: node --input-type=module -e "import {suites} from './scripts/verify-ci-results.mjs'; if (!Object.hasOwn(suites, process.env.HEARTH_CI_SUITE)) throw new Error('Choose checks, core or full'); console.log('Selected suite:', process.env.HEARTH_CI_SUITE)"
+        env:
+          HEARTH_CI_SUITE: ${{ inputs.suite }}
       - name: Validate workflow syntax, expressions and embedded shell
         run: node scripts/verify-workflows.mjs
       - name: Enforce required jobs and workflow security policy
@@ -41,6 +50,7 @@ jobs:
         run: node --test scripts/test/verify-ci-results.test.mjs
 
   rust:
+    if: ${{ inputs.suite == 'core' || inputs.suite == 'full' }}
     timeout-minutes: 30
     needs: [workflow-policy]
     runs-on: ubuntu-latest
@@ -61,8 +71,9 @@ jobs:
       - run: cargo check -p hearth-wasm --target wasm32-unknown-unknown --features mls-spike,opaque-spike
 
   crypto-wasm:
+    if: ${{ inputs.suite == 'core' || inputs.suite == 'full' }}
     timeout-minutes: 30
-    needs: [workflow-policy]
+    needs: [rust]
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
@@ -80,8 +91,9 @@ jobs:
       - run: npm run spike:opaque:wasm
 
   auth:
+    if: ${{ inputs.suite == 'core' || inputs.suite == 'full' }}
     timeout-minutes: 35
-    needs: [workflow-policy]
+    needs: [rust, web]
     runs-on: ubuntu-latest
     services:
       postgres:
@@ -116,14 +128,15 @@ jobs:
         env:
           HEARTH_TEST_POSTGRES_CONTAINER: ${{ job.services.postgres.id }}
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
-        if: always()
+        if: failure() || inputs.suite == 'full'
         with:
           name: phase3-auth
           path: target/phase3-evidence/
           if-no-files-found: error
-          retention-days: 7
+          retention-days: 1
 
   web:
+    if: ${{ inputs.suite == 'core' || inputs.suite == 'full' }}
     timeout-minutes: 20
     needs: [workflow-policy]
     runs-on: ubuntu-latest
@@ -147,20 +160,22 @@ jobs:
           HEARTH_PREBUILT_WASM: '1'
         timeout-minutes: 2
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        if: inputs.suite == 'full'
         with:
           name: product-auth-wasm
           path: apps/client/src/crypto/generated/
           if-no-files-found: error
-          retention-days: 7
+          retention-days: 1
       - run: npm run spike:media:build
 
   desktop:
+    if: ${{ inputs.suite == 'full' }}
     timeout-minutes: 90
-    needs: [rust, web]
+    needs: [rust, crypto-wasm, auth, web, compose, podman]
     env:
       HEARTH_PREBUILT_WASM: '1'
     strategy:
-      fail-fast: false
+      fail-fast: true
       matrix:
         os: [ubuntu-22.04, macos-latest, windows-latest]
     runs-on: ${{ matrix.os }}
@@ -224,12 +239,7 @@ jobs:
       - name: Linux Secret Service, SQLCipher and packaged client acceptance
         if: runner.os == 'Linux'
         timeout-minutes: 15
-        run: |
-          for attempt in 1 2 3 4 5 6 7 8 9 10; do
-            echo "Linux packaged acceptance repetition $attempt"
-            xvfb-run -a dbus-run-session -- bash scripts/verify-linux-key-store.sh
-            cp target/phase1-evidence/packaged-linux.json "target/phase1-evidence/packaged-linux-repetition-$attempt.json"
-          done
+        run: xvfb-run -a dbus-run-session -- bash scripts/verify-linux-key-store.sh
       - name: Full Phase 3 packaged client acceptance
         timeout-minutes: 10
         run: node scripts/verify-auth.mjs --desktop --native-postgres --phase3
@@ -244,14 +254,14 @@ jobs:
           name: phase3-desktop-${{ matrix.os }}
           path: target/phase3-evidence/
           if-no-files-found: error
-          retention-days: 7
+          retention-days: 1
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         if: always()
         with:
           name: phase1-desktop-${{ matrix.os }}
           path: target/phase1-evidence/
           if-no-files-found: error
-          retention-days: 7
+          retention-days: 1
       - name: Windows community and encrypted channel UI acceptance
         if: runner.os == 'Windows'
         timeout-minutes: 25
@@ -262,7 +272,7 @@ jobs:
           name: phase3-community-ui-windows
           path: target/phase3-evidence/
           if-no-files-found: error
-          retention-days: 7
+          retention-days: 1
       - run: npm run spike:media:build
       - run: cargo build -p hearth-desktop --features phase0-spike
       - run: node scripts/verify-desktop-mls.mjs
@@ -298,13 +308,14 @@ jobs:
           name: phase0-webview-${{ matrix.os }}
           path: target/phase0-evidence/
           if-no-files-found: error
-          retention-days: 7
+          retention-days: 1
 
   media-browser:
+    if: ${{ inputs.suite == 'full' }}
     timeout-minutes: 35
-    needs: [workflow-policy]
+    needs: [rust, crypto-wasm, auth, web, compose, podman]
     strategy:
-      fail-fast: false
+      fail-fast: true
       matrix:
         include:
           - { os: ubuntu-latest, browser: chrome }
@@ -350,11 +361,12 @@ jobs:
           name: phase0-browser-${{ matrix.browser }}
           path: target/phase0-evidence/
           if-no-files-found: error
-          retention-days: 7
+          retention-days: 1
 
   compose:
+    if: ${{ inputs.suite == 'core' || inputs.suite == 'full' }}
     timeout-minutes: 35
-    needs: [workflow-policy]
+    needs: [rust, web, auth]
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
@@ -371,8 +383,9 @@ jobs:
         run: docker compose -f deploy/compose.yaml down --volumes
 
   podman:
+    if: ${{ inputs.suite == 'core' || inputs.suite == 'full' }}
     timeout-minutes: 40
-    needs: [workflow-policy]
+    needs: [rust, web, auth]
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
@@ -399,11 +412,11 @@ jobs:
           PODMAN_COMPOSE_PROVIDER: /usr/libexec/docker/cli-plugins/docker-compose
 
   required-gate:
-    name: CI required
-    if: ${{ always() }}
+    name: Acceptance (${{ inputs.suite }})
+    if: ${{ always() && (inputs.suite == 'core' || inputs.suite == 'full') }}
     needs: [workflow-policy, rust, crypto-wasm, auth, web, desktop, media-browser, compose, podman]
     runs-on: ubuntu-latest
-    timeout-minutes: 5
+    timeout-minutes: 3
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
@@ -414,4 +427,5 @@ jobs:
       - name: Reject failed, cancelled, skipped or missing required jobs
         run: node scripts/verify-ci-results.mjs
         env:
+          HEARTH_CI_SUITE: ${{ inputs.suite }}
           HEARTH_CI_NEEDS: ${{ toJSON(needs) }}

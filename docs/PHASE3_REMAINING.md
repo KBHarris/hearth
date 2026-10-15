@@ -4,9 +4,9 @@ Updated 2026-10-15. This is the agreed work order for the remaining Phase 3 scop
 The additions below are planned; they are not included in Hearth Test 0.3.0.
 Existing implementation and dated evidence are in [the development guide](PHASE3_DEVELOPMENT.md).
 
-The [CI standard](CI_STANDARD.md) applies to every item, starting now: keep strict
-automated checks current as features land. Hosted enforcement, dependency/security
-checks and the final-source cross-platform run are required before closeout.
+The [Actions budget standard](CI_STANDARD.md) applies to every item: validate locally
+first and keep hosted workflows manual-only. Request the final-source cross-platform
+run at closeout; do not spend hosted minutes on each feature, push or PR.
 
 ## Ordered checklist
 
@@ -53,10 +53,10 @@ checks and the final-source cross-platform run are required before closeout.
    opt-in, actual provider acceptance, OS notification display, click navigation
    and disabling delivery. Notifications remain generic and content-free. Local
    push fixtures alone do not close this item.
-8. [ ] **Complete strict CI and cross-platform acceptance, then close Phase 3.**
-   Roll out the required merge gate/branch protection and dependency/security checks
-   defined in [the CI standard](CI_STANDARD.md). Run hosted checks and current
-   Windows, macOS and Linux packaged runtime acceptance against
+8. [ ] **Complete budgeted cross-platform acceptance, then close Phase 3.**
+   Validate the manual-only budget controls, finish local checks and obtain an
+   explicit request for one full hosted milestone run. Run current Windows, macOS
+   and Linux packaged runtime acceptance against
    the final Phase 3 source, including the new features and existing permission,
    reporting, retention and account-departure coverage. Investigate a hosted job
    startup failure if it recurs; older green artifacts do not validate this build.

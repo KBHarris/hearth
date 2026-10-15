@@ -1,95 +1,88 @@
-# CI standard
+# Actions budget standard
 
-Applies across all phases, adopted 2026-10-15. CI is an acceptance gate for the
-source being proposed, rather than a best-effort build indicator. A green older
-commit, a skipped platform or a successful compile does not establish current
-runtime acceptance. Preserve the real crypto, permission and storage checks.
+Applies across all phases, updated 2026-10-15. The priority is minimizing GitHub
+Actions minutes and storage. This replaces the earlier interpretation that every
+push/PR should run the complete hosted acceptance matrix.
 
-## Workflow requirements
+## Local first, hosted runs only on request
 
-- Every PR, main push, merge-group run and manual dispatch runs the required
-  checks. Avoid path filters that can silently omit required coverage.
-- The **CI required** job runs after every required job and succeeds only if
-  all succeeded. Failure, cancellation, skipped jobs and missing results fail
-  the gate. Both desktop and browser matrices must finish successfully.
-- Tests fail the workflow on failure; do not introduce `continue-on-error`,
-  `|| true`, blanket skips or success-only placeholder results to obtain green CI.
-  A narrowly documented platform capability result is permitted only for an
-  intentionally unsupported feature; it cannot waive a supported product gate.
-- Each distinct native acceptance command gets its own step. In particular,
-  a later successful PowerShell command must not hide an earlier failed command.
-- All jobs have bounded timeouts. Missing required evidence fails artifact upload.
-  Upload diagnostic reports on failure, use short retention and keep credentials,
-  message contents, invite capabilities and operator secrets out of artifacts.
-- Workflow syntax, expressions and embedded shell are validated with pinned,
-  checksum-verified actionlint. CI requires ShellCheck to be present. The required
-  gate itself has tests for unsuccessful, missing and malformed job results.
-  A policy check enforces the full job inventory, SHA pins, token permissions,
-  timeouts and artifact requirements so these rules cannot drift silently.
-- Remote actions use full commit SHAs, with readable version comments and weekly
-  Dependabot update PRs. Updates receive normal review and required checks.
-  Tokens default to `contents: read`; checkout does not persist credentials.
-  Grant extra permissions only to the specific job that needs them. Do not expose
-  secrets or write tokens to untrusted PR code.
+Run appropriate checks locally during normal development. Do not dispatch a
+hosted workflow without the user's explicit request to run hosted CI. Permission
+to edit code, commit, push or prepare a package does not by itself authorize a
+hosted run. No hosted workflow was dispatched while configuring this policy.
 
-The current required job IDs are `workflow-policy`, `rust`, `crypto-wasm`, `auth`,
-`web`, `desktop`, `media-browser`, `compose` and `podman`. When adding a required
-job, update both `required-gate.needs` in the workflow and the shared inventory in
-`.github/required-ci-jobs.json`. The policy check requires every test job to feed
-the gate, and the gate's failure tests cover each inventoried job.
+The CI workflow uses **workflow_dispatch only**: no push, pull-request, merge-group,
+tag or scheduled runs. Ordinary development and documentation edits therefore do
+not start this workflow. Do not reintroduce automatic triggers without discussing
+the Actions budget first. Do not retry a startup/billing failure in a loop.
 
-## Coverage required as features change
+## Explicit run tiers
 
-- Rust formatting, Clippy warnings, tests and protocol-generation drift checks.
-- TypeScript checking, lint, tests, production web build and real product WASM.
-- Actual PostgreSQL migrations and HTTP/gateway permission acceptance, including
-  unauthenticated, wrong-account, wrong-device, stale-proof and replay rejection.
-- Private S3 access, ciphertext cleanup, upload races/restart and encrypted file
-  round trips. New upload limits need exact-boundary and over-limit checks.
-- Real packaged Windows/macOS/Linux runtime, native credential storage, SQLCipher
-  and fixture cleanup. Build-only or harness-only evidence does not establish that
-  the installer works; extend installed-product acceptance as packaging develops.
-- Browser checks for the current supported engines, plus two-client member/role
-  changes, profile verification, modal focus and narrow layout for the new UI.
-- Add dependency-vulnerability and static security checks with reviewed policies
-  before Phase 3 closeout. Triage findings; any exception needs a specific owner,
-  rationale, expiry and mitigation. Do not turn off a category to bypass a finding.
+| Selected suite | Hosted work | When to use |
+| --- | --- | --- |
+| `checks` (default) | One Linux job: workflow lint, budget-policy validation and suite-result tests. No Rust/WASM/app builds. | Deliberately checking CI configuration. These checks can also run locally. |
+| `core` | Linux Rust, crypto/WASM, web, real PostgreSQL/private-S3 and Docker/Podman checks, plus the selected-suite result gate. | An explicitly requested integration checkpoint after local checks pass. |
+| `full` | Core plus Windows/macOS/Linux desktop and Chrome/Firefox/Safari acceptance. | An explicitly requested phase/release milestone after features stabilize. |
 
-Automated coverage must grow with each implementation step, rather than being
-postponed until the final build. Actual push-provider/OS delivery, clean-machine
-installation and two-house testing remain explicit human acceptance where they
-cannot be automated reliably; CI must not claim those passed from mocks.
+The expanded workflow has one job in `checks`, eight jobs in `core`, and fourteen
+in `full`, counting matrix entries and the result gate. These are job counts,
+not measured runtimes or a spending guarantee. Only `full` establishes current
+cross-platform acceptance. `checks` and `core` must never be labeled as full passes.
 
-## Hosted enforcement and remaining rollout
+## Avoid waste within a requested run
 
-On 2026-10-15, the API reported that `main` was not branch-protected. The latest
-visible hosted attempts were older Phase 3 runs ending in `startup_failure` before
-jobs started. Local linting does not resolve or validate hosted execution.
+- Use standard Linux runners for the lightweight and core suites. Start expensive
+  platform matrices only after all Linux core jobs succeed.
+- Cancel superseded runs on the same ref. Fail fast within desktop/browser matrices;
+  a cancelled supported platform remains unvalidated until a later requested run.
+- Reuse npm/Rust caches and the product-WASM artifact within full acceptance.
+  Avoid duplicate dependency installation when validation tools are already present.
+- Run the Linux packaged acceptance once, rather than repeating it ten times.
+  Additional repetitions belong in targeted local investigation, or a separately
+  authorized hosted investigation when a real regression warrants it.
+- Keep timeouts bounded. Fix failing checks locally before another hosted attempt.
+- Retain uploaded artifacts for one day. Core success keeps job logs rather than
+  uploading unused build/report artifacts; failed integration checks retain
+  diagnostics. Full acceptance retains the reports and shared WASM it needs.
+  Store durable milestone evidence locally/in source after sanitizing it.
+- Group action-update PRs monthly, with one open update PR at a time.
+- Keep read-only tokens and pinned action SHAs; these add no extra test matrix.
 
-1. Push/review these workflow changes and get a real run on the proposed source.
-2. Diagnose any recurring startup failure without relaxing required coverage.
-3. Configure a repository ruleset/branch protection to require **CI required**
-   from GitHub Actions on `main`, require checks against the current base or a
-   merge queue, require PR review, and restrict bypasses/direct pushes.
-4. Verify a failed or skipped required job prevents merging. Do not substitute
-   an older successful run or a check from another integration.
+The policy checker rejects automatic triggers, a more expensive default tier,
+unconditional expensive jobs, missing Linux prerequisites, disabled fail-fast and
+longer artifact retention. Suite-result tests reject failure, cancellation,
+missing results and skipped selected jobs. Only the explicitly unselected jobs
+may be skipped, and a core result cannot masquerade as a full result.
 
-Workflow files alone cannot enable repository branch protection. Until that
-rollout is done, these local changes are not enforced on hosted merges.
+## Acceptance and rollout
 
-Local workflow checks:
+Maintain real crypto, authorization, encrypted storage and privacy checks locally
+as features change. At a phase milestone, run the final-source full suite once on
+explicit request, fix failures locally and rerun only when justified. Manual
+clean-PC/two-house testing and actual notification delivery remain separate gates.
+
+These workflow changes are local until pushed/merged. GitHub's manual-dispatch
+workflow must be present on the default branch before its configured manual UI
+is available. No hosted execution or measured savings are claimed here.
+The earlier observed startup failures are not a reason to start additional runs.
+
+Do not make the full suite a mandatory check on every merge under this budget
+policy. Hosted branch protection and account billing settings were not changed.
+For a monetary hard stop, use the account's Actions budget with **Stop usage when
+budget limit is reached**, where available. Alerts alone do not cap spending.
+The workflow cannot set or verify that account-wide cap; no paid amount is assumed.
+
+Local validation (no GitHub-hosted minutes):
 
 ```sh
 node scripts/verify-workflows.mjs
 node --test scripts/test/verify-ci-results.test.mjs
-python3 scripts/verify-workflow-policy.py # requires PyYAML, installed by the CI job
+python3 scripts/verify-workflow-policy.py # requires PyYAML
 ```
 
-The validator supports Windows, Linux and macOS on x64/ARM64. It downloads the
-official actionlint v1.7.12 archive and checks its committed SHA-256 before use.
-On machines without ShellCheck, actionlint's embedded shell checks are unavailable;
-the hosted policy job explicitly requires it.
+The validator uses checksum-pinned actionlint. Hosted lint requires ShellCheck;
+local machines without it do not validate embedded shell scripts with ShellCheck.
 
-References: [GitHub Actions secure use](https://docs.github.com/en/actions/reference/security/secure-use),
-[status check behavior](https://docs.github.com/en/pull-requests/reference/status-checks),
-and [actionlint](https://github.com/rhysd/actionlint).
+References, checked 2026-10-15: [manual workflows](https://docs.github.com/en/actions/how-tos/manage-workflow-runs/manually-run-a-workflow),
+[Actions billing](https://docs.github.com/en/billing/concepts/product-billing/github-actions),
+[hard budgets](https://docs.github.com/en/billing/how-tos/set-up-budgets).

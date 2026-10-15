@@ -1,15 +1,18 @@
 # Progress
 
-CI hardening was prepared locally on 2026-10-15: pinned actions, read-only tokens,
-bounded jobs, workflow lint, required artifacts, separate native acceptance steps
-and a tested aggregate **CI required** gate. [The CI standard](CI_STANDARD.md)
-applies across phases. Hosted rollout and branch protection remain pending;
-local validation is not a successful hosted run.
-Local Windows/Linux actionlint, Linux ShellCheck and the workflow policy pass.
-All ten aggregate-gate tests pass on Node 22; eight unsafe workflow mutations
-were rejected. Web verification passes. The existing 0.3.0 package is unchanged.
-Rust formatting/Clippy and 34 tests pass; four PostgreSQL tests remain ignored
-by the default command and are exercised separately by the auth workflow.
+Actions policy was corrected on 2026-10-15 to prioritize the user's budget:
+[local-first, manual-only hosted CI](CI_STANDARD.md). The default `checks` tier
+uses one Linux job; explicitly requested `core` and `full` tiers select broader
+acceptance. There are no push, PR, tag, merge-group or scheduled triggers.
+Expensive platform matrices wait for Linux acceptance, fail fast, and use one-day
+artifacts. Linux packaged acceptance runs once instead of ten repetitions.
+The earlier blanket full-suite/merge-gate requirement has been superseded.
+The workflow and policy changes remain local until pushed/merged. No hosted
+workflow was dispatched and no billing settings were changed. Local validation
+does not establish a successful hosted run or measured monetary savings.
+The existing 0.3.0 package is unchanged.
+Local actionlint/ShellCheck, the budget policy and all eleven suite-result tests
+pass. Ten budget-breaking workflow mutations were rejected locally.
 
 Phase 3 scope was updated on 2026-10-15. The [ordered remaining-work checklist](PHASE3_REMAINING.md)
 adds 50 MB uploads, server-owner file deletion, a **Server Members** sidebar and
