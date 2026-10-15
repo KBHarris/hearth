@@ -7,10 +7,12 @@ import {dirname,join,resolve} from 'node:path'
 import {fileURLToPath} from 'node:url'
 
 const root=fileURLToPath(new URL('../',import.meta.url))
-const [outputRoot,imageName,installer]=process.argv.slice(2)
-assert.ok(outputRoot&&imageName&&installer,'Usage: node scripts/build-test-bundle.mjs OUTPUT_ROOT IMAGE INSTALLER')
+const [outputRoot,imageName,installer,sourceRef='HEAD']=process.argv.slice(2)
+assert.ok(outputRoot&&imageName&&installer,'Usage: node scripts/build-test-bundle.mjs OUTPUT_ROOT IMAGE INSTALLER [SOURCE_REF]')
 function run(name,args){const result=spawnSync(name,args,{cwd:root,encoding:'utf8',windowsHide:true,maxBuffer:8*1024*1024});if(result.error||result.status!==0)throw new Error(`${name} bundle command failed: ${result.stderr?.slice(-1000)??''}`);return result.stdout.trim()}
-const commit=run('git',['rev-parse','HEAD']);assert.match(commit,/^[a-f0-9]{40}$/)
+const commit=run('git',['rev-parse',sourceRef+'^{commit}']),packagingCommit=run('git',['rev-parse','HEAD']);assert.match(commit,/^[a-f0-9]{40}$/)
+const tooling=new Set(['scripts/build-test-bundle.mjs','scripts/verify-test-bundle.mjs','scripts/verify-installed-test-client.mjs'])
+assert.ok(run('git',['diff','--name-only',commit,'HEAD']).split('\n').filter(Boolean).every(path=>path.startsWith('docs/')||tooling.has(path)),'Application, server, dependencies and deployment must match the frozen source')
 run('git',['diff','--exit-code','HEAD','--']);assert.equal(run('git',['ls-files','--others','--exclude-standard']),'','Commit source changes before freezing a bundle')
 assert.equal(JSON.parse(run('docker',['image','inspect',imageName]))[0].Config.Labels?.['org.opencontainers.image.revision'],commit,'Server image must name the frozen source commit');
 const short=commit.slice(0,7),directory=resolve(outputRoot,`guided-${short}`)
@@ -58,5 +60,5 @@ The app checks an existing server; host service installation still uses Docker a
 `)
 const files={}
 for(const f of [zipName,archiveName,'client/'+installerName,'deploy/compose.yaml','deploy/compose.https.yaml','deploy/setup.mjs','deploy/Caddyfile','deploy/storage-entrypoint.sh','deploy/.env.example','client/START_HERE.txt','client/SHA256SUMS.txt','START_HOST_HERE.md','TWO_PC_LATEST_TEST.md'])files[f]=digest(join(directory,f))
-writeFileSync(join(directory,'manifest.json'),JSON.stringify({builtAt:new Date().toISOString(),sourceCommit:commit,client:{version:'0.3.0',identifier:'chat.hearth.phase3-test',unsigned:true,profile:'independent',installer:installerName},server:{image:imageName,imageId:info.Id,architecture:info.Architecture,composeProject:'hearth-guided-test',backendPort:8183,s3LoopbackPort:18335},files},null,2)+'\n')
+writeFileSync(join(directory,'manifest.json'),JSON.stringify({builtAt:new Date().toISOString(),sourceCommit:commit,packagingCommit,client:{version:'0.3.0',identifier:'chat.hearth.phase3-test',unsigned:true,profile:'independent',installer:installerName},server:{image:imageName,imageId:info.Id,architecture:info.Architecture,composeProject:'hearth-guided-test',backendPort:8183,s3LoopbackPort:18335},files},null,2)+'\n')
 console.log(JSON.stringify({directory,sourceCommit:commit,clientZip:zipName,serverArchive:archiveName,imageId:info.Id}))

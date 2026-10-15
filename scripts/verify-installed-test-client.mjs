@@ -60,7 +60,10 @@ export async function verifyInstalledTestClient({ bundle, origin, output }) {
   assert.ok(beforeProfiles.every(profile => !profile.existed), 'Preserve an existing Hearth Test profile; do not run automatic installation over it')
   const existing = spawnSync('powershell.exe', ['-NoProfile', '-NonInteractive', '-Command', "@(Get-ItemProperty 'HKCU:\\Software\\Microsoft\\Windows\\CurrentVersion\\Uninstall\\*' -ErrorAction SilentlyContinue | Where-Object DisplayName -eq 'Hearth Test').Count"], { windowsHide: true, encoding: 'utf8' })
   assert.equal(existing.status, 0); assert.equal(existing.stdout.trim(), '0', 'Preserve the existing Hearth Test installation')
-  const installed = spawnSync(join(bundle, 'client', manifest.client.installer), ['/S', '/D=' + install], { windowsHide: true, timeout: 180000, stdio: 'ignore' })
+  // NSIS requires /D= and _?= last and unquoted, including paths with spaces:
+  // https://nsis.sourceforge.io/Docs/Chapter3.html#3.2.1
+  const installerPath = join(bundle, 'client', manifest.client.installer)
+  const installed = spawnSync(installerPath, ['/S', '/D=' + install], { argv0: `"${installerPath}"`, windowsVerbatimArguments: true, windowsHide: true, timeout: 180000, stdio: 'ignore' })
   assert.equal(installed.status, 0, 'Test installer failed')
   let child, cdp
   const checks = {}, screenshots = []
@@ -114,7 +117,8 @@ export async function verifyInstalledTestClient({ bundle, origin, output }) {
     if (child && child.exitCode === null) { const closed = new Promise(resolve => child.once('close', resolve)); child.kill(); await closed }
     const uninstaller = readdirSync(install).find(name => /uninstall.*\.exe$/i.test(name))
     assert.ok(uninstaller, 'Installed test uninstaller missing')
-    const removed = spawnSync(join(install, uninstaller), ['/S', '_?=' + install], { cwd: install, windowsHide: true, timeout: 120000, stdio: 'ignore' })
+    const uninstallPath = join(install, uninstaller)
+    const removed = spawnSync(uninstallPath, ['/S', '_?=' + install], { argv0: `"${uninstallPath}"`, windowsVerbatimArguments: true, cwd: install, windowsHide: true, timeout: 120000, stdio: 'ignore' })
     assert.equal(removed.status, 0, 'Temporary test uninstall failed')
     for (const profile of beforeProfiles) if (!profile.existed && existsSync(profile.path)) {
       assert.equal(resolve(profile.path), profile.path); assert.ok(!lstatSync(profile.path).isSymbolicLink())
