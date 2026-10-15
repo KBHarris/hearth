@@ -2,6 +2,8 @@
 
 The architecture and the reasoning behind it are in [PLAN.md](../PLAN.md). Each phase ends in
 something usable and demoable. A phase isn't done until its **exit criteria** pass in CI.
+The [CI standard](CI_STANDARD.md) applies throughout: required checks must pass on
+the proposed source, with no failed or skipped platform accepted as completion.
 
 ```
 P0 Foundations ─► P1 Encrypted DMs ─► P2 Communities ─► P3 Governance ─┬─► Host/Join setup ─► P4 Voice/Video
@@ -206,6 +208,7 @@ See [the development guide](PHASE3_DEVELOPMENT.md),
 - [ ] Real clean buddy-PC/two-house acceptance, including native enrollment and the new features.
 - [ ] Manual supported-browser provider acceptance and OS notification display.
 - [ ] Hosted cross-platform and packaged desktop Phase 3 acceptance.
+- [ ] Hosted enforcement of the strict CI standard, required merge gate and dependency/security checks.
 
 Work through the unchecked items in the exact order and scope defined by
 [the Phase 3 remaining-work checklist](PHASE3_REMAINING.md).

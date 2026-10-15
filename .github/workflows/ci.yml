@@ -4,26 +4,55 @@ on:
   push:
     branches: [main]
   pull_request:
+  merge_group:
   workflow_dispatch:
+
+permissions:
+  contents: read
 
 env:
   CARGO_TERM_COLOR: always
   HEARTH_TEST_TARGET_DIR: target
 
 concurrency:
-  group: ci-${{ github.ref }}
+  group: ci-${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
   cancel-in-progress: true
 
 jobs:
+  workflow-policy:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: 22
+      - name: Install workflow validation dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends shellcheck python3-yaml
+      - name: Validate workflow syntax, expressions and embedded shell
+        run: node scripts/verify-workflows.mjs
+      - name: Enforce required jobs and workflow security policy
+        run: python3 scripts/verify-workflow-policy.py
+      - name: Test the required-check gate
+        run: node --test scripts/test/verify-ci-results.test.mjs
+
   rust:
+    timeout-minutes: 30
+    needs: [workflow-policy]
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: dtolnay/rust-toolchain@stable
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
+      - uses: dtolnay/rust-toolchain@686976e191b89faba57d3206551f0f330d8cb249 # stable
         with:
           components: rustfmt, clippy
           targets: wasm32-unknown-unknown
-      - uses: Swatinem/rust-cache@v2
+      - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2
       - run: cargo fmt --all --check
       - run: cargo clippy --all-targets --features hearth-proto/typescript,hearth-crypto/mls-spike,hearth-server/opaque-spike,hearth-wasm/opaque-spike,hearth-wasm/auth -- -D warnings
       - run: cargo test --features hearth-proto/typescript,hearth-crypto/mls-spike,hearth-server/opaque-spike,hearth-wasm/opaque-spike,hearth-wasm/auth
@@ -32,14 +61,18 @@ jobs:
       - run: cargo check -p hearth-wasm --target wasm32-unknown-unknown --features mls-spike,opaque-spike
 
   crypto-wasm:
+    timeout-minutes: 30
+    needs: [workflow-policy]
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: dtolnay/rust-toolchain@stable
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
+      - uses: dtolnay/rust-toolchain@686976e191b89faba57d3206551f0f330d8cb249 # stable
         with:
           targets: wasm32-unknown-unknown
-      - uses: Swatinem/rust-cache@v2
-      - uses: actions/setup-node@v4
+      - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
         with:
           node-version: 22
       - run: npm run spike:tools
@@ -47,6 +80,8 @@ jobs:
       - run: npm run spike:opaque:wasm
 
   auth:
+    timeout-minutes: 35
+    needs: [workflow-policy]
     runs-on: ubuntu-latest
     services:
       postgres:
@@ -63,12 +98,14 @@ jobs:
       DATABASE_URL: postgres://hearth:phase1-fixture-only@127.0.0.1:5432/hearth
       HEARTH_TEST_DATABASE_URL: postgres://hearth:phase1-fixture-only@127.0.0.1:5432/hearth
     steps:
-      - uses: actions/checkout@v4
-      - uses: dtolnay/rust-toolchain@stable
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
+      - uses: dtolnay/rust-toolchain@686976e191b89faba57d3206551f0f330d8cb249 # stable
         with:
           targets: wasm32-unknown-unknown
-      - uses: Swatinem/rust-cache@v2
-      - uses: actions/setup-node@v4
+      - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
         with:
           node-version: 22
       - run: npm run spike:tools
@@ -78,21 +115,27 @@ jobs:
         timeout-minutes: 8
         env:
           HEARTH_TEST_POSTGRES_CONTAINER: ${{ job.services.postgres.id }}
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         if: always()
         with:
           name: phase3-auth
           path: target/phase3-evidence/
+          if-no-files-found: error
+          retention-days: 7
 
   web:
+    timeout-minutes: 20
+    needs: [workflow-policy]
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: dtolnay/rust-toolchain@stable
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
+      - uses: dtolnay/rust-toolchain@686976e191b89faba57d3206551f0f330d8cb249 # stable
         with:
           targets: wasm32-unknown-unknown
-      - uses: Swatinem/rust-cache@v2
-      - uses: actions/setup-node@v4
+      - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
         with:
           node-version: 22
           cache: npm
@@ -103,13 +146,16 @@ jobs:
         env:
           HEARTH_PREBUILT_WASM: '1'
         timeout-minutes: 2
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           name: product-auth-wasm
           path: apps/client/src/crypto/generated/
+          if-no-files-found: error
+          retention-days: 7
       - run: npm run spike:media:build
 
   desktop:
+    timeout-minutes: 90
     needs: [rust, web]
     env:
       HEARTH_PREBUILT_WASM: '1'
@@ -119,12 +165,14 @@ jobs:
         os: [ubuntu-22.04, macos-latest, windows-latest]
     runs-on: ${{ matrix.os }}
     steps:
-      - uses: actions/checkout@v4
-      - uses: dtolnay/rust-toolchain@stable
-      - uses: Swatinem/rust-cache@v2
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
+      - uses: dtolnay/rust-toolchain@686976e191b89faba57d3206551f0f330d8cb249 # stable
+      - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2
         with:
           cache-on-failure: true
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
         with:
           node-version: 22
           cache: npm
@@ -148,7 +196,7 @@ jobs:
           brew install postgresql@17
           echo "PGBIN=$(brew --prefix postgresql@17)/bin" >> "$GITHUB_ENV"
       - run: npm ci
-      - uses: actions/download-artifact@v4
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
         with:
           name: product-auth-wasm
           path: apps/client/src/crypto/generated/
@@ -161,13 +209,18 @@ jobs:
       - run: cargo build -p hearth-desktop --features phase1-storage-test,phase1-acceptance
       - name: Fixture shutdown barrier
         run: cargo test -p hearth-desktop --features phase1-storage-test,phase1-acceptance cleanup_preserves_files_until_native_storage_returns
-      - name: Windows/macOS encrypted storage and packaged client acceptance
+      - name: Windows/macOS native identity vault acceptance
         if: runner.os != 'Linux'
         timeout-minutes: 5
-        run: |
-          node scripts/verify-local-vault.mjs
-          node scripts/verify-message-store.mjs
-          node scripts/verify-auth.mjs --desktop --native-postgres
+        run: node scripts/verify-local-vault.mjs
+      - name: Windows/macOS native encrypted message store acceptance
+        if: runner.os != 'Linux'
+        timeout-minutes: 5
+        run: node scripts/verify-message-store.mjs
+      - name: Windows/macOS packaged client acceptance
+        if: runner.os != 'Linux'
+        timeout-minutes: 5
+        run: node scripts/verify-auth.mjs --desktop --native-postgres
       - name: Linux Secret Service, SQLCipher and packaged client acceptance
         if: runner.os == 'Linux'
         timeout-minutes: 15
@@ -185,32 +238,38 @@ jobs:
         timeout-minutes: 10
         if: runner.os == 'Linux'
         run: xvfb-run -a dbus-run-session -- bash scripts/verify-linux-key-store.sh --phase3
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         if: always()
         with:
           name: phase3-desktop-${{ matrix.os }}
           path: target/phase3-evidence/
-      - uses: actions/upload-artifact@v4
+          if-no-files-found: error
+          retention-days: 7
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         if: always()
         with:
           name: phase1-desktop-${{ matrix.os }}
           path: target/phase1-evidence/
+          if-no-files-found: error
+          retention-days: 7
       - name: Windows community and encrypted channel UI acceptance
         if: runner.os == 'Windows'
         timeout-minutes: 25
         run: node scripts/verify-community-ui.mjs --phase3
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         if: always() && runner.os == 'Windows'
         with:
           name: phase3-community-ui-windows
           path: target/phase3-evidence/
+          if-no-files-found: error
+          retention-days: 7
       - run: npm run spike:media:build
       - run: cargo build -p hearth-desktop --features phase0-spike
       - run: node scripts/verify-desktop-mls.mjs
       - if: runner.os != 'macOS'
         run: node scripts/install-livekit-spike.mjs
       - if: runner.os == 'macOS'
-        uses: actions/setup-go@v5
+        uses: actions/setup-go@40f1582b2485089dde7abd97c1529aa768e1baff # v5
         with:
           go-version: '1.26'
           cache: false
@@ -233,13 +292,17 @@ jobs:
       - name: Linux WebKitGTK acceptance and capability gate
         if: runner.os == 'Linux'
         run: LIVEKIT_BINARY="$PWD/target/livekit-spike/livekit-server" xvfb-run -a npm run spike:desktop:webview -- --allow-unsupported-media
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         if: always()
         with:
           name: phase0-webview-${{ matrix.os }}
           path: target/phase0-evidence/
+          if-no-files-found: error
+          retention-days: 7
 
   media-browser:
+    timeout-minutes: 35
+    needs: [workflow-policy]
     strategy:
       fail-fast: false
       matrix:
@@ -249,8 +312,10 @@ jobs:
           - { os: macos-latest, browser: safari }
     runs-on: ${{ matrix.os }}
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
         with:
           node-version: 22
           cache: npm
@@ -266,7 +331,7 @@ jobs:
       - if: runner.os != 'macOS'
         run: node scripts/install-livekit-spike.mjs
       - if: runner.os == 'macOS'
-        uses: actions/setup-go@v5
+        uses: actions/setup-go@40f1582b2485089dde7abd97c1529aa768e1baff # v5
         with:
           go-version: '1.26'
           cache: false
@@ -279,17 +344,23 @@ jobs:
           go build -o "$GITHUB_WORKSPACE/target/livekit-spike/livekit-server" ./cmd/server
           sudo safaridriver --enable
       - run: LIVEKIT_BINARY="$PWD/target/livekit-spike/livekit-server" HEARTH_TEST_BROWSER=${{ matrix.browser }} npm run spike:media:browser
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         if: always()
         with:
           name: phase0-browser-${{ matrix.browser }}
           path: target/phase0-evidence/
+          if-no-files-found: error
+          retention-days: 7
 
   compose:
+    timeout-minutes: 35
+    needs: [workflow-policy]
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
         with:
           node-version: 22
       - run: node deploy/setup.mjs
@@ -300,10 +371,14 @@ jobs:
         run: docker compose -f deploy/compose.yaml down --volumes
 
   podman:
+    timeout-minutes: 40
+    needs: [workflow-policy]
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
         with:
           node-version: 22
       - name: Ensure Podman is available
@@ -322,3 +397,21 @@ jobs:
         run: podman compose -f deploy/compose.yaml down --volumes
         env:
           PODMAN_COMPOSE_PROVIDER: /usr/libexec/docker/cli-plugins/docker-compose
+
+  required-gate:
+    name: CI required
+    if: ${{ always() }}
+    needs: [workflow-policy, rust, crypto-wasm, auth, web, desktop, media-browser, compose, podman]
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: 22
+      - name: Reject failed, cancelled, skipped or missing required jobs
+        run: node scripts/verify-ci-results.mjs
+        env:
+          HEARTH_CI_NEEDS: ${{ toJSON(needs) }}

@@ -1,0 +1,11 @@
+[
+  "workflow-policy",
+  "rust",
+  "crypto-wasm",
+  "auth",
+  "web",
+  "desktop",
+  "media-browser",
+  "compose",
+  "podman"
+]

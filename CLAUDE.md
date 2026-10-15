@@ -2,6 +2,8 @@
 
 Privacy-first federated Discord alternative. Read [PLAN.md](PLAN.md) for the architecture and
 [docs/ROADMAP.md](docs/ROADMAP.md) for the current phase before starting work.
+Follow [docs/CI_STANDARD.md](docs/CI_STANDARD.md): preserve required checks and extend
+real acceptance with each feature; do not bypass failures or skips to obtain green CI.
 
 ## Fast verify
 

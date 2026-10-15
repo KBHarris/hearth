@@ -1,5 +1,16 @@
 # Progress
 
+CI hardening was prepared locally on 2026-10-15: pinned actions, read-only tokens,
+bounded jobs, workflow lint, required artifacts, separate native acceptance steps
+and a tested aggregate **CI required** gate. [The CI standard](CI_STANDARD.md)
+applies across phases. Hosted rollout and branch protection remain pending;
+local validation is not a successful hosted run.
+Local Windows/Linux actionlint, Linux ShellCheck and the workflow policy pass.
+All ten aggregate-gate tests pass on Node 22; eight unsafe workflow mutations
+were rejected. Web verification passes. The existing 0.3.0 package is unchanged.
+Rust formatting/Clippy and 34 tests pass; four PostgreSQL tests remain ignored
+by the default command and are exercised separately by the auth workflow.
+
 Phase 3 scope was updated on 2026-10-15. The [ordered remaining-work checklist](PHASE3_REMAINING.md)
 adds 50 MB uploads, server-owner file deletion, a **Server Members** sidebar and
 clickable fingerprint/profile modals before the remaining validation gates.
