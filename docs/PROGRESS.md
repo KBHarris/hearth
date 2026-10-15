@@ -1,5 +1,10 @@
 # Progress
 
+Phase 3 scope was updated on 2026-10-15. The [ordered remaining-work checklist](PHASE3_REMAINING.md)
+adds 50 MB uploads, server-owner file deletion, a **Server Members** sidebar and
+clickable fingerprint/profile modals before the remaining validation gates.
+These are planning additions; the current 0.3.0 package has not changed.
+
 The latest two-PC Windows package is ready (2026-10-15):
 `target/manual-test/guided-efd4af6/Hearth_Test_efd4af6_Windows_x64.zip` is the
 friend-only installer/guide/checksum ZIP. Both PCs install Hearth Test 0.3.0;

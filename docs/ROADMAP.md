@@ -146,9 +146,11 @@ attachment canary passes.
 
 ## Phase 3: Governance and moderation
 
-**Goal:** communities can govern themselves safely.
+**Goal:** communities can govern themselves safely, with clear member discovery
+and practical file controls.
 
-Phase 3 is in active validation on `codex/phase3-navigation` (2026-10-12).
+Current work is on `codex/guided-setup`. The governance foundation has local
+validation dated 2026-10-12; the new member/file requirements are still planned.
 The local real HTTP/product-WASM suite passes 90 checks with private S3, covering
 the complete REST inventory, every gateway operation, signed account departure,
 linked-session revocation, erasure, restart retry and physical file deletion.
@@ -195,11 +197,22 @@ See [the development guide](PHASE3_DEVELOPMENT.md),
 - [x] Per-user data export and signed account deletion, including physical S3 erasure.
 - [x] Forum channels and encrypted polls.
 - [x] Generic Web Push encryption, bounded delivery queue, opt-in settings and local checks.
+- [ ] Raise file uploads to 50 MB across the client, encrypted protocol and hosting stack.
+- [ ] Server-owner file deletion, with explicit authority, revoked reads and physical ciphertext cleanup.
+- [ ] Visible **Server Members** sidebar with circular avatars, names and role labels;
+  use authorized membership data without Online/Offline grouping.
+- [ ] Clickable member profile modal with identity fingerprint, profile details and roles.
+- [ ] Updated regression coverage and a new versioned Windows/server test package.
+- [ ] Real clean buddy-PC/two-house acceptance, including native enrollment and the new features.
 - [ ] Manual supported-browser provider acceptance and OS notification display.
 - [ ] Hosted cross-platform and packaged desktop Phase 3 acceptance.
 
+Work through the unchecked items in the exact order and scope defined by
+[the Phase 3 remaining-work checklist](PHASE3_REMAINING.md).
+
 **Exit:** the permission-matrix test suite is green for every endpoint and gateway op.
 A report is verifiable by a moderator. Retention expiry deletes the ciphertext.
+The new member/file requirements and all remaining acceptance items above pass.
 
 ## Checkpoint after Phase 3: Simple Host/Join setup
 

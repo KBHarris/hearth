@@ -4,6 +4,11 @@ Current development branch: `codex/guided-setup`. The Phase 3 foundation is incl
 in Hearth Test 0.3.0. Earlier test deployments and profiles have been retired; use
 [the latest two-PC guide](TWO_PC_LATEST_TEST.md) for a fresh manual test.
 
+The [ordered remaining-work checklist](PHASE3_REMAINING.md) is the current Phase 3
+queue. It includes the requested 50 MB uploads, server-owner file deletion,
+**Server Members** sidebar and clickable member profiles, followed by validation.
+These additions are planned for the next build; they are not in 0.3.0.
+
 The web client has a persistent server/community/channel sidebar and focused
 dialogs for server selection, account recovery, server settings, community settings,
 channels, members, search and DMs. Add Server validates discovery before switching;
