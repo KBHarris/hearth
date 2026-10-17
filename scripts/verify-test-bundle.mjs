@@ -7,7 +7,7 @@ import {createServer} from 'node:net'
 import {join,resolve} from 'node:path'
 import {fileURLToPath} from 'node:url'
 import {initializeConfig,initializeStorage} from '../deploy/setup.mjs'
-import {verifyInstalledTestClient} from './verify-installed-test-client.mjs'
+import {verifyInstalledTestClient,verifyInstalledPreviewUpgrade} from './verify-installed-test-client.mjs'
 
 const root=fileURLToPath(new URL('../',import.meta.url)),bundle=resolve(process.argv[2]??'')
 assert.ok(process.argv[2],'Usage: node scripts/verify-test-bundle.mjs BUNDLE')
@@ -58,7 +58,7 @@ try{
   for(let attempt=0;attempt<60;attempt++){try{if((await json('/health')).status==='ok'){healthy=true;break}}catch{}await delay(250)}
   assert.ok(healthy);assert.equal((await json('/.well-known/hearth')).server_key,key)
   checks.server_restart_preserves_signing_identity=true
-  const native=await verifyInstalledTestClient({bundle,origin,output:directory,hostProject:project});Object.assign(checks,native.checks)
+  const native=process.argv.includes('--upgrade-installed')?await verifyInstalledPreviewUpgrade({bundle,output:directory}):await verifyInstalledTestClient({bundle,origin,output:directory,hostProject:project});Object.assign(checks,native.checks)
   const report={measuredAt:new Date().toISOString(),outcome:'pass',sourceCommit:manifest.sourceCommit,checks,humanPending:['clean buddy-PC installation and two-house reachability','actual Windows SmartScreen experience on the buddy PC','manual encrypted messaging between the two households'],nativeClient:native}
   writeFileSync(join(bundle,'VALIDATION.json'),JSON.stringify(report,null,2)+'\n');console.log(JSON.stringify(report,null,2))
 }finally{

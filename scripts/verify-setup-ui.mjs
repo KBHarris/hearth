@@ -3,7 +3,7 @@
 import assert from 'node:assert/strict'
 import { createServer } from 'node:http'
 import { spawn } from 'node:child_process'
-import { mkdirSync, writeFileSync } from 'node:fs'
+import { mkdirSync, readFileSync, writeFileSync } from 'node:fs'
 import { fileURLToPath } from 'node:url'
 import { join } from 'node:path'
 import { Builder, By } from 'selenium-webdriver'
@@ -55,6 +55,11 @@ try {
   await driver.sendDevToolsCommand('Emulation.setDeviceMetricsOverride', { width: 430, height: 1000, deviceScaleFactor: 1, mobile: false })
   assert.equal(await driver.executeScript('return window.innerWidth'), 430)
   assert.equal(await driver.executeScript('return document.documentElement.scrollWidth<=window.innerWidth'), true)
+  const version = JSON.parse(readFileSync(join(root, 'apps/desktop/src-tauri/tauri.test.conf.json'), 'utf8')).version
+  const versionLabel = await wait('[aria-label="Client version"]')
+  assert.equal(await versionLabel.getText(), 'v' + version)
+  assert.equal(await versionLabel.isDisplayed(), true)
+  checks.current_client_version_is_visible_at_430px = true
   writeFileSync(join(output, 'setup-430px.png'), Buffer.from(await driver.takeScreenshot(), 'base64'))
   checks.host_join_choices_fit_an_actual_430px_viewport = true
   await driver.sendDevToolsCommand('Emulation.clearDeviceMetricsOverride')

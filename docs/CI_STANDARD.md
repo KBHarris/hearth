@@ -18,6 +18,12 @@ the Actions budget first. Do not retry a startup/billing failure in a loop.
 
 ## Explicit run tiers
 
+Verified 2026-10-16: standard GitHub-hosted runner usage is free for public
+repositories; larger runners are billed. See [GitHub Actions billing](https://docs.github.com/en/billing/concepts/product-billing/github-actions).
+Hearth is public and uses standard runners. Keep the manual-only triggers and
+short-lived artifacts; publication does not authorize unlimited automatic runs.
+The user authorized one full milestone pass after the host startup fix.
+
 | Selected suite | Hosted work | When to use |
 | --- | --- | --- |
 | `checks` (default) | One Linux job: workflow lint, budget-policy validation and suite-result tests. No Rust/WASM/app builds. | Deliberately checking CI configuration. These checks can also run locally. |

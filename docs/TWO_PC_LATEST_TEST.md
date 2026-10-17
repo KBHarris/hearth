@@ -2,7 +2,7 @@
 
 This Windows x64 test bundle includes guided Host/Join, encrypted communities,
 50 MB files, member profiles, readable invites, roles, reports, forums and polls.
-Both people install **Hearth Preview 0.3.1**. The steps below assume a fresh test host.
+Both people install **Hearth Preview 0.3.2**. The steps below assume a fresh test host.
 Keep any existing host's database, operator configuration and signing keys together;
 never regenerate credentials for existing volumes. The local older
 test deployments and profiles were retired on 2026-10-15. Create new accounts for
@@ -17,6 +17,13 @@ buddy does not need Docker, Node, a setup code or the host folder.
 Keep `Hearth_Server_Test_*.tar`, `deploy` and the host guide on your PC. Generated
 `.env`, `s3.json`, owner codes, passwords and recovery kits are private.
 The manifest pins the source commit, server image and file checksums.
+
+Keep a host's original `.env` and `s3.json` with its Docker volumes. A new extraction
+does not create a new server when the same Compose project already has data.
+Preview 0.3.2 stops before generating replacement credentials over existing data
+and checks database authentication before starting Hearth. For an existing host,
+select its original folder or restore its matching operator files; retrying keeps
+its data and identity. Reset test data only when its owner explicitly authorizes it.
 
 ## Host: start the new server
 

@@ -7,6 +7,7 @@ import { Modal } from './Modal'
 import { Flame, Icon } from './Icons'
 import { GuidedSetup, type CheckedServer } from './GuidedSetup'
 import { invoke, isTauri } from '@tauri-apps/api/core'
+import { getVersion } from '@tauri-apps/api/app'
 import { HostingPanel } from './HostingPanel'
 import './Setup.css'
 
@@ -38,6 +39,7 @@ function connectionError(error: unknown) {
 }
 
 export default function App() {
+  const [clientVersion, setClientVersion] = useState(isTauri() ? '' : __HEARTH_CLIENT_VERSION__)
   const [url, setUrl] = useState(initialUrl)
   const [welcome, setWelcome] = useState(needsSetup)
   const [invite, setInvite] = useState<HearthInvite | null>(null)
@@ -53,6 +55,12 @@ export default function App() {
   const [checking, setChecking] = useState(false)
   const [signedIn, setSignedIn] = useState(false)
   const candidate = useRef<AbortController | null>(null)
+  useEffect(() => {
+    if (!isTauri()) return
+    let disposed = false
+    void getVersion().then(version => { if (!disposed) setClientVersion(version) }).catch(() => { /* Keep the version hidden if the native runtime is unavailable. */ })
+    return () => { disposed = true }
+  }, [])
   function remember(nextUrl: string, name: string) {
     setServers(previous => {
       const next = [...previous.filter(item => item.url !== nextUrl), { url: nextUrl, name }]
@@ -136,7 +144,7 @@ export default function App() {
       <span className="rail-bottom" title="Messages are encrypted"><Icon name="shield" /></span>
     </nav>
     <main className="app-main">
-      <header className="app-header"><div className="app-brand">hearth<span className="brand-dot">.</span><span className="preview-tag">PREVIEW</span></div>
+      <header className="app-header"><div className="app-brand">hearth<span className="brand-dot">.</span><span className="preview-tag">PREVIEW</span>{clientVersion && <span className="client-version" aria-label="Client version">v{clientVersion}</span>}</div>
         <button className="server-connection-button" onClick={() => openConnection('connection')}><span className={`dot ${status.kind}`} />{name}<Icon name="chevron" /></button>
       </header>
       {pendingLink && <div className="notice" role="status">A Hearth invite is ready. <button onClick={() => { setActiveLink(pendingLink); setLinkRevision(value => value + 1); setPendingLink(''); setPanel('invite') }}>Review invite</button> <button onClick={() => setPendingLink('')}>Dismiss invite</button></div>}

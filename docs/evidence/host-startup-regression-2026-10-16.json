@@ -1,0 +1,15 @@
+{
+  "measuredAt": "2026-10-17T03:30:44.698Z",
+  "checks": {
+    "backup_database_restore_rehearsal_and_identity_check": true,
+    "failed_new_server_restores_database_and_original_identity": true,
+    "interrupted_override_can_be_recovered": true,
+    "missing_configuration_never_regenerates_credentials_over_existing_volumes": true,
+    "modified_bundle_rejected": true,
+    "native_start_stop_status_and_setup_code": true,
+    "only_disposable_project_resources_used": true,
+    "original_configuration_retries_successfully": true,
+    "wrong_database_credentials_are_rejected_without_changing_data_or_configuration": true
+  },
+  "outcome": "pass"
+}

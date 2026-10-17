@@ -82,6 +82,51 @@ fn managed_host_lifecycle_and_failed_update_restore() {
         serde_json::to_value(hosting::control(&selection, "start").unwrap()).unwrap()["state"],
         "running"
     );
+    let environment_path = root.join("deploy/.env");
+    let storage_path = root.join("deploy/s3.json");
+    let environment = fs::read(&environment_path).unwrap();
+    let storage = fs::read(&storage_path).unwrap();
+    fs::remove_file(&environment_path).unwrap();
+    let error = hosting::control(&selection, "start").err().unwrap();
+    assert!(error.contains("missing its original .env or s3.json"));
+    assert!(
+        !environment_path.exists(),
+        "Never generate credentials over existing data"
+    );
+    assert_eq!(fs::read(&storage_path).unwrap(), storage);
+    fs::write(&environment_path, &environment).unwrap();
+    fs::remove_file(&storage_path).unwrap();
+    assert!(hosting::control(&selection, "start").is_err());
+    assert!(!storage_path.exists());
+    assert_eq!(fs::read(&environment_path).unwrap(), environment);
+    fs::write(&storage_path, &storage).unwrap();
+    let changed = String::from_utf8(environment.clone())
+        .unwrap()
+        .lines()
+        .map(|line| {
+            if line.starts_with("POSTGRES_PASSWORD=") {
+                format!("POSTGRES_PASSWORD={}", "0".repeat(64))
+            } else {
+                line.to_owned()
+            }
+        })
+        .collect::<Vec<_>>()
+        .join("\n")
+        + "\n";
+    fs::write(&environment_path, &changed).unwrap();
+    let error = hosting::control(&selection, "start").err().unwrap();
+    assert!(
+        error.contains("could not verify this host folder's credentials"),
+        "{error}"
+    );
+    assert!(!error.contains(&"0".repeat(64)));
+    assert_eq!(fs::read_to_string(&environment_path).unwrap(), changed);
+    assert_eq!(fs::read(&storage_path).unwrap(), storage);
+    fs::write(&environment_path, &environment).unwrap();
+    assert_eq!(
+        serde_json::to_value(hosting::control(&selection, "start").unwrap()).unwrap()["state"],
+        "running"
+    );
     hosting::compose(&selection, &["exec", "-T", "postgres", "psql", "-U", "hearth", "-d", "hearth", "-v", "ON_ERROR_STOP=1", "-c", "CREATE TABLE host_restore_probe (ciphertext TEXT); INSERT INTO host_restore_probe VALUES ('0123456789abcdef');"], 20).unwrap();
     let identity = hosting::compose(
         &selection,
@@ -235,6 +280,6 @@ fn managed_host_lifecycle_and_failed_update_restore() {
         serde_json::to_value(hosting::control(&selection, "start").unwrap()).unwrap()["state"],
         "running"
     );
-    let report = serde_json::json!({"outcome":"pass","checks":{"native_start_stop_status_and_setup_code":true,"modified_bundle_rejected":true,"backup_database_restore_rehearsal_and_identity_check":true,"failed_new_server_restores_database_and_original_identity":true,"interrupted_override_can_be_recovered":true,"only_disposable_project_resources_used":true}});
+    let report = serde_json::json!({"outcome":"pass","checks":{"native_start_stop_status_and_setup_code":true,"missing_configuration_never_regenerates_credentials_over_existing_volumes":true,"wrong_database_credentials_are_rejected_without_changing_data_or_configuration":true,"original_configuration_retries_successfully":true,"modified_bundle_rejected":true,"backup_database_restore_rehearsal_and_identity_check":true,"failed_new_server_restores_database_and_original_identity":true,"interrupted_override_can_be_recovered":true,"only_disposable_project_resources_used":true}});
     fs::write(root.join("native-report.json"), report.to_string()).unwrap();
 }

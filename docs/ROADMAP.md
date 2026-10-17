@@ -199,14 +199,14 @@ See [the development guide](PHASE3_DEVELOPMENT.md),
 - [x] Per-user data export and signed account deletion, including physical S3 erasure.
 - [x] Forum channels and encrypted polls.
 - [x] Generic Web Push encryption, bounded delivery queue, opt-in settings and local checks.
-- [ ] Raise file uploads to 50 MB across the client, encrypted protocol and hosting stack.
-- [ ] Server-owner file deletion, with explicit authority, revoked reads and physical ciphertext cleanup.
-- [ ] Visible **Server Members** sidebar with circular avatars, names and role labels;
+- [x] Raise file uploads to 50 MB across the client, encrypted protocol and hosting stack.
+- [x] Server-owner file deletion, with explicit authority, revoked reads and physical ciphertext cleanup.
+- [x] Visible **Server Members** sidebar with circular avatars, names and role labels;
   use authorized membership data without Online/Offline grouping.
-- [ ] Clickable member profile modal with identity fingerprint, profile details and roles.
-- [ ] Updated regression coverage and a new versioned Windows/server test package.
-- [ ] Real clean buddy-PC/two-house acceptance, including native enrollment and the new features.
-- [ ] Manual supported-browser provider acceptance and OS notification display.
+- [x] Clickable member profile modal with identity fingerprint, profile details and roles.
+- [x] Updated regression coverage and published Preview 0.3.1 Windows/server package.
+- [x] Real buddy-PC/two-house acceptance waived by the user for this preview on 2026-10-16; unverified.
+- [x] Provider/OS notification acceptance waived by the user for this preview on 2026-10-16; unverified.
 - [ ] Hosted cross-platform and packaged desktop Phase 3 acceptance.
 - [ ] Manual-only Actions budget controls and one explicitly requested full milestone run.
 
@@ -215,7 +215,8 @@ Work through the unchecked items in the exact order and scope defined by
 
 **Exit:** the permission-matrix test suite is green for every endpoint and gateway op.
 A report is verifiable by a moderator. Retention expiry deletes the ciphertext.
-The new member/file requirements and all remaining acceptance items above pass.
+The new member/file requirements and remaining acceptance items pass, subject to
+the explicit two-household and real-notification preview waivers recorded above.
 
 ## Checkpoint after Phase 3: Simple Host/Join setup
 

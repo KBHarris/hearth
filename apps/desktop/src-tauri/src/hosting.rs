@@ -257,6 +257,15 @@ pub(crate) fn command(
     cwd: &Path,
     seconds: u64,
 ) -> Result<Vec<u8>, String> {
+    command_env(program, args, cwd, seconds, &[])
+}
+fn command_env(
+    program: &str,
+    args: &[String],
+    cwd: &Path,
+    seconds: u64,
+    environment: &[(&str, &str)],
+) -> Result<Vec<u8>, String> {
     #[cfg(test)]
     if std::env::var_os("HEARTH_HOST_TEST_DIR").is_some() {
         eprintln!("Host fixture command: {program} {args:?}");
@@ -268,6 +277,10 @@ pub(crate) fn command(
         .stdin(Stdio::null())
         .stdout(Stdio::piped())
         .stderr(Stdio::null());
+    // Credentials are inherited by the subprocess, never interpolated into arguments/logs.
+    for &(name, value) in environment {
+        command.env(name, value);
+    }
     #[cfg(windows)]
     {
         use std::os::windows::process::CommandExt;
@@ -331,6 +344,15 @@ fn compose_files(
     seconds: u64,
     runtime: bool,
 ) -> Result<Vec<u8>, String> {
+    compose_environment(selection, tail, seconds, runtime, &[])
+}
+fn compose_environment(
+    selection: &Selection,
+    tail: &[&str],
+    seconds: u64,
+    runtime: bool,
+    environment: &[(&str, &str)],
+) -> Result<Vec<u8>, String> {
     if !allowed_project(&selection.project) {
         return Err("Unknown host project.".into());
     }
@@ -348,7 +370,83 @@ fn compose_files(
         args.extend(["-f".into(), "compose.runtime.json".into()]);
     }
     args.extend(tail.iter().map(|s| s.to_string()));
-    command("docker", &args, &selection.root.join("deploy"), seconds)
+    command_env(
+        "docker",
+        &args,
+        &selection.root.join("deploy"),
+        seconds,
+        environment,
+    )
+}
+const MISSING_HOST_CONFIG: &str = "Existing Hearth server data was found, but this folder is missing its original .env or s3.json. Choose the original host folder, or restore both configuration files from its backup. No new passwords were generated and existing data was preserved.";
+const WRONG_DATABASE_CONFIG: &str = "The database could not verify this host folder's credentials. This can happen when a new host package is used with an older server's data. Choose the original host folder or restore its matching .env and s3.json, then retry. Existing data and passwords were preserved.";
+
+fn guard_existing_configuration(selection: &Selection) -> Result<(), String> {
+    if !allowed_project(&selection.project) {
+        return Err("Unknown host project.".into());
+    }
+    let volumes = command(
+        "docker",
+        &[
+            "volume".into(),
+            "ls".into(),
+            "-q".into(),
+            "--filter".into(),
+            format!("label=com.docker.compose.project={}", selection.project),
+        ],
+        &selection.root,
+        20,
+    )?;
+    if !String::from_utf8_lossy(&volumes).trim().is_empty()
+        && [".env", "s3.json"]
+            .iter()
+            .any(|file| !selection.root.join("deploy").join(file).exists())
+    {
+        return Err(MISSING_HOST_CONFIG.into());
+    }
+    Ok(())
+}
+
+fn verify_database_configuration(selection: &Selection) -> Result<(), String> {
+    let path = selection.root.join("deploy/.env");
+    regular(&path)?;
+    let text = fs::read_to_string(path).map_err(|_| "Cannot read host configuration.")?;
+    let passwords = text
+        .lines()
+        .filter_map(|line| line.strip_prefix("POSTGRES_PASSWORD="))
+        .collect::<Vec<_>>();
+    if passwords.len() != 1 {
+        return Err(WRONG_DATABASE_CONFIG.into());
+    }
+    let password = passwords[0].trim();
+    // Connect via the service hostname: container-local loopback may use trust auth.
+    compose_environment(
+        selection,
+        &[
+            "exec",
+            "-T",
+            "-e",
+            "PGPASSWORD",
+            "postgres",
+            "psql",
+            "-w",
+            "-h",
+            "postgres",
+            "-U",
+            "hearth",
+            "-d",
+            "hearth",
+            "-v",
+            "ON_ERROR_STOP=1",
+            "-tAc",
+            "SELECT 1",
+        ],
+        20,
+        true,
+        &[("PGPASSWORD", password)],
+    )
+    .map(|_| ())
+    .map_err(|_| WRONG_DATABASE_CONFIG.into())
 }
 fn selection_path(app: &tauri::AppHandle) -> Result<PathBuf, String> {
     let directory = app
@@ -496,6 +594,7 @@ pub(crate) fn control(selection: &Selection, action: &str) -> Result<HostStatus,
     let bundle = validate(&selection.root)?;
     match action {
         "start" => {
+            guard_existing_configuration(selection)?;
             for file in [".env", "s3.json"] {
                 let path = selection.root.join("deploy").join(file);
                 if path.exists() {
@@ -512,6 +611,20 @@ pub(crate) fn control(selection: &Selection, action: &str) -> Result<HostStatus,
                 regular(&selection.root.join("deploy").join(file))?;
             }
             configure_environment(selection)?;
+            compose(
+                selection,
+                &[
+                    "up",
+                    "-d",
+                    "--no-recreate",
+                    "--wait",
+                    "--wait-timeout",
+                    "60",
+                    "postgres",
+                ],
+                90,
+            )?;
+            verify_database_configuration(selection)?;
             if command(
                 "docker",
                 &[

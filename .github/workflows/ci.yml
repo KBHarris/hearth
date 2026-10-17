@@ -216,6 +216,8 @@ jobs:
           name: product-auth-wasm
           path: apps/client/src/crypto/generated/
       - run: npm run desktop:build -- --debug --no-bundle
+      - name: Native hosting, signature and invite unit checks
+        run: cargo test --locked -p hearth-desktop --lib
       - name: Build packaged identity, DM and community acceptance
         run: npm run build
         env:

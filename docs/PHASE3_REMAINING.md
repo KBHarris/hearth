@@ -65,24 +65,26 @@ run at closeout; do not spend hosted minutes on each feature, push or PR.
    and signed update failures. Run normal Rust/web/WASM checks.
    Produce a new versioned installer/server package with matching source, manifest
    and checksums. Keep the existing 0.3.0 distribution immutable.
-10. [ ] **Complete the real two-PC test.** Install the new build on a clean buddy
+10. [x] **Real two-PC test waived for this preview.** Waived by the user on
+   2026-10-16; this is not a claim of completed two-household testing. Future acceptance: install on a clean buddy
    PC; exercise native owner/account creation, invitation, approved devices,
    encrypted DMs/channels, files, owner deletion, roles, member profiles and
    reopen/reboot persistence. Use the public HTTPS address before sharing an
    invite and verify access from another household. Record failures and fix them.
    The current manual deployment path is sufficient for this Phase 3 test.
-11. [ ] **Verify real notification delivery.** In supported secure browsers, test
+11. [x] **Real notification delivery waived for this preview.** Waived by the user
+   on 2026-10-16; provider/OS delivery remains unverified. Future acceptance: in supported secure browsers, test
    opt-in, actual provider acceptance, OS notification display, click navigation
    and disabling delivery. Notifications remain generic and content-free. Local
    push fixtures alone do not close this item.
-12. [ ] **Complete budgeted cross-platform acceptance, then close Phase 3.**
-   Validate the manual-only budget controls, finish local checks and obtain an
-   explicit request for one full hosted milestone run. Run current Windows, macOS
+12. [ ] **Complete the authorized cross-platform acceptance, then close Phase 3.**
+   Validate the manual-only budget controls and finish local checks. The user
+   authorized one full hosted milestone run on 2026-10-16 after the startup fix. Run current Windows, macOS
    and Linux packaged runtime acceptance against
    the final Phase 3 source, including the new features and existing permission,
    reporting, retention and account-departure coverage. Investigate a hosted job
    startup failure if it recurs; older green artifacts do not validate this build.
-   Fix remaining failures, record results and confirm all preceding items pass
+   Fix remaining failures, record results and confirm preceding items pass or have explicit preview waivers
    before marking Phase 3 complete.
 
 ## Following Phase 3

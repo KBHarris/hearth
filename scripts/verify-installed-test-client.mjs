@@ -185,3 +185,57 @@ export async function verifyInstalledTestClient({ bundle, origin, output, hostPr
     checks.temporary_test_install_uninstalled_and_existing_profiles_preserved = true
   }
 }
+
+// Validate an in-place Preview upgrade without replacing the user's profile or host selection.
+export async function verifyInstalledPreviewUpgrade({bundle,output}) {
+  assert.equal(process.platform,'win32')
+  const manifest=JSON.parse(readFileSync(join(bundle,'manifest.json'),'utf8'))
+  assert.equal(manifest.client.productName,'Hearth Preview');assert.equal(manifest.client.identifier,'chat.hearth.preview')
+  const install=resolve(process.env.LOCALAPPDATA,'Hearth Preview'),executable=join(install,'hearth-desktop.exe')
+  assert.equal(dirname(install),resolve(process.env.LOCALAPPDATA));assert.ok(existsSync(executable));assert.ok(!lstatSync(install).isSymbolicLink())
+  const quote=value=>"'"+value.replaceAll("'","''")+"'"
+  const closed=spawnSync('powershell.exe',['-NoProfile','-NonInteractive','-Command',`$target=${quote(executable)};Get-Process hearth-desktop -ErrorAction SilentlyContinue | Where-Object Path -eq $target | ForEach-Object {if(-not $_.CloseMainWindow() -or -not $_.WaitForExit(10000)){Stop-Process -Id $_.Id}};exit 0`],{windowsHide:true,stdio:'ignore',timeout:30000})
+  assert.equal(closed.status,0);await sleep(1000)
+  const backup=join(root,'target/manual-test/upgrade-backups',Date.now().toString());mkdirSync(backup,{recursive:true})
+  const protectedBackup=spawnSync('powershell.exe',['-NoProfile','-NonInteractive','-Command',`$sid=[Security.Principal.WindowsIdentity]::GetCurrent().User.Value;icacls ${quote(backup)} /inheritance:r /grant:r "*$($sid):(OI)(CI)F" | Out-Null;exit $LASTEXITCODE`],{windowsHide:true,stdio:'ignore'})
+  assert.equal(protectedBackup.status,0)
+  const saved=[]
+  function snapshot(path,target){
+    if(!existsSync(path))return
+    assert.ok(!lstatSync(path).isSymbolicLink());mkdirSync(target,{recursive:true})
+    for(const entry of readdirSync(path,{withFileTypes:true})){
+      // WebView cache is isolated during verification; leave the original tree in place.
+      if(entry.name==='EBWebView')continue
+      const source=join(path,entry.name),destination=join(target,entry.name)
+      assert.ok(!lstatSync(source).isSymbolicLink())
+      if(entry.isDirectory())snapshot(source,destination)
+      else {copyFileSync(source,destination);saved.push({path:source,hash:createHash('sha256').update(readFileSync(source)).digest('hex')})}
+    }
+  }
+  for(const [label,base] of [['local',process.env.LOCALAPPDATA],['roaming',process.env.APPDATA]])snapshot(join(base,manifest.client.identifier),join(backup,label))
+  const checks={},installer=join(bundle,'client',manifest.client.installer)
+  let child,cdp
+  try {
+    const result=spawnSync(installer,['/S','/D='+install],{argv0:`"${installer}"`,windowsVerbatimArguments:true,windowsHide:true,timeout:180000,stdio:'ignore'})
+    assert.equal(result.status,0,'Preview upgrade installer failed');checks.actual_nsis_upgrade_installs_successfully=true
+    const lease=createServer();await new Promise(resolve=>lease.listen(0,'127.0.0.1',resolve));const port=lease.address().port;await new Promise(resolve=>lease.close(resolve))
+    child=spawn(executable,[],{cwd:install,windowsHide:true,stdio:'ignore',env:{...process.env,WEBVIEW2_USER_DATA_FOLDER:join(output,'upgrade-webview'),WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS:`--remote-debugging-address=127.0.0.1 --remote-debugging-port=${port}`}})
+    const target=await eventually(async()=>{const response=await fetch(`http://127.0.0.1:${port}/json/list`,{signal:AbortSignal.timeout(500)});return(await response.json()).find(page=>page.type==='page'&&page.webSocketDebuggerUrl&&/tauri[.:]/.test(page.url))},'upgraded WebView startup',45000)
+    cdp=await devtools(target.webSocketDebuggerUrl)
+    assert.deepEqual(await cdp.evaluate('Promise.all([window.__TAURI_INTERNALS__.invoke("plugin:app|version"),window.__TAURI_INTERNALS__.invoke("build_revision")])'),[manifest.client.version,manifest.sourceCommit])
+    checks.upgraded_native_binary_matches_version_and_source=true
+    await eventually(async()=>await cdp.evaluate(`document.querySelector('[aria-label="Client version"]')?.textContent===${JSON.stringify('v'+manifest.client.version)}`),'installed client version label')
+    checks.visible_client_version_matches_installed_binary=true
+    const status=await cdp.evaluate('window.__TAURI_INTERNALS__.invoke("host_control",{action:"status"})')
+    assert.equal(status.state,'running','The existing selected host must remain running')
+    checks.existing_host_remains_running_without_restart_or_data_reset=true
+    for(const item of saved)assert.equal(createHash('sha256').update(readFileSync(item.path)).digest('hex'),item.hash)
+    checks.native_profiles_and_host_configuration_are_preserved=true
+    return {checks,runtime:'in-place Windows Preview NSIS upgrade / isolated system WebView2; existing native profiles preserved',version:manifest.client.version,identifier:manifest.client.identifier,screenshots:[]}
+  } finally {
+    cdp?.close()
+    if(child&&child.exitCode===null){const done=new Promise(resolve=>child.once('close',resolve));child.kill();await done}
+    const reopened=spawnSync('powershell.exe',['-NoProfile','-NonInteractive','-Command',`Start-Process -FilePath ${quote(executable)} -WorkingDirectory ${quote(install)}`],{windowsHide:true,stdio:'ignore'})
+    assert.equal(reopened.status,0,'Reopen the upgraded app with its normal profile')
+  }
+}

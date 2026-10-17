@@ -1,6 +1,9 @@
 import react from '@vitejs/plugin-react'
 import { defineConfig } from 'vite'
 import { fileURLToPath } from 'node:url'
+import { readFileSync } from 'node:fs'
+
+const preview = JSON.parse(readFileSync(new URL('../desktop/src-tauri/tauri.test.conf.json', import.meta.url), 'utf8'))
 
 const server = process.env.HEARTH_DEV_SERVER ?? 'http://localhost:8080'
 const port = Number(process.env.HEARTH_DEV_CLIENT_PORT ?? 5173)
@@ -9,6 +12,7 @@ if (!Number.isInteger(port) || port < 1 || port > 65535) throw new Error('HEARTH
 // https://vite.dev/config/
 export default defineConfig({
   plugins: [react()],
+  define: { __HEARTH_CLIENT_VERSION__: JSON.stringify(preview.version) },
   // Tauri expects a fixed port and reads TAURI_* env vars.
   clearScreen: false,
   envPrefix: ['VITE_', 'TAURI_ENV_'],

@@ -1,5 +1,17 @@
 # Progress
 
+Preview closeout update, 2026-10-16: the user waived the real two-household and
+provider/OS notification gates for this preview and authorized one full hosted
+cross-platform pass after fixing the host configuration mismatch. These waivers
+are not measured passes. The startup fix rejects missing original configuration
+when persistent Docker data exists and verifies database credentials through the
+service network before starting Hearth. Existing files, data and passwords stay
+intact on failure. The real Docker regression passes nine outcomes, including
+missing files, wrong credentials, successful retry and migration rollback. The
+client header also displays its version; desktop reads the installed native
+version, and browser builds use the Preview build version. Preview 0.3.2 is being
+validated for these changes; 0.3.1 remains the currently published immutable build.
+
 Current implementation pass, 2026-10-16: 50 MB encrypted files, server-owner file
 removal, authorized member sidebar/profile fingerprints, encrypted 32-character
 invite relays, desktop hosting controls and signed app/server updates are in
@@ -21,9 +33,8 @@ on October 16. All eleven anonymous asset downloads match the tested hashes, and
 both Preview update feeds resolve to 0.3.1. See the
 [publication verification](evidence/preview-release-2026-10-16.json).
 
-The [ordered checklist](PHASE3_REMAINING.md) remains authoritative for open gates:
-two-house/buddy testing, real push/OS delivery and explicitly requested current
-cross-platform acceptance. Runtime prerequisite installation, independent external
+The [ordered checklist](PHASE3_REMAINING.md) records the two explicit preview
+waivers and the remaining authorized cross-platform acceptance. Runtime prerequisite installation, independent external
 reachability, fresh-host restore and clean-machine setup remain open checkpoint
 work. Historical results below do not close these gates for the new build.
 

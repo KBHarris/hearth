@@ -406,6 +406,13 @@ removes them and must be protected like the original host. Client content keys
 are not added to host backups. The setup code is retrieved on request through
 native IPC and cleared from the rendered panel when it closes.
 
+Host startup refuses to generate new credentials when labeled persistent data
+already exists without both operator files. It checks database authentication
+through the service network before launching Hearth; container-local loopback
+trust authentication is not used for this check. The password is passed through
+the subprocess environment rather than command arguments or logs. A failed check
+does not rotate credentials, erase data or rewrite the operator files.
+
 Release requests disclose the client IP and request timing to GitHub. The app
 pins the repository, release paths and signing public key. Installer and host
 updates require signatures, version binding and artifact hashes; host updates
