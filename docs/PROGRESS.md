@@ -23,7 +23,25 @@ scan has no findings, and both live Preview update feeds resolve to 0.3.2. The
 installed native updater confirms the app is current and offers the signed 0.3.2
 server update. See the [publication record](evidence/preview-0.3.2-release-2026-10-16.json).
 The authorized [full hosted run](https://github.com/KBHarris/hearth/actions/runs/38999371729)
-is in progress against frozen source `96548d8`; Phase 3 closeout remains pending.
+failed on frozen source `96548d8`: Linux deep-link 2.6.2 is incompatible with
+rust-ini 0.21.3 (upstream issue #3710). The other two desktop jobs were cancelled
+by fail-fast. All seven core jobs and Chrome/Firefox/Safari acceptance passed,
+including 94 HTTP/private-S3 outcomes. The [failed milestone record](evidence/phase3-hosted-2026-10-16.json)
+is retained; Phase 3 closeout remains pending. No further hosted run was dispatched.
+
+Preview 0.3.3 is being prepared with code-only invite sharing and a separate
+recipient server address. A local host can seal for its configured public HTTPS
+address while storing the encrypted envelope through its existing authenticated
+local connection. The address hint is limited to the selected local host, and
+identity checks prevent sending the bearer token to a changed local server.
+The upstream-recommended deep-link 2.6.1 compatibility pin passes a local Linux
+desktop compilation with the real GTK dependencies. Web verification, Rust
+formatting/Clippy/tests, six native unit checks, 14 real guided browser outcomes
+and eight setup failure outcomes pass. On October 17 the user confirmed public
+HTTPS health responds from a phone with Wi-Fi disabled. Access from the host PC
+remains intermittent, consistent with a possible router loopback limitation;
+this does not establish its cause or a complete two-household messaging pass.
+No TLS verification was bypassed. See the [patch validation record](evidence/pretty-invites-2026-10-17.json).
 
 Current implementation pass, 2026-10-16: 50 MB encrypted files, server-owner file
 removal, authorized member sidebar/profile fingerprints, encrypted 32-character

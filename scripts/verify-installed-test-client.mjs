@@ -219,13 +219,26 @@ export async function verifyInstalledPreviewUpgrade({bundle,output}) {
     const result=spawnSync(installer,['/S','/D='+install],{argv0:`"${installer}"`,windowsVerbatimArguments:true,windowsHide:true,timeout:180000,stdio:'ignore'})
     assert.equal(result.status,0,'Preview upgrade installer failed');checks.actual_nsis_upgrade_installs_successfully=true
     const lease=createServer();await new Promise(resolve=>lease.listen(0,'127.0.0.1',resolve));const port=lease.address().port;await new Promise(resolve=>lease.close(resolve))
-    child=spawn(executable,[],{cwd:install,windowsHide:true,stdio:'ignore',env:{...process.env,WEBVIEW2_USER_DATA_FOLDER:join(output,'upgrade-webview'),WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS:`--remote-debugging-address=127.0.0.1 --remote-debugging-port=${port}`}})
+    const coldLink='hearth://join/#v=2&server='+encodeURIComponent('http://localhost:8080')+'&code='+'0'.repeat(32)
+    child=spawn(executable,[coldLink],{cwd:install,windowsHide:true,stdio:'ignore',env:{...process.env,WEBVIEW2_USER_DATA_FOLDER:join(output,'upgrade-webview'),WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS:`--remote-debugging-address=127.0.0.1 --remote-debugging-port=${port}`}})
     const target=await eventually(async()=>{const response=await fetch(`http://127.0.0.1:${port}/json/list`,{signal:AbortSignal.timeout(500)});return(await response.json()).find(page=>page.type==='page'&&page.webSocketDebuggerUrl&&/tauri[.:]/.test(page.url))},'upgraded WebView startup',45000)
     cdp=await devtools(target.webSocketDebuggerUrl)
     assert.deepEqual(await cdp.evaluate('Promise.all([window.__TAURI_INTERNALS__.invoke("plugin:app|version"),window.__TAURI_INTERNALS__.invoke("build_revision")])'),[manifest.client.version,manifest.sourceCommit])
     checks.upgraded_native_binary_matches_version_and_source=true
     await eventually(async()=>await cdp.evaluate(`document.querySelector('[aria-label="Client version"]')?.textContent===${JSON.stringify('v'+manifest.client.version)}`),'installed client version label')
     checks.visible_client_version_matches_installed_binary=true
+    async function reviewCompatibleLink(expected){
+      await eventually(()=>cdp.evaluate('[...document.querySelectorAll("button")].some(e=>e.textContent==="Review invite")'),'compatible OS invite handoff')
+      await cdp.evaluate('[...document.querySelectorAll("button")].find(e=>e.textContent==="Review invite").click()')
+      assert.equal(await cdp.evaluate('document.querySelector("dialog #setup-address")?.value'),expected)
+      assert.equal(await cdp.evaluate('document.querySelectorAll("dialog .setup-result").length'),0)
+      await cdp.evaluate('document.querySelector("dialog[open] .panel-heading button").click()')
+    }
+    await reviewCompatibleLink(coldLink);checks.existing_os_invites_still_require_review_after_cold_start=true
+    const warmLink=coldLink.replace('0'.repeat(32),'1'.repeat(32))
+    assert.equal(spawnSync('powershell.exe',['-NoProfile','-NonInteractive','-Command',`Start-Process -FilePath ${quote(warmLink)} -WindowStyle Hidden`],{windowsHide:true,stdio:'ignore',timeout:20000}).status,0)
+    await reviewCompatibleLink(warmLink);assert.equal(child.exitCode,null)
+    checks.existing_os_invites_still_reach_the_running_instance=true
     const status=await cdp.evaluate('window.__TAURI_INTERNALS__.invoke("host_control",{action:"status"})')
     assert.equal(status.state,'running','The existing selected host must remain running')
     checks.existing_host_remains_running_without_restart_or_data_reset=true

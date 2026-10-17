@@ -60,8 +60,9 @@ remain open. See [current local evidence](evidence/phase3-local-2026-10-16.json)
    availability and trust boundaries must be explicit. It must preserve Hearth's
    encryption model; a TLS-terminating provider also gains trust over delivery of
    the web client, which is more than a metadata-only relationship.
-5. One invite carries the server address and enrollment capability. A friend opens
-   it, creates their account, joins the intended community and can start a DM.
+5. A pretty invite code carries the enrollment capability, with the server address
+   shared separately at the user's request. A friend enters both, creates their
+   account, joins the intended community and can start a DM.
    They should not need to interpret ports, server/community distinctions or setup codes.
 6. Hearth runs in the background, starts automatically when the host opts in, and
    shows a clear server status with useful recovery actions. The design must also
@@ -113,7 +114,12 @@ media and integrations. Carry the parity rows into the corresponding roadmap
 phases, preserving all-message E2EE, community control and separate daily-use and
 management menus.
 
-Current validation: the HTTP/private-S3 suite passes 90 outcomes and the packaged
-Windows/private-S3 client passes 17. All 41 two-client browser/private-S3 checks pass.
-Tool access is restored. GitHub checks currently stop before any jobs start, so
-current hosted macOS/Linux validation remains pending. Phase 3 stays in validation.
+Current validation, 2026-10-17: [local Phase 3 evidence](evidence/phase3-local-2026-10-16.json)
+records 94 HTTP/private-S3, 51 browser and 19 packaged Windows outcomes. The first
+[full hosted run](evidence/phase3-hosted-2026-10-16.json) passed core and browser
+jobs but failed Linux desktop compilation; Windows and macOS were cancelled.
+The dependency correction passes local Linux compilation. A current full pass
+is still required. The user waived the two-household and provider/OS push gates
+for this preview; these are not measured passes. The user separately confirmed
+public HTTPS health from a phone on cellular on October 17. The no-prerequisite
+installer and clean-machine checkpoint remain open.

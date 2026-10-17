@@ -1,7 +1,7 @@
 # Guided Host/Join setup
 
-Updated 2026-10-16, branch `codex/guided-setup`. The original 0.3.0 distribution
-remains immutable; the new features are packaged as Hearth Preview 0.3.1.
+Updated 2026-10-17, branch `codex/guided-setup`. Existing releases remain immutable.
+Preview 0.3.3 adds code-only sharing with a separate recipient server address.
 
 ## Available in this pass
 
@@ -9,7 +9,8 @@ A fresh client presents **Join a server** and **Host a server**. Returning clien
 reopen their saved server; Add server presents the same guided flow without
 unmounting an existing account or chat until another server is confirmed.
 
-- Join accepts a server address or a single pasted Hearth invite. Checking an
+- Join accepts a server address and an optional pretty invite code. Old pasted
+  Hearth links remain compatible. Checking an
   address does not save it or sign out the current account. Continue confirms it.
 - Host checks a running Hearth server and hands off to owner enrollment or sign-in.
   Desktop **Hosting & updates** can select a signed extracted host package,
@@ -34,6 +35,14 @@ unmounting an existing account or chat until another server is confirmed.
 
 ## Invite format and storage
 
+New invites display only the grouped 32-character code and a separate server
+address. Copy code copies just the code. The recipient enters both fields in
+Join a server. A host connected locally can use the selected host's public HTTPS
+address for sharing; its identity is checked before using that automatic hint.
+The envelope is stored through the existing authenticated local connection,
+without sending its bearer token to the editable recipient address.
+
+Old links remain compatible:
 `hearth://join/#v=2&server=<origin>&code=<32-readable-characters>`
 
 The random 160-bit Crockford code is displayed in eight groups of four. The
@@ -47,8 +56,7 @@ origins and owner bootstrap fields are rejected. Existing v1 links remain valid.
 Bare admission/bootstrap codes are rejected as server addresses before DNS or
 fetch, preventing an accidental paste from turning a capability into a hostname.
 
-The fragment keeps codes out of HTTP paths and queries. Paste a full link into
-Join a server, or use a readable code after selecting its server. The desktop
+For old links the fragment keeps codes out of HTTP paths and queries. The desktop
 installer registers the `hearth` scheme. Cold-start and already-open app handoffs
 offer **Review invite**, then require Check and Continue; opening a link never
 changes an existing session automatically. There is no hosted web landing page.

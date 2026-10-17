@@ -28,7 +28,8 @@ serde_json.workspace = true
 tauri = { version = "2", features = [] }
 tauri-plugin-dialog = "2"
 tauri-plugin-updater = "2"
-tauri-plugin-deep-link = "2"
+# 2.6.2 fails on Linux with current rust-ini; upstream workaround: plugins-workspace#3710.
+tauri-plugin-deep-link = "=2.6.1"
 tauri-plugin-single-instance = { version = "2", features = ["deep-link"] }
 base64 = "0.22"
 minisign-verify = "0.3"

@@ -65,10 +65,17 @@ export async function openInvite(serverInput: string, codeInput: string, envelop
     return invite
   } catch { throw invalid() }
 }
-export async function createShortInvite(invite: HearthInvite, token: string, options?: RequestOptions): Promise<{ link: string; code: string }> {
+export async function createShortInvite(invite: HearthInvite, token: string, options?: RequestOptions & { relayServer?: string }): Promise<{ link: string; code: string }> {
+  options?.signal?.throwIfAborted()
+  const relayServer = normalizeServerUrl(options?.relayServer ?? invite.server)
+  const relay = new HearthClient(relayServer)
+  if (relayServer !== normalizeServerUrl(invite.server)) {
+    const identity = await relay.wellKnown(options)
+    if (identity.server_key.toLowerCase() !== invite.serverKey.toLowerCase()) throw new HearthError(0, 'The local server identity changed. Reconnect before creating an invite.', 'invalid_response')
+  }
   const sealed = await sealInvite(invite)
   options?.signal?.throwIfAborted()
-  await new HearthClient(invite.server).storeInviteEnvelope(token, sealed.request, options)
+  await relay.storeInviteEnvelope(token, sealed.request, options)
   return { link: sealed.link, code: sealed.code }
 }
 export async function resolveSetupTarget(input: string, options?: RequestOptions): Promise<{ server: string; invite: HearthInvite | null }> {

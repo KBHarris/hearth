@@ -1,0 +1,88 @@
+{
+  "measuredAt": "2026-10-17T14:31:26.937Z",
+  "outcome": "pass",
+  "scope": "Local Preview 0.3.3 pretty invite and Linux compatibility patch; no current hosted or clean-machine pass claimed",
+  "sourceFiles": {
+    "packages/sdk/src/short-invite.ts": "76398b5b97591e889a3472849f2b798d7a75b993507d9d250ccf3c3108432f1f",
+    "apps/client/src/ShareInvite.tsx": "5bb7c2460529564f1db966c956bcfc2cb801c89a396a7110dd2f29da3b86db99",
+    "apps/client/src/GuidedSetup.tsx": "09e3da79914185b6a886bbe61c3c374859d62ba29f7d7a3f17eb45784e9331da",
+    "apps/client/src/invite-address.ts": "badf3c87801e6cef27187cabab171ec81a97d353c8410de852749e012e6242c1",
+    "apps/client/src/HostingPanel.tsx": "ce3d87610dd72c57c4f9618c90a826ff40fc8e97c5c3c93fa0018310deb77188",
+    "apps/desktop/src-tauri/Cargo.toml": "4d63bf9411115cadb9649d4e1a5a6e7a83e9b306669c9fd209df89eb018ad834",
+    "Cargo.lock": "8088f644639b1fdcd7d84f681cd1cfdd29db0dbb9afc339136dac26e203fdc91"
+  },
+  "checks": {
+    "web_verify": "pass",
+    "rust_fmt_clippy_all_targets_and_default_tests": "pass",
+    "windows_native_clippy_all_targets": "pass",
+    "windows_native_unit_tests": {
+      "passed": 6,
+      "ignored": 2
+    },
+    "linux_native_gtk_cargo_check_locked": {
+      "outcome": "pass",
+      "image": "hearth-linux-desktop-check:pretty-codes",
+      "compileOnly": true
+    },
+    "real_browser": {
+      "runtime": "win32 headless Chrome, two isolated profiles, real client controls",
+      "outcome": "pass",
+      "checks": {
+        "fresh_install_offers_host_join_without_network_probe_and_fits_narrow_screen": true,
+        "host_readiness_is_local_only_and_is_not_saved_until_confirmation": true,
+        "create_and_select_community_with_literal_text": true,
+        "create_category_text_and_announcement_channels": true,
+        "open_channel_and_send_encrypted_solo_message": true,
+        "combined_invite_stays_hidden_until_account_capability_is_ready": true,
+        "public_invite_alias_does_not_replace_the_owners_local_connection": true,
+        "share_ui_exposes_only_pretty_codes_and_separate_server_address": true,
+        "owner_creates_one_invite_for_account_and_signed_community_admission": true,
+        "create_and_hide_invite_without_persisting_it": true,
+        "mismatched_invite_identity_cannot_reach_account_creation_or_save_address": true,
+        "pending_invite_can_reopen_navigation_at_430px_without_overflow": true,
+        "combined_invite_creates_account_and_joins_community_without_persisting_capabilities": true,
+        "real_second_client_join_automatic_roster_rekey_and_no_old_history": true
+      },
+      "measured_at": "2026-10-17T04:15:19.163Z"
+    },
+    "mock_setup_failures": {
+      "runtime": "headless Chrome with mock discovery and registration responses",
+      "outcome": "pass",
+      "checks": {
+        "current_client_version_is_visible_at_430px": true,
+        "host_join_choices_fit_an_actual_430px_viewport": true,
+        "malformed_invites_and_bare_codes_are_rejected_before_network_access": true,
+        "cancelled_check_cannot_connect_or_overwrite_the_next_route": true,
+        "degraded_and_incompatible_servers_cannot_continue_or_save_address": true,
+        "editing_a_checked_address_invalidates_the_previous_result": true,
+        "registration_failure_has_working_retry_and_preserves_invite_only_in_memory": true,
+        "current_server_identity_is_preserved_even_when_saved_pins_cannot_be_read": true
+      },
+      "measuredAt": "2026-10-17T04:06:43.014Z"
+    }
+  },
+  "security": {
+    "source_scan": {
+      "reviewedFalsePositives": 4,
+      "actualSecretsFound": 0
+    },
+    "history_scan": {
+      "reviewedFalsePositives": 5,
+      "actualSecretsFound": 0
+    },
+    "bearer_transport": "Existing authenticated server connection only; changed relay identity rejected before authorization",
+    "invite_display": "Only pretty code and separate server address; legacy links remain compatible"
+  },
+  "outsideNetwork": {
+    "observedBy": "user",
+    "method": "Phone with Wi-Fi disabled",
+    "health": "status: ok",
+    "observedDate": "2026-10-17",
+    "limitations": "Health reachability only; no claim of two-household encrypted messaging or confirmed router diagnosis"
+  },
+  "pending": [
+    "Actual 0.3.3 NSIS upgrade and release asset validation",
+    "Corrected full hosted acceptance",
+    "Host/Join no-prerequisite and clean-machine checkpoint"
+  ]
+}

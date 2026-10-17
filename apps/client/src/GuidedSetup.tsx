@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState, type FormEvent } from 'react'
-import { addressScope, HearthClient, normalizeServerUrl, resolveSetupTarget, type HearthInvite, type ServerInfo } from '@hearth/sdk'
+import { addressScope, HearthClient, normalizeServerUrl, resolveInviteCode, resolveSetupTarget, type HearthInvite, type ServerInfo } from '@hearth/sdk'
 import { Icon } from './Icons'
 
 export type CheckedServer = { server: string; info: ServerInfo; invite: HearthInvite | null }
@@ -9,6 +9,7 @@ export function GuidedSetup({ defaultServer, signedIn = false, currentServer, on
 }) {
   const [route, setRoute] = useState<'host' | 'join' | null>(initialInvite ? 'join' : null)
   const [address, setAddress] = useState(initialInvite)
+  const [inviteCode, setInviteCode] = useState('')
   const [checked, setChecked] = useState<CheckedServer | null>(null)
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState('')
@@ -17,14 +18,16 @@ export function GuidedSetup({ defaultServer, signedIn = false, currentServer, on
   useEffect(() => () => request.current?.abort(), [])
   function choose(next: 'host' | 'join' | null) {
     request.current?.abort(); setBusy(false); setError(''); setChecked(null); setRoute(next)
-    setAddress(next === 'host' ? defaultServer : '')
+    setAddress(next === 'host' ? defaultServer : currentServer?.url ?? ''); setInviteCode('')
   }
   async function check(event: FormEvent) {
     event.preventDefault(); request.current?.abort()
     const controller = new AbortController(); request.current = controller
     setBusy(true); setError(''); setChecked(null)
     try {
-      const target = route === 'host' ? { server: normalizeServerUrl(address), invite: null } : await resolveSetupTarget(address, { signal: controller.signal })
+      const target = route === 'host' ? { server: normalizeServerUrl(address), invite: null } : inviteCode.trim() ?
+        { server: normalizeServerUrl(address), invite: await resolveInviteCode(address, inviteCode, { signal: controller.signal }) } :
+        await resolveSetupTarget(address, { signal: controller.signal })
       const info = await new HearthClient(target.server).inspect({ signal: controller.signal })
       if (controller.signal.aborted) return
       const key = info.wellKnown.server_key.toLowerCase()
@@ -52,14 +55,15 @@ export function GuidedSetup({ defaultServer, signedIn = false, currentServer, on
       <button type="button" className="setup-back" onClick={() => choose(null)}>← Host or join</button>
       <p className="eyebrow">{route === 'host' ? 'HOST A SERVER' : 'JOIN A SERVER'}</p>
       <h1 id="setup-heading">{route === 'host' ? 'Connect your host.' : 'Bring your invite.'}</h1>
-      <p>{route === 'host' ? 'Check a running Hearth server, then create its owner account or sign in.' : 'Paste the invite your host shared. A server address works too.'}</p>
+      <p>{route === 'host' ? 'Check a running Hearth server, then create its owner account or sign in.' : 'Enter your host’s server address and pretty invite code. If you already have an account, the address is enough.'}</p>
       {route === 'host' && <>{onManageHost && <button type="button" onClick={onManageHost}>Start or manage local server</button>}<p className="notice">{onManageHost?'Start your local host, or enter the address of a server you already run.':'Start the host package first, or use hosting controls in the desktop app.'}</p></>}
       <form onSubmit={event => void check(event)} aria-busy={busy}>
-        <label htmlFor="setup-address">{route === 'host' ? 'Server address' : 'Invite or server address'}</label>
+        <label htmlFor="setup-address">Server address</label>
         <input id="setup-address" ref={input} type="text" value={address} required autoFocus autoComplete="off" spellCheck={false} disabled={busy}
-          placeholder={route === 'host' ? 'http://localhost:8080' : 'hearth://join/… or https://chat.example.org'}
+          placeholder={route === 'host' ? 'http://localhost:8080' : 'https://chat.example.org'}
           aria-invalid={!!error} aria-describedby="setup-address-help" onChange={event => { setAddress(event.target.value); setChecked(null); setError('') }} />
         <small id="setup-address-help">{route === 'host' ? 'Use localhost for this computer or an HTTPS address for a remote host.' : 'Invites stay in memory while you join. Only the working server address is saved.'}</small>
+        {route === 'join' && <><label htmlFor="setup-code">Invite code (if supplied)</label><input id="setup-code" value={inviteCode} disabled={busy} autoComplete="off" spellCheck={false} placeholder="ABCD-EFGH-JKMP-QRST-VWXY-2345-6789-ABCD" onChange={event => { setInviteCode(event.target.value); setChecked(null); setError('') }} /></>}
         {signedIn && <p className="notice">Continuing to a different server signs you out here. Your keys and messages stay on this device.</p>}
         <button type="submit" disabled={busy}>{busy ? 'Checking server…' : checked ? 'Check again' : 'Check server'}</button>
         {busy && <button type="button" onClick={() => { request.current?.abort(); setBusy(false) }}>Cancel check</button>}

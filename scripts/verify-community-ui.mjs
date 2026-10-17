@@ -8,7 +8,7 @@ import {Builder,By,Key} from 'selenium-webdriver'
 import {Select} from 'selenium-webdriver/lib/select.js'
 import chrome from 'selenium-webdriver/chrome.js'
 import {verifyTextUI} from './phase2-text-ui.mjs'
-import {createHearthInvite,resolveSetupTarget} from '../packages/sdk/src/index.ts'
+import {createHearthInvite,resolveInviteCode,resolveSetupTarget} from '../packages/sdk/src/index.ts'
 
 const root=fileURLToPath(new URL('../',import.meta.url))
 // Direct Vite does not execute the client's npm predev hook. Build the current
@@ -405,13 +405,23 @@ try {
     await driver.executeScript('window.__releaseSetupInvite();window.fetch=window.__setupInviteFetch;delete window.__releaseSetupInvite;delete window.__setupInviteFetch')
     checks.combined_invite_stays_hidden_until_account_capability_is_ready=true
   }
+  if(process.argv.includes('--pretty-alias')){
+    const address=await driver.wait(async()=>(await driver.findElements(By.css('.share-invite .invite-server-address')))[0]??false,15000)
+    await address.clear();await address.sendKeys('http://localhost:5174')
+    await driver.findElement(By.xpath('//button[text()="Use server address"]')).click()
+    checks.public_invite_alias_does_not_replace_the_owners_local_connection=true
+  }
   const invite=await driver.wait(async()=>{const fields=await driver.findElements(By.css('.share-invite .invite-code'));return fields[0]??false},15000)
   assert.match(await invite.getAttribute('value'),/^(?:[0-9A-HJKMNP-TV-Z]{4}-){7}[0-9A-HJKMNP-TV-Z]{4}$/)
   const communityCode=await invite.getAttribute('value')
   let combinedInvite=''
+  const inviteServer=await driver.findElement(By.css('.share-invite .invite-server-address')).getAttribute('value')
+  assert.equal((await driver.findElements(By.css('.share-invite input[value^="hearth:"]'))).length,0)
+  checks.share_ui_exposes_only_pretty_codes_and_separate_server_address=true
   if(process.argv.includes('--guided-setup')){
-    combinedInvite=await driver.findElement(By.css('.share-invite input:not(.invite-code)')).getAttribute('value')
-    assert.ok((await resolveSetupTarget(combinedInvite)).invite.account)
+    const resolved=await resolveInviteCode(inviteServer,communityCode)
+    combinedInvite=createHearthInvite(resolved)
+    assert.ok(resolved.account)
     checks.owner_creates_one_invite_for_account_and_signed_community_admission=true
   }
   await driver.findElement(By.xpath('//button[text()="Hide code"]')).click()
@@ -429,9 +439,10 @@ try {
   await pace(driver)
   await driver.findElement(By.xpath('//button[normalize-space(.)="Server settings"]')).click()
   await driver.findElement(By.xpath('//button[text()="Create account invite"]')).click()
-  await driver.wait(async()=>await driver.findElements(By.css('.share-invite input:not(.invite-code)')).then(fields=>fields[0]??false),15000)
-  const accountLink=await driver.findElement(By.css('.share-invite input:not(.invite-code)')).getAttribute('value')
-  const accountCode=(await resolveSetupTarget(accountLink)).invite.account
+  await driver.wait(async()=>await driver.findElements(By.css('.share-invite .invite-code')).then(fields=>fields[0]??false),15000)
+  const accountPretty=await driver.findElement(By.css('.share-invite .invite-code')).getAttribute('value')
+  const accountServer=await driver.findElement(By.css('.share-invite .invite-server-address')).getAttribute('value')
+  const accountCode=(await resolveInviteCode(accountServer,accountPretty)).account
   await closePanel(driver)
   buddy=await new Builder().forBrowser('chrome').setChromeOptions(new chrome.Options().addArguments('--headless=new','--window-size=1440,1100').setUserPreferences({'download.default_directory':join(output,'downloads'),'download.prompt_for_download':false})).build()
   await buddy.get('http://127.0.0.1:5174')
@@ -439,14 +450,15 @@ try {
   await buddy.findElement(By.xpath('//button[contains(.,"Join a server")]')).click()
   const joinAddress=await buddy.findElement(By.id('setup-address'))
   if(process.argv.includes('--guided-setup')){
-    const mismatched=createHearthInvite({...((await resolveSetupTarget(combinedInvite)).invite),serverKey:'0'.repeat(64)})
+    const mismatched=combinedInvite.replace(/key=[a-f0-9]{64}/,'key='+'0'.repeat(64))
     await joinAddress.sendKeys(mismatched)
     await buddy.findElement(By.css('.guided-setup form button[type="submit"]')).click()
     await buddy.wait(async()=>await buddy.findElements(By.css('.setup-error')).then(items=>items.length===1),15000)
     assert.equal(await buddy.executeScript('return localStorage.getItem("hearth.server-url")'),null)
     assert.equal((await buddy.findElements(By.id('username'))).length,0)
     checks.mismatched_invite_identity_cannot_reach_account_creation_or_save_address=true
-    await joinAddress.clear();await joinAddress.sendKeys(process.argv.includes('--account-code')?'http://127.0.0.1:5174':combinedInvite)
+    await joinAddress.clear();await joinAddress.sendKeys(inviteServer)
+    if(!process.argv.includes('--account-code'))await buddy.findElement(By.id('setup-code')).sendKeys(communityCode)
   } else await joinAddress.sendKeys('http://127.0.0.1:5174')
   await buddy.findElement(By.css('.guided-setup form button[type="submit"]')).click()
   await buddy.wait(async()=>await buddy.findElements(By.css('.setup-result .primary-button')).then(items=>items[0]??false),15000).then(button=>button.click())
@@ -607,7 +619,7 @@ try {
   assert.equal(await driver.executeScript('return document.documentElement.scrollWidth<=window.innerWidth'),true)
   checks.narrow_layout_has_no_horizontal_overflow=true
   }
-  assert.equal(Object.keys(checks).length,(process.argv.includes('--setup-only')?12:(process.argv.includes('--storage')?21:16)+2+(process.argv.includes('--phase3')?23:0)+(process.argv.includes('--guided-setup')?5:0))+(process.argv.includes('--account-code')?1:0))
+  assert.equal(Object.keys(checks).length,(process.argv.includes('--setup-only')?12:(process.argv.includes('--storage')?21:16)+2+(process.argv.includes('--phase3')?23:0)+(process.argv.includes('--guided-setup')?5:0))+(process.argv.includes('--account-code')?1:0)+1+(process.argv.includes('--pretty-alias')?1:0))
   succeeded=true
   console.log(JSON.stringify(checks))
 }catch(error) {

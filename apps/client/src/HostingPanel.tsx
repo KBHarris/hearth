@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import { invoke } from '@tauri-apps/api/core'
+import { HearthClient } from '@hearth/sdk'
 
 type HostStatus = { folder: string | null; https: boolean; state: string; message: string; local_url: string | null; public_address: string | null }
 type UpdateStatus = { available: boolean; version: string | null; message: string }
@@ -45,6 +46,14 @@ export function HostingPanel({ onConnect }: { onConnect: (address: string) => vo
       if (errors.length) setError(errors.join(' '))
     })
   }
+  async function checkPublicHttps() {
+    if (!host?.public_address || !host.local_url) return
+    await perform('Checking public HTTPS…', async () => {
+      const [remote, local] = await Promise.all([new HearthClient('https://' + host.public_address).inspect(), new HearthClient(host.local_url!).wellKnown()])
+      if (remote.wellKnown.server_key.toLowerCase() !== local.server_key.toLowerCase()) throw new Error('The public address points to a different Hearth server. Check your address and router settings before sharing it.')
+      setMessage('Trusted HTTPS and the matching server identity were verified from this PC. Access from another network is still unverified.')
+    })
+  }
   async function update(kind: 'desktop' | 'server', version: string) {
     await perform(kind === 'server' ? 'Backing up and updating server…' : 'Downloading and installing app update…', async () => {
       const result = await invoke<UpdateStatus>(`${kind}_update`, { install: true, expectedVersion: version })
@@ -65,6 +74,7 @@ export function HostingPanel({ onConnect }: { onConnect: (address: string) => vo
         {settingsDirty && <button disabled={!!busy} onClick={() => void perform('Saving host settings…', async () => { setHost(await invoke<HostStatus>('host_configure', { https, publicAddressInput: publicAddress || null })); setSettingsDirty(false) })}>Save host settings</button>}
         <div className="button-row"><button disabled={!!busy || settingsDirty} onClick={() => void control('start')}>Start server</button><button disabled={!!busy} onClick={() => setConfirm('stop')}>Stop server</button><button disabled={!!busy} onClick={() => void control('status')}>Refresh status</button></div>
         {host.local_url && <button disabled={!!busy} onClick={() => onConnect(host.local_url!)}>Connect to local server</button>}
+        {host.https && host.public_address && <><div className="button-row"><button disabled={!!busy || settingsDirty} onClick={() => void checkPublicHttps()}>Check public HTTPS</button><button disabled={!!busy || settingsDirty} onClick={() => onConnect('https://' + host.public_address)}>Connect to public server</button></div><small>You can stay connected locally and create pretty codes for your public address. If public HTTPS fails only from home, check from another network; some routers do not support loopback.</small></>}
         <small>Hosting continues when you close Hearth. Stop server stops hosting for everyone; your data stays on this computer.</small>
         <details><summary>Owner setup</summary><p>Retrieve the protected setup code for this local host when creating its first owner account.</p>
           <button disabled={!!busy} onClick={() => void perform('Retrieving setup code…', async () => { setSetupCode(await invoke<string>('host_setup_code')) })}>Get owner setup code</button>

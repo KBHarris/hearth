@@ -70,3 +70,28 @@ test('malformed links and bare codes never leak to DNS; errors do not echo capab
       await assert.rejects(resolveSetupTarget(value), error => error.kind === 'invalid_url' && !error.message.includes(sealed.code))
   } finally { globalThis.fetch = original }
 })
+
+test('local hosting seals a public-address code without sending credentials to that public address', async () => {
+  const original = globalThis.fetch, stored = new Map(), calls = []
+  let key = base.serverKey
+  globalThis.fetch = async (input, init) => {
+    const url = new URL(input); calls.push({ url, init })
+    if (url.pathname === '/.well-known/hearth') {
+      assert.equal(url.origin, 'http://localhost:8080'); assert.equal(init.headers, undefined)
+      return Response.json({ server_name: 'Fixture', server_key: key, protocols: [1], federation: false })
+    }
+    if (init.method === 'POST') {
+      assert.equal(url.origin, 'http://localhost:8080'); assert.equal(init.headers.Authorization, 'Bearer local-token')
+      const body = JSON.parse(init.body); stored.set(body.id, body.envelope); return new Response(null, { status: 204 })
+    }
+    assert.equal(url.origin, base.server); assert.equal(init.headers, undefined)
+    return Response.json(stored.get(url.pathname.split('/').at(-1)))
+  }
+  try {
+    const shared = await createShortInvite(variants[2], 'local-token', { relayServer: 'http://localhost:8080' })
+    assert.deepEqual(await resolveInviteCode(base.server, shared.code), variants[2])
+    const count = calls.length; key = 'd'.repeat(64)
+    await assert.rejects(createShortInvite(variants[2], 'local-token', { relayServer: 'http://localhost:8080' }), /identity changed/)
+    assert.equal(calls.length, count + 1); assert.equal(calls.at(-1).url.pathname, '/.well-known/hearth')
+  } finally { globalThis.fetch = original }
+})

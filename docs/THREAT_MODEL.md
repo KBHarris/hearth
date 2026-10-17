@@ -3,6 +3,17 @@
 > Phase 1 draft. It is updated with every phase, and every new server-side field must be
 > added to the metadata inventory below.
 
+## Invite addresses and transport
+
+Invite sharing may use a recipient-facing public HTTPS origin while the owner
+stays on its existing authenticated loopback connection. Only the selected local
+host may supply an automatic public-address hint, and the local identity must
+match before applying it. Envelope encryption remains bound to the recipient
+origin; only its hash and ciphertext reach the relay. The bearer token stays on
+the authenticated transport and is never sent to an editable sharing address.
+Pretty codes require an explicit server address; a bare code is never resolved
+through DNS or an external global directory. Legacy links remain readable.
+
 ## Assets
 
 1. Message, attachment, and media plaintext

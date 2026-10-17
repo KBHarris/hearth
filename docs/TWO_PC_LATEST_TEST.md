@@ -2,7 +2,7 @@
 
 This Windows x64 test bundle includes guided Host/Join, encrypted communities,
 50 MB files, member profiles, readable invites, roles, reports, forums and polls.
-Both people install **Hearth Preview 0.3.2**. The steps below assume a fresh test host.
+Both people install **Hearth Preview 0.3.3**. The steps below assume a fresh test host.
 Keep any existing host's database, operator configuration and signing keys together;
 never regenerate credentials for existing volumes. The local older
 test deployments and profiles were retired on 2026-10-15. Create new accounts for
@@ -20,7 +20,7 @@ The manifest pins the source commit, server image and file checksums.
 
 Keep a host's original `.env` and `s3.json` with its Docker volumes. A new extraction
 does not create a new server when the same Compose project already has data.
-Preview 0.3.2 stops before generating replacement credentials over existing data
+Preview 0.3.3 stops before generating replacement credentials over existing data
 and checks database authentication before starting Hearth. For an existing host,
 select its original folder or restore its matching operator files; retrying keeps
 its data and identity. Reset test data only when its owner explicitly authorizes it.
@@ -64,26 +64,31 @@ after changing it. The app's local connection button reads that configuration.
    alone does not verify access from another household. NAT loopback may require
    separate troubleshooting if the public address fails only inside your LAN.
 
-Use **Add server → Join a server** on your own client to connect to that same
-public HTTPS address and sign in to your owner account. Do this before making
-the invite, so its address works at your buddy's house. Your local device keys
-are preserved when using the same server identity.
+You can keep your owner client connected to `http://localhost:8080`. Preview
+0.3.3 uses the selected host's configured public HTTPS address for pretty codes
+after checking the local server identity. Authenticated storage requests stay on
+your current local connection. In the invite panel, verify **Server address for
+your friend** is the public HTTPS address. You can enter that address explicitly
+when automatic local-host selection is unavailable. **Check public HTTPS** in
+Hosting & updates checks trusted TLS and matching identity from this PC; it does
+not establish outside reachability. Your buddy always connects to the public
+address, even if router loopback prevents your own PC from using it reliably.
 
 ## Invite your buddy
 
 1. In the owner client, create a community and a text channel.
 2. Open **Manage community → Invites**, enable **Include a new server account**,
-   create the invite, then choose **Copy invite**. Wait for invite preparation
+   create the invite, then choose **Copy code** and **Copy server address**. Wait for invite preparation
    to finish. The readable code has 32 random characters, grouped in fours. The
-   short link lasts up to 24 hours; the account invitation remains single use and
+   pretty code lasts up to 24 hours; the account invitation remains single use and
    community expiry/use limits still apply.
-3. Send that complete `hearth://join/#...` invite privately, separately from the
-   ZIP. It includes the server address and public identity. Do not send the owner
+3. Send the pretty code and the public server address privately, separately from the
+   ZIP. The encrypted invite pins the public server identity. Do not send the owner
    setup code. Keep your owner client signed in while your buddy joins.
 4. Your buddy extracts the ZIP, runs the installer, opens **Hearth Preview → Join a
-   server**, pastes the entire invite, checks it and continues to account setup.
-   Alternatively, click the invite and choose **Review invite** in Hearth, then
-   check and continue. A link never switches servers automatically.
+   server**, enters the server address and pretty code in their separate fields,
+   checks it and continues to account setup. Older Hearth links remain compatible;
+   new invite sharing displays and copies only pretty codes.
 5. Your buddy creates an account, then chooses **Join invited community**. On your
    PC, compare their identity fingerprint over your existing trusted call and
    approve their **Access requests**. They can then open the encrypted channel.

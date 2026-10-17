@@ -45,8 +45,9 @@ run at closeout; do not spend hosted minutes on each feature, push or PR.
    Avatar images, if added, follow the encrypted-file model. Support Escape,
    focus return and narrow layouts. Keep identity comparison available in DMs.
 5. [x] **Use readable short invites.** Server-account, community and combined
-   invitations use a random 32-character code grouped in fours. Share links retain
-   the host address. Store only a domain-separated code hash and client-encrypted
+   invitations use a random 32-character code grouped in fours. Preview 0.3.3
+   shares only that code with a separate server address, including the public
+   address when the owner is connected locally. Store only a domain-separated code hash and client-encrypted
    invite envelope; preserve identity pinning, expiry, use limits and approved
    device requirements. Keep old links compatible and never send bare codes to DNS.
 6. [x] **Control local hosting from the desktop UI.** Add Start, Stop and Status
