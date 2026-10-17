@@ -21,7 +21,11 @@ both live feeds match the tested files. The installed native updater reports the
 app current and offers the signed server update; that update has not been applied
 to the current host. See the [publication record](evidence/preview-0.3.4-release-2026-10-17.json).
 
-Phase 3 still awaits authorization for one corrected full hosted milestone.
+The user authorized one corrected full hosted milestone on October 17. The
+[run for frozen Preview 0.3.3](https://github.com/KBHarris/hearth/actions/runs/39070916430)
+is in progress; its [dated record](evidence/phase3-hosted-2026-10-17.json) will
+retain the outcome. No automatic retries are authorized. Later 0.3.4 checkpoint
+changes are covered by local validation and are outside this run's source scope.
 The [remaining setup order](GUIDED_SETUP.md#next-implementation-slice) is automatic
 runtime/package preparation, opt-in startup, fresh-host restore, internet setup
 and relay evaluation, then clean-machine/cross-OS acceptance. Docker installation

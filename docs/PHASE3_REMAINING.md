@@ -14,7 +14,10 @@ and installed, adding code-only/public-address sharing and the Linux compatibili
 pin. All [15 package/upgrade checks](evidence/windows-preview-0.3.3-2026-10-17.json)
 pass. Its [eleven public downloads and both feeds](evidence/preview-0.3.3-release-2026-10-17.json)
 match the tested artifacts. The first full hosted run failed on the now-locally
-corrected Linux dependency; a further run is awaiting explicit authorization.
+corrected Linux dependency. One corrected [full run](https://github.com/KBHarris/hearth/actions/runs/39070916430)
+was explicitly authorized and dispatched for frozen 0.3.3 source on October 17.
+It remains in progress; no automatic retry is authorized. The later 0.3.4 setup
+checkpoint slice is not covered by that frozen-source run.
 The [0.3.4 checkpoint slice](evidence/host-join-checkpoint-2026-10-17.json) removes
 the desktop Node prerequisite and adds protected local owner authorization. Its
 [18 installed checks](evidence/windows-preview-0.3.4-2026-10-17.json) and
@@ -96,7 +99,9 @@ run at closeout; do not spend hosted minutes on each feature, push or PR.
    Validate the manual-only budget controls and finish local checks. The user
    authorized one full hosted milestone run on 2026-10-16 after the startup fix;
    it failed Linux desktop compilation. That dependency correction passes locally.
-   A further full milestone is awaiting explicit authorization. Run current Windows, macOS
+   The user approved one corrected full milestone on October 17; run
+   [39070916430](https://github.com/KBHarris/hearth/actions/runs/39070916430) tests frozen
+   Preview 0.3.3. It remains in progress, with no automatic retry authorized. Run current Windows, macOS
    and Linux packaged runtime acceptance against
    the final Phase 3 source, including the new features and existing permission,
    reporting, retention and account-departure coverage. Investigate a hosted job

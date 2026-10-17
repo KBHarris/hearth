@@ -1,0 +1,16 @@
+{
+  "observedAt": "2026-10-17T21:26:40.496Z",
+  "outcome": "pending",
+  "run": "https://github.com/KBHarris/hearth/actions/runs/39070916430",
+  "runId": 39070916430,
+  "sourceCommit": "9a13cf0e3eedd3332782dd40b33277b1521f6c49",
+  "sourceTag": "v0.3.3",
+  "suite": "full",
+  "authorization": "User explicitly approved one corrected full milestone on 2026-10-17 for frozen Preview 0.3.3; no automatic retries.",
+  "status": "in_progress",
+  "checksComplete": false,
+  "limitations": [
+    "The later Preview 0.3.4 Host/Join checkpoint changes are not covered by this run.",
+    "Two-household and provider/OS notification gates remain explicit preview waivers, not measured passes."
+  ]
+}
