@@ -43,8 +43,10 @@ Primary user journey: **Install → Host or Join → Share an invite.**
 
 The [first guided client pass](GUIDED_SETUP.md), implemented 2026-10-15, provides
 Host/Join entry, readiness for an existing host and a single pasted invite through
-account creation and signed community admission. Automatic service installation,
-native click-to-open links and independent outside reachability are still open.
+account creation and signed community admission. Preview 0.3.1 adds validated
+Windows native invite opening and UI hosting/updates. Automatic service
+installation, macOS/Linux invite acceptance and independent outside reachability
+remain open. See [current local evidence](evidence/phase3-local-2026-10-16.json).
 
 1. A normal installer opens Hearth and asks whether to host on this PC or join
    someone else's server. Advanced deployment remains available separately.

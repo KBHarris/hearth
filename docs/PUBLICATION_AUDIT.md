@@ -40,3 +40,9 @@ files and the same 48 reachable commits. It found the same four current-source
 false positives and no new matches. Private release keys and local tool/account
 directories are explicitly excluded from the Docker build context as well as
 from source and package staging. Final release assets require their own scan.
+
+The prepared Preview 0.3.1 host staging directory also passes a separate secret
+scan with zero matches. Its explicit manifest allowlist excludes operator files,
+profiles, backups and private signing keys. The final source scan covers 299
+files with the same four reviewed false positives. Binary publication remains
+separate from the already completed repository visibility change.

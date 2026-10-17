@@ -62,7 +62,7 @@ export async function verifyInstalledTestClient({ bundle, origin, output, hostPr
   const productLiteral="'"+(manifest.client.productName??'Hearth Test').replaceAll("'","''")+"'"
   const existing = spawnSync('powershell.exe', ['-NoProfile', '-NonInteractive', '-Command', "@(Get-ItemProperty 'HKCU:\\Software\\Microsoft\\Windows\\CurrentVersion\\Uninstall\\*' -ErrorAction SilentlyContinue | Where-Object DisplayName -eq "+productLiteral+").Count"], { windowsHide: true, encoding: 'utf8' })
   assert.equal(existing.status, 0); assert.equal(existing.stdout.trim(), '0', 'Preserve the existing Hearth Test installation')
-  const association=spawnSync('powershell.exe',['-NoProfile','-NonInteractive','-Command',"$entry=Get-Item -LiteralPath 'HKCU:\\Software\\Classes\\hearth' -ErrorAction SilentlyContinue;if($entry){'registered'}"],{windowsHide:true,encoding:'utf8'})
+  const association=spawnSync('powershell.exe',['-NoProfile','-NonInteractive','-Command',"if(Test-Path -LiteralPath 'HKCU:\\Software\\Classes\\hearth'){'registered'};exit 0"],{windowsHide:true,encoding:'utf8'})
   assert.equal(association.status,0);assert.equal(association.stdout.trim(),'','Preserve an existing Hearth protocol handler before running the disposable install test')
   // NSIS requires /D= and _?= last and unquoted, including paths with spaces:
   // https://nsis.sourceforge.io/Docs/Chapter3.html#3.2.1
@@ -137,7 +137,7 @@ export async function verifyInstalledTestClient({ bundle, origin, output, hostPr
     }
     await screenshot('installed-welcome.png')
     if(hostProject){
-      await cdp.evaluate('document.querySelector("[aria-label=\"Hosting and updates\"]").click()')
+      await cdp.evaluate("document.querySelector('[aria-label=\"Hosting and updates\"]').click()")
       await eventually(()=>cdp.evaluate('document.querySelector(".hosting-panel")?.textContent.includes("Running")'),'native host status',30000)
       await cdp.evaluate('[...document.querySelectorAll(".hosting-panel button")].find(e=>e.textContent==="Stop server").click()')
       await cdp.evaluate('[...document.querySelectorAll(".hosting-panel button")].find(e=>e.textContent==="Stop hosting").click()')

@@ -1,7 +1,7 @@
 # Guided Host/Join setup
 
 Updated 2026-10-16, branch `codex/guided-setup`. The original 0.3.0 distribution
-remains immutable; the new features are being packaged as Hearth Preview 0.3.1.
+remains immutable; the new features are packaged as Hearth Preview 0.3.1.
 
 ## Available in this pass
 
@@ -68,6 +68,15 @@ The shareable combined invite stays hidden until both capabilities are ready.
 
 ## Validation
 
+The [2026-10-16 local record](evidence/phase3-local-2026-10-16.json) records 94 real
+HTTP/private-S3, 51 broad two-client browser, 13 focused account-code, 19 Windows
+packaged, six real Docker rollback and three signed-package checks. The separate
+[installer record](evidence/windows-preview-2026-10-16.json) passes 19 checks for
+the actual Preview NSIS binary, embedded source revision, OS URI registration,
+cold/warm invite handoff, native hosting controls and all 23 migrations. These are
+local results; clean buddy-PC, two-house and current macOS/Linux acceptance are open.
+The original historical pass is retained below for comparison.
+
 The [2026-10-15 sanitized record](evidence/guided-setup-2026-10-15.json) includes a
 46-check broad regression run and the final 12-check real guided join and
 seven-check mock failure suites, with the final source hashes. The broad run
@@ -108,8 +117,8 @@ the target. This pass does not complete the no-prerequisite hosting installer.
 3. Add explicit local/internet hosting choices, HTTPS configuration and independent
    outside-network verification. Diagnose CGNAT/loopback only with sufficient
    evidence; an optional relay requires an explicit trust design.
-4. Validate installer protocol registration and native cold/warm invite handoffs
-   in the new Windows package; macOS/Linux runtime evidence remains pending.
+4. Windows installer protocol registration and native cold/warm handoffs pass.
+   Obtain actual macOS/Linux runtime evidence; it remains pending.
 5. Existing Docker services continue after the client closes. Add explicit
    background/startup enrollment and fresh-host restore. Signed updates, local
    backup rehearsal and failed-migration rollback are implemented; exercise

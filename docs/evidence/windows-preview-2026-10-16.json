@@ -1,0 +1,75 @@
+{
+  "measuredAt": "2026-10-17T02:45:12.701Z",
+  "outcome": "pass",
+  "sourceCommit": "02b5010792082dbd2736f2121bfbec5305e846d5",
+  "checks": {
+    "all_manifest_hashes_match": true,
+    "host_secrets_absent_from_distribution": true,
+    "friend_zip_contains_only_installer_guide_and_checksum": true,
+    "loaded_server_archive_matches_pinned_image": true,
+    "fresh_server_health_discovery_and_owner_bootstrap_pass": true,
+    "all_23_migrations_applied_to_fresh_data": true,
+    "storage_rejects_anonymous_requests": true,
+    "server_restart_preserves_signing_identity": true,
+    "actual_nsis_installer_installs_product": true,
+    "installer_registers_hearth_invites_with_quoted_argument": true,
+    "installed_release_has_correct_version_profile_and_native_ipc": true,
+    "installed_binary_embeds_matching_source_revision": true,
+    "cold_start_invite_requires_review_and_check_before_connecting": true,
+    "running_instance_receives_invite_without_replacing_current_session": true,
+    "installed_host_ui_starts_stops_and_retrieves_setup_code_without_terminal": true,
+    "local_setup_code_clears_when_host_panel_closes": true,
+    "installed_client_contains_latest_invite_input_guard": true,
+    "installed_client_checks_bundled_server_and_reaches_owner_setup": true,
+    "temporary_test_install_uninstalled_and_existing_profiles_preserved": true
+  },
+  "humanPending": [
+    "clean buddy-PC installation and two-house reachability",
+    "actual Windows SmartScreen experience on the buddy PC",
+    "manual encrypted messaging between the two households"
+  ],
+  "nativeClient": {
+    "checks": {
+      "actual_nsis_installer_installs_product": true,
+      "installer_registers_hearth_invites_with_quoted_argument": true,
+      "installed_release_has_correct_version_profile_and_native_ipc": true,
+      "installed_binary_embeds_matching_source_revision": true,
+      "cold_start_invite_requires_review_and_check_before_connecting": true,
+      "running_instance_receives_invite_without_replacing_current_session": true,
+      "installed_host_ui_starts_stops_and_retrieves_setup_code_without_terminal": true,
+      "local_setup_code_clears_when_host_panel_closes": true,
+      "installed_client_contains_latest_invite_input_guard": true,
+      "installed_client_checks_bundled_server_and_reaches_owner_setup": true,
+      "temporary_test_install_uninstalled_and_existing_profiles_preserved": true
+    },
+    "runtime": "installed production Windows x64 NSIS client / system WebView2",
+    "version": "0.3.1",
+    "identifier": "chat.hearth.preview",
+    "screenshots": [
+      "evidence/installed-welcome.png",
+      "evidence/installed-hosting.png",
+      "evidence/installed-host-check.png"
+    ]
+  },
+  "installer": "Hearth_Preview_0.3.1_x64-setup.exe",
+  "artifactHashes": {
+    "Hearth_Test_02b5010_Windows_x64.zip": "585792d13358fa723dad236a2dea8952ae58b1221619711f36a12bc2127401ce",
+    "Hearth_Server_Test_02b5010.tar": "2302a85ab8256323a21f45122cf570e5eefabb35857ee7364541bb64cc42984c",
+    "client/Hearth_Preview_0.3.1_x64-setup.exe": "5372dc600e5bb8960db97d3edcea6f95fd6c0507a420dd906aec25db219c0d31",
+    "deploy/compose.yaml": "4ab97864d179b0ecd9bad2605b417db0e51c2f095e1ded1c708793ca445bff50",
+    "deploy/compose.https.yaml": "271a324beb86eda5606adf10390f913c28482399b6063d29c0001097d464aa89",
+    "deploy/setup.mjs": "b659f6ba19971d92fefa22581799884b011459cec69782f0e82421d68847c04c",
+    "deploy/Caddyfile": "db38423bdde9f7fc3e7965c83332a458ec60b2acbb4fff2e83b5de9b033c47c5",
+    "deploy/storage-entrypoint.sh": "696e86000b666f935e22c9929328dde9a8ead992b19cde850e5ffe4995ff8cdb",
+    "deploy/.env.example": "8d4d5f59ab76fedfe02cbeccd88d2b2bd5c079b97d61320d6ea46f679dcc3ac3",
+    "client/START_HERE.txt": "fd3a53e0761e63687cbd59292b92fea078899f486ea0d49abd96d5445873ebfd",
+    "client/SHA256SUMS.txt": "810758f46f270e7b2a823983edf201cbd1422fb419b825114271724d5bffb702",
+    "START_HOST_HERE.md": "b9e4865533b1881660cc608c025f4c34edf705c367514506a2adae032b3a9605",
+    "TWO_PC_LATEST_TEST.md": "abbeba2626f60d7c324e4477399e44c538ed6c4bd751010db1d27c4cad6176f2"
+  },
+  "publication": "Prepared locally; public binary publication awaits authorization",
+  "releaseHostSecretScan": {
+    "outcome": "pass",
+    "findings": 0
+  }
+}

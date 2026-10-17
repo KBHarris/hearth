@@ -1,8 +1,10 @@
 # Phase 3 remaining work
 
 Updated 2026-10-16. This is the agreed work order for the remaining Phase 3 scope.
-Items 1–8 are implemented in source with local evidence; they are not included in
-the immutable Hearth Test 0.3.0 distribution. Hearth Preview 0.3.1 is being prepared.
+Items 1–9 are implemented and locally validated; they are not included in the
+immutable Hearth Test 0.3.0 distribution. Hearth Preview 0.3.1 is packaged and
+installed locally. See [local acceptance](evidence/phase3-local-2026-10-16.json)
+and [19 installer/package checks](evidence/windows-preview-2026-10-16.json).
 Signed public update feeds remain unavailable until release publication.
 Existing implementation and dated evidence are in [the development guide](PHASE3_DEVELOPMENT.md).
 
@@ -55,7 +57,7 @@ run at closeout; do not spend hosted minutes on each feature, push or PR.
    signed release source after the audit; verify downloads, preserve server data
    and signing identity, and verify backup/rollback before applying migrations.
    Show honest unavailable/error states until a usable release exists.
-9. [ ] **Validate the changes and prepare the next test build.** Extend the real
+9. [x] **Validate the changes and prepare the next test build.** Extend the real
    HTTP/private-S3, two-client UI and packaged Windows checks for the four items
    above, including permission failures, 50 MB encrypted files, physical deletion,
    roster/role updates, profile fingerprints, invite resolution, hosting controls
@@ -87,8 +89,8 @@ run at closeout; do not spend hosted minutes on each feature, push or PR.
 The [full Host/Join installation checkpoint](GUIDED_SETUP.md#next-implementation-slice)
 remains next, before Phase 4 media: installer-managed services and owner enrollment,
 local versus public address guidance, HTTPS/firewall/outside-reachability checks,
-native invite opening, background hosting and clean-machine
-acceptance. The existing guided client entry and pasted invites are already implemented.
+cross-platform native invite acceptance, background startup and clean-machine
+acceptance. Guided client entry, pasted invites and Windows native handoff are implemented.
 The optional tunnel/relay evaluation remains part of that setup checkpoint.
 Desktop hosting controls and app/server updates have moved into the active scope
 above at the user's request; completing those does not close the remaining installer

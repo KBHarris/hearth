@@ -3,7 +3,7 @@
 Hearth is a privacy-first, self-hostable community chat platform in early development.
 Messages and files are end-to-end encrypted. The application is licensed AGPLv3.
 
-The **Hearth Preview 0.3.1** build being prepared includes guided Host/Join, encrypted DMs and
+The locally tested **Hearth Preview 0.3.1** includes guided Host/Join, encrypted DMs and
 communities, 50 MB files, member profiles, readable invites, desktop hosting controls,
 signed app/server updates, native invite opening, roles, reports, forums and polls.
 Public binary publication is pending; signed update feeds report unavailable until published.
