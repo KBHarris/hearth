@@ -151,9 +151,18 @@ attachment canary passes.
 **Goal:** communities can govern themselves safely, with clear member discovery
 and practical file controls.
 
-Current work is on `codex/guided-setup`. The governance foundation has local
-validation dated 2026-10-12; the new member/file requirements are still planned.
-The local real HTTP/product-WASM suite passes 90 checks with private S3, covering
+Current work is on `codex/guided-setup`. Governance and the new member/file
+requirements are implemented. The [2026-10-16 local acceptance](evidence/phase3-local-2026-10-16.json)
+records 94 HTTP/private-S3, 51 browser and 19 packaged Windows outcomes. The
+first full hosted milestone passed core and browser jobs, but failed Linux
+desktop compilation on an upstream dependency mismatch; Windows/macOS were
+cancelled. The Preview 0.3.3 compatibility pin passes local Linux compilation.
+Current full hosted acceptance remains pending. The user confirmed public HTTPS
+health from a phone on cellular on October 17; full two-household messaging and
+actual notification delivery remain explicit preview waivers.
+
+Historical governance foundation validation, 2026-10-12: the local real
+HTTP/product-WASM suite passed 90 checks with private S3, covering
 the complete REST inventory, every gateway operation, signed account departure,
 linked-session revocation, erasure, restart retry and physical file deletion.
 Packaged Windows acceptance passes all 17 checks with private S3 including forums, polls, selected
@@ -225,15 +234,18 @@ the explicit two-household and real-notification preview waivers recorded above.
 installed development dependencies. This moves essential user-facing operations
 ahead of media expansion; advanced deployment remains available.
 
-The first [guided setup pass](GUIDED_SETUP.md) adds Host/Join entry points, real
-readiness for an existing host, identity-checked pasteable account/community
-invites and a handoff through account creation and signed community admission.
-Service installation, native click-to-open links and outside-network verification
-remain separate implementation gates.
+The [guided setup pass](GUIDED_SETUP.md) adds Host/Join entry points, real
+readiness for an existing host, identity-checked account/community invitations
+and a handoff through account creation and signed community admission. Windows
+native invite handoff, UI host controls and signed updates are implemented.
+Dependency installation, startup enrollment, fresh-host restore and clean-machine
+acceptance remain open. Public HTTPS health was confirmed from cellular; a complete
+outside-network encrypted messaging pass remains unverified.
 
 - [x] Host/Join client entry and explicit confirmation after checking an address.
-- [x] Single pasted invite carries server identity, account and community admission;
-  invite capabilities stay in memory, with existing device approval preserved.
+- [x] Pretty invite code carries server identity, account and community admission,
+  with a separate server address at the user's request; capabilities stay in
+  memory, with existing device approval preserved. Old links remain compatible.
 
 - [ ] A normal installer prepares services, storage, migrations and server identity;
   owner enrollment and joining happen in the UI.
