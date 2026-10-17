@@ -81,7 +81,7 @@ is a reference for reducing prerequisites, not Hearth's installation instruction
 
 - A nontechnical person installs on a clean supported PC and hosts through the UI
   without a terminal, development tools or manually installed dependencies.
-- A second nontechnical person joins from a different household through one invite
+- A second nontechnical person joins from a different household with the shared server address and pretty code
   and exchanges encrypted DMs; the wizard verifies the external connection first.
 - Rebooting both PCs preserves server identity, accounts and readable history.
 - Failed setup explains the next action and preserves data; retry succeeds.

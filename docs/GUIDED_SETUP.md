@@ -130,21 +130,26 @@ or packaged owner-enrollment acceptance.
 The original [installation acceptance standard](HAVEN_PARITY_AND_SETUP.md) remains
 the target. This pass does not complete the no-prerequisite hosting installer.
 
-1. Choose and package the supported hosting runtime and dependencies for each OS.
-   Separate app installation from privileged service/firewall operations. Bind
-   management to the local app and avoid exposing an unauthenticated control API.
-2. Native Start/Stop/Status and protected owner enrollment are implemented, with
-   preserved existing keys and volumes. Finish app-managed package preparation
-   and exercise the new enrollment in an installed client on a clean machine.
-3. Add explicit local/internet hosting choices, HTTPS configuration and independent
-   outside-network verification. Diagnose CGNAT/loopback only with sufficient
-   evidence; an optional relay requires an explicit trust design.
-4. Windows installer protocol registration and native cold/warm handoffs pass.
-   Obtain actual macOS/Linux runtime evidence; it remains pending.
-5. Existing Docker services continue after the client closes. Add explicit
-   background/startup enrollment and fresh-host restore. Signed updates, local
-   backup rehearsal and failed-migration rollback are implemented; exercise
-   clean-machine and two-house acceptance on each OS.
+1. **Automatic runtime and package preparation.** Choose/package supported runtime
+   dependencies per OS and prepare the signed host package through the app.
+   Separate app installation from privileged service/firewall consent, preserve
+   existing selections and data, and bind management to the local app. Node is
+   no longer needed by desktop hosting; Docker installation is still manual.
+2. **Opt-in startup.** Existing Docker services continue after Hearth closes.
+   Add explicit background/startup enrollment, status and a way to disable it;
+   verify restart without replacing keys, credentials or volumes.
+3. **Fresh-host restore.** Signed updates, local backup rehearsal and failed-update
+   rollback work. Add UI import/restore onto a fresh host, validating the backup
+   and preserving server identity and data before switching to it.
+4. **Internet setup and optional relay evaluation.** Local/public address choices,
+   HTTPS checks and separate public invite addresses are available. Finish
+   firewall/routing guidance and independent outside-network checks. Diagnose
+   CGNAT/loopback only with sufficient evidence. Any optional tunnel/relay needs
+   explicit provider and web-client trust boundaries; no implicit third party.
+5. **Clean-machine acceptance.** Exercise installed owner creation, two-house
+   encrypted messaging, reboot persistence, failed setup, update and fresh restore
+   on each supported OS. Windows native cold/warm invite handoffs pass; actual
+   macOS/Linux native invite and installation/runtime evidence remain pending.
 
 Use isolated disposable instances to validate these features. The current 0.3.0
 distribution remains pinned to its source and checksums; prepare a new versioned
