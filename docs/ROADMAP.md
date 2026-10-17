@@ -218,7 +218,8 @@ See [the development guide](PHASE3_DEVELOPMENT.md),
 - [x] Real buddy-PC/two-house acceptance waived by the user for this preview on 2026-10-16; unverified.
 - [x] Provider/OS notification acceptance waived by the user for this preview on 2026-10-16; unverified.
 - [ ] Hosted cross-platform and packaged desktop Phase 3 acceptance.
-- [ ] Manual-only Actions budget controls and one explicitly requested full milestone run.
+- [x] Manual-only Actions budget controls and local policy checks. The corrected
+  full hosted milestone above still needs fresh authorization.
 
 Work through the unchecked items in the exact order and scope defined by
 [the Phase 3 remaining-work checklist](PHASE3_REMAINING.md).

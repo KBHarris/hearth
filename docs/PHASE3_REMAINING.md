@@ -2,19 +2,25 @@
 
 Updated 2026-10-17. This is the agreed work order for the remaining Phase 3 scope.
 Items 1–9 are implemented and locally validated; they are not included in the
-immutable Hearth Test 0.3.0 distribution. Hearth Preview 0.3.2 is packaged and
+immutable Hearth Test 0.3.0 distribution. Hearth Preview 0.3.4 is published and
 installed locally. See [local acceptance](evidence/phase3-local-2026-10-16.json)
 and [19 installer/package checks](evidence/windows-preview-2026-10-16.json).
 The patch additionally passes [13 in-place upgrade/package checks](evidence/windows-preview-0.3.2-2026-10-16.json)
 and [nine native hosting/rollback checks](evidence/host-startup-regression-2026-10-16.json).
 The [public Preview release](https://github.com/KBHarris/hearth/releases/tag/v0.3.2)
 and both signed Preview update feeds are live; anonymous downloads are verified.
-Preview 0.3.3 is now [published](https://github.com/KBHarris/hearth/releases/tag/v0.3.3)
+Preview 0.3.3 was [published](https://github.com/KBHarris/hearth/releases/tag/v0.3.3)
 and installed, adding code-only/public-address sharing and the Linux compatibility
 pin. All [15 package/upgrade checks](evidence/windows-preview-0.3.3-2026-10-17.json)
 pass. Its [eleven public downloads and both feeds](evidence/preview-0.3.3-release-2026-10-17.json)
 match the tested artifacts. The first full hosted run failed on the now-locally
 corrected Linux dependency; a further run is awaiting explicit authorization.
+The [0.3.4 checkpoint slice](evidence/host-join-checkpoint-2026-10-17.json) removes
+the desktop Node prerequisite and adds protected local owner authorization. Its
+[18 installed checks](evidence/windows-preview-0.3.4-2026-10-17.json) and
+[eleven anonymous downloads/both update feeds](evidence/preview-0.3.4-release-2026-10-17.json)
+pass. Docker runtime installation, startup enrollment and fresh-host restore
+remain checkpoint work.
 Existing implementation and dated evidence are in [the development guide](PHASE3_DEVELOPMENT.md).
 
 The [Actions budget standard](CI_STANDARD.md) applies to every item: validate locally
@@ -86,9 +92,11 @@ run at closeout; do not spend hosted minutes on each feature, push or PR.
    opt-in, actual provider acceptance, OS notification display, click navigation
    and disabling delivery. Notifications remain generic and content-free. Local
    push fixtures alone do not close this item.
-12. [ ] **Complete the authorized cross-platform acceptance, then close Phase 3.**
+12. [ ] **Complete current cross-platform acceptance, then close Phase 3.**
    Validate the manual-only budget controls and finish local checks. The user
-   authorized one full hosted milestone run on 2026-10-16 after the startup fix. Run current Windows, macOS
+   authorized one full hosted milestone run on 2026-10-16 after the startup fix;
+   it failed Linux desktop compilation. That dependency correction passes locally.
+   A further full milestone is awaiting explicit authorization. Run current Windows, macOS
    and Linux packaged runtime acceptance against
    the final Phase 3 source, including the new features and existing permission,
    reporting, retention and account-departure coverage. Investigate a hosted job

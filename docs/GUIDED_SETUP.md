@@ -1,7 +1,8 @@
 # Guided Host/Join setup
 
 Updated 2026-10-17, branch `codex/guided-setup`. Existing releases remain immutable.
-Preview 0.3.3 adds code-only sharing with a separate recipient server address.
+Published Preview 0.3.4 includes code-only sharing, native host configuration and
+protected local owner authorization. See the [18 installed checks](evidence/windows-preview-0.3.4-2026-10-17.json).
 
 ## Available in this pass
 
@@ -15,7 +16,9 @@ unmounting an existing account or chat until another server is confirmed.
 - Host checks a running Hearth server and hands off to owner enrollment or sign-in.
   Desktop **Hosting & updates** can select a signed extracted host package,
   configure its public address/HTTPS, start/stop it and retrieve the owner code
-  through protected local IPC. Docker Desktop and Node.js 22+ are prerequisites.
+  through protected local IPC. Docker Desktop is required. Configuration is
+  generated natively; Node.js is only needed by the advanced CLI. On the owner
+  form, **Use this computer's host** avoids copying the private setup code.
 - Readiness checks real health, protocol compatibility, setup status and server
   identity. An invite must match the returned key and any existing local pin.
   The active server identity is also checked if local storage cannot be read.
@@ -113,8 +116,7 @@ new macOS/Linux packaging.
 
 ## Next implementation slice
 
-Checkpoint source update, 2026-10-17 (next Preview 0.3.4; not included in the
-published 0.3.3 installer): desktop host configuration is generated natively,
+Checkpoint update, 2026-10-17 (published Preview 0.3.4): desktop host configuration is generated natively,
 removing the Node.js prerequisite from UI hosting. The advanced CLI still uses
 Node. Existing credentials and storage configuration remain unchanged on retry;
 conflicting files fail before any write. Docker installation remains manual.
@@ -124,8 +126,9 @@ only the selected loopback host and configured port, rechecks its identity and
 requires incomplete owner setup before retrieving its private code. The code
 stays in component memory for at most five minutes, never appears in an input
 or clipboard, and clears on submit, cancellation, expiry or unmount. Manual
-setup remains available for remote hosts. This does not complete clean-machine
-or packaged owner-enrollment acceptance.
+setup remains available for remote hosts. Actual installed Windows authorization,
+remote rejection and expiry pass; clean-machine owner account creation and the
+complete cross-platform installation checkpoint remain open.
 
 The original [installation acceptance standard](HAVEN_PARITY_AND_SETUP.md) remains
 the target. This pass does not complete the no-prerequisite hosting installer.

@@ -1,5 +1,32 @@
 # Progress
 
+Host/Join checkpoint update, 2026-10-17: [Preview 0.3.4](https://github.com/KBHarris/hearth/releases/tag/v0.3.4)
+is published and installed from frozen product source `11cd35e`. Desktop hosting
+generates its configuration natively; Node.js is now only an advanced CLI
+dependency. **Use this computer's host** authorizes owner setup for the selected
+loopback server after checking its identity and setup state. The private code
+stays in memory, expires after five minutes and clears on submit/cancellation.
+The native shutdown budget now allows ordered Docker service grace periods;
+the initial 60-second Stop regression was reproduced and the final rerun passes.
+
+Local validation passes web/Rust verification, nine native unit checks, Linux
+desktop compilation, 12 browser setup/failure outcomes, five real Docker owner
+enrollment outcomes, native/CLI configuration compatibility and nine complete
+Docker lifecycle/backup/rollback outcomes. The [18 installed package checks](evidence/windows-preview-0.3.4-2026-10-17.json)
+exercise real WebView2 owner authorization, remote rejection and expiry without
+creating disposable accounts in the user's OS key store. Existing native profiles,
+operator configuration and the running host are preserved. See the [checkpoint evidence](evidence/host-join-checkpoint-2026-10-17.json).
+The distribution secret scan has no findings; all eleven public downloads and
+both live feeds match the tested files. The installed native updater reports the
+app current and offers the signed server update; that update has not been applied
+to the current host. See the [publication record](evidence/preview-0.3.4-release-2026-10-17.json).
+
+Phase 3 still awaits authorization for one corrected full hosted milestone.
+The [remaining setup order](GUIDED_SETUP.md#next-implementation-slice) is automatic
+runtime/package preparation, opt-in startup, fresh-host restore, internet setup
+and relay evaluation, then clean-machine/cross-OS acceptance. Docker installation
+remains manual. These local improvements do not close the complete checkpoint.
+
 Preview 0.3.3 was published and installed on 2026-10-17 from frozen product source
 `9a13cf0`. All [15 package/upgrade checks](evidence/windows-preview-0.3.3-2026-10-17.json)
 pass, including cold/warm legacy invite handling, the visible installed version,

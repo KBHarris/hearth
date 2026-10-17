@@ -1,0 +1,86 @@
+{
+  "measuredAt": "2026-10-17T15:03:42.137Z",
+  "outcome": "pass",
+  "release": "https://github.com/KBHarris/hearth/releases/tag/v0.3.4",
+  "version": "0.3.4",
+  "sourceCommit": "11cd35e9985df0adf3cc96f5554436cbdc554926",
+  "publishedAt": "2026-10-17T15:03:37Z",
+  "checks": {
+    "anonymous_public_release": true,
+    "all_eleven_downloads_match_tested_hashes": true,
+    "preview_app_feed": true,
+    "signed_server_feed": true
+  },
+  "files": [
+    {
+      "name": "Hearth_Host_0.3.4_Windows_x64.zip",
+      "size": 51104309,
+      "sha256": "1af975bf13298c936219bcc10451393d716987cca90a2d90bf8cb724fabfb226",
+      "anonymousDownload": "pass"
+    },
+    {
+      "name": "Hearth_Preview_0.3.4_x64-setup.exe",
+      "size": 6240987,
+      "sha256": "01b74a55e2967973688ca52cdf43be060aee3dab8541a34a5951c501352d0ddc",
+      "anonymousDownload": "pass"
+    },
+    {
+      "name": "Hearth_Preview_0.3.4_x64-setup.exe.sig",
+      "size": 444,
+      "sha256": "c157f3ba11d430dfe04a398c28940b7009f5ba3d069c5bd05ef757471d446c77",
+      "anonymousDownload": "pass"
+    },
+    {
+      "name": "Hearth_Server_Test_11cd35e.tar",
+      "size": 38993408,
+      "sha256": "19c676c6e600b1534ef6aef2e5b7967d7ec893afbdb001410a9b55909ed93a72",
+      "anonymousDownload": "pass"
+    },
+    {
+      "name": "Hearth_Test_11cd35e_Windows_x64.zip",
+      "size": 6223904,
+      "sha256": "8ec7b31dde268e15197c2d677f426adf75756e21ccfcc21737ba2a834af6ee8e",
+      "anonymousDownload": "pass"
+    },
+    {
+      "name": "latest.json",
+      "size": 891,
+      "sha256": "4111eb6d6a653b59ef3d194edb964dc7aae51304b19271d89cb680bcf2c36e9d",
+      "anonymousDownload": "pass"
+    },
+    {
+      "name": "manifest.json",
+      "size": 1993,
+      "sha256": "2b1bef918d64b5e483ddbe0b108f6ec19710811a69e24425ac88155ff0061f77",
+      "anonymousDownload": "pass"
+    },
+    {
+      "name": "manifest.json.sig",
+      "size": 416,
+      "sha256": "7e37092a7d55902eced7c48aeaf581028fadc28d2c0ce73fe90e0f9b38b549b4",
+      "anonymousDownload": "pass"
+    },
+    {
+      "name": "server.json",
+      "size": 424,
+      "sha256": "a8603aec8aef2f489c89c1c4987e6674bd2dfd4b855f01e8410e7261b4e09334",
+      "anonymousDownload": "pass"
+    },
+    {
+      "name": "server.json.sig",
+      "size": 416,
+      "sha256": "0b777962eebf8902ca8238284f6df40a125b008c738bb12566d1eb60bf4fc32c",
+      "anonymousDownload": "pass"
+    },
+    {
+      "name": "SHA256SUMS.txt",
+      "size": 907,
+      "sha256": "56149d4a5c90f97d32caf0159e60e1748e1092a036a5b5eade9077a5fffc71f4",
+      "anonymousDownload": "pass"
+    }
+  ],
+  "limitations": [
+    "Human two-house and OS push gates were explicitly waived for this preview; they are not measured passes.",
+    "Hosted cross-platform acceptance is recorded separately."
+  ]
+}

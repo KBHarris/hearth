@@ -92,10 +92,21 @@
     "configuration": "Existing credentials and matching S3 files preserved; conflicts rejected before writes; guard against regeneration over existing volumes retained"
   },
   "pending": [
-    "Actual installed 0.3.4 owner-form acceptance",
     "Automatic runtime and host-package preparation",
     "Opt-in startup and fresh-host restore UI",
     "Clean-machine and cross-OS installation/runtime acceptance",
     "Complete outside-network encrypted messaging acceptance"
-  ]
+  ],
+  "installedPackage": {
+    "outcome": "pass",
+    "checks": 18,
+    "sourceCommit": "11cd35e9985df0adf3cc96f5554436cbdc554926",
+    "record": "windows-preview-0.3.4-2026-10-17.json"
+  },
+  "publication": {
+    "outcome": "pass",
+    "assets": 11,
+    "distributionSecretFindings": 0,
+    "record": "preview-0.3.4-release-2026-10-17.json"
+  }
 }
