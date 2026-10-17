@@ -80,6 +80,22 @@ async fn main() -> anyhow::Result<()> {
             {
                 tracing::warn!("expired encrypted upload cleanup unavailable");
             }
+            if hearth_server::retention::cleanup(&cleanup_state)
+                .await
+                .is_err()
+            {
+                tracing::warn!("retained ciphertext cleanup unavailable");
+            }
+        }
+    });
+    let push_state = state.clone();
+    tokio::spawn(async move {
+        let mut interval = tokio::time::interval(std::time::Duration::from_secs(5));
+        loop {
+            interval.tick().await;
+            if hearth_server::push::dispatch(&push_state).await.is_err() {
+                tracing::warn!("generic push queue unavailable");
+            }
         }
     });
     axum::serve(listener, router(state))

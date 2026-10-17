@@ -22,7 +22,7 @@ this experiment does not establish SFrame interoperability or an MLS exporter in
 
 ## Measured evidence
 
-The [saved runtime report](../evidence/media-chromium-windows-2026-10-07.json) records a
+The saved runtime report (historical report in Git history) records a
 9.287-second pass on Windows in the Codex in-app browser, Chromium 154. The fixture used
 `livekit-client` 2.22.3 and LiveKit server 1.13.8. It generated a 320×180 video at 10 FPS and
 a silent 440 Hz audio source; no camera, microphone, screen, or real account was accessed.
@@ -51,7 +51,7 @@ worker acknowledgement, and the audio receiver needs an active playback sink to 
 The harness waits for `room.isE2EEEnabled` and uses muted playback plus a zero-gain analyser
 sink. All tracks, workers, room connections, and the audio context are closed after a run.
 
-The [Windows WebView2 report](../evidence/media-webview2-windows-2026-10-07.json) records a
+The Windows WebView2 report (historical report in Git history) records a
 10.095-second pass with 62 decoded frames, audio PCM recovery, native MLS invoked through
 Tauri IPC, and actual discovery against a fresh PostgreSQL-backed Compose server. The
 test-only mode loads bundled assets with its own CSP in a hidden window. It permits
@@ -67,26 +67,26 @@ local loopback candidate, while all four remote candidates were loopback and no 
 mDNS candidate was present. The next diagnostic also explicitly permits loopback ICE
 candidates. This is a fixture policy, not evidence about normal networking or NAT/TURN.
 That profile passed on hosted WebView2 153. The
-[saved hosted report](../evidence/media-webview2-windows-hosted-2026-10-07.json) records an
+saved hosted report (historical report in Git history) records an
 8.058-second pass with 57 decoded frames, recovered audio PCM (peak 0.101), native MLS
 IPC, wrong-key rejection, fresh-key continuation and stale-key rejection. New native reports record requested
 test policies explicitly; failure diagnostics count SDP candidates without recording their
 addresses or SDP text.
 
-Hosted [Chrome](../evidence/media-chrome-linux-2026-10-07.json) and
-[Safari](../evidence/media-safari-macos-2026-10-07.json) passed in 9.763 and 7.970 seconds,
+Hosted Chrome (historical report in Git history) and
+Safari (historical report in Git history) passed in 9.763 and 7.970 seconds,
 respectively, decoding 66 and 64 frames and recovering audio PCM. Both passed wrong-key
-and stale-key rejection. The [WebKitGTK report](../evidence/media-webkitgtk-linux-2026-10-07.json)
+and stale-key rejection. The WebKitGTK report (historical report in Git history)
 records the capability block and successful native MLS IPC. These reports came from
 CI runs on the validation branch, not the merged default branch.
 
-[Firefox 157](../evidence/media-firefox-linux-2026-10-07.json) passed in 11.050 seconds,
+Firefox 157 (historical report in Git history) passed in 11.050 seconds,
 decoding 49 frames, recovering audio PCM, and rejecting wrong/stale keys. Its headless
 runner needed a clocked PulseAudio null output in addition to the test autoplay policy.
 The null output discards playback; encrypted transport and decoded PCM assertions still
 execute normally. No physical capture or speaker device is used.
 
-The [native WKWebView report](../evidence/media-wkwebview-macos-2026-10-07.json) records
+The native WKWebView report (historical report in Git history) records
 a 29.120-second pass with 28 decoded frames, recovered audio PCM, and native MLS through
 IPC. The hidden macOS diagnostic disables background suspension to keep its timers and
 workers active. This establishes feasibility, not foreground interaction, background-call

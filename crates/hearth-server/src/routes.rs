@@ -36,7 +36,14 @@ pub async fn well_known(State(state): State<SharedState>) -> Json<WellKnown> {
 
 /// Client REST API. Phase 1 adds accounts, devices, key packages, and DMs here.
 pub fn api_v1() -> Router<SharedState> {
-    Router::new().route("/setup", get(setup_status).layer(discovery_cors()))
+    Router::new()
+        .route("/setup", get(setup_status).layer(discovery_cors()))
+        .route(
+            "/invite-links/{id}",
+            get(crate::invites::resolve)
+                .layer(discovery_cors())
+                .layer(axum::middleware::map_response(crate::auth::no_store)),
+        )
 }
 
 /// Only public discovery GETs are readable by alternative web clients. Never apply

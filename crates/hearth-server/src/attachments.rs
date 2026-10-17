@@ -8,7 +8,7 @@ use axum::{
     routing::{get, post},
 };
 use hearth_crypto::messaging::valid_id;
-use hearth_proto::messaging::{BlobReservation, BlobUrl};
+use hearth_proto::messaging::{BlobReservation, BlobUrl, MAX_ATTACHMENT_CIPHER_BYTES};
 use s3::{Bucket, Region, bucket_ops::BucketConfiguration, creds::Credentials};
 use serde::Deserialize;
 use sqlx::Row;
@@ -121,7 +121,7 @@ pub fn routes(origins: &[String]) -> Router<SharedState> {
     Router::new()
         .route("/{conversation}", post(reserve))
         .route("/{conversation}/{id}/complete", post(complete))
-        .route("/{conversation}/{id}", get(download))
+        .route("/{conversation}/{id}", get(download).delete(remove))
         .layer(DefaultBodyLimit::max(4096))
         .layer(
             tower_http::cors::CorsLayer::new()
@@ -131,7 +131,7 @@ pub fn routes(origins: &[String]) -> Router<SharedState> {
                         .filter_map(|s| s.parse::<HeaderValue>().ok())
                         .collect::<Vec<_>>(),
                 )
-                .allow_methods([Method::GET, Method::POST])
+                .allow_methods([Method::GET, Method::POST, Method::DELETE])
                 .allow_headers([header::AUTHORIZATION, header::CONTENT_TYPE]),
         )
         .layer(middleware::map_response(crate::auth::no_store))
@@ -155,6 +155,21 @@ async fn access(
     let mut tx = state.db.begin().await.map_err(unavailable)?;
     if let Some(channel) = crate::community::channel_access(&mut tx, conversation, &account).await?
     {
+        if publishing
+            && crate::governance::bits(
+                &mut tx,
+                &channel.community_id,
+                &channel.owner_id,
+                &account,
+                Some(conversation),
+                channel.governance.as_ref(),
+            )
+            .await?
+                & (hearth_proto::governance::SEND | hearth_proto::governance::ATTACH)
+                != (hearth_proto::governance::SEND | hearth_proto::governance::ATTACH)
+        {
+            return Err(StatusCode::FORBIDDEN);
+        }
         if channel.authority.is_none()
             || channel.policy.is_none()
             || (publishing && channel.announcement && channel.owner_id != account)
@@ -183,7 +198,7 @@ async fn reserve(
     let _permit = state.auth.admit()?;
     if !valid_id(&request.id)
         || !valid_id(&request.digest)
-        || !(17..=8_388_736).contains(&request.cipher_bytes)
+        || !(17..=MAX_ATTACHMENT_CIPHER_BYTES).contains(&request.cipher_bytes)
     {
         return Err(StatusCode::BAD_REQUEST);
     }
@@ -195,6 +210,21 @@ async fn reserve(
         .ok_or(StatusCode::SERVICE_UNAVAILABLE)?;
     storage.ensure_bucket().await?;
     let mut tx = state.db.begin().await.map_err(unavailable)?;
+    // Order this lock before account locks; serialize leases with owner removal.
+    sqlx::query("SELECT pg_advisory_xact_lock(hashtextextended($1, 1212502602))")
+        .bind(&request.id)
+        .execute(&mut *tx)
+        .await
+        .map_err(unavailable)?;
+    let removed: bool =
+        sqlx::query_scalar("SELECT EXISTS(SELECT 1 FROM blob_removals WHERE id=$1)")
+            .bind(&request.id)
+            .fetch_one(&mut *tx)
+            .await
+            .map_err(unavailable)?;
+    if removed {
+        return Err(StatusCode::GONE);
+    }
     // One account lock serializes quotas, including leases that were abandoned.
     sqlx::query("SELECT id FROM accounts WHERE id=$1 FOR UPDATE")
         .bind(&account)
@@ -240,7 +270,6 @@ async fn reserve(
         }
         sqlx::query("INSERT INTO encrypted_blobs(id,conversation_id,account_id,device_key,cipher_bytes,digest) VALUES($1,$2,$3,$4,$5,$6)").bind(&request.id).bind(&conversation).bind(&account).bind(&request.device_key).bind(request.cipher_bytes as i64).bind(&request.digest).execute(&mut *tx).await.map_err(unavailable)?;
     }
-    tx.commit().await.map_err(unavailable)?;
     let mut signed = HeaderMap::new();
     signed.insert(
         header::CONTENT_LENGTH,
@@ -264,6 +293,8 @@ async fn reserve(
         )
         .await
         .map_err(|_| StatusCode::SERVICE_UNAVAILABLE)?;
+    // Issue the URL while holding the removal fence, before its tombstone.
+    tx.commit().await.map_err(unavailable)?;
     Ok(Json(BlobUrl {
         url,
         expires_in_seconds: EXPIRY,
@@ -285,6 +316,9 @@ async fn complete(
         return Err(StatusCode::BAD_REQUEST);
     }
     let row = sqlx::query("SELECT cipher_bytes,created_at > now()-interval '10 minutes' AS valid FROM encrypted_blobs WHERE id=$1 AND conversation_id=$2 AND account_id=$3 AND device_key=$4").bind(&id).bind(&conversation).bind(&account).bind(&query.device).fetch_optional(&state.db).await.map_err(unavailable)?.ok_or(StatusCode::NOT_FOUND)?;
+    if crate::retention::expired_blob(&state, &conversation, &id).await? {
+        return Err(StatusCode::GONE);
+    }
     if !row.get::<bool, _>("valid") {
         return Err(StatusCode::CONFLICT);
     }
@@ -301,11 +335,60 @@ async fn complete(
     if status != 200 || object.content_length != Some(row.get("cipher_bytes")) {
         return Err(StatusCode::BAD_REQUEST);
     }
-    sqlx::query("UPDATE encrypted_blobs SET ready=TRUE WHERE id=$1")
+    let updated = sqlx::query("UPDATE encrypted_blobs SET ready=TRUE WHERE id=$1 AND erased_at IS NULL AND NOT EXISTS(SELECT 1 FROM blob_removals WHERE id=$1)")
         .bind(&id)
         .execute(&state.db)
         .await
         .map_err(unavailable)?;
+    if updated.rows_affected() != 1 {
+        return Err(StatusCode::GONE);
+    }
+    Ok(StatusCode::NO_CONTENT)
+}
+/// Operators control host storage without receiving membership or content keys.
+async fn remove(
+    State(state): State<SharedState>,
+    headers: HeaderMap,
+    Path((conversation, id)): Path<(String, String)>,
+    Query(query): Query<Device>,
+) -> Result<StatusCode> {
+    let _permit = state.auth.admit()?;
+    let operator = crate::registration::owner(&state, &headers).await?;
+    state.auth.limit_delivery(&operator)?;
+    approved(&state, &operator, &query.device).await?;
+    if !valid_id(&id) || !valid_id(&conversation) {
+        return Err(StatusCode::BAD_REQUEST);
+    }
+    let storage = state
+        .config
+        .storage
+        .as_ref()
+        .ok_or(StatusCode::SERVICE_UNAVAILABLE)?;
+    let mut tx = state.db.begin().await.map_err(unavailable)?;
+    sqlx::query("SELECT pg_advisory_xact_lock(hashtextextended($1, 1212502602))")
+        .bind(&id)
+        .execute(&mut *tx)
+        .await
+        .map_err(unavailable)?;
+    let exists: bool = sqlx::query_scalar("SELECT EXISTS(SELECT 1 FROM encrypted_blobs WHERE id=$1 AND conversation_id=$2 UNION ALL SELECT 1 FROM blob_removals WHERE id=$1 AND conversation_id=$2)")
+        .bind(&id).bind(&conversation).fetch_one(&mut *tx).await.map_err(unavailable)?;
+    if !exists {
+        return Err(StatusCode::NOT_FOUND);
+    }
+    sqlx::query("INSERT INTO blob_removals(id,conversation_id,removed_by) SELECT id,conversation_id,$3 FROM encrypted_blobs WHERE id=$1 AND conversation_id=$2 ON CONFLICT(id) DO NOTHING")
+        .bind(&id).bind(&conversation).bind(&operator).execute(&mut *tx).await.map_err(unavailable)?;
+    sqlx::query("UPDATE encrypted_blobs SET erased_at=now() WHERE id=$1 AND conversation_id=$2 AND erased_at IS NULL")
+        .bind(&id).bind(&conversation).execute(&mut *tx).await.map_err(unavailable)?;
+    // Keep the receipt even if storage is down; retries and the cleanup worker finish it.
+    tx.commit().await.map_err(unavailable)?;
+    let response = storage
+        .bucket(false)?
+        .delete_object(format!("{conversation}/{id}"))
+        .await
+        .map_err(|_| StatusCode::SERVICE_UNAVAILABLE)?;
+    if !matches!(response.status_code(), 200 | 204 | 404) {
+        return Err(StatusCode::SERVICE_UNAVAILABLE);
+    }
     Ok(StatusCode::NO_CONTENT)
 }
 async fn download(
@@ -329,6 +412,9 @@ async fn download(
     .map_err(unavailable)?;
     if !exists {
         return Err(StatusCode::NOT_FOUND);
+    }
+    if crate::retention::expired_blob(&state, &conversation, &id).await? {
+        return Err(StatusCode::GONE);
     }
     let storage = state
         .config
@@ -367,6 +453,35 @@ pub async fn cleanup_expired(state: &SharedState) -> std::result::Result<(), Sta
                 .await
                 .map_err(unavailable)?;
         }
+    }
+    Ok(())
+}
+
+/// Delete storage objects before forgetting their IDs; failed deletes remain retryable.
+pub async fn cleanup_retained(state: &SharedState) -> std::result::Result<(), StatusCode> {
+    let Some(storage) = &state.config.storage else {
+        return Ok(());
+    };
+    let rows = sqlx::query("SELECT id,conversation_id FROM encrypted_blobs WHERE (erased_at IS NULL AND hearth_retention_expired(conversation_id,created_at)) OR erased_at<now()-interval '20 minutes' ORDER BY created_at LIMIT 32")
+        .fetch_all(&state.db).await.map_err(unavailable)?;
+    for row in rows {
+        let id: String = row.get("id");
+        let conversation: String = row.get("conversation_id");
+        let response = storage
+            .bucket(false)?
+            .delete_object(format!("{conversation}/{id}"))
+            .await
+            .map_err(|_| StatusCode::SERVICE_UNAVAILABLE)?;
+        if !matches!(response.status_code(), 200 | 204 | 404) {
+            return Err(StatusCode::SERVICE_UNAVAILABLE);
+        }
+        // Final deletion runs after old PUT leases expire. Fresh tombstones do
+        // not occupy every cleanup batch while they wait for that window.
+        sqlx::query("DELETE FROM encrypted_blobs WHERE id=$1 AND (erased_at IS NULL OR erased_at<now()-interval '20 minutes')")
+            .bind(id)
+            .execute(&state.db)
+            .await
+            .map_err(unavailable)?;
     }
     Ok(())
 }

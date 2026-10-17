@@ -1,26 +1,34 @@
 # Hearth
 
-Hearth is a privacy-first, self-hostable community chat platform in early development. The
-goal is end-to-end encrypted communication and federation, without ads, subscriptions, or
-tracking. The application is licensed AGPLv3.
+Hearth is a privacy-first, self-hostable community chat platform in early development.
+Messages and files are end-to-end encrypted. The application is licensed AGPLv3.
 
-The current build connects to a server, creates its first owner account, and supports
-OPAQUE sign-in and sign-out with persistent, expiring server sessions. It enrolls the first
-cross-signed device and saves an encrypted local identity vault. It also supports encrypted
-recovery kits, approved-device linking, member invitations and registration settings.
-It exchanges encrypted DMs and group DMs, including replies, edits, deletes, typing and
-offline delivery, using MLS and durable encrypted local storage. Phase 1 passes hosted
-Windows/macOS/Linux acceptance. The next checkpoint is the
-[two-PC Phase 2 test](docs/TWO_PC_PHASE2_TEST.md). Communities now include owner-approved
-encrypted channels, signed history policies, encrypted files/thumbnails/custom emoji,
-threads/reactions/pins, profiles/presence and local search. Media and federation remain
-on the roadmap; the 50-person/week community trial is still an open human gate.
+The locally tested **Hearth Preview 0.3.4** includes guided Host/Join, encrypted DMs and
+communities, 50 MB files, member profiles, readable invites, desktop hosting controls,
+signed app/server updates, native invite opening, roles, reports, forums and polls.
+Download the Windows [client ZIP](https://github.com/KBHarris/hearth/releases/download/v0.3.4/Hearth_Test_11cd35e_Windows_x64.zip)
+or [host package](https://github.com/KBHarris/hearth/releases/download/v0.3.4/Hearth_Host_0.3.4_Windows_x64.zip)
+from the [Preview release](https://github.com/KBHarris/hearth/releases/tag/v0.3.4).
+The signed Preview app/server update feeds are live. Invitations share only pretty
+codes with a separate server address. Hosts can stay connected locally while
+creating codes for their public HTTPS address.
+The client header shows its installed version. New host packages use local port
+8080; existing hosts retain the port in their original `.env`. Missing or
+mismatched original host configuration stops startup with recovery instructions.
+Follow
+[the latest two-PC test guide](docs/TWO_PC_LATEST_TEST.md) for the prepared Windows
+installer and matching fresh server. Older test deployments and profiles have been retired.
+Desktop hosting currently needs Docker; Node.js is only needed for the advanced CLI.
+Automatic runtime and host-package preparation remain open.
+The desktop app can start/stop a configured host and authorize local owner setup
+without copying the private owner code.
+Voice/video, federation and the larger community trial remain on the roadmap.
 
-- **What we're building and why:** [PLAN.md](PLAN.md)
-- **Phased build plan:** [docs/ROADMAP.md](docs/ROADMAP.md). **Phases 0 and 1 are complete**; Phase 2 community setup and encrypted channel messaging are implemented. Owner-signed admission, signed history policies, encrypted files/thumbnails, custom emoji and the text layer are implemented; all twelve hosted jobs and local packaged/bundle checks pass; human exit testing remains.
-- **Keep the pending DM test stable:** [docs/PHASE2_DEVELOPMENT.md](docs/PHASE2_DEVELOPMENT.md) describes the separate development data and frozen Phase 1 pair.
-- **Threat model (draft):** [docs/THREAT_MODEL.md](docs/THREAT_MODEL.md)
-- **Implementation and verification notes:** [docs/PROGRESS.md](docs/PROGRESS.md)
+- [Architecture and product plan](PLAN.md)
+- [Roadmap](docs/ROADMAP.md) and [current progress and validation](docs/PROGRESS.md)
+- [Guided setup scope](docs/GUIDED_SETUP.md) and [governance development](docs/PHASE3_DEVELOPMENT.md)
+- [Threat model](docs/THREAT_MODEL.md)
+- [Repository publication review](docs/PUBLICATION_AUDIT.md)
 
 ## Repository layout
 
@@ -87,7 +95,7 @@ origins cover local Vite and Tauri clients. Native servers also bind to loopback
 Public hosting requires TLS; this build is an early prototype without a security audit.
 
 For a two-PC DM test over a public IPv4 or domain, follow
-[the Phase 2 Windows hosting/test guide](docs/TWO_PC_PHASE2_TEST.md). The optional
+[the latest Windows hosting/test guide](docs/TWO_PC_LATEST_TEST.md). The optional
 `npm run setup -- --https` uses Caddy with automatic certificates and WebSocket proxying.
 
 Back up PostgreSQL together with the matching server data directory (`server.key`,
@@ -130,15 +138,12 @@ Compare **Check identities** fingerprints using a trusted channel. Clearing site
 losing native database keys loses local history. See [ADR 0008](docs/adr/0008-encrypted-direct-messages.md)
 for delivery, storage, bounded history and delete semantics.
 
-Phase 2 development runs separately from the frozen Phase 1 DM test. Create a community,
-add text/announcement channels, invite existing server accounts and open a channel to
-send encrypted text. Keep an existing channel device online while new members join
-encryption. Announcement publishing is limited to the community owner. New devices read
-only post-join messages; messages sent while they are waiting are not copied later.
-Channels currently support 128 devices and trust server-authorized community admission;
-client-verifiable admission hardening is unfinished. See
-[ADR 0010](docs/adr/0010-encrypted-channels.md) and the
-[isolated development guide](docs/PHASE2_DEVELOPMENT.md) for validation and limits.
+Create a community, add text/announcement channels, invite server accounts and open
+a channel to send encrypted text. Keep an existing channel device online while new
+members join encryption. Owner-signed admission, history policies and encrypted files
+are described in [ADR 0011](docs/adr/0011-owner-signed-channel-admission.md) and
+[ADR 0012](docs/adr/0012-signed-history-and-encrypted-files.md). See the
+[governance development guide](docs/PHASE3_DEVELOPMENT.md) for current validation and limits.
 
 For a different local backend, set `HEARTH_DEV_SERVER` before starting Vite. Packaged desktop
 builds default to `http://localhost:8080`; set `VITE_HEARTH_SERVER_URL` at build time to change

@@ -1,3 +1,6 @@
+import type {AccountExport} from "./protocol.ts"
+import {isReportKeys,isReportQueue} from './reports.ts'
+import type {ReportKey,ReportEnvelope,QueuedReport} from './protocol.ts'
 import { PROTOCOL_VERSION, type Health, type SetupStatus, type WellKnown } from './protocol.ts'
 import type { Account, AuthResponse, LoginResponse, Session, OwnerRegistrationStart, OwnerRegistrationFinish, LoginStart, LoginFinish } from './protocol.ts'
 import type { AccountIdentity, DeviceEnrollment, DeviceRestore, DeviceLinkOffer, DeviceLinkEnvelope } from './protocol.ts'
@@ -7,12 +10,21 @@ import type { Community, CommunityStructure, Category, Channel, CreateChannel, C
 import { isCommunity, isCommunities, isCommunityStructure, isCategory, isChannel, isCommunityInvite, isChannelRoster,isAuthority,isAdmission,isPolicy,isChannelAuthorization } from './community.ts'
 import type {CommunityAuthority,CommunityAdmission,ChannelPolicy} from './protocol.ts'
 import type {CommunityInvitation,HistoryPage} from './protocol.ts'
-import {isInvitation} from './community.ts'
+import {isInvitation,isOwnershipHandoff,isOwnershipState} from './community.ts'
+import type {OwnershipHandoff,OwnershipAcceptance,OwnershipState} from './protocol.ts'
 import type {BlobReservation,BlobUrl} from './protocol.ts'
+import type { InviteEnvelope, StoreInviteEnvelope } from './protocol.ts'
+import { isInviteEnvelope } from './short-invite.ts'
 
 export * from './protocol.ts'
+export {Permission,permissions} from './governance.ts'
+import {isGovernance,isGovernanceView,isAudit} from './governance.ts'
+import type {Governance,GovernanceView,AuditEntry} from './protocol.ts'
 
 export type ErrorKind = 'invalid_url' | 'http' | 'network' | 'timeout' | 'invalid_response' | 'incompatible' | 'degraded'
+
+export { createHearthInvite, parseHearthInvite, setupTarget, addressScope, type HearthInvite } from './setup.ts'
+export { createShortInvite, resolveSetupTarget, resolveInviteCode, formatInviteCode, normalizeInviteCode } from './short-invite.ts'
 
 export class HearthError extends Error {
   readonly status: number
@@ -30,6 +42,8 @@ export class HearthError extends Error {
 export function normalizeServerUrl(input: string): string {
   const value = input.trim()
   if (!value) throw new HearthError(0, 'Enter a server address.', 'invalid_url')
+  // A pasted admission/bootstrap code is not a hostname. Do not leak it to DNS.
+  if (/^[a-f0-9]{64}$/i.test(value) || /^[0-9A-HJKMNP-TV-Z]{32}$/i.test(value) || /^(?:[0-9A-HJKMNP-TV-Z]{4}-){7}[0-9A-HJKMNP-TV-Z]{4}$/i.test(value)) throw new HearthError(0, 'Paste the full Hearth invite or enter a server address. An invite code alone cannot locate a server.', 'invalid_url')
   let url: URL
   try {
     url = new URL(value.includes('://') ? value : `https://${value}`)
@@ -67,6 +81,9 @@ export class HearthClient {
   constructor(baseUrl: string) {
     this.baseUrl = normalizeServerUrl(baseUrl)
   }
+  storeInviteEnvelope(token:string,body:StoreInviteEnvelope,options?:RequestOptions):Promise<null>{checkedId(body.id);if(!isInviteEnvelope(body.envelope))throw new HearthError(0,'Invalid encrypted invite.','invalid_response');return this.auth('invite-links',isEmpty,body,token,options)}
+  inviteEnvelope(id:string,options?:RequestOptions):Promise<InviteEnvelope>{checkedId(id);return this.get('/api/v1/invite-links/'+id,isInviteEnvelope,options)}
+  private auth<T>(path:string,validate:(value:unknown)=>value is T,body:unknown|undefined,token:string,options?:RequestOptions):Promise<T>{return this.get('/api/v1/auth/'+path,validate,options,{method:body===undefined?'GET':'POST',headers:{Authorization:`Bearer ${token}`,...(body===undefined?{}:{'Content-Type':'application/json'})},...(body===undefined?{}:{body:JSON.stringify(body)})})}
   private community<T>(path:string,token:string,validate:(value:unknown)=>value is T,body?:unknown,options?:RequestOptions):Promise<T> {
     return this.get('/api/v1/communities'+(path?'/'+path:''),validate,options,{method:body===undefined?'GET':'POST',headers:{Authorization:`Bearer ${token}`,...(body===undefined?{}:{'Content-Type':'application/json'})},...(body===undefined?{}:{body:JSON.stringify(body)})})
   }
@@ -77,6 +94,28 @@ export class HearthClient {
   createChannel(token:string,id:string,body:CreateChannel,options?:RequestOptions):Promise<Channel> { checkedId(id);return this.community(`${id}/channels`,token,isChannel,body,options) }
   createCommunityInvite(token:string,id:string,body:CreateCommunityInvite,options?:RequestOptions):Promise<CommunityInvite> { checkedId(id);return this.community(`${id}/invites`,token,isCommunityInvite,body,options) }
   joinCommunity(token:string,code:string,options?:RequestOptions):Promise<Community> { checkedId(code);return this.community('join',token,isCommunity,{code},options) }
+  governance(token:string,id:string,options?:RequestOptions):Promise<GovernanceView>{checkedId(id);return this.community(`${id}/governance`,token,isGovernanceView,undefined,options)}
+  ownership(token:string,id:string,options?:RequestOptions):Promise<OwnershipState>{checkedId(id);return this.community(`${id}/ownership`,token,isOwnershipState,undefined,options)}
+  offerOwnership(token:string,id:string,offer:OwnershipHandoff,options?:RequestOptions):Promise<OwnershipHandoff>{checkedId(id);return this.community(`${id}/ownership`,token,isOwnershipHandoff,offer,options)}
+  acceptOwnership(token:string,id:string,acceptance:OwnershipAcceptance,options?:RequestOptions):Promise<CommunityAuthority>{checkedId(id);return this.community(`${id}/ownership/accept`,token,isAuthority,acceptance,options)}
+  cancelOwnership(token:string,id:string,options?:RequestOptions):Promise<null>{checkedId(id);return this.community(`${id}/ownership/cancel`,token,isEmpty,{},options)}
+  setGovernance(token:string,id:string,policy:Governance,options?:RequestOptions):Promise<Governance>{checkedId(id);return this.community(`${id}/governance`,token,isGovernance,policy,options)}
+  audit(token:string,id:string,options?:RequestOptions):Promise<AuditEntry[]>{checkedId(id);return this.community(`${id}/audit`,token,isAudit,undefined,options)}
+  acceptRules(token:string,id:string,digest:string,options?:RequestOptions):Promise<GovernanceView>{checkedId(id);checkedId(digest);return this.community(`${id}/rules/accept`,token,isGovernanceView,{digest},options)}
+  reportKeys(token:string,id:string,options?:RequestOptions):Promise<ReportKey[]>{checkedId(id);return this.community(`channels/${id}/report-keys`,token,isReportKeys,undefined,options)}
+  registerReportKey(token:string,id:string,key:ReportKey,options?:RequestOptions):Promise<null>{checkedId(id);return this.community(`channels/${id}/report-keys`,token,isEmpty,key,options)}
+  submitReport(token:string,id:string,envelope:ReportEnvelope,options?:RequestOptions):Promise<null>{checkedId(id);return this.community(`channels/${id}/reports`,token,isEmpty,envelope,options)}
+  reportQueue(token:string,id:string,options?:RequestOptions):Promise<QueuedReport[]>{checkedId(id);return this.community(`channels/${id}/reports`,token,isReportQueue,undefined,options)}
+  resolveReport(token:string,id:string,report:string,options?:RequestOptions):Promise<null>{checkedId(id);checkedId(report);return this.community(`channels/${id}/reports/${report}/resolve`,token,isEmpty,{},options)}
+  deleteAccount(token:string,value:import('./protocol.ts').AccountDeparture,options?:RequestOptions):Promise<null>{return this.auth('account/delete',isEmpty,value,token,options)}
+  accountExport(token:string,after='',options?:RequestOptions):Promise<AccountExport>{if(after&&!/^(blob|message|report):[a-f0-9]{64}$/.test(after))throw new HearthError(0,'Invalid export cursor.','invalid_response');return this.auth('account/export?after='+encodeURIComponent(after),(v):v is AccountExport=>isRecord(v)&&isAccount(v.account)&&Array.isArray(v.devices)&&v.devices.every(isDeviceEnrollment)&&Array.isArray(v.communities)&&v.communities.every(isCommunity)&&Array.isArray(v.blocks)&&v.blocks.every(isAccount)&&Array.isArray(v.records)&&v.records.length<=32&&v.records.every(r=>isRecord(r)&&typeof r.cursor==='string'&&/^(blob|message|report):[a-f0-9]{64}$/.test(r.cursor)&&'data' in r)&&(v.next===null||typeof v.next==='string'&&/^(blob|message|report):[a-f0-9]{64}$/.test(v.next)),undefined,token,options)}
+  pushConfiguration(token:string,options?:RequestOptions):Promise<{public_key:string}>{return this.auth('push',(v):v is {public_key:string}=>isRecord(v)&&typeof v.public_key==='string'&&/^[A-Za-z0-9_-]{87}$/.test(v.public_key),undefined,token,options)}
+  subscribePush(token:string,device_key:string,subscription:PushSubscriptionJSON,options?:RequestOptions):Promise<null>{checkedId(device_key);return this.auth('push',isEmpty,{device_key,endpoint:subscription.endpoint,p256dh:subscription.keys?.p256dh,auth:subscription.keys?.auth},token,options)}
+  disablePush(token:string,device_key:string,endpoint:string,options?:RequestOptions):Promise<null>{checkedId(device_key);return this.auth('push/disable',isEmpty,{device_key,endpoint},token,options)}
+  blocks(token:string,options?:RequestOptions):Promise<Account[]>{return this.auth('blocks',(v):v is Account[]=>Array.isArray(v)&&v.length<=512&&v.every(isAccount),undefined,token,options)}
+  setBlock(token:string,account:string,active:boolean,options?:RequestOptions):Promise<null>{checkedId(account);return this.auth('blocks',isEmpty,{account_id:account,active},token,options)}
+  serverBans(token:string,options?:RequestOptions):Promise<Account[]>{return this.auth('admin/bans',(v):v is Account[]=>Array.isArray(v)&&v.length<=1024&&v.every(isAccount),undefined,token,options)}
+  setServerBan(token:string,account:string,active:boolean,options?:RequestOptions):Promise<null>{checkedId(account);return this.auth('admin/bans',isEmpty,{account_id:account,active},token,options)}
   channelRoster(token:string,id:string,options?:RequestOptions):Promise<ChannelRoster> { checkedId(id);return this.community(`channels/${id}/roster`,token,isChannelRoster,undefined,options) }
   communityAuthority(token:string,id:string,value:CommunityAuthority,options?:RequestOptions):Promise<CommunityAuthority>{checkedId(id);return this.community(`${id}/authority`,token,isAuthority,value,options)}
   communityAdmission(token:string,id:string,value:CommunityAdmission,options?:RequestOptions):Promise<CommunityAdmission>{checkedId(id);return this.community(`${id}/admissions`,token,isAdmission,value,options)}
@@ -91,6 +130,7 @@ export class HearthClient {
   reserveBlob(token:string,id:string,body:BlobReservation,options?:RequestOptions):Promise<BlobUrl>{checkedId(id);checkedId(body.id);return this.blob(id,token,isBlobUrl,body,options)}
   completeBlob(token:string,id:string,file:string,device:string,options?:RequestOptions):Promise<null>{checkedId(id);checkedId(file);checkedId(device);return this.blob(`${id}/${file}/complete`,token,isEmpty,{device},options)}
   downloadBlob(token:string,id:string,file:string,device:string,options?:RequestOptions):Promise<BlobUrl>{checkedId(id);checkedId(file);checkedId(device);return this.blob(`${id}/${file}?device=${device}`,token,isBlobUrl,undefined,options)}
+  removeBlob(token:string,id:string,file:string,device:string,options?:RequestOptions):Promise<null>{checkedId(id);checkedId(file);checkedId(device);return this.get(`/api/v1/blobs/${id}/${file}?device=${device}`,isEmpty,options,{method:'DELETE',headers:{Authorization:`Bearer ${token}`}})}
   person(token:string,username:string,options?:RequestOptions):Promise<Person> { return this.chat(`people/${encodeURIComponent(username)}`,token,isPerson,undefined,options) }
   personById(token:string,id:string,options?:RequestOptions):Promise<Person> { checkedId(id);return this.chat(`accounts/${id}`,token,isPerson,undefined,options) }
   conversations(token:string,options?:RequestOptions):Promise<Conversation[]> { return this.chat('conversations',token,isConversations,undefined,options) }
@@ -193,12 +233,14 @@ export class HearthClient {
         cache: 'no-store',
         redirect: 'error',
       }), aborted])
-      if (!res.ok) throw new HearthError(res.status, res.status === 401 ? 'The setup code or authentication exchange was rejected.' :
+      if (!res.ok) throw new HearthError(res.status, res.status === 404 && path.includes('/invite-links/') ? 'This invite has expired or is unavailable. Ask your host for a new invite.' : res.status === 401 ? 'The setup code or authentication exchange was rejected.' :
         res.status === 403 ? path.includes('/register/') ? 'Registration is closed, or this invite has expired or been used.' : 'This account is not allowed to perform that action.' :
         res.status === 409 && path.includes('/register/') ? 'This username is already taken.' :
         res.status === 409 && path.includes('/chat/') ? 'Encryption or delivery state changed. Refresh and retry.' :
         res.status === 409 && path.includes('/communities/') ? 'A community limit was reached. Refresh and try again.' :
         res.status === 409 ? path.includes('/device/') ? 'This account already has an identity. Link an approved device or restore your existing keys.' : 'Owner setup is already complete. Sign in with the owner account.' :
+        res.status === 410 && path.includes('/blobs/') ? 'This file was removed from the server.' :
+        res.status === 413 && path.includes('/blobs/') ? 'The file exceeds the upload limit or this account’s storage quota.' :
         res.status === 429 ? 'Too many attempts. Wait one minute and try again.' : res.status === 503 ?
         'This server is temporarily unavailable. Try again soon.' :
         'The server could not complete the connection check. Check the address or contact its operator.')

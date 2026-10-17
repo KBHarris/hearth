@@ -138,6 +138,23 @@ pub struct DeliveryEvent {
 #[serde(deny_unknown_fields)]
 #[cfg_attr(feature = "typescript", derive(ts_rs::TS))]
 pub enum MessageContent {
+    ForumPost {
+        title: String,
+        text: String,
+    },
+    Poll {
+        question: String,
+        options: Vec<String>,
+        multiple: bool,
+        parent: Option<String>,
+    },
+    PollVote {
+        id: String,
+        choices: Vec<u16>,
+    },
+    PollClose {
+        id: String,
+    },
     Attachment {
         text: String,
         files: Vec<EncryptedAttachment>,
@@ -222,6 +239,18 @@ pub struct LocalMessage {
     pub embed: Option<LinkEmbed>,
     #[serde(default)]
     pub attachments: Vec<LocalAttachment>,
+    #[serde(default)]
+    pub topic: Option<String>,
+    #[serde(default)]
+    pub poll: Option<LocalPoll>,
+}
+#[derive(Clone, Serialize, Deserialize)]
+#[cfg_attr(feature = "typescript", derive(ts_rs::TS))]
+pub struct LocalPoll {
+    pub options: Vec<String>,
+    pub multiple: bool,
+    pub closed: bool,
+    pub votes: std::collections::BTreeMap<String, Vec<u16>>,
 }
 
 /// Client-only descriptor, carried inside MLS. Never send this to object storage.
@@ -256,6 +285,11 @@ pub struct BlobReservation {
     pub cipher_bytes: u32,
     pub digest: String,
 }
+/// User-visible decimal 50 MB, plus one AEAD tag per 1 MiB encrypted chunk.
+pub const MAX_ATTACHMENT_BYTES: u32 = 50_000_000;
+pub const ATTACHMENT_CHUNK_BYTES: u32 = 1024 * 1024;
+pub const MAX_ATTACHMENT_CIPHER_BYTES: u32 =
+    MAX_ATTACHMENT_BYTES + MAX_ATTACHMENT_BYTES.div_ceil(ATTACHMENT_CHUNK_BYTES) * 16;
 #[derive(Clone, Serialize, Deserialize)]
 #[cfg_attr(feature = "typescript", derive(ts_rs::TS))]
 pub struct BlobUrl {

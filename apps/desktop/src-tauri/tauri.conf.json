@@ -32,6 +32,20 @@
       "icons/128x128@2x.png",
       "icons/icon.icns",
       "icons/icon.ico"
-    ]
+    ],
+    "createUpdaterArtifacts": true
+  },
+  "plugins": {
+    "deep-link": { "desktop": { "schemes": ["hearth"] } },
+    "updater": {
+      "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IENCODNEMTI4NjRCQzBEOTYKUldTV0RieGtLTkdEeTB4YzlCbGxnQjJRWGxsTENnTjRwK1dta2owWTJRUk15S0pvVjVySUZySWwK",
+      "endpoints": [
+        "https://github.com/KBHarris/hearth/releases/latest/download/latest-stable.json"
+      ],
+      "windows": {
+        "installMode": "passive"
+      },
+      "requireSignedVersion": true
+    }
   }
 }

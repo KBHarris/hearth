@@ -8,7 +8,11 @@ pub mod auth;
 pub mod community;
 pub mod device;
 pub mod gateway;
+pub mod governance;
+pub mod invite;
+pub mod lifecycle;
 pub mod messaging;
+pub mod reports;
 
 #[cfg(feature = "typescript")]
 pub mod typescript;

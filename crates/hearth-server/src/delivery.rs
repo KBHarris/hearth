@@ -63,7 +63,7 @@ pub(crate) async fn approved(state: &SharedState, account: &str, device: &str) -
         return Err(StatusCode::BAD_REQUEST);
     }
     let exists: bool = sqlx::query_scalar(
-        "SELECT EXISTS(SELECT 1 FROM account_devices WHERE account_id=$1 AND device_key=$2)",
+        "SELECT EXISTS(SELECT 1 FROM account_devices d JOIN accounts a ON a.id=d.account_id WHERE account_id=$1 AND device_key=$2 AND NOT a.deleted)",
     )
     .bind(account)
     .bind(device)
@@ -257,6 +257,14 @@ async fn conversations(
     let mut result = Vec::new();
     for row in rows {
         let id: String = row.get("id");
+        if row.get::<Option<String>, _>("channel_id").is_some() {
+            let mut tx = state.db.begin().await.map_err(unavailable)?;
+            match crate::community::channel_access(&mut tx, &id, &account).await {
+                Ok(_) => {}
+                Err(StatusCode::FORBIDDEN) => continue,
+                Err(error) => return Err(error),
+            }
+        }
         let accounts=sqlx::query_scalar("SELECT account_id FROM conversation_accounts WHERE conversation_id=$1 ORDER BY account_id").bind(&id).fetch_all(&state.db).await.map_err(unavailable)?;
         result.push(conversation(&row, accounts)?);
     }
@@ -348,16 +356,40 @@ async fn commit(
         return Err(StatusCode::FORBIDDEN);
     }
     let mut tx = state.db.begin().await.map_err(unavailable)?;
+    let live = sqlx::query("SELECT deleted FROM accounts WHERE id=ANY($1) ORDER BY id FOR SHARE")
+        .bind(&accounts)
+        .fetch_all(&mut *tx)
+        .await
+        .map_err(unavailable)?;
+    if live.len() != accounts.len() || live.iter().any(|r| r.get::<bool, _>("deleted")) {
+        return Err(StatusCode::FORBIDDEN);
+    };
+
     // The insert's uniqueness lock and the existing-row lock order creation and all commits.
     let channel = crate::community::channel_access(&mut tx, &id, &account).await?;
     if let Some(channel) = &channel {
         let auth = upload.authorization.as_ref().ok_or(StatusCode::FORBIDDEN)?;
         if channel.authority.as_ref() != Some(&auth.authority)
             || channel.policy.as_ref() != Some(&auth.policy)
+            || channel.governance != auth.governance
         {
             return Err(StatusCode::FORBIDDEN);
         }
         for member in &upload.members {
+            if crate::governance::bits(
+                &mut tx,
+                &channel.community_id,
+                &channel.owner_id,
+                &member.account_id,
+                Some(&id),
+                channel.governance.as_ref(),
+            )
+            .await?
+                & hearth_proto::governance::READ
+                == 0
+            {
+                return Err(StatusCode::FORBIDDEN);
+            }
             if member.account_id == auth.authority.owner.account_id {
                 continue;
             }
@@ -394,6 +426,12 @@ async fn commit(
         || upload.members.len() > 32
     {
         return Err(StatusCode::FORBIDDEN);
+    }
+    if channel.is_none() {
+        let blocked:bool=sqlx::query_scalar("SELECT EXISTS(SELECT 1 FROM user_blocks WHERE account_id=ANY($1) AND blocked_id=ANY($1))").bind(&accounts).fetch_one(&mut *tx).await.map_err(unavailable)?;
+        if blocked {
+            return Err(StatusCode::FORBIDDEN);
+        }
     }
     let inserted = sqlx::query(
         "INSERT INTO conversations(id,epoch,members,channel_id) VALUES($1,0,'[]',$2) ON CONFLICT DO NOTHING",
@@ -444,15 +482,44 @@ async fn commit(
     } else {
         let expected:Vec<String>=sqlx::query_scalar("SELECT account_id FROM conversation_accounts WHERE conversation_id=$1 ORDER BY account_id").bind(&id).fetch_all(&mut *tx).await.map_err(unavailable)?;
         if (channel.is_none() && expected != accounts)
-            || (channel.is_some() && expected.iter().any(|id| !accounts.contains(id)))
             || !old
                 .iter()
                 .any(|m| m.account_id == account && m.enrollment.device_key == upload.device_key)
-            || old.iter().any(|m| !upload.members.contains(m))
+            || (channel.is_none() && old.iter().any(|m| !upload.members.contains(m)))
         {
             return Err(StatusCode::FORBIDDEN);
         }
-        if channel.is_some() {
+        if let Some(channel) = &channel {
+            for removed in old.iter().filter(|m| !upload.members.contains(m)) {
+                if crate::governance::bits(
+                    &mut tx,
+                    &channel.community_id,
+                    &channel.owner_id,
+                    &removed.account_id,
+                    Some(&id),
+                    channel.governance.as_ref(),
+                )
+                .await?
+                    & hearth_proto::governance::READ
+                    != 0
+                {
+                    return Err(StatusCode::FORBIDDEN);
+                }
+            }
+            sqlx::query("DELETE FROM conversation_accounts WHERE conversation_id=$1 AND account_id<>ALL($2)").bind(&id).bind(&accounts).execute(&mut *tx).await.map_err(unavailable)?;
+            let devices = upload
+                .members
+                .iter()
+                .map(|m| m.enrollment.device_key.clone())
+                .collect::<Vec<_>>();
+            sqlx::query(
+                "DELETE FROM conversation_devices WHERE conversation_id=$1 AND device_key<>ALL($2)",
+            )
+            .bind(&id)
+            .bind(devices)
+            .execute(&mut *tx)
+            .await
+            .map_err(unavailable)?;
             for member in &accounts {
                 sqlx::query("INSERT INTO conversation_accounts(conversation_id,account_id) VALUES($1,$2) ON CONFLICT DO NOTHING")
                     .bind(&id).bind(member).execute(&mut *tx).await.map_err(unavailable)?;
@@ -473,7 +540,8 @@ async fn commit(
         .collect::<Vec<_>>();
     if added.len() != upload.welcomes.len()
         || (added.is_empty()
-            && !(channel.as_ref().is_some_and(|c| c.owner_id == account)
+            && !(old.iter().any(|m| !upload.members.contains(m))
+                || channel.as_ref().is_some_and(|c| c.owner_id == account)
                 || (inserted && channel.is_some() && upload.members.len() == 1)))
     {
         return Err(StatusCode::BAD_REQUEST);
@@ -531,12 +599,20 @@ async fn commit(
             },
         ));
     }
-    sqlx::query("UPDATE conversations SET epoch=epoch+1,members=$2 WHERE id=$1")
-        .bind(&id)
-        .bind(public(&upload.members)?)
-        .execute(&mut *tx)
-        .await
-        .map_err(unavailable)?;
+    sqlx::query(
+        "UPDATE conversations SET epoch=epoch+1,members=$2,governance_revision=$3 WHERE id=$1",
+    )
+    .bind(&id)
+    .bind(public(&upload.members)?)
+    .bind(
+        channel
+            .as_ref()
+            .and_then(|c| c.governance.as_ref())
+            .map_or(0, |p| p.revision as i64),
+    )
+    .execute(&mut *tx)
+    .await
+    .map_err(unavailable)?;
     for member in &upload.members {
         sqlx::query("INSERT INTO conversation_devices(conversation_id,device_key) VALUES($1,$2) ON CONFLICT DO NOTHING").bind(&id).bind(&member.enrollment.device_key).execute(&mut *tx).await.map_err(unavailable)?;
     }
@@ -570,6 +646,9 @@ async fn message(
     ));
     let mut tx = state.db.begin().await.map_err(unavailable)?;
     let channel = crate::community::channel_access(&mut tx, &id, &account).await?;
+    if channel.is_none() {
+        crate::safety::dm_allowed(&mut tx, &id, &account).await?;
+    }
     if !matches!(
         upload.action,
         MessageAction::Typing | MessageAction::Control
@@ -606,23 +685,73 @@ async fn message(
         && channel.owner_id != account
         && !matches!(
             upload.action,
-            MessageAction::Reaction | MessageAction::Control
+            MessageAction::Reaction | MessageAction::Control | MessageAction::Pin
         )
     {
         return Err(StatusCode::FORBIDDEN);
     }
-    if upload.action == MessageAction::Pin
-        && channel.as_ref().is_some_and(|c| c.owner_id != account)
-    {
-        return Err(StatusCode::FORBIDDEN);
+    if let Some(channel) = &channel {
+        let required = match upload.action {
+            MessageAction::Pin => hearth_proto::governance::PIN,
+            MessageAction::Reaction => hearth_proto::governance::REACT,
+            MessageAction::Control => hearth_proto::governance::READ,
+            _ => hearth_proto::governance::SEND,
+        };
+        if crate::governance::bits(
+            &mut tx,
+            &channel.community_id,
+            &channel.owner_id,
+            &account,
+            Some(&id),
+            channel.governance.as_ref(),
+        )
+        .await?
+            & required
+            == 0
+        {
+            return Err(StatusCode::FORBIDDEN);
+        }
     }
-    let row = sqlx::query("SELECT epoch,members FROM conversations WHERE id=$1 FOR UPDATE")
-        .bind(&id)
-        .fetch_optional(&mut *tx)
-        .await
-        .map_err(unavailable)?
-        .ok_or(StatusCode::NOT_FOUND)?;
+    let row = sqlx::query(
+        "SELECT epoch,members,governance_revision FROM conversations WHERE id=$1 FOR UPDATE",
+    )
+    .bind(&id)
+    .fetch_optional(&mut *tx)
+    .await
+    .map_err(unavailable)?
+    .ok_or(StatusCode::NOT_FOUND)?;
     let members: Vec<GroupMember> = parsed(row.get("members"))?;
+    let audience = members
+        .iter()
+        .map(|m| m.account_id.clone())
+        .collect::<Vec<_>>();
+    let live = sqlx::query("SELECT deleted FROM accounts WHERE id=ANY($1) ORDER BY id FOR SHARE")
+        .bind(&audience)
+        .fetch_all(&mut *tx)
+        .await
+        .map_err(unavailable)?;
+    if live.iter().any(|r| r.get::<bool, _>("deleted")) {
+        return Err(StatusCode::CONFLICT);
+    };
+
+    if let Some(channel) = &channel {
+        for member in &members {
+            if crate::governance::bits(
+                &mut tx,
+                &channel.community_id,
+                &channel.owner_id,
+                &member.account_id,
+                Some(&id),
+                channel.governance.as_ref(),
+            )
+            .await?
+                & hearth_proto::governance::READ
+                == 0
+            {
+                return Err(StatusCode::CONFLICT);
+            }
+        }
+    }
     if let Some(archive) = &upload.archive
         && !members.contains(&archive.member)
     {
@@ -638,11 +767,31 @@ async fn message(
         tx.commit().await.map_err(unavailable)?;
         return Ok(StatusCode::NO_CONTENT);
     }
+    if let Some(channel) = &channel
+        && row.get::<i64, _>("governance_revision")
+            != channel.governance.as_ref().map_or(0, |p| p.revision as i64)
+    {
+        return Err(StatusCode::CONFLICT);
+    }
     if row.get::<i64, _>("epoch") as u64 != upload.epoch {
         return Err(StatusCode::CONFLICT);
     }
+    if upload.action == MessageAction::Send
+        && let Some(channel) = &channel
+        && account != channel.owner_id
+        && let Some(limit) = channel
+            .governance
+            .as_ref()
+            .and_then(|p| p.limits.iter().find(|l| l.channel_id == id))
+        && limit.slowmode_seconds > 0
+    {
+        let recent: bool = sqlx::query_scalar("SELECT EXISTS(SELECT 1 FROM delivery_operations WHERE conversation_id=$1 AND account_id=$2 AND action='send' AND created_at>now()-($3 * interval '1 second'))").bind(&id).bind(&account).bind(limit.slowmode_seconds as i32).fetch_one(&mut *tx).await.map_err(unavailable)?;
+        if recent {
+            return Err(StatusCode::TOO_MANY_REQUESTS);
+        }
+    }
     if let Some(target) = &upload.target_id {
-        let author:Option<String>=sqlx::query_scalar("SELECT account_id FROM delivery_operations WHERE operation_id=$1 AND conversation_id=$2 AND action='send'").bind(target).bind(&id).fetch_optional(&mut *tx).await.map_err(unavailable)?;
+        let author:Option<String>=sqlx::query_scalar("SELECT account_id FROM delivery_operations WHERE operation_id=$1 AND conversation_id=$2 AND action='send' AND NOT hearth_retention_expired(conversation_id,created_at)").bind(target).bind(&id).fetch_optional(&mut *tx).await.map_err(unavailable)?;
         if author.is_none()
             || (matches!(upload.action, MessageAction::Edit | MessageAction::Delete)
                 && author.as_deref() != Some(&account))
@@ -696,6 +845,17 @@ async fn message(
         upload.action == MessageAction::Typing,
     )
     .await?;
+    if upload.action == MessageAction::Send {
+        crate::push::enqueue(
+            &mut tx,
+            &members
+                .iter()
+                .map(|m| m.account_id.clone())
+                .collect::<Vec<_>>(),
+            &account,
+        )
+        .await?;
+    }
     tx.commit().await.map_err(unavailable)?;
     Ok(StatusCode::NO_CONTENT)
 }
@@ -759,7 +919,7 @@ async fn history(
                 .ok_or(StatusCode::FORBIDDEN)?
         }
     };
-    let rows=sqlx::query("SELECT seq,upload FROM channel_archives WHERE conversation_id=$1 AND seq>$2 AND epoch>=$3 ORDER BY seq LIMIT 128").bind(&id).bind(query.after as i64).bind(floor as i64).fetch_all(&mut *tx).await.map_err(unavailable)?;
+    let rows=sqlx::query("SELECT a.seq,a.upload FROM channel_archives a JOIN delivery_operations o ON o.operation_id=a.operation_id WHERE a.conversation_id=$1 AND a.seq>$2 AND a.epoch>=$3 AND NOT hearth_retention_expired(a.conversation_id,o.created_at) ORDER BY a.seq LIMIT 128").bind(&id).bind(query.after as i64).bind(floor as i64).fetch_all(&mut *tx).await.map_err(unavailable)?;
     let next = rows
         .last()
         .map_or(query.after, |r| r.get::<i64, _>("seq") as u64);
@@ -778,17 +938,41 @@ pub(crate) async fn backlog(
     if after > 9_007_199_254_740_991 {
         return Err(StatusCode::BAD_REQUEST);
     }
-    let rows=sqlx::query("SELECT seq,conversation_id,CASE WHEN ephemeral AND created_at<now()-interval '10 seconds' THEN '{\"kind\":\"redacted\"}'::jsonb ELSE data END AS data FROM delivery_events WHERE device_key=$1 AND seq>$2 ORDER BY seq LIMIT 128")
+    let rows=sqlx::query("SELECT seq,conversation_id,CASE WHEN (ephemeral AND created_at<now()-interval '10 seconds') OR (data->>'kind'='message' AND hearth_retention_expired(conversation_id,created_at)) THEN '{\"kind\":\"redacted\"}'::jsonb ELSE data END AS data FROM delivery_events WHERE device_key=$1 AND seq>$2 ORDER BY seq LIMIT 128")
         .bind(device).bind(after as i64).fetch_all(&state.db).await.map_err(unavailable)?;
-    rows.into_iter()
-        .map(|r| {
-            Ok(DeliveryEvent {
-                seq: r.get::<i64, _>("seq") as u64,
-                conversation_id: r.get("conversation_id"),
-                data: parsed(r.get("data"))?,
-            })
-        })
-        .collect()
+    let account: String =
+        sqlx::query_scalar("SELECT account_id FROM account_devices WHERE device_key=$1")
+            .bind(device)
+            .fetch_one(&state.db)
+            .await
+            .map_err(unavailable)?;
+    let mut tx = state.db.begin().await.map_err(unavailable)?;
+    let mut permitted = std::collections::HashMap::new();
+    let mut events = Vec::new();
+    for r in rows {
+        let id: String = r.get("conversation_id");
+        let allowed = if let Some(value) = permitted.get(&id) {
+            *value
+        } else {
+            let value = match crate::community::channel_access(&mut tx, &id, &account).await {
+                Ok(_) => true,
+                Err(StatusCode::FORBIDDEN) => false,
+                Err(error) => return Err(error),
+            };
+            permitted.insert(id.clone(), value);
+            value
+        };
+        events.push(DeliveryEvent {
+            seq: r.get::<i64, _>("seq") as u64,
+            conversation_id: id,
+            data: if allowed {
+                parsed(r.get("data"))?
+            } else {
+                DeliveryData::Redacted
+            },
+        });
+    }
+    Ok(events)
 }
 async fn events(
     State(state): State<SharedState>,

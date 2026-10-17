@@ -53,14 +53,23 @@ an onboarding admin UI, optional federation, and an opt-in public directory.
 | Home server | Rust (axum, tokio, sqlx) | REST + WebSocket gateway, MLS delivery service, permissions, federation. |
 | Database | PostgreSQL | Encrypted event envelopes, membership, roles, operational metadata. |
 | Object storage | S3-compatible (SeaweedFS bundled; any S3 supported) | Opaque encrypted blobs only. |
-| Media | LiveKit SFU + coturn (planned bundle) | Client-encrypted frames; SFrame profile and interoperability remain a validation gate. |
-| Deployment | Compose file (Docker or Podman) | `hearth-server` + Postgres + S3 + LiveKit + coturn + reverse proxy. |
+| Media | Direct WebRTC P2P + TURN; optional LiveKit SFU (planned) | Small calls prefer direct media with relay-only privacy available; larger rooms use the SFU. Client-encrypted frames; SFrame profile and interoperability remain validation gates. |
+| Deployment | Compose (Docker or Podman); Railway native IaC (planned Phase 4) | Backend + Postgres + private S3 + persistent server keys + optional web client. Media relays may be hosted separately. |
 
 **Decision: use an existing SFU and don't build one.** Revision 1 implied writing our own
 WebRTC SFU in Rust. LiveKit (Apache-2.0) already supports end-to-end encryption through
 insertable streams with a custom key provider, simulcast, and TURN. We feed it keys derived
 from MLS, and it never sees them. Writing our own SFU becomes an option once the product
 exists, and should not be a prerequisite for it.
+
+Phase 4 scope clarified 2026-10-16: direct peer-to-peer voice/video/screen sharing
+is also required for small calls, matching the Haven parity target. Add authorized
+signaling and STUN/TURN fallback; retain LiveKit for larger rooms and offer a
+relay-only mode to avoid exposing direct-peer network addresses. All paths keep
+media keys on clients and enforce current membership. See
+[the Phase 4 hosting and media plan](docs/PHASE4_HOSTING_AND_MEDIA.md) for Railway
+IaC, optional browser hosting, provider storage compatibility and media deployment
+boundaries. These additions are requirements, not validated implementations.
 
 ### Identity model
 

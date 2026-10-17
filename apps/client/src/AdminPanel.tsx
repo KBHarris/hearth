@@ -1,7 +1,9 @@
+import {BlockedPeople} from './BlockedPeople'
 import { useEffect, useState, type FormEvent } from 'react'
 import { HearthClient,type Session,type ServerSettings,type RegistrationMode } from '@hearth/sdk'
+import { ShareInvite } from './ShareInvite'
 
-export function AdminPanel({session,url,configured}:{session:Session;url:string;configured:(settings:ServerSettings)=>void}) {
+export function AdminPanel({session,url,serverKey,configured}:{session:Session;url:string;serverKey:string;configured:(settings:ServerSettings)=>void}) {
   const [settings,setSettings] = useState<ServerSettings | null>(null)
   const [error,setError] = useState('')
   const [busy,setBusy] = useState(false)
@@ -21,7 +23,7 @@ export function AdminPanel({session,url,configured}:{session:Session;url:string;
     catch(error) {setError(error instanceof Error ? error.message : 'Could not create an invite.')}
     finally {setBusy(false)}
   }
-  return <details className="recovery-panel"><summary>Server settings</summary>
+  return <section className="recovery-panel">
     {settings && <form onSubmit={event => void save(event)}><fieldset disabled={busy}>
       <label htmlFor="server-name">Server name</label><input id="server-name" name="server-name" defaultValue={settings.server_name} required maxLength={80}/>
       <label htmlFor="registration-mode">Registration</label><select id="registration-mode" name="registration-mode" defaultValue={settings.registration_mode}>
@@ -29,9 +31,10 @@ export function AdminPanel({session,url,configured}:{session:Session;url:string;
       </select><button type="submit">Save server settings</button>
     </fieldset></form>}
     {saved && <p role="status">Server settings saved.</p>}
-    <p>Invite codes create one account and expire after 24 hours. Share the server address and code with the person you want to invite.</p>
+    <p>Invite someone to create an account. The invite includes this server’s address and identity, works once and expires after 24 hours.</p>
     <button type="button" disabled={busy} onClick={() => void createInvite()}>Create account invite</button>
-    {invite && <><label htmlFor="account-invite">Single-use account invite</label><input id="account-invite" readOnly value={invite}/></>}
+    {invite && <><ShareInvite key={invite} token={session.token} invite={{server:url,serverKey,account:invite}}/><button type="button" onClick={() => setInvite('')}>Hide invite</button></>}
+    <BlockedPeople url={url} session={session} operator/>
     {error && <p className="input-error" role="alert">{error}</p>}
-  </details>
+  </section>
 }

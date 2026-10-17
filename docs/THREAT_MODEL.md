@@ -3,6 +3,31 @@
 > Phase 1 draft. It is updated with every phase, and every new server-side field must be
 > added to the metadata inventory below.
 
+## Invite addresses and transport
+
+Invite sharing may use a recipient-facing public HTTPS origin while the owner
+stays on its existing authenticated loopback connection. Only the selected local
+host may supply an automatic public-address hint, and the local identity must
+match before applying it. Envelope encryption remains bound to the recipient
+origin; only its hash and ciphertext reach the relay. The bearer token stays on
+the authenticated transport and is never sent to an editable sharing address.
+Pretty codes require an explicit server address; a bare code is never resolved
+through DNS or an external global directory. Legacy links remain readable.
+
+## Local owner enrollment
+
+Native automatic owner enrollment is available only to the bundled main window.
+It accepts the selected host's configured loopback HTTP port, sends readiness
+requests directly to 127.0.0.1 without proxies or redirects, and checks the
+displayed server identity and incomplete setup before retrieving the local code
+through Docker. The form retains it in memory for at most five minutes and clears
+it on submit, cancellation, expiry or unmount. No code is written to browser
+storage, a URL, an input or the clipboard by this handoff. A compromised host OS
+can already read its operator files and is outside this protection boundary.
+Native configuration generation uses OS randomness and exclusive first creation;
+it preserves existing credentials, rejects conflicting storage configuration,
+and still refuses regeneration over persistent volumes missing their original files.
+
 ## Assets
 
 1. Message, attachment, and media plaintext
@@ -54,7 +79,9 @@
 | `communities.authority`, `community_members.admission`, `community_channels.policy` | Public owner/device proof and signatures binding owner, admitted account identity, channel kind, history policy, revision and per-channel history epoch floors; receivers verify independently of the host | Community lifetime, including backups; revocation follows Phase 3 |
 | `community_invites.certificate` and `community_members.invitation` | Owner-signed invite digest, issuer proof, issue time and channel epoch cutoffs; the joining client pins the certificate against the typed capability. Policy `created_at` and `history_open_for` are signed immutable public metadata; only explicit invite IDs authorize later-created channels | Community lifetime, including backups |
 | `channel_archives`: sequence, operation/conversation IDs, epoch and signed ciphertext upload with sender public proof | Policy-scoped encrypted backfill. Device-targeted exporter-key handoff stays inside MLS and X25519/XChaCha wrapping | Conversation lifetime; message deletion removes original/edit archives, including possible backup retention |
-| `encrypted_blobs`: opaque ID, conversation/account/device IDs, ciphertext byte count/SHA-256 digest, ready flag and creation time | Authorize private S3 leases, membership checks and upload quotas. No filename, MIME, thumbnail, file key or plaintext digest reaches the server | Ready objects remain until future retention work; incomplete leases expire after 20 minutes plus cleanup delay |
+| `encrypted_blobs`: opaque ID, conversation/account/device IDs, ciphertext byte count/SHA-256 digest, ready flag, erasure and creation time | Authorize private S3 leases, membership checks and upload quotas. No filename, MIME, thumbnail, file key or plaintext digest reaches the server | Signed retention, account erasure or operator removal; incomplete leases expire after 20 minutes plus cleanup delay |
+| `blob_removals`: opaque file/conversation IDs, removing server-operator account and timestamp | Deny re-reservation after owner removal and physical cleanup; operator authority grants no content keys or community membership | Durable removal receipts; stored object deletion is retried while existing upload leases expire |
+| `invite_envelopes`: domain-separated SHA-256 lookup ID, creator account, random nonce, encrypted invite envelope and creation/expiry timestamps | Resolve readable 160-bit random share codes. The raw code and admission capabilities stay in client memory/link fragments. AES-GCM key derivation uses a separate domain and binds the server origin; lookup hashes cannot decrypt envelopes | Up to 24 hours, 64 live envelopes per account and 10,000 per server; creator account deletion erases its envelopes. Underlying admission expiry/use limits still apply |
 | Private S3 objects, access credentials and short-lived signed PUT/GET URLs | Store only chunk ciphertext. URLs authorize one opaque object for five minutes; already-issued URLs cannot be recalled immediately | Persistent storage volume; credentials in private operator configuration; URLs remain valid until expiry |
 | Local encrypted file cache | Ciphertext only, indexed by local account/server/device/conversation/object scope; 32 entries/32 MiB bound. Worker authenticates digest and every chunk before returning plaintext | Browser/webview profile lifetime or bounded eviction; decrypted object URLs are temporary |
 | Optional HTTPS proxy: public IPv4/domain, TLS certificate/private key and ACME account data | Authenticate public transport and automate renewal; public certificates disclose the certified address to the CA and certificate-transparency ecosystem | Persistent Caddy volumes; public certificates/CA records have external retention |
@@ -63,6 +90,33 @@
 | Media spike API secret, scoped JWTs, room/participant IDs, signaling, and RTP metadata | Loopback synthetic fixture only; no product media API | Fixture lifetime; generated secret configuration removed on normal shutdown |
 
 All routing information above is metadata. MLS private content is never decoded by the server.
+
+### Guided setup invitations
+
+The Host/Join client accepts a versioned `hearth://join/` invite. Version 2 carries
+the origin and a random 32-character Crockford Base32 code in its fragment. The
+client fetches an encrypted envelope by a domain-separated SHA-256 lookup ID,
+then authenticates/decrypts it with an independently derived AES-GCM key bound to
+the server origin. The server cannot derive the decryption key from the lookup ID.
+Version 1 remains compatible and carries an origin, public server identity and
+account/community capabilities directly in its fragment.
+It rejects unknown/duplicate fields, credentials, paths and remote HTTP before
+resolving short invites and performing public discovery, then checks the invite
+key and existing local pin. Bare short codes can resolve in Join a community when
+the account's server is already known; elsewhere a full link is required.
+It also preserves the active server identity if storage is unavailable. Bare
+admission/bootstrap codes are rejected before they can be treated as DNS names.
+Invites are pasted into the client; OS protocol handling is a later gate. The
+client never sends the whole invite to an HTTP endpoint. Only the relevant
+capability goes to the existing authenticated registration/join flow when the
+user proceeds; owner bootstrap codes cannot be supplied through invites.
+
+Capabilities remain in component memory, are not added to browser storage or
+diagnostic exports, and must be pasted again after reload. Copying explicitly
+places them on the OS clipboard (including any enabled clipboard history/sync).
+Server origins/names and public-key pins keep their existing local storage policy.
+No third-party probe is used: passing local discovery does not establish outside
+reachability, and a timeout does not establish a CGNAT or NAT-loopback diagnosis.
 
 ## Phase 2 community directory
 
@@ -281,3 +335,121 @@ The host file is not made readable to other users.
 - Traffic analysis by an operator (timing, sizes, and membership are visible to the home
   server).
 - A compromised client device.
+
+
+## Phase 3 governance metadata (implementation in progress)
+
+`communities.governance` stores owner-signed public roles, permission bits, account-role
+assignments, channel overrides, bans/timeouts, channel limits and optional rules. These
+are host-visible administration metadata, never message plaintext. Signatures bind
+the server identity and community root. Clients retain the highest observed revision
+and reject rollback/removal of a pinned policy. Existing clients must upgrade before
+a host enables governance: commits omitting the current snapshot are rejected.
+Owner access cannot be denied; signed admission and policy edits remain owner-managed.
+Management bits are reserved until delegation is implemented.
+
+`community_audit` records community ID, revision, actor ID, action, snapshot digest and
+time. It excludes message content and moderation reasons, persists for the community
+lifetime and can remain in backups. It is not an external transparency log.
+`community_rules_acceptance` records community/account IDs, accepted rules digest
+and acceptance time; changed rules require a new acknowledgement when screening is enabled.
+
+Read revocation blocks REST history, roster and blobs and replaces shared HTTP/gateway
+backlog content with ordering markers. New uploads are blocked while a denied member
+remains in the MLS group; an online authorized device removes it before posting resumes.
+Previously received keys/plaintext/backups cannot be recalled. Issued blob leases can
+remain valid for five minutes. Timeouts and slow mode are authenticated host controls;
+clients enforce signed static permissions independently of the host, not sender clocks.
+
+Channel epochs retain verified authorization snapshots and actual member device proofs
+in the encrypted client store. Historical message validation uses that epoch's roles;
+history key handoffs encrypt those snapshots to the selected device. They disclose no
+additional plaintext to the host. A bounded cache limits history handoff and store size.
+
+Rules screening permits reading before acceptance and blocks posting, reactions, pins
+and file uploads. Rules themselves are public metadata, limited to 4,096 bytes. The host
+sees each member's consent digest/time; it is not a cryptographic confidentiality gate.
+
+Retention days and slow-mode seconds are public signed channel metadata. Reads immediately
+filter expired message ciphertext. A minute-based worker deletes archives and redacts
+stored delivery events, preserving cursor markers, idempotency digests and MLS commit/
+Welcome material for offline devices. Blob objects are deleted before their index rows;
+failed storage deletion remains retryable. Expired blobs cannot obtain new download
+leases. Existing leases, recipient copies, WAL/storage recovery and host backups cannot
+be recalled; physical backup expiry remains an operator responsibility. A dishonest host
+can retain ciphertext outside this cleanup mechanism.
+
+Ownership transfer adds public lineage metadata: outgoing/successor account identities
+and approved device certificates, previous signed roots, exact signed-object digests,
+the pending offer and a content-free acceptance audit digest. Digests cover public
+certificates and policies, never plaintext messages. Both owners sign the transition;
+the host cannot replace a pinned owner. Unused invites are invalidated. Accepted
+historical epochs retain their original authority; old-owner objects must be explicitly
+endorsed to remain current. The client keeps a retryable acceptance outbox inside its
+encrypted snapshot and advances the pin after the server CAS succeeds. First-contact
+trust remains a fingerprint comparison. See ADR 0014 for limits and recovery scope.
+
+
+### Phase 3 account safety, export and browser push metadata
+
+User blocks store the blocker and blocked account IDs privately per account. They deny direct-message delivery between that pair; shared-community ciphertext still arrives and is hidden by the client. Server bans record the operator and banned account IDs and revoke server sessions; they do not give the operator community signing authority or remove previously distributed encryption keys.
+
+Account exports contain account-owned metadata, public device certificates, membership and block lists, blob metadata, authored delivery-operation metadata with opaque envelopes, and opaque reports submitted by or addressed to the account. No password verifier, session token, authentication exchange or private key is included. Pagination is a live view: concurrent writes can change the dataset between pages. The browser optionally adds readable messages from its local decrypted store, with an explicit checkbox. Those files are plaintext and do not replace the recovery kit.
+
+Opt-in Web Push stores an approved device key, account ID, provider endpoint, P-256 subscription public key and subscription authentication secret, pending timestamp and last-attempt timestamp. These are routing credentials: do not log them or include them in unauthenticated responses. Supported provider endpoints are HTTPS FCM, Mozilla and Apple. The transport validates DNS answers and pins public addresses, disables redirects and proxy environment routing, and limits delivery attempts. Subscription ownership cannot move to another account or device through an upsert.
+
+Push bodies contain only the fixed string `New activity in Hearth.` under RFC 8291 encryption; VAPID uses a separately derived P-256 signing key scoped to this feature. The push provider can observe timing, endpoint and application-server identity. New sends enqueue generic activity for recipient subscriptions, excluding the author, with a 30-second attempt interval and a ten-minute expiry. Typing, edits, reactions, control messages and MLS commits do not enqueue notifications. The service worker ignores pushed content and always displays fixed copy, then opens the local application origin. Desktop-native notifications remain a later platform integration; the web UI reports unsupported contexts explicitly.
+
+## Account departure and local link cards
+
+Account deletion requires an approved device signature and current session, and
+retains an exact signed retry proof after revocation. Public identity/admission and
+MLS transcript evidence remain; deletion is not complete metadata anonymization.
+Late account writes are fenced by database locks and triggers. New publishing
+requires removal of departed devices; recipient copies, private local history,
+old presigned URL leases and backups cannot be recalled. Physical private storage
+cleanup follows upload-lease expiry. See [ADR 0016](adr/0016-signed-account-departure.md).
+
+Automatic link cards parse addresses locally and fetch no remote website data.
+The preference is scoped to account and server. Disabling cards changes display
+on this device, including already received embeds; it does not alter message
+ciphertext or another participant's display preference.
+
+## Native hosting, release updates and invite handoff
+
+Hosting controls are available only through local native IPC. The app stores the
+chosen host folder, Compose project, public address and HTTPS preference in its
+local profile. A signed distribution manifest authenticates the deployment scripts
+and server archive before execution. Docker and Node run as the local operator;
+anyone controlling that OS account or Docker daemon can control the host.
+
+Host `.env` and `s3.json` files contain database/storage credentials. Rollback
+backups additionally contain database metadata and encrypted events, the server
+signing and OPAQUE setup keys, private object storage, optional Caddy certificate
+state and the previous server image. Backups remain local until the operator
+removes them and must be protected like the original host. Client content keys
+are not added to host backups. The setup code is retrieved on request through
+native IPC and cleared from the rendered panel when it closes.
+
+Host startup refuses to generate new credentials when labeled persistent data
+already exists without both operator files. It checks database authentication
+through the service network before launching Hearth; container-local loopback
+trust authentication is not used for this check. The password is passed through
+the subprocess environment rather than command arguments or logs. A failed check
+does not rotate credentials, erase data or rewrite the operator files.
+
+Release requests disclose the client IP and request timing to GitHub. The app
+pins the repository, release paths and signing public key. Installer and host
+updates require signatures, version binding and artifact hashes; host updates
+also bind the source revision and image identity. Stable and Preview use separate
+feeds. The private release signing key remains outside version control and
+distribution archives. A valid signature authenticates the publisher, not the
+absence of defects; server updates retain a rehearsed rollback backup.
+
+Native invite links can be supplied by any website or local process. The OS may
+expose launch arguments to local process inspection. Hearth bounds and validates
+the URI shape, keeps at most one pending handoff for five minutes in memory, and
+does not log or persist it. The platform plugin also retains the current launch
+URL in process memory for its lifetime. The UI requires Review, Check and Continue
+before changing servers; normal invite validation and server identity pinning
+still apply. Existing sessions stay mounted until the user confirms a connection.

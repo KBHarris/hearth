@@ -1,0 +1,5 @@
+{
+  "checks": ["workflow-policy"],
+  "core": ["workflow-policy", "rust", "crypto-wasm", "auth", "web", "compose", "podman"],
+  "full": ["workflow-policy", "rust", "crypto-wasm", "auth", "web", "desktop", "media-browser", "compose", "podman"]
+}

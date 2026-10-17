@@ -3,20 +3,22 @@ import assert from 'node:assert/strict'
 import { spawn, spawnSync } from 'node:child_process'
 import { randomBytes, randomUUID } from 'node:crypto'
 import { createRequire } from 'node:module'
-import { existsSync, mkdirSync, readFileSync, renameSync, rmSync, writeFileSync } from 'node:fs'
+import { copyFileSync, existsSync, mkdirSync, readFileSync, renameSync, rmSync, writeFileSync } from 'node:fs'
 import { createServer } from 'node:net'
 import { createInterface } from 'node:readline'
 import { fileURLToPath } from 'node:url'
 import { join, delimiter, resolve } from 'node:path'
+import {verifyEndpointMatrix} from './phase3-endpoint-matrix.mjs'
 import { verifyMessaging } from './phase1-messaging-acceptance.mjs'
 import { verifyCommunities } from './phase2-community-acceptance.mjs'
 import {blobFixture} from './blob-fixture.mjs'
+import {verifyShortInvites} from './phase3-invite-acceptance.mjs'
 
 const root = fileURLToPath(new URL('../', import.meta.url))
 if(process.env.PGBIN)process.env.PATH=process.env.PGBIN+delimiter+process.env.PATH
-const reportPath = join(root, 'target/phase1-evidence/auth.json')
+const reportPath = join(root, process.argv.includes('--phase3')?'target/phase3-evidence/auth.json':'target/phase1-evidence/auth.json')
 if (!process.argv.includes('--serve') && !process.argv.includes('--desktop')) rmSync(reportPath, { force: true })
-if(process.argv.includes('--desktop'))rmSync(join(root,'target/phase1-evidence',`packaged-${process.platform}.json`),{force:true})
+if(process.argv.includes('--desktop'))rmSync(join(root,process.argv.includes('--phase3')?'target/phase3-evidence':'target/phase1-evidence',`packaged-${process.platform}.json`),{force:true})
 const id = randomUUID()
 const directory = join(root, 'target/auth-acceptance', id)
 mkdirSync(directory, { recursive: true })
@@ -29,7 +31,9 @@ function command(name, args, quiet = false, env = process.env) {
   if (result.error || result.status !== 0) throw new Error(`${name} acceptance command failed`)
   return result.stdout?.trim()
 }
-command('cargo', ['build', '--locked', '-p', 'hearth-server'])
+// Isolated CI can reuse its normal Cargo cache; local Phase 3 keeps preview builds separate.
+const serverTarget=process.env.HEARTH_TEST_TARGET_DIR ?? (process.argv.includes('--phase3')?'target/phase3-build':'target')
+command('cargo', ['build', '--locked', '-p', 'hearth-server', '--target-dir', serverTarget])
 let wasm
 let legacyWasm
 if(!process.argv.includes('--desktop') && !process.argv.includes('--serve')) {
@@ -46,7 +50,9 @@ await new Promise((resolve) => lease.listen(0, '127.0.0.1', resolve))
 const port = lease.address().port
 await new Promise((resolve) => lease.close(resolve))
 const origin = `http://127.0.0.1:${port}`
-const binary = join(root, 'target/debug', process.platform === 'win32' ? 'hearth-server.exe' : 'hearth-server')
+const compiledBinary = join(root, serverTarget, 'debug', process.platform === 'win32' ? 'hearth-server.exe' : 'hearth-server')
+const binary = join(directory, process.platform === 'win32' ? 'hearth-server.exe' : 'hearth-server')
+copyFileSync(compiledBinary,binary)
 let child
 let container
 let postgresDirectory
@@ -80,12 +86,24 @@ async function healthy() {
 }
 const frames = []
 const checks = {}
-async function request(path, body, token) {
-  const options = { method: body === undefined ? 'GET' : 'POST', headers: {}, signal: AbortSignal.timeout(8000), redirect: 'error' }
+const endpointOutcomes = new Map()
+const anonymousProbes = new Set()
+const publicPaths=new Set(['/health','/.well-known/hearth','/api/v1/setup','/api/v1/auth/registration','/api/v1/auth/owner/start','/api/v1/auth/owner/finish','/api/v1/auth/register/start','/api/v1/auth/register/finish','/api/v1/auth/login/start','/api/v1/auth/login/finish'])
+async function request(path, body, token, method) {
+  const options = { method: method ?? (body === undefined ? 'GET' : 'POST'), headers: {}, signal: AbortSignal.timeout(8000), redirect: 'error' }
   if (body !== undefined) { options.headers['Content-Type'] = 'application/json'; options.body = JSON.stringify(body); frames.push(options.body) }
   if (token) options.headers.Authorization = `Bearer ${token}`
   const response = await fetch(origin + path, options)
   const text = await response.text()
+  const route=path.split('?')[0].replace(/\/[a-f0-9]{64}(?=\/|$)/g,'/{id}').replace(/(\/people\/)[^/]+$/,'$1{username}').replace(/\/$/,'')
+  const key=options.method+' '+route, outcomes=endpointOutcomes.get(key)??new Set()
+  outcomes.add(response.status);endpointOutcomes.set(key,outcomes)
+  if(process.argv.includes('--phase3')&&response.ok&&token&&!publicPaths.has(path.split('?')[0])&&path!=='/api/v1/auth/account/delete'&&!anonymousProbes.has(key)){
+    const headers={...options.headers};delete headers.Authorization
+    const denied=await fetch(origin+path,{...options,headers});await denied.text()
+    assert.equal(denied.status,401,'Anonymous permission matrix: '+key)
+    outcomes.add(denied.status);anonymousProbes.add(key)
+  }
   return { status: response.status, value: text && response.headers.get('content-type')?.includes('application/json') ? JSON.parse(text) : null, headers: response.headers }
 }
 async function login(password, serverId, retainClient, username = 'owner', implementation = wasm) {
@@ -97,6 +115,12 @@ async function login(password, serverId, retainClient, username = 'owner', imple
     const proof = client.loginFinish(password, response.value.message, username, serverId)
     return { exchange_id: response.value.exchange_id, message: proof }
   } finally { if (!retainClient) client.free(); else retainClient(client) }
+}
+function fixtureSql(sql) {
+  const dbContainer=container??process.env.HEARTH_TEST_POSTGRES_CONTAINER
+  if(dbContainer)return command('docker',['exec',dbContainer,'psql','-U','hearth','-d','hearth','-q','-v','ON_ERROR_STOP=1','-t','-A','-c',sql],true)
+  const db=new URL(databaseUrl)
+  return command('psql',['-q','-v','ON_ERROR_STOP=1','-t','-A','-c',sql],true,{...process.env,PGHOST:db.hostname,PGPORT:db.port,PGUSER:decodeURIComponent(db.username),PGPASSWORD:decodeURIComponent(db.password),PGDATABASE:db.pathname.slice(1)})
 }
 try {
   if(process.argv.includes('--storage'))storage=await blobFixture(directory)
@@ -137,33 +161,34 @@ try {
   }
   start()
   await healthy()
+  if(process.argv.includes('--phase3'))assert.equal((await request('/health')).status,200)
   if (process.argv.includes('--serve')) {
     console.log(`Disposable owner-setup fixture: ${origin}; setup code file: ${join(directory, 'setup.code')}. Type stop to clean up.`)
     const lines = createInterface({ input: process.stdin })
     for await (const line of lines) if (line.trim() === 'stop') { lines.close(); break }
   } else if (process.argv.includes('--desktop')) {
     const configPath=join(directory,'webview-fixture.json')
-    writeFileSync(configPath,JSON.stringify({origin,serverKey:(await request('/.well-known/hearth')).value.server_key,setupCode:readFileSync(join(directory,'setup.code'),'utf8').trim(),storage:!!storage}),{mode:0o600})
+    writeFileSync(configPath,JSON.stringify({origin,serverKey:(await request('/.well-known/hearth')).value.server_key,setupCode:readFileSync(join(directory,'setup.code'),'utf8').trim(),storage:!!storage,phase3:process.argv.includes('--phase3')}),{mode:0o600})
     let native
     try {
-      native=spawn(join(root,'target/debug',process.platform==='win32'?'hearth-desktop.exe':'hearth-desktop'),['--phase1-acceptance'],{cwd:root,env:{...process.env,HEARTH_PHASE1_FIXTURE_PATH:configPath},windowsHide:true,stdio:['ignore','pipe','pipe']})
+      native=spawn(join(root,'target/debug',process.platform==='win32'?'hearth-desktop.exe':'hearth-desktop'),['--phase1-acceptance'],{cwd:root,env:{...process.env,HEARTH_PHASE1_FIXTURE_PATH:configPath,WEBVIEW2_USER_DATA_FOLDER:join(directory,'webview')},windowsHide:true,stdio:['ignore','pipe','pipe']})
       let stdout='';native.stdout.on('data',chunk=>{stdout+=chunk;if(stdout.length>100000)native.kill()})
       // SDK errors can contain operational details; capture but never print them.
       native.stderr.on('data',()=>{})
       const code=await new Promise((resolve,reject)=>{
-        const timer=setTimeout(()=>{native.kill();reject(new Error('Packaged client acceptance timed out'))},190000)
+        const timer=setTimeout(()=>{native.kill();reject(new Error('Packaged client acceptance timed out'))},process.argv.includes('--phase3')?420000:190000)
         native.once('error',error=>{clearTimeout(timer);reject(error)})
         native.once('exit',code=>{clearTimeout(timer);resolve(code)})
       })
       const line=stdout.split(/\r?\n/).find(line=>line.startsWith('HEARTH_PHASE1_REPORT='))
       assert.ok(line,'Packaged client did not return its sanitized report')
       const report=JSON.parse(line.slice('HEARTH_PHASE1_REPORT='.length))
-      const output=join(root,'target/phase1-evidence',`packaged-${process.platform}.json`)
+      const output=join(root,process.argv.includes('--phase3')?'target/phase3-evidence':'target/phase1-evidence',`packaged-${process.platform}.json`)
       const dump=container?command('docker',['exec',container,'pg_dump','-U','hearth','-d','hearth','--data-only'],true):(()=>{const db=new URL(databaseUrl);return command('pg_dump',['--data-only','--no-owner'],true,{...process.env,PGHOST:db.hostname,PGPORT:db.port,PGUSER:decodeURIComponent(db.username),PGPASSWORD:decodeURIComponent(db.password),PGDATABASE:db.pathname.slice(1)})})()
       const canary='HEARTH_PACKAGED_MESSAGE_CANARY_private_content'
       report.checks.server_database_and_logs_exclude_packaged_message_canary=!dump.includes(canary) && !logs.includes(canary)
       if(storage)storage.scan(canary)
-      mkdirSync(join(root,'target/phase1-evidence'),{recursive:true})
+      mkdirSync(join(root,process.argv.includes('--phase3')?'target/phase3-evidence':'target/phase1-evidence'),{recursive:true})
       writeFileSync(output,JSON.stringify({measuredAt:new Date().toISOString(),runtime:`Tauri system webview (${process.platform})`,...report},null,2)+'\n')
       console.log(JSON.stringify(report,null,2))
       assert.equal(code,0);assert.equal(report.outcome,'pass');assert.ok(Object.values(report.checks).every(value=>value===true))
@@ -196,6 +221,7 @@ try {
       assert.equal(response.headers.get('cache-control'), 'no-store')
       const token = response.value.token
       const accountId = response.value.account.id
+      await verifyShortInvites({origin,serverId,token,request,checks,sql:fixtureSql,restart:async()=>{await stop();start();await healthy()}})
       checks.one_use_login_proof = true
       assert.equal((await request('/api/v1/auth/session', undefined, token)).status, 200)
       assert.deepEqual((await request('/api/v1/auth/identity', undefined, token)).value, { identity_key: null, devices: [] })
@@ -297,6 +323,22 @@ try {
       checks.single_use_invite_creates_second_account = true
       checks.owner_only_registration_settings_survive_restart = true
       await verifyMessaging({wasm,request,login,origin,serverId,owner:token,password,prepared,linked,start,stop,healthy,checks,storage,
+        inspectDeleted:async account=>{
+          assert.match(account,/^[a-f0-9]{64}$/)
+          const sql=`DO $$ BEGIN BEGIN INSERT INTO auth_sessions(token_hash,account_id) VALUES(decode(repeat('aa',32),'hex'),'${account}'); RAISE EXCEPTION 'Deleted account accepted a late session write'; EXCEPTION WHEN check_violation THEN NULL; END; END $$; SELECT json_build_object('late_session_write_rejected',TRUE,'credential_erased',(SELECT deleted AND octet_length(password_file)=0 AND username LIKE 'deleted_%' FROM accounts WHERE id='${account}'),'public_identity_retained',EXISTS(SELECT 1 FROM account_devices WHERE account_id='${account}'),'sessions_erased',NOT EXISTS(SELECT 1 FROM auth_sessions WHERE account_id='${account}'),'packages_erased',NOT EXISTS(SELECT 1 FROM mls_key_packages WHERE account_id='${account}'),'reports_erased',NOT EXISTS(SELECT 1 FROM moderation_reports WHERE reporter_id='${account}' OR recipient_id='${account}'),'archives_erased',NOT EXISTS(SELECT 1 FROM channel_archives a JOIN delivery_operations o ON o.operation_id=a.operation_id WHERE o.account_id='${account}'),'delivery_erased',NOT EXISTS(SELECT 1 FROM delivery_events e JOIN delivery_operations o ON o.operation_id=e.operation_id WHERE o.account_id='${account}' AND o.action<>'commit' AND e.data->>'kind'<>'redacted'))`
+          const dbContainer=container??process.env.HEARTH_TEST_POSTGRES_CONTAINER
+          if(dbContainer)return JSON.parse(command('docker',['exec',dbContainer,'psql','-U','hearth','-d','hearth','-q','-v','ON_ERROR_STOP=1','-t','-A','-c',sql],true))
+          const db=new URL(databaseUrl);return JSON.parse(command('psql',['-q','-v','ON_ERROR_STOP=1','-t','-A','-c',sql],true,{...process.env,PGHOST:db.hostname,PGPORT:db.port,PGUSER:decodeURIComponent(db.username),PGPASSWORD:decodeURIComponent(db.password),PGDATABASE:db.pathname.slice(1)}))
+        },
+        retentionFixture:async (operation,age=false,blob=false)=>{
+          assert.match(operation,/^[a-f0-9]{64}$/)
+          const sql=blob?(age?(blob==='erasure'?`BEGIN; SET LOCAL session_replication_role=replica; UPDATE encrypted_blobs SET erased_at=now()-interval '21 minutes' WHERE id='${operation}' AND erased_at IS NOT NULL; COMMIT`:`UPDATE encrypted_blobs SET created_at=now()-interval '2 days' WHERE id='${operation}'`):`SELECT json_build_object('blobs',(SELECT count(*) FROM encrypted_blobs WHERE id='${operation}'))`):(age?`UPDATE delivery_operations SET created_at=now()-interval '2 days' WHERE operation_id='${operation}'; UPDATE delivery_events SET created_at=now()-interval '2 days' WHERE operation_id='${operation}'`:`SELECT json_build_object('messages',(SELECT count(*) FROM delivery_events WHERE operation_id='${operation}' AND data->>'kind'='message'),'archives',(SELECT count(*) FROM channel_archives WHERE operation_id='${operation}'),'operations',(SELECT count(*) FROM delivery_operations WHERE operation_id='${operation}'),'redactions',(SELECT count(*) FROM delivery_events WHERE operation_id='${operation}' AND data->>'kind'='redacted'))`);
+          const dbContainer=container ?? process.env.HEARTH_TEST_POSTGRES_CONTAINER
+          let output
+          if(dbContainer)output=command('docker',['exec',dbContainer,'psql','-U','hearth','-d','hearth','-q','-v','ON_ERROR_STOP=1','-t','-A','-c',sql],true)
+          else {const db=new URL(databaseUrl);output=command('psql',['-q','-v','ON_ERROR_STOP=1','-t','-A','-c',sql],true,{...process.env,PGHOST:db.hostname,PGPORT:db.port,PGUSER:decodeURIComponent(db.username),PGPASSWORD:decodeURIComponent(db.password),PGDATABASE:db.pathname.slice(1)})}
+          return age?undefined:JSON.parse(output)
+        },
         scanDatabase:async canary=>{
           const dumpContainer=container ?? process.env.HEARTH_TEST_POSTGRES_CONTAINER
           if (dumpContainer) {
@@ -343,8 +385,11 @@ try {
       assert.ok(!logs.includes(password) && !logs.includes(token) && !logs.includes(code))
       checks.no_password_on_wire_or_secrets_in_logs = true
     } finally { client.free() }
+    mkdirSync(join(root,process.argv.includes('--phase3')?'target/phase3-evidence':'target/phase1-evidence'),{recursive:true})
+    if(process.argv.includes('--phase3')){verifyEndpointMatrix(endpointOutcomes,{storage});checks.permission_matrix_all_http_routes_have_valid_and_rejected_access_fixtures=true}
+    if(process.argv.includes('--phase3'))writeFileSync(join(root,'target/phase3-evidence/http-endpoint-outcomes.json'),JSON.stringify(Object.fromEntries([...endpointOutcomes].sort().map(([route,statuses])=>[route,[...statuses].sort()])),null,2)+'\n')
     const report = { measuredAt: new Date().toISOString(), outcome: 'pass', client: 'product WASM', server: 'native HTTP + PostgreSQL', checks }
-    mkdirSync(join(root, 'target/phase1-evidence'), { recursive: true })
+    mkdirSync(join(root, process.argv.includes('--phase3')?'target/phase3-evidence':'target/phase1-evidence'), { recursive: true })
     writeFileSync(reportPath, JSON.stringify(report, null, 2) + '\n')
     console.log(JSON.stringify(report, null, 2))
   }

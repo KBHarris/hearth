@@ -3,6 +3,10 @@ target
 **/node_modules
 **/dist
 .git
+.release-keys
+.codex
+.agents
+.aws
 docs
 packages
 apps/client
