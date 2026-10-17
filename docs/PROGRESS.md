@@ -1,5 +1,16 @@
 # Progress
 
+Preview 0.3.3 was published and installed on 2026-10-17 from frozen product source
+`9a13cf0`. All [15 package/upgrade checks](evidence/windows-preview-0.3.3-2026-10-17.json)
+pass, including cold/warm legacy invite handling, the visible installed version,
+and preservation of the existing native profile and running host. The distribution
+secret scan has no findings. All eleven anonymous downloads match tested hashes,
+and both signed Preview feeds serve 0.3.3. See the [publication record](evidence/preview-0.3.3-release-2026-10-17.json).
+New sharing exposes only pretty codes and a separate recipient server address;
+the owner can remain connected locally. A corrected full hosted run is awaiting
+fresh authorization under the Actions budget policy. The original failed run
+remains recorded below; Phase 3 is not yet closed.
+
 Preview closeout update, 2026-10-16: the user waived the real two-household and
 provider/OS notification gates for this preview and authorized one full hosted
 cross-platform pass after fixing the host configuration mismatch. These waivers

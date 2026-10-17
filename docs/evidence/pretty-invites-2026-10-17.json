@@ -81,8 +81,18 @@
     "limitations": "Health reachability only; no claim of two-household encrypted messaging or confirmed router diagnosis"
   },
   "pending": [
-    "Actual 0.3.3 NSIS upgrade and release asset validation",
     "Corrected full hosted acceptance",
     "Host/Join no-prerequisite and clean-machine checkpoint"
-  ]
+  ],
+  "releaseValidation": {
+    "outcome": "pass",
+    "checks": 15,
+    "record": "windows-preview-0.3.3-2026-10-17.json"
+  },
+  "publication": {
+    "outcome": "pass",
+    "assets": 11,
+    "distributionSecretFindings": 0,
+    "record": "preview-0.3.3-release-2026-10-17.json"
+  }
 }

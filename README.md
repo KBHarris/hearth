@@ -3,13 +3,15 @@
 Hearth is a privacy-first, self-hostable community chat platform in early development.
 Messages and files are end-to-end encrypted. The application is licensed AGPLv3.
 
-The locally tested **Hearth Preview 0.3.2** includes guided Host/Join, encrypted DMs and
+The locally tested **Hearth Preview 0.3.3** includes guided Host/Join, encrypted DMs and
 communities, 50 MB files, member profiles, readable invites, desktop hosting controls,
 signed app/server updates, native invite opening, roles, reports, forums and polls.
-Download the Windows [client ZIP](https://github.com/KBHarris/hearth/releases/download/v0.3.2/Hearth_Test_96548d8_Windows_x64.zip)
-or [host package](https://github.com/KBHarris/hearth/releases/download/v0.3.2/Hearth_Host_0.3.2_Windows_x64.zip)
-from the [Preview release](https://github.com/KBHarris/hearth/releases/tag/v0.3.2).
-The signed Preview app/server update feeds are live.
+Download the Windows [client ZIP](https://github.com/KBHarris/hearth/releases/download/v0.3.3/Hearth_Test_9a13cf0_Windows_x64.zip)
+or [host package](https://github.com/KBHarris/hearth/releases/download/v0.3.3/Hearth_Host_0.3.3_Windows_x64.zip)
+from the [Preview release](https://github.com/KBHarris/hearth/releases/tag/v0.3.3).
+The signed Preview app/server update feeds are live. Invitations share only pretty
+codes with a separate server address. Hosts can stay connected locally while
+creating codes for their public HTTPS address.
 The client header shows its installed version. New host packages use local port
 8080; existing hosts retain the port in their original `.env`. Missing or
 mismatched original host configuration stops startup with recovery instructions.
