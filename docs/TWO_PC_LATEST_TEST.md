@@ -37,11 +37,14 @@ local check, and choose the extracted folder containing `manifest.json`. Choose
 **Start server**. The app imports the matching server image if needed and creates
 private configuration. Expand **Owner setup → Get owner setup code**.
 
-Open **Hearth Preview → Host a server**, enter `http://127.0.0.1:8183`, check it, and
+Open **Hearth Preview → Host a server**, enter `http://127.0.0.1:8080`, check it, and
 choose **Set up owner account**. Enter the private setup code and create your new
 owner account. The setup code is cleared when the hosting panel closes; select it
-and copy before closing. This uses Compose project `hearth-guided-test`, backend 8183 and S3
+and copy before closing. This uses Compose project `hearth-guided-test`, backend 8080 and S3
 18335, with separate data volumes. Keep this folder in place while hosting.
+Port 8080 must be available. Older host packages keep their configured port until
+the operator changes `HEARTH_PORT` in their original `.env`; restart the server
+after changing it. The app's local connection button reads that configuration.
 
 ## Host: make it reachable from your buddy's house
 
@@ -49,7 +52,7 @@ and copy before closing. This uses Compose project `hearth-guided-test`, backend
    public IPv4 or DNS name without a scheme, path or port, and **Save host settings**.
    Your generated passwords and keys are preserved.
 2. Point router TCP 80/443 forwarding at this PC and allow those ports through the
-   firewall. Leave backend 8183, S3 18335 and the database private. If the router's
+   firewall. Leave backend 8080, S3 18335 and the database private. If the router's
    WAN address is private/shared or differs from your public address, resolve the
    upstream routing/CGNAT situation before attempting direct public hosting.
 3. Check that public ports 80/443 are available for this bundle's HTTPS proxy.

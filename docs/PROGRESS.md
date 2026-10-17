@@ -9,7 +9,11 @@ service network before starting Hearth. Existing files, data and passwords stay
 intact on failure. The real Docker regression passes nine outcomes, including
 missing files, wrong credentials, successful retry and migration rollback. The
 client header also displays its version; desktop reads the installed native
-version, and browser builds use the Preview build version. Preview 0.3.2 is being
+version, and browser builds use the Preview build version. New Preview host
+packages use local port 8080 at the user's request. Host controls read existing
+port overrides from .env, retaining compatibility with older packages and custom
+ports; startup failures identify the configured port as a possible conflict.
+Preview 0.3.2 is being
 validated for these changes; 0.3.1 remains the currently published immutable build.
 
 Current implementation pass, 2026-10-16: 50 MB encrypted files, server-owner file

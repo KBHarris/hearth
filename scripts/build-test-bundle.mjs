@@ -31,7 +31,7 @@ const build='    build:\n      context: ..\n      dockerfile: crates/hearth-serv
 compose=compose.replaceAll('\r\n','\n');assert.ok(compose.includes(build))
 compose=compose.replace(build,`    image: ${info.Id}\n    pull_policy: never`)
 writeFileSync(join(deploy,'compose.yaml'),compose)
-let env=readFileSync(join(root,'deploy/.env.example'),'utf8').replace('HEARTH_PORT=8080','HEARTH_PORT=8183').replace('HEARTH_S3_PORT=8333','HEARTH_S3_PORT=18335').replace('http://127.0.0.1:8333','http://127.0.0.1:18335')
+let env=readFileSync(join(root,'deploy/.env.example'),'utf8').replace('HEARTH_S3_PORT=8333','HEARTH_S3_PORT=18335').replace('http://127.0.0.1:8333','http://127.0.0.1:18335')
 writeFileSync(join(deploy,'.env.example'),env)
 const installerName=`${productName.replaceAll(' ','_')}_${version}_x64-setup.exe`;assert.ok([installerName,`${productName}_${version}_x64-setup.exe`].includes(resolve(installer).split(/[\\/]/).at(-1)),'Installer name must match the frozen product and version');copyFileSync(resolve(installer),join(directory,'client',installerName))
 writeFileSync(join(directory,'client/START_HERE.txt'),`${productName} ${version} - Windows x64
@@ -58,13 +58,13 @@ writeFileSync(join(directory,'START_HOST_HERE.md'),`# Host the latest Hearth tes
 Source: ${commit}
 
 Send only [the friend ZIP](${zipName}) to your buddy. Install that client on your PC too.
-Follow [the two-PC guide](TWO_PC_LATEST_TEST.md). The fresh server uses backend 8183, S3 18335 and Compose project hearth-guided-test. Existing test servers and profiles are preserved.
+Follow [the two-PC guide](TWO_PC_LATEST_TEST.md). The fresh server uses backend 8080, S3 18335 and Compose project hearth-guided-test. Port 8080 must be available. Existing test servers and profiles are preserved.
 
 Install Docker Desktop and Node.js 22+, then open Hosting & updates in the desktop app and choose this extracted folder. Configure your public IPv4 or DNS name, start the server and retrieve its owner setup code there. Configure port forwarding and verify access from another network, then create a readable account/community invite in the owner client. Keep operator files on the host and share the full invite privately. App and hosted-server updates verify signed releases; server updates retain a verified rollback backup.
 `)
 const files={}
 for(const f of [zipName,archiveName,'client/'+installerName,'deploy/compose.yaml','deploy/compose.https.yaml','deploy/setup.mjs','deploy/Caddyfile','deploy/storage-entrypoint.sh','deploy/.env.example','client/START_HERE.txt','client/SHA256SUMS.txt','START_HOST_HERE.md','TWO_PC_LATEST_TEST.md'])files[f]=digest(join(directory,f))
-writeFileSync(join(directory,'manifest.json'),JSON.stringify({builtAt:new Date().toISOString(),sourceCommit:commit,packagingCommit,client:{version,productName,identifier,unsigned:true,profile:'independent',installer:installerName},server:{image:imageName,imageId:info.Id,architecture:info.Architecture,composeProject:'hearth-guided-test',backendPort:8183,s3LoopbackPort:18335},files},null,2)+'\n')
+writeFileSync(join(directory,'manifest.json'),JSON.stringify({builtAt:new Date().toISOString(),sourceCommit:commit,packagingCommit,client:{version,productName,identifier,unsigned:true,profile:'independent',installer:installerName},server:{image:imageName,imageId:info.Id,architecture:info.Architecture,composeProject:'hearth-guided-test',backendPort:8080,s3LoopbackPort:18335},files},null,2)+'\n')
 const signingKey=process.env.TAURI_SIGNING_PRIVATE_KEY_PATH??join(root,'.release-keys/updater.key')
 const signed=spawnSync(process.execPath,[join(root,'node_modules/@tauri-apps/cli/tauri.js'),'signer','sign','--private-key-path',signingKey,'--app-version',version,join(directory,'manifest.json')],{cwd:root,stdio:'ignore',windowsHide:true});assert.equal(signed.status,0,'Sign the host manifest before distributing it')
 console.log(JSON.stringify({directory,sourceCommit:commit,clientZip:zipName,serverArchive:archiveName,imageId:info.Id}))

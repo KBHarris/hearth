@@ -54,6 +54,22 @@ mod tests {
                 .contains("Unknown host project")
         );
     }
+    #[test]
+    fn configured_port_preserves_custom_hosts_and_rejects_ambiguous_values() {
+        assert_eq!(
+            parse_local_port("HEARTH_PORT=8080\r\n", 8183).unwrap(),
+            8080
+        );
+        assert_eq!(parse_local_port("", 8183).unwrap(), 8183);
+        for text in [
+            "HEARTH_PORT=0",
+            "HEARTH_PORT=65536",
+            "HEARTH_PORT=oops",
+            "HEARTH_PORT=8080\nHEARTH_PORT=8183",
+        ] {
+            assert!(parse_local_port(text, 8080).is_err());
+        }
+    }
 }
 
 #[derive(Default)]
@@ -476,6 +492,33 @@ pub(crate) fn selected(app: &tauri::AppHandle) -> Result<Selection, String> {
     crate::updates::validate_runtime(&selection.root)?;
     Ok(selection)
 }
+fn parse_local_port(text: &str, fallback: u16) -> Result<u16, String> {
+    let values = text
+        .lines()
+        .filter_map(|line| line.strip_prefix("HEARTH_PORT="))
+        .collect::<Vec<_>>();
+    match values.as_slice() {
+        [] => Ok(fallback),
+        [value] => value
+            .trim()
+            .parse::<u16>()
+            .ok()
+            .filter(|port| *port != 0)
+            .ok_or_else(|| "HEARTH_PORT must be a valid TCP port in the host's .env.".into()),
+        _ => Err("Use exactly one HEARTH_PORT entry in the host's .env.".into()),
+    }
+}
+fn local_port(selection: &Selection, fallback: u16) -> Result<u16, String> {
+    let path = selection.root.join("deploy/.env");
+    if !path.exists() {
+        return Ok(fallback);
+    }
+    regular(&path)?;
+    parse_local_port(
+        &fs::read_to_string(path).map_err(|_| "Cannot read host configuration.")?,
+        fallback,
+    )
+}
 fn status(selection: &Selection) -> Result<HostStatus, String> {
     let bundle = validate(&selection.root)?;
     let running = compose(selection, &["ps", "--services", "--status", "running"], 20)?;
@@ -501,7 +544,10 @@ fn status(selection: &Selection) -> Result<HostStatus, String> {
             "Hosting services are stopped or incomplete."
         }
         .into(),
-        local_url: Some(format!("http://localhost:{}", bundle.server.backend_port)),
+        local_url: Some(format!(
+            "http://localhost:{}",
+            local_port(selection, bundle.server.backend_port)?
+        )),
         public_address: selection.public_address.clone(),
     })
 }
@@ -668,7 +714,7 @@ pub(crate) fn control(selection: &Selection, action: &str) -> Result<HostStatus,
                 selection,
                 &["up", "-d", "--no-build", "--wait", "--wait-timeout", "120"],
                 180,
-            )?;
+            ).map_err(|_| format!("Hearth could not finish starting. Check whether local port {} is already in use and whether Docker services are healthy, then retry. Existing data and configuration were preserved.", local_port(selection, bundle.server.backend_port).unwrap_or(bundle.server.backend_port)))?;
         }
         "stop" => {
             compose(selection, &["stop", "--timeout", "30"], 60)?;
