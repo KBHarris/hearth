@@ -33,7 +33,7 @@ export function AdminPanel({session,url,serverKey,configured}:{session:Session;u
     {saved && <p role="status">Server settings saved.</p>}
     <p>Invite someone to create an account. The invite includes this server’s address and identity, works once and expires after 24 hours.</p>
     <button type="button" disabled={busy} onClick={() => void createInvite()}>Create account invite</button>
-    {invite && <><ShareInvite key={invite} invite={{server:url,serverKey,account:invite}}/><details><summary>Account invite code</summary><label htmlFor="account-invite">Single-use account invite</label><input id="account-invite" readOnly value={invite}/></details><button type="button" onClick={() => setInvite('')}>Hide invite</button></>}
+    {invite && <><ShareInvite key={invite} token={session.token} invite={{server:url,serverKey,account:invite}}/><button type="button" onClick={() => setInvite('')}>Hide invite</button></>}
     <BlockedPeople url={url} session={session} operator/>
     {error && <p className="input-error" role="alert">{error}</p>}
   </section>

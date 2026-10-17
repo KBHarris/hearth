@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState, type FormEvent } from 'react'
-import { HearthClient, type HearthInvite, type DeviceEnrollment, type ServerInfo, type Session, type RegistrationMode,type ServerSettings } from '@hearth/sdk'
+import { HearthClient, resolveInviteCode, resolveSetupTarget, type HearthInvite, type DeviceEnrollment, type ServerInfo, type Session, type RegistrationMode,type ServerSettings } from '@hearth/sdk'
 import { AuthCrypto } from './crypto/client'
 import { createIdentity, readIdentity, identityScope, identityStorageLabel, storageDeadline } from './crypto/vault-store'
 import { RecoveryPanel } from './RecoveryPanel'
@@ -50,6 +50,7 @@ export function AuthPanel({ url, info, setupFinished,configured,onSessionChange,
     const username = String(data.get('username')).trim()
     let password = String(data.get('password'))
     let code = String(ownerSetup ? data.get('setup-code') ?? '' : signup && invite?.account ? invite.account : data.get('invite-code') ?? '').trim()
+    let acceptedInvite=invite
     const confirmation = String(data.get('confirm-password') ?? '')
     setError('')
     if (signup && (!registrationReady || registrationMode === 'closed')) {setError('Ask the host to allow account creation, or sign in to an existing account.');return}
@@ -73,6 +74,11 @@ export function AuthPanel({ url, info, setupFinished,configured,onSessionChange,
       active.current = { crypto, controller }
       const pinKey = `hearth.server-key:${client.baseUrl}`
       const serverId = info.wellKnown.server_key.toLowerCase()
+      if(signup && code && !/^[a-f0-9]{64}$/.test(code)) {
+        const resolved=/^hearth:/i.test(code)?(await resolveSetupTarget(code,options)).invite:await resolveInviteCode(url,code,options)
+        if(!resolved?.account || resolved.server!==client.baseUrl || resolved.serverKey!==serverId)throw new Error('Use an account invite for this server. Ask the host for a new invite.')
+        acceptedInvite=resolved;code=resolved.account
+      }
       let pinned: string | null
       try { pinned = localStorage.getItem(pinKey) }
       catch { throw new Error('Allow site storage to remember this server’s identity before signing in.') }
@@ -84,7 +90,7 @@ export function AuthPanel({ url, info, setupFinished,configured,onSessionChange,
         const response = ownerSetup ? await client.ownerStart({ username, message, setup_code: code }, options) : await client.registerStart({username,message,invite_code:code || null},options)
         const upload = await crypto.request('registrationFinish', password, response.message, username, serverId)
         if (ownerSetup) {await client.ownerFinish({ username, message: upload, setup_code: code }, options);setCreated(true);setupFinished()}
-        else {await client.registerFinish({username,message:upload,invite_code:code || null},options);setAccountMode('signin');if(invite?.account)onInviteChange?.(invite.community?{...invite,account:undefined}:null)}
+        else {await client.registerFinish({username,message:upload,invite_code:code || null},options);setAccountMode('signin');if(acceptedInvite?.account)onInviteChange?.(acceptedInvite.community?{...acceptedInvite,account:undefined}:null)}
       }
       const message = await crypto.request('loginStart', password)
       const response = await client.loginStart({ username, message }, options)
@@ -175,7 +181,7 @@ export function AuthPanel({ url, info, setupFinished,configured,onSessionChange,
       <form onSubmit={(event) => void authenticate(event)} aria-busy={busy}>
         <fieldset disabled={busy}>
           {ownerSetup && <><label htmlFor="setup-code">Setup code</label><input id="setup-code" name="setup-code" type="password" required minLength={64} maxLength={64} autoComplete="off" /><small>Use the private owner setup code from the existing server’s installer. Keep it on the host computer.</small></>}
-          {signup && invite?.account ? <p className="notice">Account invite included.</p> : signup && registrationMode === 'invite' && <><label htmlFor="invite-code">Account invite code</label><input id="invite-code" name="invite-code" type="password" required minLength={64} maxLength={64} autoComplete="off"/></>}
+          {signup && invite?.account ? <p className="notice">Account invite included.</p> : signup && registrationMode === 'invite' && <><label htmlFor="invite-code">Account invite or code</label><input id="invite-code" name="invite-code" type="password" required minLength={32} maxLength={2048} autoComplete="off"/><small>Paste the full Hearth invite or its 32-character code for this server.</small></>}
           <label htmlFor="username">Username</label><input id="username" name="username" required pattern="[a-z0-9_]{3,32}" minLength={3} maxLength={32} autoComplete="username" spellCheck={false} /><small>3–32 lowercase letters, numbers, or underscores.</small>
           <label htmlFor="password">Password</label><input id="password" name="password" type="password" required maxLength={1024} minLength={register ? 12 : 1} autoComplete={register ? 'new-password' : 'current-password'} />
           {register && <><label htmlFor="confirm-password">Confirm password</label><input id="confirm-password" name="confirm-password" type="password" required autoComplete="new-password" /></>}

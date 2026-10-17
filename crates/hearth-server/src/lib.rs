@@ -13,6 +13,7 @@ pub mod delivery;
 pub mod device;
 pub mod gateway;
 mod governance;
+mod invites;
 pub mod keys;
 mod ownership;
 pub mod push;

@@ -11,6 +11,9 @@ const [outputRoot,imageName,installer,sourceRef='HEAD']=process.argv.slice(2)
 assert.ok(outputRoot&&imageName&&installer,'Usage: node scripts/build-test-bundle.mjs OUTPUT_ROOT IMAGE INSTALLER [SOURCE_REF]')
 function run(name,args){const result=spawnSync(name,args,{cwd:root,encoding:'utf8',windowsHide:true,maxBuffer:8*1024*1024});if(result.error||result.status!==0)throw new Error(`${name} bundle command failed: ${result.stderr?.slice(-1000)??''}`);return result.stdout.trim()}
 const commit=run('git',['rev-parse',sourceRef+'^{commit}']),packagingCommit=run('git',['rev-parse','HEAD']);assert.match(commit,/^[a-f0-9]{40}$/)
+const testConfig=JSON.parse(run('git',['show',commit+':apps/desktop/src-tauri/tauri.test.conf.json']))
+const {version,productName,identifier}=testConfig
+assert.match(version,/^\d+\.\d+\.\d+$/)
 const tooling=new Set(['scripts/build-test-bundle.mjs','scripts/verify-test-bundle.mjs','scripts/verify-installed-test-client.mjs'])
 const retired=new Set(['scripts/build-phase2-bundle.mjs','scripts/verify-phase2-bundle.mjs','deploy/phase2-client.json'])
 assert.ok(run('git',['diff','--name-status','--no-renames',commit,'HEAD']).split('\n').filter(Boolean).every(line=>{const [status,path]=line.split('\t');return path==='README.md'||path.startsWith('docs/')||tooling.has(path)||(status==='D'&&retired.has(path))}),'Application, server, dependencies and deployment must match the frozen source')
@@ -30,15 +33,15 @@ compose=compose.replace(build,`    image: ${info.Id}\n    pull_policy: never`)
 writeFileSync(join(deploy,'compose.yaml'),compose)
 let env=readFileSync(join(root,'deploy/.env.example'),'utf8').replace('HEARTH_PORT=8080','HEARTH_PORT=8183').replace('HEARTH_S3_PORT=8333','HEARTH_S3_PORT=18335').replace('http://127.0.0.1:8333','http://127.0.0.1:18335')
 writeFileSync(join(deploy,'.env.example'),env)
-const installerName='Hearth_Test_0.3.0_x64-setup.exe';copyFileSync(resolve(installer),join(directory,'client',installerName))
-writeFileSync(join(directory,'client/START_HERE.txt'),`Hearth Test 0.3.0 - Windows x64
+const installerName=`${productName.replaceAll(' ','_')}_${version}_x64-setup.exe`;assert.equal(resolve(installer).split(/[\\/]/).at(-1),installerName);copyFileSync(resolve(installer),join(directory,'client',installerName))
+writeFileSync(join(directory,'client/START_HERE.txt'),`${productName} ${version} - Windows x64
 
 1. Extract this ZIP, then run ${installerName}. This is an unsigned test build; Windows may show an unknown-publisher warning. WebView2 may download if missing.
-2. Open Hearth Test, choose Join a server and paste the complete invite your host sends separately. Check it, then continue. Do not use localhost to reach your buddy.
+2. Open ${productName}, choose Join a server and paste the complete invite your host sends separately. Check it, then continue. Do not use localhost to reach your buddy.
 3. Create your account, then choose Join invited community. Keep both apps online while your host approves your device. If you already have an account on this new test server, choose Sign in.
-4. Test a DM, community messages, a small file and reopening the app. Compare identity fingerprints with your host over your existing trusted call.
+4. Test a DM, community messages, files up to 50 MB, the member sidebar and reopening the app. Compare identity fingerprints with your host over your existing trusted call. Hosting & updates checks for signed app updates.
 
-Invites are pasted into Hearth; click-to-open is not supported yet. You do not need Docker, Node or the owner's setup code. Keep your password and recovery kit private.
+You can also click a Hearth invite and choose Review invite in the app. Checking and continuing remain explicit steps. You do not need Docker, Node or the owner's setup code. Keep your password and recovery kit private.
 
 Source: ${commit}
 Installer SHA-256 is in SHA256SUMS.txt. This ZIP contains no host configuration, account invite, setup code or recovery kit.
@@ -57,9 +60,11 @@ Source: ${commit}
 Send only [the friend ZIP](${zipName}) to your buddy. Install that client on your PC too.
 Follow [the two-PC guide](TWO_PC_LATEST_TEST.md). The fresh server uses backend 8183, S3 18335 and Compose project hearth-guided-test. Existing test servers and profiles are preserved.
 
-The app checks an existing server; host service installation still uses Docker and Node.js 22+. Start locally, configure HTTPS, verify access from another network, then create the combined account/community invite in the owner client. Keep operator files on the host and share the invite privately.
+Install Docker Desktop and Node.js 22+, then open Hosting & updates in the desktop app and choose this extracted folder. Configure your public IPv4 or DNS name, start the server and retrieve its owner setup code there. Configure port forwarding and verify access from another network, then create a readable account/community invite in the owner client. Keep operator files on the host and share the full invite privately. App and hosted-server updates verify signed releases; server updates retain a verified rollback backup.
 `)
 const files={}
 for(const f of [zipName,archiveName,'client/'+installerName,'deploy/compose.yaml','deploy/compose.https.yaml','deploy/setup.mjs','deploy/Caddyfile','deploy/storage-entrypoint.sh','deploy/.env.example','client/START_HERE.txt','client/SHA256SUMS.txt','START_HOST_HERE.md','TWO_PC_LATEST_TEST.md'])files[f]=digest(join(directory,f))
-writeFileSync(join(directory,'manifest.json'),JSON.stringify({builtAt:new Date().toISOString(),sourceCommit:commit,packagingCommit,client:{version:'0.3.0',identifier:'chat.hearth.phase3-test',unsigned:true,profile:'independent',installer:installerName},server:{image:imageName,imageId:info.Id,architecture:info.Architecture,composeProject:'hearth-guided-test',backendPort:8183,s3LoopbackPort:18335},files},null,2)+'\n')
+writeFileSync(join(directory,'manifest.json'),JSON.stringify({builtAt:new Date().toISOString(),sourceCommit:commit,packagingCommit,client:{version,productName,identifier,unsigned:true,profile:'independent',installer:installerName},server:{image:imageName,imageId:info.Id,architecture:info.Architecture,composeProject:'hearth-guided-test',backendPort:8183,s3LoopbackPort:18335},files},null,2)+'\n')
+const signingKey=process.env.TAURI_SIGNING_PRIVATE_KEY_PATH??join(root,'.release-keys/updater.key')
+const signed=spawnSync(process.execPath,[join(root,'node_modules/@tauri-apps/cli/tauri.js'),'signer','sign','--private-key-path',signingKey,'--app-version',version,join(directory,'manifest.json')],{cwd:root,stdio:'ignore',windowsHide:true});assert.equal(signed.status,0,'Sign the host manifest before distributing it')
 console.log(JSON.stringify({directory,sourceCommit:commit,clientZip:zipName,serverArchive:archiveName,imageId:info.Id}))

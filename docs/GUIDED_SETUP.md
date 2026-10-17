@@ -1,6 +1,7 @@
 # Guided Host/Join setup
 
-First implementation pass: 2026-10-15, branch `codex/guided-setup`.
+Updated 2026-10-16, branch `codex/guided-setup`. The original 0.3.0 distribution
+remains immutable; the new features are being packaged as Hearth Preview 0.3.1.
 
 ## Available in this pass
 
@@ -10,9 +11,10 @@ unmounting an existing account or chat until another server is confirmed.
 
 - Join accepts a server address or a single pasted Hearth invite. Checking an
   address does not save it or sign out the current account. Continue confirms it.
-- Host checks an **existing running Hearth server** and hands off to its real
-  owner enrollment or sign-in screen. The owner code still comes from the existing
-  operator installer; this client does not retrieve or embed it.
+- Host checks a running Hearth server and hands off to owner enrollment or sign-in.
+  Desktop **Hosting & updates** can select a signed extracted host package,
+  configure its public address/HTTPS, start/stop it and retrieve the owner code
+  through protected local IPC. Docker Desktop and Node.js 22+ are prerequisites.
 - Readiness checks real health, protocol compatibility, setup status and server
   identity. An invite must match the returned key and any existing local pin.
   The active server identity is also checked if local storage cannot be read.
@@ -32,29 +34,32 @@ unmounting an existing account or chat until another server is confirmed.
 
 ## Invite format and storage
 
-`hearth://join/#v=1&server=<origin>&key=<public-key>&account=<optional-code>&community=<optional-code>`
+`hearth://join/#v=2&server=<origin>&code=<32-readable-characters>`
 
-The version, HTTPS-or-loopback origin and 64-character lowercase hex values are
-validated before any network request. A key and at least one admission capability
-are required. Duplicate/unknown fields, URL credentials, query strings, other
-paths, insecure remote origins and owner bootstrap fields are rejected. The SDK
-does not fetch a supplied invite URL. Only public discovery requests go to the
-validated server until the user proceeds to account or community admission.
+The random 160-bit Crockford code is displayed in eight groups of four. The
+client derives separate lookup and encryption keys using domain-separated SHA-256,
+then retrieves and decrypts an origin-bound AES-GCM invite envelope. The relay
+stores only its hash, nonce, ciphertext, creator and expiry, with bounded quotas.
+It does not receive the readable code or raw account/community capabilities.
+The decrypted server identity must match discovery and any existing pin.
+Duplicate/unknown fields, credentials, query strings, other paths, insecure remote
+origins and owner bootstrap fields are rejected. Existing v1 links remain valid.
 Bare admission/bootstrap codes are rejected as server addresses before DNS or
 fetch, preventing an accidental paste from turning a capability into a hostname.
 
-The fragment keeps capabilities out of an HTTP path/query. The UI uses these as
-**pasteable invites**; OS click-to-open registration is not implemented. Invites
-are not browser URLs served by the API host. A recipient pastes the complete
-invite into Hearth's Join a server screen. Do not advertise native link handling
-or a hosted web landing page until those are implemented and tested.
+The fragment keeps codes out of HTTP paths and queries. Paste a full link into
+Join a server, or use a readable code after selecting its server. The desktop
+installer registers the `hearth` scheme. Cold-start and already-open app handoffs
+offer **Review invite**, then require Check and Continue; opening a link never
+changes an existing session automatically. There is no hosted web landing page.
 
 Invite capabilities remain in component memory and are cleared on discard,
 successful consumption or switching servers; a reload requires pasting again.
 Only successful server origins/names and existing public identity pins are saved.
 Copy explicitly writes the invite to the system clipboard, which is controlled by
 the OS and any enabled clipboard history or synchronization. Share privately.
-No new server routes, wire fields, database tables or analytics are introduced.
+The encrypted relay uses the invite-links endpoints and migration 0023. No
+analytics or centralized invite directory is introduced.
 
 Account invites remain single-use/24-hour. A combined invite's community policy
 can expire sooner or allow more uses, but its included account capability still
@@ -103,11 +108,22 @@ the target. This pass does not complete the no-prerequisite hosting installer.
 3. Add explicit local/internet hosting choices, HTTPS configuration and independent
    outside-network verification. Diagnose CGNAT/loopback only with sufficient
    evidence; an optional relay requires an explicit trust design.
-4. Register and validate native invite links, then test cold-start and already-open
-   app handoffs. Keep untrusted capability data out of logs and persistent queues.
-5. Add opt-in background hosting/startup, backups, updates, rollback and fresh-host
-   restore, then exercise clean-machine and two-house acceptance on each OS.
+4. Validate installer protocol registration and native cold/warm invite handoffs
+   in the new Windows package; macOS/Linux runtime evidence remains pending.
+5. Existing Docker services continue after the client closes. Add explicit
+   background/startup enrollment and fresh-host restore. Signed updates, local
+   backup rehearsal and failed-migration rollback are implemented; exercise
+   clean-machine and two-house acceptance on each OS.
 
 Use isolated disposable instances to validate these features. The current 0.3.0
 distribution remains pinned to its source and checksums; prepare a new versioned
 package after changing application or server code.
+
+## Phase 4 cloud hosting option
+
+The [Phase 4 hosting and media plan](PHASE4_HOSTING_AND_MEDIA.md), added 2026-10-16,
+defines a separate Railway IaC path for backend/database/storage provisioning,
+optional browser hosting and guided owner enrollment, with identity-preserving
+retry, update and restore. It also specifies direct P2P media with TURN fallback
+and optional separately hosted LiveKit. This is planned work and does not close
+the local installer, native invite or clean-machine gates above.

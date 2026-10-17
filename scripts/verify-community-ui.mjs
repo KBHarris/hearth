@@ -1,6 +1,6 @@
 // Real client controls against an isolated native PostgreSQL/server fixture.
 import assert from 'node:assert/strict'
-import {spawn} from 'node:child_process'
+import {spawn,spawnSync} from 'node:child_process'
 import {existsSync,mkdirSync,readFileSync,writeFileSync,rmSync} from 'node:fs'
 import {fileURLToPath} from 'node:url'
 import {join} from 'node:path'
@@ -8,8 +8,12 @@ import {Builder,By,Key} from 'selenium-webdriver'
 import {Select} from 'selenium-webdriver/lib/select.js'
 import chrome from 'selenium-webdriver/chrome.js'
 import {verifyTextUI} from './phase2-text-ui.mjs'
+import {createHearthInvite,resolveSetupTarget} from '../packages/sdk/src/index.ts'
 
 const root=fileURLToPath(new URL('../',import.meta.url))
+// Direct Vite does not execute the client's npm predev hook. Build the current
+// crypto engine explicitly so changed file/protocol limits cannot use stale WASM.
+assert.equal(spawnSync(process.execPath,[join(root,'scripts/build-auth-wasm.mjs')],{cwd:root,stdio:'inherit',windowsHide:true}).status,0,'Current auth WASM build failed')
 const output=join(root,process.argv.includes('--setup-only')?'target/setup-join-evidence':process.argv.includes('--guided-setup')?'target/setup-evidence':process.argv.includes('--phase3')?'target/phase3-evidence':'target/phase2-evidence')
 mkdirSync(output,{recursive:true})
 mkdirSync(join(output,'downloads'),{recursive:true})
@@ -401,17 +405,17 @@ try {
     await driver.executeScript('window.__releaseSetupInvite();window.fetch=window.__setupInviteFetch;delete window.__releaseSetupInvite;delete window.__setupInviteFetch')
     checks.combined_invite_stays_hidden_until_account_capability_is_ready=true
   }
-  const invite=await wait('created-community-invite')
-  assert.match(await invite.getAttribute('value'),/^[a-f0-9]{64}$/)
+  const invite=await driver.wait(async()=>{const fields=await driver.findElements(By.css('.share-invite .invite-code'));return fields[0]??false},15000)
+  assert.match(await invite.getAttribute('value'),/^(?:[0-9A-HJKMNP-TV-Z]{4}-){7}[0-9A-HJKMNP-TV-Z]{4}$/)
   const communityCode=await invite.getAttribute('value')
   let combinedInvite=''
   if(process.argv.includes('--guided-setup')){
-    await driver.wait(async()=>await driver.findElement(By.css('.share-invite input')).getAttribute('value').then(value=>new URLSearchParams(new URL(value).hash.slice(1)).has('account')),15000)
-    combinedInvite=await driver.findElement(By.css('.share-invite input')).getAttribute('value')
+    combinedInvite=await driver.findElement(By.css('.share-invite input:not(.invite-code)')).getAttribute('value')
+    assert.ok((await resolveSetupTarget(combinedInvite)).invite.account)
     checks.owner_creates_one_invite_for_account_and_signed_community_admission=true
   }
   await driver.findElement(By.xpath('//button[text()="Hide code"]')).click()
-  assert.equal((await driver.findElements(By.id('created-community-invite'))).length,0)
+  assert.equal((await driver.findElements(By.css('.share-invite'))).length,0)
   checks.create_and_hide_invite_without_persisting_it=true
   await pace(driver)
   await closePanel(driver)
@@ -425,7 +429,9 @@ try {
   await pace(driver)
   await driver.findElement(By.xpath('//button[normalize-space(.)="Server settings"]')).click()
   await driver.findElement(By.xpath('//button[text()="Create account invite"]')).click()
-  const accountCode=await (await wait('account-invite')).getAttribute('value')
+  await driver.wait(async()=>await driver.findElements(By.css('.share-invite input:not(.invite-code)')).then(fields=>fields[0]??false),15000)
+  const accountLink=await driver.findElement(By.css('.share-invite input:not(.invite-code)')).getAttribute('value')
+  const accountCode=(await resolveSetupTarget(accountLink)).invite.account
   await closePanel(driver)
   buddy=await new Builder().forBrowser('chrome').setChromeOptions(new chrome.Options().addArguments('--headless=new','--window-size=1440,1100').setUserPreferences({'download.default_directory':join(output,'downloads'),'download.prompt_for_download':false})).build()
   await buddy.get('http://127.0.0.1:5174')
@@ -433,20 +439,21 @@ try {
   await buddy.findElement(By.xpath('//button[contains(.,"Join a server")]')).click()
   const joinAddress=await buddy.findElement(By.id('setup-address'))
   if(process.argv.includes('--guided-setup')){
-    const parts=new URL(combinedInvite),values=new URLSearchParams(parts.hash.slice(1));values.set('key','0'.repeat(64));parts.hash=values.toString()
-    await joinAddress.sendKeys(parts.toString())
+    const mismatched=createHearthInvite({...((await resolveSetupTarget(combinedInvite)).invite),serverKey:'0'.repeat(64)})
+    await joinAddress.sendKeys(mismatched)
     await buddy.findElement(By.css('.guided-setup form button[type="submit"]')).click()
     await buddy.wait(async()=>await buddy.findElements(By.css('.setup-error')).then(items=>items.length===1),15000)
     assert.equal(await buddy.executeScript('return localStorage.getItem("hearth.server-url")'),null)
     assert.equal((await buddy.findElements(By.id('username'))).length,0)
     checks.mismatched_invite_identity_cannot_reach_account_creation_or_save_address=true
-    await joinAddress.clear();await joinAddress.sendKeys(combinedInvite)
+    await joinAddress.clear();await joinAddress.sendKeys(process.argv.includes('--account-code')?'http://127.0.0.1:5174':combinedInvite)
   } else await joinAddress.sendKeys('http://127.0.0.1:5174')
   await buddy.findElement(By.css('.guided-setup form button[type="submit"]')).click()
   await buddy.wait(async()=>await buddy.findElements(By.css('.setup-result .primary-button')).then(items=>items[0]??false),15000).then(button=>button.click())
-  if(!process.argv.includes('--guided-setup')){
+  if(!process.argv.includes('--guided-setup')||process.argv.includes('--account-code')){
     await buddy.wait(async()=>{const buttons=await buddy.findElements(By.xpath('//button[text()="Create an account"]'));return buttons[0] ?? false},30000).then(button=>button.click())
-    await buddy.findElement(By.id('invite-code')).sendKeys(accountCode)
+    await buddy.findElement(By.id('invite-code')).sendKeys(process.argv.includes('--account-code')?communityCode:accountCode)
+    if(process.argv.includes('--account-code'))checks.account_form_accepts_readable_combined_code_for_current_server=true
   } else {
     await buddy.wait(async()=>await buddy.findElement(By.id('auth-heading')).getText().then(text=>text==='Create your account'),15000)
     assert.equal((await buddy.findElements(By.id('invite-code'))).length,0)
@@ -470,7 +477,8 @@ try {
     }
     await buddy.findElement(By.xpath('//button[text()="Join invited community"]')).click()
     await buddy.wait(async()=>await buddy.findElements(By.xpath('//button[text()="Join invited community"]')).then(items=>items.length===0),30000)
-    const secrets=[communityCode,new URLSearchParams(new URL(combinedInvite).hash.slice(1)).get('account')]
+    const resolved=(await resolveSetupTarget(combinedInvite)).invite
+    const secrets=[communityCode,resolved.account,resolved.community,new URLSearchParams(new URL(combinedInvite).hash.slice(1)).get('code')]
     const persisted=await buddy.executeScript('return JSON.stringify({...localStorage,...sessionStorage})')
     assert.ok(secrets.every(secret=>!persisted.includes(secret)))
     checks.combined_invite_creates_account_and_joins_community_without_persisting_capabilities=true
@@ -582,6 +590,16 @@ try {
   if(process.argv.includes('--phase3')){await verifyNavigation(driver,checks,match[1]);await verifyGovernanceUi(driver,buddy,checks);await verifyModeratorUi(driver,buddy,checks);await verifyOwnershipUi(driver,buddy,checks);await verifyForumUi(driver,buddy,checks);await verifyPrivacyUi(driver,buddy,checks)}
   await driver.manage().window().setRect({width:430,height:1000})
   await driver.findElement(By.xpath('//button[text()="Conversations"]')).click()
+  await driver.findElement(By.xpath('//button[text()="Close navigation"]')).click()
+  await driver.wait(async()=>await driver.findElements(By.id('server-members')).then(items=>items.length===0),5000)
+  await driver.findElement(By.css('[aria-label="Server Members"]')).click()
+  await driver.wait(async()=>await driver.findElement(By.id('server-members')).isDisplayed(),5000)
+  assert.equal(await driver.executeScript('return document.activeElement.getAttribute("aria-label")'),'Close member list')
+  await driver.findElement(By.css('#server-members [aria-label="Close member list"]')).sendKeys(Key.ESCAPE)
+  await driver.wait(async()=>await driver.findElements(By.id('server-members')).then(items=>items.length===0),5000)
+  assert.equal(await driver.executeScript('return document.activeElement.getAttribute("aria-label")'),'Server Members')
+  checks.member_drawer_opens_and_closes_with_keyboard_on_narrow_windows=true
+  await driver.findElement(By.xpath('//button[text()="Conversations"]')).click()
   assert.equal(await driver.findElement(By.id('chat-navigation')).isDisplayed(),true)
   await driver.findElement(By.xpath('//button[text()="Close navigation"]')).click()
   assert.equal(await driver.findElement(By.id('chat-navigation')).isDisplayed(),false)
@@ -589,7 +607,7 @@ try {
   assert.equal(await driver.executeScript('return document.documentElement.scrollWidth<=window.innerWidth'),true)
   checks.narrow_layout_has_no_horizontal_overflow=true
   }
-  assert.equal(Object.keys(checks).length,process.argv.includes('--setup-only')?12:(process.argv.includes('--storage')?18:16)+(process.argv.includes('--phase3')?23:0)+(process.argv.includes('--guided-setup')?5:0))
+  assert.equal(Object.keys(checks).length,(process.argv.includes('--setup-only')?12:(process.argv.includes('--storage')?21:16)+2+(process.argv.includes('--phase3')?23:0)+(process.argv.includes('--guided-setup')?5:0))+(process.argv.includes('--account-code')?1:0))
   succeeded=true
   console.log(JSON.stringify(checks))
 }catch(error) {

@@ -1,7 +1,7 @@
 //! File keys and descriptors stay inside the sealed MLS engine. Storage sees chunks only.
 use super::*;
-const CHUNK: usize = 1024 * 1024;
-pub(super) const MAX_FILE: usize = 8 * 1024 * 1024;
+const CHUNK: usize = ATTACHMENT_CHUNK_BYTES as usize;
+pub(super) const MAX_FILE: usize = MAX_ATTACHMENT_BYTES as usize;
 
 pub(super) fn validate(file: &EncryptedAttachment, nested: bool) -> Result<(), String> {
     let f = &file.file;

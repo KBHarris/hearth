@@ -1,8 +1,9 @@
 // Exercise the actual installer and production executable. No account is created,
 // so this smoke test never adds credentials to the user's system key store.
 import assert from 'node:assert/strict'
+import { createHash } from 'node:crypto'
 import { spawn, spawnSync } from 'node:child_process'
-import { existsSync, lstatSync, mkdirSync, readFileSync, readdirSync, rmSync, writeFileSync } from 'node:fs'
+import { copyFileSync, existsSync, lstatSync, mkdirSync, readFileSync, readdirSync, rmSync, writeFileSync } from 'node:fs'
 import { createServer } from 'node:net'
 import { dirname, isAbsolute, join, relative, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
@@ -43,7 +44,7 @@ async function devtools(url) {
   } }
 }
 
-export async function verifyInstalledTestClient({ bundle, origin, output }) {
+export async function verifyInstalledTestClient({ bundle, origin, output, hostProject }) {
   assert.equal(process.platform, 'win32', 'This installer smoke test requires Windows')
   const manifest = JSON.parse(readFileSync(join(bundle, 'manifest.json'), 'utf8'))
   const directory = resolve(output), allowed = resolve(root, 'target/bundle-acceptance')
@@ -58,13 +59,29 @@ export async function verifyInstalledTestClient({ bundle, origin, output }) {
     return { path, existed: existsSync(path) }
   })
   assert.ok(beforeProfiles.every(profile => !profile.existed), 'Preserve an existing Hearth Test profile; do not run automatic installation over it')
-  const existing = spawnSync('powershell.exe', ['-NoProfile', '-NonInteractive', '-Command', "@(Get-ItemProperty 'HKCU:\\Software\\Microsoft\\Windows\\CurrentVersion\\Uninstall\\*' -ErrorAction SilentlyContinue | Where-Object DisplayName -eq 'Hearth Test').Count"], { windowsHide: true, encoding: 'utf8' })
+  const productLiteral="'"+(manifest.client.productName??'Hearth Test').replaceAll("'","''")+"'"
+  const existing = spawnSync('powershell.exe', ['-NoProfile', '-NonInteractive', '-Command', "@(Get-ItemProperty 'HKCU:\\Software\\Microsoft\\Windows\\CurrentVersion\\Uninstall\\*' -ErrorAction SilentlyContinue | Where-Object DisplayName -eq "+productLiteral+").Count"], { windowsHide: true, encoding: 'utf8' })
   assert.equal(existing.status, 0); assert.equal(existing.stdout.trim(), '0', 'Preserve the existing Hearth Test installation')
   // NSIS requires /D= and _?= last and unquoted, including paths with spaces:
   // https://nsis.sourceforge.io/Docs/Chapter3.html#3.2.1
   const installerPath = join(bundle, 'client', manifest.client.installer)
   const installed = spawnSync(installerPath, ['/S', '/D=' + install], { argv0: `"${installerPath}"`, windowsVerbatimArguments: true, windowsHide: true, timeout: 180000, stdio: 'ignore' })
   assert.equal(installed.status, 0, 'Test installer failed')
+  if(hostProject){
+    assert.match(hostProject,/^hearth-host-[a-f0-9]{24}$/)
+    const hostRoot=join(directory,'native-host');mkdirSync(join(hostRoot,'deploy'),{recursive:true})
+    const hostManifest=structuredClone(manifest);hostManifest.server.composeProject=hostProject;hostManifest.server.backendPort=Number(new URL(origin).port)
+    for(const file of ['compose.yaml','compose.https.yaml','setup.mjs','.env.example','Caddyfile','storage-entrypoint.sh']){
+      copyFileSync(join(bundle,'deploy',file),join(hostRoot,'deploy',file))
+      hostManifest.files['deploy/'+file]=createHash('sha256').update(readFileSync(join(hostRoot,'deploy',file))).digest('hex')
+    }
+    for(const file of ['.env','s3.json'])copyFileSync(join(directory,file),join(hostRoot,'deploy',file))
+    writeFileSync(join(hostRoot,'manifest.json'),JSON.stringify(hostManifest))
+    const signingKey=process.env.TAURI_SIGNING_PRIVATE_KEY_PATH??join(root,'.release-keys/updater.key')
+    assert.equal(spawnSync(process.execPath,[join(root,'node_modules/@tauri-apps/cli/tauri.js'),'signer','sign','--private-key-path',signingKey,'--app-version',manifest.client.version,join(hostRoot,'manifest.json')],{cwd:root,stdio:'ignore',windowsHide:true}).status,0,'Sign the disposable native host manifest')
+    const profile=join(process.env.APPDATA,manifest.client.identifier);mkdirSync(profile,{recursive:true})
+    writeFileSync(join(profile,'host-selection.json'),JSON.stringify({root:hostRoot,https:false,project:hostProject,public_address:null}))
+  }
   let child, cdp
   const checks = {}, screenshots = []
   try {
@@ -75,7 +92,8 @@ export async function verifyInstalledTestClient({ bundle, origin, output }) {
     await new Promise(resolve => lease.listen(0, '127.0.0.1', resolve))
     const port = lease.address().port
     await new Promise(resolve => lease.close(resolve))
-    child = spawn(join(install, executables[0]), [], { cwd: install, windowsHide: true, stdio: 'ignore', env: {
+    const coldLink='hearth://join/#v=2&server='+encodeURIComponent(origin)+'&code='+'0'.repeat(32)
+    child = spawn(join(install, executables[0]), [coldLink], { cwd: install, windowsHide: true, stdio: 'ignore', env: {
       ...process.env, WEBVIEW2_USER_DATA_FOLDER: join(directory, 'isolated-webview'),
       WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS: `--remote-debugging-address=127.0.0.1 --remote-debugging-port=${port}`,
     } })
@@ -88,12 +106,46 @@ export async function verifyInstalledTestClient({ bundle, origin, output }) {
     const metadata = await cdp.evaluate('Promise.all([window.__TAURI_INTERNALS__.invoke("plugin:app|version"),window.__TAURI_INTERNALS__.invoke("plugin:app|identifier"),window.__TAURI_INTERNALS__.invoke("protocol_version")])')
     assert.deepEqual(metadata, [manifest.client.version, manifest.client.identifier, 1])
     checks.installed_release_has_correct_version_profile_and_native_ipc = true
+    assert.equal(await cdp.evaluate('window.__TAURI_INTERNALS__.invoke("build_revision")'),manifest.sourceCommit)
+    checks.installed_binary_embeds_matching_source_revision=true
+    async function reviewLink(expected) {
+      await eventually(()=>cdp.evaluate('[...document.querySelectorAll("button")].some(e=>e.textContent==="Review invite")'),'native invite handoff')
+      assert.equal(await cdp.evaluate('document.querySelectorAll(".setup-screen .setup-choice").length'),2,'OS links must preserve the existing screen until reviewed')
+      await cdp.evaluate('[...document.querySelectorAll("button")].find(e=>e.textContent==="Review invite").click()')
+      assert.equal(await cdp.evaluate('document.querySelector("dialog #setup-address")?.value'),expected)
+      assert.equal(await cdp.evaluate('document.querySelectorAll("dialog .setup-result").length'),0,'Opening a link must not connect automatically')
+      await cdp.evaluate('document.querySelector("dialog[open] .panel-heading button").click()')
+    }
+    await reviewLink(coldLink)
+    checks.cold_start_invite_requires_review_and_check_before_connecting=true
+    const warmLink=coldLink.replace('0'.repeat(32),'1'.repeat(32))
+    const second=spawn(join(install,executables[0]),[warmLink],{cwd:install,windowsHide:true,stdio:'ignore'})
+    assert.equal(await new Promise((resolve,reject)=>{second.once('error',reject);second.once('exit',resolve)}),0)
+    assert.equal(child.exitCode,null,'Invite handoff keeps the original app alive')
+    await reviewLink(warmLink)
+    checks.running_instance_receives_invite_without_replacing_current_session=true
     const evidence = join(bundle, 'evidence'); mkdirSync(evidence, { recursive: true })
     async function screenshot(name) {
       const capture = await cdp.send('Page.captureScreenshot', { format: 'png' })
       writeFileSync(join(evidence, name), Buffer.from(capture.data, 'base64')); screenshots.push('evidence/' + name)
     }
     await screenshot('installed-welcome.png')
+    if(hostProject){
+      await cdp.evaluate('document.querySelector("[aria-label=\"Hosting and updates\"]").click()')
+      await eventually(()=>cdp.evaluate('document.querySelector(".hosting-panel")?.textContent.includes("Running")'),'native host status',30000)
+      await cdp.evaluate('[...document.querySelectorAll(".hosting-panel button")].find(e=>e.textContent==="Stop server").click()')
+      await cdp.evaluate('[...document.querySelectorAll(".hosting-panel button")].find(e=>e.textContent==="Stop hosting").click()')
+      await eventually(()=>cdp.evaluate('document.querySelector(".hosting-panel")?.textContent.includes("Stopped")'),'native stop',90000)
+      await cdp.evaluate('[...document.querySelectorAll(".hosting-panel button")].find(e=>e.textContent==="Start server").click()')
+      await eventually(()=>cdp.evaluate('document.querySelector(".hosting-panel")?.textContent.includes("Running")'),'native start',180000)
+      await cdp.evaluate('document.querySelector(".hosting-panel details").open=true;[...document.querySelectorAll(".hosting-panel button")].find(e=>e.textContent==="Get owner setup code").click()')
+      assert.match(await eventually(()=>cdp.evaluate('document.querySelector("#local-owner-code")?.value'),'protected local setup code'),/^[a-f0-9]{64}$/)
+      checks.installed_host_ui_starts_stops_and_retrieves_setup_code_without_terminal=true
+      await screenshot('installed-hosting.png')
+      await cdp.evaluate('document.querySelector("dialog[open] .panel-heading button").click()')
+      assert.equal(await cdp.evaluate('document.querySelector("#local-owner-code")'),null)
+      checks.local_setup_code_clears_when_host_panel_closes=true
+    }
     await cdp.evaluate('[...document.querySelectorAll(".setup-choice")].find(e=>e.textContent.includes("Join a server")).click()')
     await cdp.evaluate('document.querySelector("#setup-address").focus()')
     await cdp.send('Input.insertText', { text: 'f'.repeat(64) })

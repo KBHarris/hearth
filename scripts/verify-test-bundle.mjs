@@ -19,7 +19,7 @@ for(const [file,expected] of Object.entries(manifest.files)){
 checks.all_manifest_hashes_match=true
 assert.ok(!existsSync(join(bundle,'deploy/.env'))&&!existsSync(join(bundle,'deploy/s3.json')))
 checks.host_secrets_absent_from_distribution=true
-const project=`hearth-guided-bundle-${randomUUID().slice(0,8)}`,directory=join(root,'target/bundle-acceptance',project)
+const project=`hearth-host-${randomUUID().replaceAll('-','').slice(0,24)}`,directory=join(root,'target/bundle-acceptance',project)
 mkdirSync(directory,{recursive:true})
 function command(args){const result=spawnSync('docker',args,{cwd:directory,encoding:'utf8',windowsHide:true,maxBuffer:8*1024*1024});if(result.error||result.status!==0)throw new Error(`Bundle Docker ${args[0]} failed`);return result.stdout.trim()}
 function compose(args){return command(['compose','--project-name',project,'--env-file',join(directory,'.env'),'-f',join(directory,'compose.yaml'),...args])}
@@ -34,8 +34,8 @@ const quote=value=>"'"+value.replaceAll("'","''")+"'"
 try{
   const zip=Object.keys(manifest.files).find(f=>f.endsWith('.zip')),extract=join(directory,'client')
   const result=spawnSync('powershell.exe',['-NoProfile','-NonInteractive','-Command',`Expand-Archive -LiteralPath ${quote(join(bundle,zip))} -DestinationPath ${quote(extract)}`],{encoding:'utf8',windowsHide:true})
-  assert.equal(result.status,0);assert.deepEqual(readdirSync(extract).sort(),['Hearth_Test_0.3.0_x64-setup.exe','SHA256SUMS.txt','START_HERE.txt'].sort())
-  assert.equal(createHash('sha256').update(readFileSync(join(extract,'Hearth_Test_0.3.0_x64-setup.exe'))).digest('hex'),manifest.files['client/Hearth_Test_0.3.0_x64-setup.exe'])
+  assert.equal(result.status,0);assert.deepEqual(readdirSync(extract).sort(),[manifest.client.installer,'SHA256SUMS.txt','START_HERE.txt'].sort())
+  assert.equal(createHash('sha256').update(readFileSync(join(extract,manifest.client.installer))).digest('hex'),manifest.files['client/'+manifest.client.installer])
   checks.friend_zip_contains_only_installer_guide_and_checksum=true
   command(['load','--input',join(bundle,Object.keys(manifest.files).find(f=>f.endsWith('.tar')))])
   assert.equal(JSON.parse(command(['image','inspect',manifest.server.image]))[0].Id,manifest.server.imageId)
@@ -49,8 +49,8 @@ try{
   assert.match(key,/^[a-f0-9]{64}$/)
   const setup=compose(['exec','-T','server','hearth-server','--setup-code']);assert.match(setup,/^[a-f0-9]{64}$/)
   checks.fresh_server_health_discovery_and_owner_bootstrap_pass=true
-  assert.equal(compose(['exec','-T','postgres','psql','-U','hearth','-d','hearth','-tAc','SELECT max(version) FROM _sqlx_migrations WHERE success']), '21')
-  checks.all_21_migrations_applied_to_fresh_data=true
+  assert.equal(compose(['exec','-T','postgres','psql','-U','hearth','-d','hearth','-tAc','SELECT max(version) FROM _sqlx_migrations WHERE success']), '23')
+  checks.all_23_migrations_applied_to_fresh_data=true
   let privateS3=false
   for(let attempt=0;attempt<60;attempt++){try{if((await fetch(`http://127.0.0.1:${s3Port}`,{signal:AbortSignal.timeout(1000)})).status===403){privateS3=true;break}}catch{}await delay(250)}
   assert.ok(privateS3);checks.storage_rejects_anonymous_requests=true
@@ -58,9 +58,9 @@ try{
   for(let attempt=0;attempt<60;attempt++){try{if((await json('/health')).status==='ok'){healthy=true;break}}catch{}await delay(250)}
   assert.ok(healthy);assert.equal((await json('/.well-known/hearth')).server_key,key)
   checks.server_restart_preserves_signing_identity=true
-  const native=await verifyInstalledTestClient({bundle,origin,output:directory});Object.assign(checks,native.checks)
+  const native=await verifyInstalledTestClient({bundle,origin,output:directory,hostProject:project});Object.assign(checks,native.checks)
   const report={measuredAt:new Date().toISOString(),outcome:'pass',sourceCommit:manifest.sourceCommit,checks,humanPending:['clean buddy-PC installation and two-house reachability','actual Windows SmartScreen experience on the buddy PC','manual encrypted messaging between the two households'],nativeClient:native}
   writeFileSync(join(bundle,'VALIDATION.json'),JSON.stringify(report,null,2)+'\n');console.log(JSON.stringify(report,null,2))
 }finally{
-  try{compose(['down','--volumes','--remove-orphans'])}finally{assert.match(project,/^hearth-guided-bundle-[a-f0-9-]+$/);assert.equal(resolve(directory),resolve(root,'target/bundle-acceptance',project));rmSync(directory,{recursive:true,force:true})}
+  try{compose(['down','--volumes','--remove-orphans'])}finally{assert.match(project,/^hearth-host-[a-f0-9]{24}$/);assert.equal(resolve(directory),resolve(root,'target/bundle-acceptance',project));rmSync(directory,{recursive:true,force:true})}
 }

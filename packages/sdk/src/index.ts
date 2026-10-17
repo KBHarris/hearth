@@ -13,6 +13,8 @@ import type {CommunityInvitation,HistoryPage} from './protocol.ts'
 import {isInvitation,isOwnershipHandoff,isOwnershipState} from './community.ts'
 import type {OwnershipHandoff,OwnershipAcceptance,OwnershipState} from './protocol.ts'
 import type {BlobReservation,BlobUrl} from './protocol.ts'
+import type { InviteEnvelope, StoreInviteEnvelope } from './protocol.ts'
+import { isInviteEnvelope } from './short-invite.ts'
 
 export * from './protocol.ts'
 export {Permission,permissions} from './governance.ts'
@@ -22,6 +24,7 @@ import type {Governance,GovernanceView,AuditEntry} from './protocol.ts'
 export type ErrorKind = 'invalid_url' | 'http' | 'network' | 'timeout' | 'invalid_response' | 'incompatible' | 'degraded'
 
 export { createHearthInvite, parseHearthInvite, setupTarget, addressScope, type HearthInvite } from './setup.ts'
+export { createShortInvite, resolveSetupTarget, resolveInviteCode, formatInviteCode, normalizeInviteCode } from './short-invite.ts'
 
 export class HearthError extends Error {
   readonly status: number
@@ -40,7 +43,7 @@ export function normalizeServerUrl(input: string): string {
   const value = input.trim()
   if (!value) throw new HearthError(0, 'Enter a server address.', 'invalid_url')
   // A pasted admission/bootstrap code is not a hostname. Do not leak it to DNS.
-  if (/^[a-f0-9]{64}$/i.test(value)) throw new HearthError(0, 'Paste the full Hearth invite or enter a server address. An invite code alone cannot locate a server.', 'invalid_url')
+  if (/^[a-f0-9]{64}$/i.test(value) || /^[0-9A-HJKMNP-TV-Z]{32}$/i.test(value) || /^(?:[0-9A-HJKMNP-TV-Z]{4}-){7}[0-9A-HJKMNP-TV-Z]{4}$/i.test(value)) throw new HearthError(0, 'Paste the full Hearth invite or enter a server address. An invite code alone cannot locate a server.', 'invalid_url')
   let url: URL
   try {
     url = new URL(value.includes('://') ? value : `https://${value}`)
@@ -78,6 +81,8 @@ export class HearthClient {
   constructor(baseUrl: string) {
     this.baseUrl = normalizeServerUrl(baseUrl)
   }
+  storeInviteEnvelope(token:string,body:StoreInviteEnvelope,options?:RequestOptions):Promise<null>{checkedId(body.id);if(!isInviteEnvelope(body.envelope))throw new HearthError(0,'Invalid encrypted invite.','invalid_response');return this.auth('invite-links',isEmpty,body,token,options)}
+  inviteEnvelope(id:string,options?:RequestOptions):Promise<InviteEnvelope>{checkedId(id);return this.get('/api/v1/invite-links/'+id,isInviteEnvelope,options)}
   private auth<T>(path:string,validate:(value:unknown)=>value is T,body:unknown|undefined,token:string,options?:RequestOptions):Promise<T>{return this.get('/api/v1/auth/'+path,validate,options,{method:body===undefined?'GET':'POST',headers:{Authorization:`Bearer ${token}`,...(body===undefined?{}:{'Content-Type':'application/json'})},...(body===undefined?{}:{body:JSON.stringify(body)})})}
   private community<T>(path:string,token:string,validate:(value:unknown)=>value is T,body?:unknown,options?:RequestOptions):Promise<T> {
     return this.get('/api/v1/communities'+(path?'/'+path:''),validate,options,{method:body===undefined?'GET':'POST',headers:{Authorization:`Bearer ${token}`,...(body===undefined?{}:{'Content-Type':'application/json'})},...(body===undefined?{}:{body:JSON.stringify(body)})})
@@ -125,6 +130,7 @@ export class HearthClient {
   reserveBlob(token:string,id:string,body:BlobReservation,options?:RequestOptions):Promise<BlobUrl>{checkedId(id);checkedId(body.id);return this.blob(id,token,isBlobUrl,body,options)}
   completeBlob(token:string,id:string,file:string,device:string,options?:RequestOptions):Promise<null>{checkedId(id);checkedId(file);checkedId(device);return this.blob(`${id}/${file}/complete`,token,isEmpty,{device},options)}
   downloadBlob(token:string,id:string,file:string,device:string,options?:RequestOptions):Promise<BlobUrl>{checkedId(id);checkedId(file);checkedId(device);return this.blob(`${id}/${file}?device=${device}`,token,isBlobUrl,undefined,options)}
+  removeBlob(token:string,id:string,file:string,device:string,options?:RequestOptions):Promise<null>{checkedId(id);checkedId(file);checkedId(device);return this.get(`/api/v1/blobs/${id}/${file}?device=${device}`,isEmpty,options,{method:'DELETE',headers:{Authorization:`Bearer ${token}`}})}
   person(token:string,username:string,options?:RequestOptions):Promise<Person> { return this.chat(`people/${encodeURIComponent(username)}`,token,isPerson,undefined,options) }
   personById(token:string,id:string,options?:RequestOptions):Promise<Person> { checkedId(id);return this.chat(`accounts/${id}`,token,isPerson,undefined,options) }
   conversations(token:string,options?:RequestOptions):Promise<Conversation[]> { return this.chat('conversations',token,isConversations,undefined,options) }
@@ -227,12 +233,14 @@ export class HearthClient {
         cache: 'no-store',
         redirect: 'error',
       }), aborted])
-      if (!res.ok) throw new HearthError(res.status, res.status === 401 ? 'The setup code or authentication exchange was rejected.' :
+      if (!res.ok) throw new HearthError(res.status, res.status === 404 && path.includes('/invite-links/') ? 'This invite has expired or is unavailable. Ask your host for a new invite.' : res.status === 401 ? 'The setup code or authentication exchange was rejected.' :
         res.status === 403 ? path.includes('/register/') ? 'Registration is closed, or this invite has expired or been used.' : 'This account is not allowed to perform that action.' :
         res.status === 409 && path.includes('/register/') ? 'This username is already taken.' :
         res.status === 409 && path.includes('/chat/') ? 'Encryption or delivery state changed. Refresh and retry.' :
         res.status === 409 && path.includes('/communities/') ? 'A community limit was reached. Refresh and try again.' :
         res.status === 409 ? path.includes('/device/') ? 'This account already has an identity. Link an approved device or restore your existing keys.' : 'Owner setup is already complete. Sign in with the owner account.' :
+        res.status === 410 && path.includes('/blobs/') ? 'This file was removed from the server.' :
+        res.status === 413 && path.includes('/blobs/') ? 'The file exceeds the upload limit or this account’s storage quota.' :
         res.status === 429 ? 'Too many attempts. Wait one minute and try again.' : res.status === 503 ?
         'This server is temporarily unavailable. Try again soon.' :
         'The server could not complete the connection check. Check the address or contact its operator.')

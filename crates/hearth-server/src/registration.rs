@@ -25,7 +25,7 @@ pub async fn status(State(state): State<SharedState>) -> ResultJson<Registration
         registration_mode: mode(&state.db).await?,
     }))
 }
-async fn owner(state: &SharedState, headers: &HeaderMap) -> Result<String, StatusCode> {
+pub(crate) async fn owner(state: &SharedState, headers: &HeaderMap) -> Result<String, StatusCode> {
     let id = crate::device::account_id(state, headers).await?;
     let is_owner: bool = sqlx::query_scalar("SELECT owner FROM accounts WHERE id=$1")
         .bind(&id)

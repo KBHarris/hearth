@@ -285,6 +285,11 @@ pub struct BlobReservation {
     pub cipher_bytes: u32,
     pub digest: String,
 }
+/// User-visible decimal 50 MB, plus one AEAD tag per 1 MiB encrypted chunk.
+pub const MAX_ATTACHMENT_BYTES: u32 = 50_000_000;
+pub const ATTACHMENT_CHUNK_BYTES: u32 = 1024 * 1024;
+pub const MAX_ATTACHMENT_CIPHER_BYTES: u32 =
+    MAX_ATTACHMENT_BYTES + MAX_ATTACHMENT_BYTES.div_ceil(ATTACHMENT_CHUNK_BYTES) * 16;
 #[derive(Clone, Serialize, Deserialize)]
 #[cfg_attr(feature = "typescript", derive(ts_rs::TS))]
 pub struct BlobUrl {

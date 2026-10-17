@@ -1,5 +1,30 @@
 # Progress
 
+Current implementation pass, 2026-10-16: 50 MB encrypted files, server-owner file
+removal, authorized member sidebar/profile fingerprints, encrypted 32-character
+invite relays, desktop hosting controls and signed app/server updates are in
+source. A fresh Windows Preview package is being validated. Local checks include
+94 real HTTP/private-S3 outcomes, 51 broad two-client UI outcomes, 13 focused
+readable-account-code outcomes, six Docker host/failed-migration rollback outcomes
+and three signed host-package integrity outcomes. The publication audit completed
+and the repository is public. Native invite opening advances the Host/Join checkpoint;
+installer acceptance is still running. No hosted Actions were dispatched.
+
+The [ordered checklist](PHASE3_REMAINING.md) remains authoritative for open gates:
+two-house/buddy testing, real push/OS delivery and explicitly requested current
+cross-platform acceptance. Runtime prerequisite installation, independent external
+reachability, fresh-host restore and clean-machine setup remain open checkpoint
+work. Historical results below do not close these gates for the new build.
+
+Phase 4 scope expanded on 2026-10-16 to include Railway native IaC, guided cloud
+provisioning, configurable private S3 storage and optional production browser
+hosting. It also explicitly includes direct P2P media, TURN fallback, relay-only
+privacy and LiveKit for larger rooms, with separately hosted media where needed.
+See [the Phase 4 hosting and media plan](PHASE4_HOSTING_AND_MEDIA.md) for work order
+and acceptance. These are planning additions; no Railway deployment, browser
+hosting or product media implementation is claimed. Phase 3 and the local
+Host/Join installer checkpoint retain their existing acceptance requirements.
+
 Actions policy was corrected on 2026-10-15 to prioritize the user's budget:
 [local-first, manual-only hosted CI](CI_STANDARD.md). The default `checks` tier
 uses one Linux job; explicitly requested `core` and `full` tiers select broader

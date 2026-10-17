@@ -6,7 +6,7 @@ The [Actions budget standard](CI_STANDARD.md) applies throughout: local checks f
 manual-only hosted runs and full platform acceptance at requested milestones.
 
 ```
-P0 Foundations ─► P1 Encrypted DMs ─► P2 Communities ─► P3 Governance ─┬─► Host/Join setup ─► P4 Voice/Video
+P0 Foundations ─► P1 Encrypted DMs ─► P2 Communities ─► P3 Governance ─┬─► Host/Join setup ─► P4 Cloud hosting + Voice/Video
                                                                       └─► P5 Federation ─► P6 Bots & Ops ─► P7 Release
 ```
 
@@ -250,12 +250,51 @@ remain separate implementation gates.
 tools, manual commands or secrets in diagnostic exports. See
 [the detailed installation standard](HAVEN_PARITY_AND_SETUP.md).
 
-## Phase 4: Voice, video, and events
+## Phase 4: Cloud hosting, voice, video, and events
 
-**Goal:** E2EE real-time media. It depends on P3 permissions and the Spike B decision.
+**Goal:** a reproducible hosted Hearth deployment with an optional browser client,
+plus E2EE real-time media with direct peer-to-peer calls and relay options. It
+depends on P3 permissions, the Host/Join checkpoint and the Spike B decision.
+Scope expanded 2026-10-16; the items below are planned, not deployed or validated.
+See [the Phase 4 hosting and media plan](PHASE4_HOSTING_AND_MEDIA.md) for work order,
+provider boundaries, bootstrap behavior and acceptance requirements.
 
-- Add LiveKit and coturn to Compose. The server mints LiveKit tokens after permission checks.
-- SFrame keys come from the MLS exporter and rotate on every join and leave.
+### Hosted deployment and browser client
+
+- [ ] Add Railway native IaC for the backend, PostgreSQL, private attachment bucket
+  and persistent server-key volume, with an optional browser-client service.
+- [ ] Add a guided deployment command for project selection, plan/apply, build/deploy,
+  generated HTTPS addresses, configuration wiring, readiness checks and owner setup.
+  Retry preserves resources, accounts and keys; credentials stay out of source/logs.
+- [ ] Make S3 bucket name, region, URL style and existing-bucket behavior configurable;
+  verify Railway buckets alongside the bundled SeaweedFS store, private presigned
+  transfers, browser CORS, 50 MB uploads, retention and owner-authorized deletion.
+- [ ] Package the production web client with crypto/WASM, correct backend and gateway
+  addresses, exact allowed origins, HTTPS, SPA navigation and safe asset updates.
+  Desktop-only hosting must work without deploying the website.
+- [ ] Add hosted backup/restore and update/recovery procedures that preserve PostgreSQL,
+  encrypted objects and matching server authentication keys. Verify on a fresh host.
+- [ ] Verify a fresh real Railway deployment, independent-network browser/desktop
+  messaging and files, idempotent retry and redeploy persistence. Keep hosted execution
+  explicitly requested and budgeted under [the Actions standard](CI_STANDARD.md).
+
+### Media and events
+
+- [ ] Add authenticated WebRTC signaling for direct P2P voice/video/screen sharing
+  in small calls, STUN/TURN fallback and a relay-only privacy option. Direct media
+  bypasses Railway; direct participants can learn each other's network addresses.
+- [ ] Keep LiveKit as the optional SFU for larger rooms/streams; define measured mesh
+  limits and safe transitions without weakening permissions or encryption.
+- [ ] Add LiveKit and coturn to the self-hosted Compose option. Evaluate LiveKit's
+  embedded TURN before requiring duplicate relay infrastructure. Railway deployment
+  must support a separately hosted SFU/TURN or managed media endpoint; do not assume
+  its public HTTPS/TCP networking provides the required public UDP reachability.
+- [ ] The server authorizes signaling and mints bounded room/device-scoped media tokens
+  and short-lived TURN credentials; provider API secrets remain server-side.
+- [ ] Media keys come from the MLS exporter and rotate on every join and leave.
+  Authenticate peer identity, reject stale/unauthorized participants and block
+  publication when encryption is unavailable. SFrame interoperability is still a
+  validation gate under [ADR 0004](adr/0004-media-feasibility.md).
 - Voice channels, 1:1 and group calls, video, and screen share with audio.
 - Go-live streaming and stage channels (speaker and audience roles).
 - Scheduled events with RSVP.
@@ -263,10 +302,17 @@ tools, manual commands or secrets in diagnostic exports. See
   and clear microphone/speaker controls, verified separately on each platform.
 - Watch parties and synchronized listening; opt-in Spotify, YouTube and SoundCloud
   integrations need explicit playback and identity designs.
-- Canary test: the SFU's recorded packets contain no decodable media.
+- [ ] Test actual direct, TURN and SFU paths, cross-house/NAT/firewall conditions,
+  relay-only IP privacy, reconnects, permission revocation and topology changes.
+- [ ] Canary tests: signaling, TURN/SFU captures, logs and storage contain no media
+  keys or decodable media. Record measured CPU, client upload and media egress costs.
 
-**Exit:** a 25-person voice room plus a screen share is stable on all three desktop platforms
-and in two browsers.
+**Exit:** a fresh Railway deployment serves encrypted chat/files to desktop and optional
+browser clients; retry, update and restore preserve identity and data. Direct P2P,
+TURN fallback and relay-only calls pass real-network encryption/permission checks.
+A 25-person SFU voice room plus a screen share is stable across the supported desktop
+and browser paths, with Linux browser fallback as specified by ADR 0004. Hosted
+provisioning, real-network media and the final platform suite have separate evidence.
 
 ## Phase 5: Federation
 

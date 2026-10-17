@@ -1,6 +1,6 @@
 import {useEffect,useRef,useState,type FormEvent} from 'react'
 
-import {HearthClient,HearthError,type Community,type CommunityStructure,type Session,type CommunityInvite,type Governance,type GovernanceView,type HearthInvite} from '@hearth/sdk'
+import {HearthClient,HearthError,resolveInviteCode,resolveSetupTarget,type Community,type CommunityStructure,type Session,type CommunityInvite,type Governance,type GovernanceView,type HearthInvite} from '@hearth/sdk'
 
 import {Modal} from './Modal'
 import {ShareInvite} from './ShareInvite'
@@ -107,12 +107,17 @@ export function CommunityPanel({session,url,onOpenChannel,onSecure,onInvite,acti
     try {
 
       if(kind==='create' || kind==='join') {
-
-        const result=kind==='create'?await client.createCommunity(session.token,String(data.get('name')).trim(),options):await client.joinCommunity(session.token,String(data.get('code')).trim(),options)
+        let joinCode=String(data.get('code')).trim()
+        if(kind==='join' && !/^[a-f0-9]{64}$/.test(joinCode)) {
+          const resolved=/^hearth:/i.test(joinCode)?(await resolveSetupTarget(joinCode,options)).invite:await resolveInviteCode(url,joinCode,options)
+          if(!resolved || resolved.server!==url || resolved.serverKey!==serverKey || !resolved.community)throw new Error('Use a community invite for this server. Join a different server from the server menu.')
+          joinCode=resolved.community
+        }
+        const result=kind==='create'?await client.createCommunity(session.token,String(data.get('name')).trim(),options):await client.joinCommunity(session.token,joinCode,options)
 
         if(kind==='create')await onSecure('community',result.id)
 
-        if(kind==='join')await onSecure('join',result.id,String(data.get('code')).trim())
+        if(kind==='join')await onSecure('join',result.id,joinCode)
 
         const next=await client.communities(session.token,options)
 
@@ -225,7 +230,7 @@ export function CommunityPanel({session,url,onOpenChannel,onSecure,onInvite,acti
 
       {panel==='create' && <form onSubmit={event=>void action(event,'create')}><label htmlFor="community-name">Community name</label><input id="community-name" name="name" maxLength={80} required disabled={busy} placeholder="Weekend friends" autoFocus/><small>You’ll manage this community. Add channels after creating it.</small><button className="primary-button" type="submit" disabled={busy || loading}>Create community</button></form>}
 
-      {panel==='join' && <form onSubmit={event=>void action(event,'join')}><label htmlFor="community-code">Community invite code</label><input id="community-code" name="code" required pattern="[a-f0-9]{64}" type="password" autoComplete="off" disabled={busy} autoFocus/><small>Ask a community owner for this code. To create a server account, use an account invite on the sign-in screen.</small><button className="primary-button" type="submit" disabled={busy || loading}>Join community</button></form>}
+      {panel==='join' && <form onSubmit={event=>void action(event,'join')}><label htmlFor="community-code">Community invite or code</label><input id="community-code" name="code" required maxLength={2048} type="text" spellCheck={false} autoComplete="off" disabled={busy} autoFocus/><small>Paste a Hearth invite or the 32-character code for this server. To create an account, use Join a server first.</small><button className="primary-button" type="submit" disabled={busy || loading}>Join community</button></form>}
 
       {panel==='manage'&&structure&&<>{owner&&<div className="panel-tabs" aria-label="Community settings"><button aria-pressed={tab==='channels'} onClick={()=>setTab('channels')}>Channels</button><button aria-pressed={tab==='categories'} onClick={()=>setTab('categories')}>Categories</button><button aria-pressed={tab==='invites'} onClick={()=>setTab('invites')}>Invites</button><button aria-pressed={tab==='governance'} onClick={()=>setTab('governance')}>Roles & moderation</button><button aria-pressed={tab==='ownership'} onClick={()=>setTab('ownership')}>Ownership</button></div>}{!owner&&<div className="panel-tabs" aria-label="Community settings"><button aria-pressed={tab==='governance'} onClick={()=>setTab('governance')}>Moderation</button><button aria-pressed={tab==='ownership'} onClick={()=>setTab('ownership')}>Ownership</button></div>}{tab==='ownership'&&<OwnershipPanel id={structure.community.id} session={session} url={url} actions={ownership} onLoadGovernance={onLoadGovernance} onChanged={()=>{const client=new HearthClient(url);void Promise.all([client.communityStructure(session.token,selected),client.communities(session.token)]).then(([next,list])=>{setStructure(next);setCommunities(list)}).catch(e=>setError(e instanceof Error?e.message:'Refresh communities to see the new owner.'))}}/>}</>}
 
@@ -244,7 +249,7 @@ export function CommunityPanel({session,url,onOpenChannel,onSecure,onInvite,acti
         {tab==='invites' && <><form onSubmit={event=>void action(event,'invite')}><label htmlFor="community-invite-expiry">Invite expires in</label><select id="community-invite-expiry" name="expiry" disabled={busy}><option value="86400">24 hours</option><option value="3600">1 hour</option><option value="604800">7 days</option></select><label htmlFor="community-invite-uses">Maximum new members</label><input id="community-invite-uses" name="uses" type="number" min={1} max={1000} defaultValue={1} required disabled={busy}/>{session.account.owner && <label><input name="include-account" type="checkbox" disabled={busy} /> Include a new server account (single use, 24 hours)</label>}<button className="primary-button" type="submit" disabled={busy}>Create community invite</button></form>
 
           {busy && <p role="status">Preparing invite…</p>}
-          {invite && !busy && <div className="invite-result"><ShareInvite key={invite+accountInvite} invite={{server:url,serverKey,community:invite,...(accountInvite?{account:accountInvite}:{})}}/><details><summary>Community invite code</summary><label htmlFor="created-community-invite">Community invite code</label><input id="created-community-invite" readOnly value={invite} onFocus={event=>event.currentTarget.select()}/><small>This code is for someone who already has a server account. Use the Hearth invite above to include account setup.</small></details><button onClick={()=>{setInvite('');setAccountInvite('')}}>Hide code</button></div>}</>}
+          {invite && !busy && <div className="invite-result"><ShareInvite key={invite+accountInvite} token={session.token} invite={{server:url,serverKey,community:invite,...(accountInvite?{account:accountInvite}:{})}}/><button onClick={()=>{setInvite('');setAccountInvite('')}}>Hide code</button></div>}</>}
 
       </>}
 

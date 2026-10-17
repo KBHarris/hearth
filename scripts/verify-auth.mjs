@@ -12,6 +12,7 @@ import {verifyEndpointMatrix} from './phase3-endpoint-matrix.mjs'
 import { verifyMessaging } from './phase1-messaging-acceptance.mjs'
 import { verifyCommunities } from './phase2-community-acceptance.mjs'
 import {blobFixture} from './blob-fixture.mjs'
+import {verifyShortInvites} from './phase3-invite-acceptance.mjs'
 
 const root = fileURLToPath(new URL('../', import.meta.url))
 if(process.env.PGBIN)process.env.PATH=process.env.PGBIN+delimiter+process.env.PATH
@@ -88,8 +89,8 @@ const checks = {}
 const endpointOutcomes = new Map()
 const anonymousProbes = new Set()
 const publicPaths=new Set(['/health','/.well-known/hearth','/api/v1/setup','/api/v1/auth/registration','/api/v1/auth/owner/start','/api/v1/auth/owner/finish','/api/v1/auth/register/start','/api/v1/auth/register/finish','/api/v1/auth/login/start','/api/v1/auth/login/finish'])
-async function request(path, body, token) {
-  const options = { method: body === undefined ? 'GET' : 'POST', headers: {}, signal: AbortSignal.timeout(8000), redirect: 'error' }
+async function request(path, body, token, method) {
+  const options = { method: method ?? (body === undefined ? 'GET' : 'POST'), headers: {}, signal: AbortSignal.timeout(8000), redirect: 'error' }
   if (body !== undefined) { options.headers['Content-Type'] = 'application/json'; options.body = JSON.stringify(body); frames.push(options.body) }
   if (token) options.headers.Authorization = `Bearer ${token}`
   const response = await fetch(origin + path, options)
@@ -114,6 +115,12 @@ async function login(password, serverId, retainClient, username = 'owner', imple
     const proof = client.loginFinish(password, response.value.message, username, serverId)
     return { exchange_id: response.value.exchange_id, message: proof }
   } finally { if (!retainClient) client.free(); else retainClient(client) }
+}
+function fixtureSql(sql) {
+  const dbContainer=container??process.env.HEARTH_TEST_POSTGRES_CONTAINER
+  if(dbContainer)return command('docker',['exec',dbContainer,'psql','-U','hearth','-d','hearth','-q','-v','ON_ERROR_STOP=1','-t','-A','-c',sql],true)
+  const db=new URL(databaseUrl)
+  return command('psql',['-q','-v','ON_ERROR_STOP=1','-t','-A','-c',sql],true,{...process.env,PGHOST:db.hostname,PGPORT:db.port,PGUSER:decodeURIComponent(db.username),PGPASSWORD:decodeURIComponent(db.password),PGDATABASE:db.pathname.slice(1)})
 }
 try {
   if(process.argv.includes('--storage'))storage=await blobFixture(directory)
@@ -164,7 +171,7 @@ try {
     writeFileSync(configPath,JSON.stringify({origin,serverKey:(await request('/.well-known/hearth')).value.server_key,setupCode:readFileSync(join(directory,'setup.code'),'utf8').trim(),storage:!!storage,phase3:process.argv.includes('--phase3')}),{mode:0o600})
     let native
     try {
-      native=spawn(join(root,'target/debug',process.platform==='win32'?'hearth-desktop.exe':'hearth-desktop'),['--phase1-acceptance'],{cwd:root,env:{...process.env,HEARTH_PHASE1_FIXTURE_PATH:configPath},windowsHide:true,stdio:['ignore','pipe','pipe']})
+      native=spawn(join(root,'target/debug',process.platform==='win32'?'hearth-desktop.exe':'hearth-desktop'),['--phase1-acceptance'],{cwd:root,env:{...process.env,HEARTH_PHASE1_FIXTURE_PATH:configPath,WEBVIEW2_USER_DATA_FOLDER:join(directory,'webview')},windowsHide:true,stdio:['ignore','pipe','pipe']})
       let stdout='';native.stdout.on('data',chunk=>{stdout+=chunk;if(stdout.length>100000)native.kill()})
       // SDK errors can contain operational details; capture but never print them.
       native.stderr.on('data',()=>{})
@@ -214,6 +221,7 @@ try {
       assert.equal(response.headers.get('cache-control'), 'no-store')
       const token = response.value.token
       const accountId = response.value.account.id
+      await verifyShortInvites({origin,serverId,token,request,checks,sql:fixtureSql,restart:async()=>{await stop();start();await healthy()}})
       checks.one_use_login_proof = true
       assert.equal((await request('/api/v1/auth/session', undefined, token)).status, 200)
       assert.deepEqual((await request('/api/v1/auth/identity', undefined, token)).value, { identity_key: null, devices: [] })

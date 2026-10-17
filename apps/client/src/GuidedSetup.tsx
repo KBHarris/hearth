@@ -1,14 +1,14 @@
 import { useEffect, useRef, useState, type FormEvent } from 'react'
-import { addressScope, HearthClient, normalizeServerUrl, setupTarget, type HearthInvite, type ServerInfo } from '@hearth/sdk'
+import { addressScope, HearthClient, normalizeServerUrl, resolveSetupTarget, type HearthInvite, type ServerInfo } from '@hearth/sdk'
 import { Icon } from './Icons'
 
 export type CheckedServer = { server: string; info: ServerInfo; invite: HearthInvite | null }
 
-export function GuidedSetup({ defaultServer, signedIn = false, currentServer, onConnect }: {
-  defaultServer: string; signedIn?: boolean; currentServer?: { url: string; key: string }; onConnect: (checked: CheckedServer) => void
+export function GuidedSetup({ defaultServer, signedIn = false, currentServer, onConnect, onManageHost, initialInvite = '' }: {
+  defaultServer: string; signedIn?: boolean; currentServer?: { url: string; key: string }; onConnect: (checked: CheckedServer) => void; onManageHost?: () => void; initialInvite?: string
 }) {
-  const [route, setRoute] = useState<'host' | 'join' | null>(null)
-  const [address, setAddress] = useState('')
+  const [route, setRoute] = useState<'host' | 'join' | null>(initialInvite ? 'join' : null)
+  const [address, setAddress] = useState(initialInvite)
   const [checked, setChecked] = useState<CheckedServer | null>(null)
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState('')
@@ -24,7 +24,7 @@ export function GuidedSetup({ defaultServer, signedIn = false, currentServer, on
     const controller = new AbortController(); request.current = controller
     setBusy(true); setError(''); setChecked(null)
     try {
-      const target = route === 'host' ? { server: normalizeServerUrl(address), invite: null } : setupTarget(address)
+      const target = route === 'host' ? { server: normalizeServerUrl(address), invite: null } : await resolveSetupTarget(address, { signal: controller.signal })
       const info = await new HearthClient(target.server).inspect({ signal: controller.signal })
       if (controller.signal.aborted) return
       const key = info.wellKnown.server_key.toLowerCase()
@@ -53,7 +53,7 @@ export function GuidedSetup({ defaultServer, signedIn = false, currentServer, on
       <p className="eyebrow">{route === 'host' ? 'HOST A SERVER' : 'JOIN A SERVER'}</p>
       <h1 id="setup-heading">{route === 'host' ? 'Connect your host.' : 'Bring your invite.'}</h1>
       <p>{route === 'host' ? 'Check a running Hearth server, then create its owner account or sign in.' : 'Paste the invite your host shared. A server address works too.'}</p>
-      {route === 'host' && <p className="notice">This build needs an existing Hearth server. Installing and managing hosting services from this app is still being built.</p>}
+      {route === 'host' && <>{onManageHost && <button type="button" onClick={onManageHost}>Start or manage local server</button>}<p className="notice">{onManageHost?'Start your local host, or enter the address of a server you already run.':'Start the host package first, or use hosting controls in the desktop app.'}</p></>}
       <form onSubmit={event => void check(event)} aria-busy={busy}>
         <label htmlFor="setup-address">{route === 'host' ? 'Server address' : 'Invite or server address'}</label>
         <input id="setup-address" ref={input} type="text" value={address} required autoFocus autoComplete="off" spellCheck={false} disabled={busy}

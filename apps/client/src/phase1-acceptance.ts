@@ -174,6 +174,22 @@ async function run(){
     const file=resumed.state.messages.find(m=>m.conversation_id===channel.id&&m.attachments.length>0)!.attachments[0]
     require(await (await resumed.service!.downloadAttachment(channel.id,file)).text()===canary+' file')
     checks.packaged_encrypted_file_upload_and_download_pass=true
+    if(config.phase3){
+      stage='50 MB file through packaged worker and private S3'
+      const payload=new Uint8Array(50_000_000).fill(0x5a)
+      await alice.service!.sendAttachment(channel.id,new File([payload],'packaged-50mb.bin',{type:'application/octet-stream'}),'Packaged 50 MB file')
+      await until(()=>resumed.state.messages.some(m=>m.conversation_id===channel.id&&m.attachments.some(file=>file.name==='packaged-50mb.bin')))
+      const large=resumed.state.messages.flatMap(m=>m.attachments).find(file=>file.name==='packaged-50mb.bin')!
+      const decrypted=await (await resumed.service!.downloadAttachment(channel.id,large)).arrayBuffer()
+      require(decrypted.byteLength===payload.byteLength)
+      const digest=async(value:BufferSource)=>Array.from(new Uint8Array(await crypto.subtle.digest('SHA-256',value))).join(',')
+      require(await digest(decrypted)===await digest(payload))
+      checks.packaged_fifty_megabyte_worker_transfer_preserves_digest=true
+      await alice.service!.removeAttachment(channel.id,large)
+      let denied=false;try{await resumed.service!.downloadAttachment(channel.id,large)}catch{denied=true}
+      require(denied)
+      checks.packaged_owner_removal_denies_new_file_reads=true
+    }
   }
   if(config.phase3){linked.service?.close();await verifyPackagedPhase3(client,alice,resumed,checks,until,label=>{stage=label},community.id,canary,pace)}
   for(const install of installs){install.service?.close();install.crypto.close()}
@@ -182,7 +198,7 @@ async function run(){
 }
 void run().catch(async(error:unknown)=>{
   for(const install of installs){install.service?.close();install.crypto.close()}
-  checks[stage.replaceAll(' ','_')]=false
+  checks[stage.toLowerCase().replace(/[^a-z_]/g,'_').slice(0,80)]=false
   // Enumerated failure classes only: never forward SDK/native error text.
   let failure='unclassified'
   if(error instanceof AuthCryptoError)failure=error.failure

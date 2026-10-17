@@ -1,6 +1,7 @@
 // Phase 3 permission-matrix route inventory. Public auth flows have separate proof tests.
 import assert from 'node:assert/strict'
 export const endpoints=[
+  "DELETE /api/v1/blobs/{id}/{id}",
   "GET /.well-known/hearth",
   "GET /api/v1/auth/account/export",
   "GET /api/v1/auth/admin/bans",
@@ -28,10 +29,12 @@ export const endpoints=[
   "GET /api/v1/communities/{id}/invitation",
   "GET /api/v1/communities/{id}/ownership",
   "GET /api/v1/setup",
+  "GET /api/v1/invite-links/{id}",
   "GET /health",
   "POST /api/v1/auth/account/delete",
   "POST /api/v1/auth/admin/bans",
   "POST /api/v1/auth/admin/invite",
+  "POST /api/v1/auth/invite-links",
   "POST /api/v1/auth/admin/settings",
   "POST /api/v1/auth/blocks",
   "POST /api/v1/auth/device/first",
@@ -70,5 +73,5 @@ export const endpoints=[
   "POST /api/v1/communities/{id}/rules/accept"
 ]
 export function verifyEndpointMatrix(outcomes,{storage}){
- for(const endpoint of endpoints){if(endpoint.includes('/blobs/')&&!storage)continue;const values=outcomes.get(endpoint);assert.ok(values,'Untested endpoint: '+endpoint);assert.ok([...values].some(s=>s>=200&&s<300),'Missing valid fixture: '+endpoint);if(!endpoint.includes('/health')&&!endpoint.includes('/.well-known/')&&!endpoint.endsWith('/setup')&&!endpoint.endsWith('/registration')&&!/\/auth\/(owner|register|login)\//.test(endpoint))assert.ok(values.has(401)||values.has(403),'Missing access rejection: '+endpoint)}
+ for(const endpoint of endpoints){if(endpoint.includes('/blobs/')&&!storage)continue;const values=outcomes.get(endpoint);assert.ok(values,'Untested endpoint: '+endpoint);assert.ok([...values].some(s=>s>=200&&s<300),'Missing valid fixture: '+endpoint);if(endpoint==='GET /api/v1/invite-links/{id}')assert.ok(values.has(404),'Missing expired/unknown encrypted invite rejection');else if(!endpoint.includes('/health')&&!endpoint.includes('/.well-known/')&&!endpoint.endsWith('/setup')&&!endpoint.endsWith('/registration')&&!/\/auth\/(owner|register|login)\//.test(endpoint))assert.ok(values.has(401)||values.has(403),'Missing access rejection: '+endpoint)}
 }

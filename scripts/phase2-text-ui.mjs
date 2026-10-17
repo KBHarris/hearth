@@ -1,6 +1,8 @@
 import assert from 'node:assert/strict'
 import {join} from 'node:path'
 import {writeFileSync,readFileSync,existsSync,rmSync,mkdirSync} from 'node:fs'
+import {createHash} from 'node:crypto'
+import {Key} from 'selenium-webdriver'
 export async function verifyTextUI({driver,buddy,By,enabled,output,checks,storage}){
   await buddy.findElement(By.xpath('//button[normalize-space(.)="Profile & presence"]')).click()
   await buddy.findElement(By.id('profile-name')).sendKeys('UI Encrypted Buddy')
@@ -10,10 +12,21 @@ export async function verifyTextUI({driver,buddy,By,enabled,output,checks,storag
   await buddy.findElement(By.css('#presence-state option[value="idle"]')).click()
   await buddy.findElement(By.css('dialog[open] .panel-heading button')).click()
   await driver.wait(async()=>await driver.findElement(By.css('.message-log')).getText().then(text=>text.includes('UI Encrypted Buddy (@uibuddy)')&&text.includes('idle')),15000)
-  await driver.findElement(By.css('[aria-label="Conversation members"]')).click()
-  await driver.wait(async()=>await driver.findElement(By.css('.people-panel')).getText().then(text=>text.includes('UI private profile bio')),15000)
+  if(!await driver.findElement(By.css('.chat-workspace')).getAttribute('data-members-open').then(value=>value==='true'))await driver.findElement(By.css('[aria-label="Server Members"]')).click()
+  await driver.findElement(By.css('[aria-label="View profile for uibuddy"]')).click()
+  await driver.wait(async()=>await driver.findElement(By.css('.member-bio')).getText().then(text=>text.includes('UI private profile bio')),15000)
+  const fingerprint=(await driver.findElement(By.css('.member-fingerprint')).getText()).replaceAll(' ','')
+  assert.match(fingerprint,/^[a-f0-9]{64}$/)
+  assert.ok((await driver.findElement(By.css('.member-role-list')).getText()).includes('Member'))
+  await driver.executeScript("Object.defineProperty(navigator,'clipboard',{configurable:true,value:{writeText:async value=>{window.__copiedFingerprint=value}}})")
+  await driver.findElement(By.xpath('//button[text()="Copy fingerprint"]')).click()
+  await driver.wait(async()=>await driver.executeScript('return window.__copiedFingerprint')===fingerprint,1000)
+  await driver.findElement(By.css('dialog[open] button')).sendKeys(Key.ESCAPE)
+  assert.equal(await driver.executeScript('return document.activeElement.getAttribute("aria-label")'),'View profile for uibuddy')
+  assert.equal((await driver.findElements(By.css('.member-avatar'))).length>=2,true)
+  assert.ok(!(await driver.findElement(By.id('server-members')).getText()).includes('Offline'))
+  checks.member_sidebar_has_profiles_roles_fingerprints_copy_and_escape_focus_return=true
   checks.profiles_and_presence_share_over_encrypted_conversations=true
-  await driver.findElement(By.css('dialog[open] .panel-heading button')).click()
   await driver.executeScript("window.__previewRequests=[];window.__previewFetch=window.fetch;window.fetch=(url,...args)=>{if(String(url).includes('example.invalid'))window.__previewRequests.push(String(url));return window.__previewFetch(url,...args)}")
   await buddy.wait(()=>enabled(buddy,'message-text'),15000)
   await buddy.findElement(By.id('message-text')).sendKeys('UI encrypted preview message https://example.invalid/private-link')
@@ -42,6 +55,34 @@ export async function verifyTextUI({driver,buddy,By,enabled,output,checks,storag
   const downloaded=join(output,'downloads','attachment-ui.txt')
   await buddy.wait(()=>existsSync(downloaded),15000);assert.equal(readFileSync(downloaded,'utf8'),canary)
   checks.real_file_picker_encrypted_upload_and_buddy_download_pass=true
+  assert.equal((await buddy.findElements(By.css('.file-remove'))).length,0)
+  await driver.findElement(By.css('.encrypted-attachment .file-remove')).click()
+  await driver.findElement(By.xpath('//button[text()="Remove file from server"]')).click()
+  await driver.wait(async()=>await driver.findElement(By.css('.message-log')).getText().then(text=>text.includes('File removed from server: attachment-ui.txt')),15000)
+  assert.ok((await driver.findElement(By.css('.message-log')).getText()).includes('UI encrypted preview message'))
+  checks.server_owner_file_removal_has_confirmation_and_keeps_other_messages=true
+  const largePath=join(output,'attachment-50mb.bin'),largeBytes=Buffer.alloc(50_000_000,0x5a),largeDownload=join(output,'downloads','attachment-50mb.bin')
+  writeFileSync(largePath,largeBytes);rmSync(largeDownload,{force:true})
+  const overPath=join(output,'attachment-over-limit.bin');writeFileSync(overPath,Buffer.alloc(50_000_001))
+  await driver.findElement(By.id('message-file')).sendKeys(overPath)
+  await driver.findElement(By.css('.send-message')).click()
+  await driver.wait(async()=>await driver.findElements(By.css('[role="alert"]')).then(async items=>(await Promise.all(items.map(item=>item.getText()))).some(text=>text.includes('50 MB'))),10000)
+  await driver.findElement(By.id('message-file')).sendKeys(largePath)
+  await driver.executeScript("window.__uploadFetch=window.fetch;window.__uploadHeld=false;window.fetch=(input,init)=>{if(init?.method==='PUT'){window.__uploadHeld=true;return new Promise((resolve,reject)=>{if(init.signal?.aborted)reject(init.signal.reason);else init.signal?.addEventListener('abort',()=>reject(init.signal.reason),{once:true})})}return window.__uploadFetch(input,init)}")
+  await driver.findElement(By.css('.send-message')).click()
+  await driver.wait(()=>driver.executeScript('return window.__uploadHeld'),60000)
+  await driver.findElement(By.xpath('//button[text()="Cancel upload"]')).click()
+  await driver.wait(()=>enabled(driver,'message-text'),15000)
+  assert.equal(await driver.findElement(By.id('message-file')).getAttribute('value').then(value=>value.endsWith('attachment-50mb.bin')),true)
+  assert.equal((await buddy.findElements(By.xpath('//button[contains(text(),"Download attachment-50mb.bin")]'))).length,0)
+  await driver.executeScript('window.fetch=window.__uploadFetch;delete window.__uploadFetch;delete window.__uploadHeld')
+  checks.upload_rejects_above_50MB_and_cancellation_keeps_selection_without_publishing=true
+  await driver.findElement(By.css('.send-message')).click()
+  await buddy.wait(async()=>await buddy.findElements(By.xpath('//button[contains(text(),"Download attachment-50mb.bin")]')).then(buttons=>buttons[0]??false),90000).then(button=>button.click())
+  await buddy.wait(()=>existsSync(largeDownload),90000)
+  const digest=bytes=>createHash('sha256').update(bytes).digest('hex')
+  assert.equal(digest(readFileSync(largeDownload)),digest(largeBytes))
+  checks.browser_exact_50MB_encrypted_upload_and_download_preserve_sha256=true
   await driver.findElement(By.css('[aria-label="Channel settings"]')).click()
   await driver.findElement(By.id('emoji-alias')).sendKeys('party')
   await driver.findElement(By.id('emoji-file')).sendKeys(image)

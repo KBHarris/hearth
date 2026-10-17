@@ -134,6 +134,9 @@ impl AuthState {
 }
 
 pub async fn cleanup_expired(db: &sqlx::PgPool) -> Result<(), sqlx::Error> {
+    sqlx::query("DELETE FROM invite_envelopes WHERE expires_at <= now()")
+        .execute(db)
+        .await?;
     sqlx::query("DELETE FROM mls_key_packages WHERE expires_at <= now()")
         .execute(db)
         .await?;
@@ -238,6 +241,7 @@ pub fn routes(origins: &[String]) -> Router<SharedState> {
             get(crate::registration::settings).post(crate::registration::configure),
         )
         .route("/admin/invite", post(crate::registration::invite))
+        .route("/invite-links", post(crate::invites::store))
         .route("/login/start", post(login_start))
         .route("/login/finish", post(login_finish))
         .route("/session", get(session))

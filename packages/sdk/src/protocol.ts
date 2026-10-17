@@ -4,6 +4,10 @@
 
 export const PROTOCOL_VERSION = 1 as const
 
+export type InviteEnvelope = { nonce: string, ciphertext: string, };
+
+export type StoreInviteEnvelope = { id: string, envelope: InviteEnvelope, };
+
 export type AccountDeparture = { member: GroupMember, operation_id: string, signature: string, };
 
 export type ExportRecord = { cursor: string, data: unknown, };

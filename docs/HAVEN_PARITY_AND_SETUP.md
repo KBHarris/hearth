@@ -21,7 +21,7 @@ separates existing work from planned work; it does not claim full feature parity
 | DMs and encrypted messaging | DMs, groups and community messages use E2EE. Preserve this throughout parity work. |
 | Roles, channel permissions, sanctions, slow mode, audit | Phase 3 implementation and HTTP/Windows coverage exist. Preserve signed authority and scoped moderation. |
 | Automod, link filtering, IP bans | Add explicit moderation and network-abuse targets. Content inspection belongs in an authorized moderator client or bot rather than ordinary server-side plaintext processing. |
-| Voice, video, screen sharing, watch parties | Phase 4. Include simultaneous sharing and clear speaker/microphone controls. |
+| Voice, video, screen sharing, watch parties | Phase 4. Add direct P2P small calls with STUN/TURN fallback and relay-only privacy, plus optional LiveKit SFU for larger rooms. Include simultaneous sharing and clear speaker/microphone controls. |
 | Per-app audio, mid-call device switching, tray, native notifications | Explicit desktop acceptance targets for media and release work. Verify each OS independently. |
 | Synchronized listening and rich presence integrations | Target Spotify, YouTube, SoundCloud, Steam and Last.fm where supported. Identity linking and playback behavior need design and remain opt-in. |
 | Themes, plugins, stickers, personas, soundboard, avatar styling, branding, density, localization | Custom emoji and profiles exist. Expand customization after the core UI is consistent; retain the current default color scheme. |
@@ -31,7 +31,7 @@ separates existing work from planned work; it does not claim full feature parity
 | SSO, MFA, guests, rotating invitations | OPAQUE, signed devices and expiring invitations exist. Additional account modes need a design compatible with local encryption keys. |
 | Push notifications and UnifiedPush | Generic Web Push is implemented and locally tested; actual provider/OS delivery remains manual acceptance. Add delivery adapters without message previews by default. |
 | Tunnel-assisted hosting and direct hosting | Add a guided reachability flow. Current public-IP HTTPS setup still requires technical steps. |
-| Browser, desktop and mobile clients | Desktop/web first remains the current sequence. Mobile belongs in the eventual parity target after protocol stability. |
+| Browser, desktop and mobile clients | Desktop/web first remains the current sequence. Phase 4 adds optional production browser hosting alongside Railway IaC, private storage and the backend. Mobile belongs in the eventual parity target after protocol stability. |
 
 These targets are drawn from the [Haven feature list](https://github.com/ancsemi/Haven)
 and [desktop README](https://github.com/ancsemi/Haven-Desktop). Exact theme/language
@@ -97,6 +97,13 @@ Host/Join setup is the more immediate acceptance target. Phase 5 remains the pla
 federation phase, with closed/allowlist/open policies and cross-server blocklists.
 
 ## Work order
+
+Scope clarification, 2026-10-16: Haven's [voice guide](https://github.com/ancsemi/Haven/blob/main/GUIDE.md#voice-chat)
+documents P2P voice by default and an optional large-server relay. The earlier
+comparison omitted that distinction. [Phase 4](PHASE4_HOSTING_AND_MEDIA.md) now
+explicitly plans direct P2P, TURN fallback and optional SFU media, preserving
+Hearth's all-message/media E2EE requirement. It also adds Railway deployment,
+storage compatibility and browser hosting; these are unimplemented requirements.
 
 Finish current Phase 3 validation and the menu pass. Then establish the Host/Join
 installer and reachability workflow as a dedicated checkpoint before expanding

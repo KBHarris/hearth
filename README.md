@@ -3,17 +3,22 @@
 Hearth is a privacy-first, self-hostable community chat platform in early development.
 Messages and files are end-to-end encrypted. The application is licensed AGPLv3.
 
-The current **Hearth Test 0.3.0** build includes guided Host/Join, encrypted DMs and
-communities, files, roles, reports, forums and polls. Follow
+The **Hearth Preview 0.3.1** build being prepared includes guided Host/Join, encrypted DMs and
+communities, 50 MB files, member profiles, readable invites, desktop hosting controls,
+signed app/server updates, native invite opening, roles, reports, forums and polls.
+Public binary publication is pending; signed update feeds report unavailable until published.
+Follow
 [the latest two-PC test guide](docs/TWO_PC_LATEST_TEST.md) for the prepared Windows
 installer and matching fresh server. Older test deployments and profiles have been retired.
 Hosting currently needs Docker and Node.js; automatic service installation remains open.
+The desktop app can start/stop a configured host and retrieve its owner setup code.
 Voice/video, federation and the larger community trial remain on the roadmap.
 
 - [Architecture and product plan](PLAN.md)
 - [Roadmap](docs/ROADMAP.md) and [current progress and validation](docs/PROGRESS.md)
 - [Guided setup scope](docs/GUIDED_SETUP.md) and [governance development](docs/PHASE3_DEVELOPMENT.md)
 - [Threat model](docs/THREAT_MODEL.md)
+- [Repository publication review](docs/PUBLICATION_AUDIT.md)
 
 ## Repository layout
 

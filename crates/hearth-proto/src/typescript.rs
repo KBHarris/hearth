@@ -10,6 +10,8 @@ use crate::{
 pub fn generate() -> String {
     let config = Config::new();
     let declarations = [
+        crate::invite::InviteEnvelope::decl(&config),
+        crate::invite::StoreInviteEnvelope::decl(&config),
         crate::lifecycle::AccountDeparture::decl(&config),
         crate::lifecycle::ExportRecord::decl(&config),
         crate::lifecycle::AccountExport::decl(&config),

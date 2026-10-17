@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict'
+import {createHash,randomBytes} from 'node:crypto'
 export async function verifyAttachments({storage,alice,bob,carol,id,news,request,json,op,view,submitted,ready,checks,scanDatabase}){
   if(!storage){checks.attachments_require_configured_private_storage=(await request(`/api/v1/blobs/${id}`,{id:'f'.repeat(64),device_key:alice.identity.enrollment.device_key,cipher_bytes:17,digest:'e'.repeat(64)},alice.session.token)).status===503;assert.ok(checks.attachments_require_configured_private_storage);return}
   const canary='HEARTH_ATTACHMENT_CANARY_private_file'
@@ -17,7 +18,7 @@ export async function verifyAttachments({storage,alice,bob,carol,id,news,request
     assert.equal((await fetch(reserved.value.url.split('?')[0])).status,403)
     assert.equal((await request(`/api/v1/blobs/${channel}/${body.id}/complete`,{device:install.identity.enrollment.device_key},install.session.token)).status,204)
     assert.equal((await request(`/api/v1/blobs/${channel}`,body,install.session.token)).status,409)
-    return prepared
+    return {...prepared,lease:reserved.value.url,reservation:body}
   }
   const file=await upload(alice,id,filename,'text/plain',plaintext)
   const png=Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAIAAAACCAYAAABytg0kAAAAEUlEQVR4nGNwmPD/PwgzwBgAX7ILOaSjuloAAAAASUVORK5CYII=','base64')
@@ -49,4 +50,31 @@ export async function verifyAttachments({storage,alice,bob,carol,id,news,request
   assert.throws(()=>json(bob.client,'prepare_file',{id:news,name:'no.txt',mime:'text/plain',plaintext:'00'}))
   await scanDatabase(canary);storage.scan(canary)
   checks.attachment_canary_absent_from_host_database_logs_and_s3_volume=true
+  if(process.argv.includes('--phase3')){
+    const bytes=Buffer.alloc(50_000_000,0x5a),large=await upload(bob,id,'boundary-50MB.bin','application/octet-stream',bytes)
+    assert.equal(large.file.cipher_bytes,50_000_768)
+    const uploadMessage=json(bob.client,'send_file',{id,file:large.file.id,text:'50 MB boundary fixture'})
+    await submitted(bob,id,uploadMessage,'message');await ready(()=>view(alice.client).messages.some(m=>m.id===uploadMessage.operation_id))
+    const decrypted=Buffer.from(json(alice.client,'open_file',{id,file:large.file.id,ciphertext:large.ciphertext}),'hex')
+    assert.equal(createHash('sha256').update(decrypted).digest('hex'),createHash('sha256').update(bytes).digest('hex'))
+    assert.equal((await request(`/api/v1/blobs/${id}`,{...large.reservation,id:randomBytes(32).toString('hex'),cipher_bytes:50_000_769},bob.session.token)).status,400)
+    checks.exact_50MB_encrypted_round_trip_and_over_limit_rejection_pass=true
+    const path=`/api/v1/blobs/${id}/${large.file.id}?device=${alice.identity.enrollment.device_key}`
+    const before=await request(path,undefined,alice.session.token);assert.equal(before.status,200)
+    assert.equal((await request(path,undefined,bob.session.token,'DELETE')).status,403)
+    assert.equal((await request(path.replace(alice.identity.enrollment.device_key,bob.identity.enrollment.device_key),undefined,alice.session.token,'DELETE')).status,403)
+    assert.equal((await request(path,undefined,undefined,'DELETE')).status,401)
+    assert.equal((await request(path,undefined,alice.session.token,'DELETE')).status,204)
+    assert.equal((await request(path,undefined,alice.session.token,'DELETE')).status,204)
+    assert.equal((await request(path,undefined,alice.session.token)).status,410)
+    assert.equal((await fetch(before.value.url)).status,404)
+    // An already-issued PUT may still finish. It must never restore readable state.
+    assert.equal((await fetch(large.lease,{method:'PUT',headers:{'Content-Type':'application/octet-stream'},body:Buffer.from(large.ciphertext,'hex')})).status,200)
+    assert.equal((await request(`/api/v1/blobs/${id}/${large.file.id}/complete`,{device:bob.identity.enrollment.device_key},bob.session.token)).status,410)
+    assert.equal((await request(`/api/v1/blobs/${id}`,large.reservation,bob.session.token)).status,410)
+    assert.equal((await request(path,undefined,alice.session.token)).status,410)
+    assert.equal((await request(path,undefined,alice.session.token,'DELETE')).status,204)
+    assert.equal((await fetch(before.value.url)).status,404)
+    checks.operator_removal_blocks_uploader_wrong_device_and_late_lease_resurrection=true
+  }
 }

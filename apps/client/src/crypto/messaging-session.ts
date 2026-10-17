@@ -388,28 +388,41 @@ export class MessagingSession {
   reportQueue(id:string):Promise<ReportReview[]>{return this.enqueue(async()=>{const roster=await this.prepareChannel(id),key=await this.operation<ReportKey>('report_key',roster.community.id);await this.client.registerReportKey(this.session.token,id,key,this.options);const reports=await this.client.reportQueue(this.session.token,id,this.options);return Promise.all(reports.map(async report=>{try{return {...report,evidence:await this.operation<ReportEvidence>('open_report',report.envelope)}}catch{return {...report,error:'This report could not be verified on this device. It may belong to another approved device.'}}}))})}
   resolveReport(id:string,report:string):Promise<void>{return this.enqueue(async()=>{await this.client.resolveReport(this.session.token,id,report,this.options)})}
   search(query:string,conversation:string|null):Promise<LocalMessage[]>{return this.enqueue(()=>this.operation<LocalMessage[]>('search',{query,conversation}))}
-  async sendAttachment(id:string,file:File,text:string,emoji?:string){
-    if(!file.size||file.size>MAX_FILE)throw new Error('Choose a file between 1 byte and 8 MiB.')
+  async removeAttachment(id:string,file:LocalAttachment){
+    if(!this.session.account.owner)throw new Error('Only the server owner can remove hosted files.')
+    // Remove previews as well; each opaque removal is independently retryable.
+    for(const part of [...(file.thumbnail?[file.thumbnail]:[]),file]) {
+      try { await this.client.removeBlob(this.session.token,id,part.id,this.device.device_key,this.options) }
+      catch(error) { if(!(error instanceof HearthError)||![404,410].includes(error.status))throw error }
+    }
+  }
+  async sendAttachment(id:string,file:File,text:string,emoji?:string,signal?:AbortSignal){
+    if(!file.size||file.size>MAX_FILE)throw new Error('Choose a file between 1 byte and 50 MB.')
+    const uploadSignal=signal?AbortSignal.any([this.controller.signal,signal]):this.controller.signal
+    uploadSignal.throwIfAborted()
     if(new TextEncoder().encode(file.name).length>160||/[\u0000-\u001f/\\]/.test(file.name))throw new Error('Rename this file using no more than 160 bytes and no control characters.')
     if(emoji&&!/^[a-z0-9_]{1,32}$/.test(emoji))throw new Error('Use a custom emoji name of 1–32 lowercase letters, numbers or underscores.')
     const preview=await thumbnail(file)
     if(emoji&&!preview)throw new Error('Custom emoji must be a PNG, JPEG or WebP image.')
     return this.enqueue(async()=>{
       const prepare=async(blob:Blob,name:string,mime:string)=>{
+        uploadSignal.throwIfAborted()
         const result=await this.operation<{file:LocalAttachment;ciphertext:string}>('prepare_file',{id,name,mime,plaintext:hex(new Uint8Array(await blob.arrayBuffer()))})
         await this.persist()
-        const reserved=await this.client.reserveBlob(this.session.token,id,{id:result.file.id,device_key:this.device.device_key,cipher_bytes:result.file.cipher_bytes,digest:result.file.digest},this.options)
+        uploadSignal.throwIfAborted()
+        const reserved=await this.client.reserveBlob(this.session.token,id,{id:result.file.id,device_key:this.device.device_key,cipher_bytes:result.file.cipher_bytes,digest:result.file.digest},{signal:uploadSignal})
         this.checkBlobUrl(reserved.url,id,result.file.id)
         const encrypted=unhex(result.ciphertext)
-        const response=await fetch(reserved.url,{method:'PUT',headers:{'Content-Type':'application/octet-stream'},body:new Blob([encrypted as BlobPart]),credentials:'omit',referrerPolicy:'no-referrer',redirect:'error',signal:AbortSignal.any([this.controller.signal,AbortSignal.timeout(30000)])})
+        const response=await fetch(reserved.url,{method:'PUT',headers:{'Content-Type':'application/octet-stream'},body:new Blob([encrypted as BlobPart]),credentials:'omit',referrerPolicy:'no-referrer',redirect:'error',signal:AbortSignal.any([uploadSignal,AbortSignal.timeout(300000)])})
         if(!response.ok)throw new Error('Encrypted file upload failed. Try again.')
-        await this.client.completeBlob(this.session.token,id,result.file.id,this.device.device_key,this.options)
+        await this.client.completeBlob(this.session.token,id,result.file.id,this.device.device_key,{signal:uploadSignal})
         await cacheFile(`${this.scope}:${id}:${result.file.id}`,encrypted).catch(()=>{})
         return result.file.id
       }
       const asset=await prepare(emoji?preview!:file,emoji?`${emoji}.png`:file.name,emoji?'image/png':file.type)
       const thumb=!emoji&&preview?await prepare(preview,'preview.png','image/png'):null
       await this.synchronize()
+      uploadSignal.throwIfAborted()
       await this.operation('send_file',{id,file:asset,thumbnail:thumb,text,emoji:emoji??null});await this.persist()
       if(await this.flush())throw new Error('Encryption changed during upload. Retry when channel updates arrive.')
       this.publish({error:''})
@@ -421,7 +434,7 @@ export class MessagingSession {
     let encrypted=await cachedFile(scope).catch(()=>null)
     if(!encrypted){
       const result=await this.client.downloadBlob(this.session.token,id,file.id,this.device.device_key,this.options);this.checkBlobUrl(result.url,id,file.id)
-      const response=await fetch(result.url,{credentials:'omit',referrerPolicy:'no-referrer',redirect:'error',signal:AbortSignal.any([this.controller.signal,AbortSignal.timeout(30000)])})
+      const response=await fetch(result.url,{credentials:'omit',referrerPolicy:'no-referrer',redirect:'error',signal:AbortSignal.any([this.controller.signal,AbortSignal.timeout(300000)])})
       if(!response.ok||Number(response.headers.get('content-length'))!==file.cipher_bytes)throw new Error('Encrypted file download failed or its size changed.')
       const reader=response.body?.getReader();if(!reader)throw new Error('Encrypted download has no body.')
       const chunks:Uint8Array[]=[];let count=0

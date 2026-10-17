@@ -1,4 +1,4 @@
-export const MAX_FILE=8*1024*1024
+export const MAX_FILE=50_000_000
 const digits=Array.from({length:256},(_,value)=>value.toString(16).padStart(2,'0'))
 export function hex(bytes:Uint8Array){const parts:string[]=[];for(let offset=0;offset<bytes.length;offset+=8192){const part:string[]=[];for(let i=offset;i<Math.min(bytes.length,offset+8192);i++)part.push(digits[bytes[i]]);parts.push(part.join(''))}return parts.join('')}
 export function unhex(value:string){if(value.length%2||!/^[a-f0-9]*$/.test(value))throw new Error('Invalid encrypted file.');const bytes=new Uint8Array(value.length/2);for(let i=0;i<bytes.length;i++)bytes[i]=parseInt(value.slice(i*2,i*2+2),16);return bytes}

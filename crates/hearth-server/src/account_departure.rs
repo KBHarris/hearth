@@ -75,6 +75,7 @@ pub(crate) async fn erase(
         "DELETE FROM device_link_offers WHERE account_id=$1",
         "DELETE FROM mls_key_packages WHERE account_id=$1",
         "DELETE FROM account_invites WHERE issuer_id=$1",
+        "DELETE FROM invite_envelopes WHERE creator_id=$1",
         "DELETE FROM user_blocks WHERE account_id=$1 OR blocked_id=$1",
         "DELETE FROM push_subscriptions WHERE account_id=$1",
         "DELETE FROM moderation_keys WHERE account_id=$1",
