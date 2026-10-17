@@ -33,7 +33,7 @@ compose=compose.replace(build,`    image: ${info.Id}\n    pull_policy: never`)
 writeFileSync(join(deploy,'compose.yaml'),compose)
 let env=readFileSync(join(root,'deploy/.env.example'),'utf8').replace('HEARTH_PORT=8080','HEARTH_PORT=8183').replace('HEARTH_S3_PORT=8333','HEARTH_S3_PORT=18335').replace('http://127.0.0.1:8333','http://127.0.0.1:18335')
 writeFileSync(join(deploy,'.env.example'),env)
-const installerName=`${productName.replaceAll(' ','_')}_${version}_x64-setup.exe`;assert.equal(resolve(installer).split(/[\\/]/).at(-1),installerName);copyFileSync(resolve(installer),join(directory,'client',installerName))
+const installerName=`${productName.replaceAll(' ','_')}_${version}_x64-setup.exe`;assert.ok([installerName,`${productName}_${version}_x64-setup.exe`].includes(resolve(installer).split(/[\\/]/).at(-1)),'Installer name must match the frozen product and version');copyFileSync(resolve(installer),join(directory,'client',installerName))
 writeFileSync(join(directory,'client/START_HERE.txt'),`${productName} ${version} - Windows x64
 
 1. Extract this ZIP, then run ${installerName}. This is an unsigned test build; Windows may show an unknown-publisher warning. WebView2 may download if missing.

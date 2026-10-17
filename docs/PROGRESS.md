@@ -6,7 +6,10 @@ invite relays, desktop hosting controls and signed app/server updates are in
 source. A fresh Windows Preview package is being validated. Local checks include
 94 real HTTP/private-S3 outcomes, 51 broad two-client UI outcomes, 13 focused
 readable-account-code outcomes, six Docker host/failed-migration rollback outcomes
-and three signed host-package integrity outcomes. The publication audit completed
+and three signed host-package integrity outcomes. The Windows packaged suite
+passes 19 outcomes, including an exact 50 MB encrypted transfer and owner removal.
+The [sanitized local record](evidence/phase3-local-2026-10-16.json) captures these
+results and their dates. The publication audit completed
 and the repository is public. Native invite opening advances the Host/Join checkpoint;
 installer acceptance is still running. No hosted Actions were dispatched.
 

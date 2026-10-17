@@ -62,6 +62,8 @@ export async function verifyInstalledTestClient({ bundle, origin, output, hostPr
   const productLiteral="'"+(manifest.client.productName??'Hearth Test').replaceAll("'","''")+"'"
   const existing = spawnSync('powershell.exe', ['-NoProfile', '-NonInteractive', '-Command', "@(Get-ItemProperty 'HKCU:\\Software\\Microsoft\\Windows\\CurrentVersion\\Uninstall\\*' -ErrorAction SilentlyContinue | Where-Object DisplayName -eq "+productLiteral+").Count"], { windowsHide: true, encoding: 'utf8' })
   assert.equal(existing.status, 0); assert.equal(existing.stdout.trim(), '0', 'Preserve the existing Hearth Test installation')
+  const association=spawnSync('powershell.exe',['-NoProfile','-NonInteractive','-Command',"$entry=Get-Item -LiteralPath 'HKCU:\\Software\\Classes\\hearth' -ErrorAction SilentlyContinue;if($entry){'registered'}"],{windowsHide:true,encoding:'utf8'})
+  assert.equal(association.status,0);assert.equal(association.stdout.trim(),'','Preserve an existing Hearth protocol handler before running the disposable install test')
   // NSIS requires /D= and _?= last and unquoted, including paths with spaces:
   // https://nsis.sourceforge.io/Docs/Chapter3.html#3.2.1
   const installerPath = join(bundle, 'client', manifest.client.installer)
@@ -88,6 +90,10 @@ export async function verifyInstalledTestClient({ bundle, origin, output, hostPr
     const executables = readdirSync(install).filter(name => name.endsWith('.exe') && !/uninstall/i.test(name))
     assert.equal(executables.length, 1, 'Expected exactly one product executable')
     checks.actual_nsis_installer_installs_product = true
+    const registered=spawnSync('powershell.exe',['-NoProfile','-NonInteractive','-Command',"(Get-Item -LiteralPath 'HKCU:\\Software\\Classes\\hearth\\shell\\open\\command' -ErrorAction Stop).GetValue('')"],{windowsHide:true,encoding:'utf8'})
+    assert.equal(registered.status,0)
+    assert.ok(registered.stdout.toLowerCase().includes(join(install,executables[0]).toLowerCase())&&registered.stdout.includes('"%1"'),'The installer must register its executable and a quoted URI argument')
+    checks.installer_registers_hearth_invites_with_quoted_argument=true
     const lease = createServer()
     await new Promise(resolve => lease.listen(0, '127.0.0.1', resolve))
     const port = lease.address().port
@@ -119,8 +125,8 @@ export async function verifyInstalledTestClient({ bundle, origin, output, hostPr
     await reviewLink(coldLink)
     checks.cold_start_invite_requires_review_and_check_before_connecting=true
     const warmLink=coldLink.replace('0'.repeat(32),'1'.repeat(32))
-    const second=spawn(join(install,executables[0]),[warmLink],{cwd:install,windowsHide:true,stdio:'ignore'})
-    assert.equal(await new Promise((resolve,reject)=>{second.once('error',reject);second.once('exit',resolve)}),0)
+    const second=spawnSync('powershell.exe',['-NoProfile','-NonInteractive','-Command',"Start-Process -FilePath '"+warmLink.replaceAll("'","''")+"' -WindowStyle Hidden"],{cwd:install,windowsHide:true,stdio:'ignore',timeout:20000})
+    assert.equal(second.status,0,'Open the warm invite through the Windows URI association')
     assert.equal(child.exitCode,null,'Invite handoff keeps the original app alive')
     await reviewLink(warmLink)
     checks.running_instance_receives_invite_without_replacing_current_session=true
