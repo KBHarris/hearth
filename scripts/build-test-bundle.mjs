@@ -37,11 +37,11 @@ const installerName=`${productName.replaceAll(' ','_')}_${version}_x64-setup.exe
 writeFileSync(join(directory,'client/START_HERE.txt'),`${productName} ${version} - Windows x64
 
 1. Extract this ZIP, then run ${installerName}. This is an unsigned test build; Windows may show an unknown-publisher warning. WebView2 may download if missing.
-2. Open ${productName}, choose Join a server and paste the complete invite your host sends separately. Check it, then continue. Do not use localhost to reach your buddy.
+2. Open ${productName}, choose Join a server and enter the server address and pretty invite code your host sends separately. Check the server, then continue. Do not use localhost to reach your buddy.
 3. Create your account, then choose Join invited community. Keep both apps online while your host approves your device. If you already have an account on this new test server, choose Sign in.
 4. Test a DM, community messages, files up to 50 MB, the member sidebar and reopening the app. Compare identity fingerprints with your host over your existing trusted call. Hosting & updates checks for signed app updates.
 
-You can also click a Hearth invite and choose Review invite in the app. Checking and continuing remain explicit steps. You do not need Docker, Node or the owner's setup code. Keep your password and recovery kit private.
+Older Hearth invite links still open Review invite in the app. New invitations use only pretty codes with a separate server address. Checking and continuing remain explicit steps. You do not need Docker, Node or the owner's setup code. Keep your password and recovery kit private.
 
 Source: ${commit}
 Installer SHA-256 is in SHA256SUMS.txt. This ZIP contains no host configuration, account invite, setup code or recovery kit.
@@ -60,7 +60,7 @@ Source: ${commit}
 Send only [the friend ZIP](${zipName}) to your buddy. Install that client on your PC too.
 Follow [the two-PC guide](TWO_PC_LATEST_TEST.md). The fresh server uses backend 8080, S3 18335 and Compose project hearth-guided-test. Port 8080 must be available. Existing test servers and profiles are preserved.
 
-Install Docker Desktop and Node.js 22+, then open Hosting & updates in the desktop app and choose this extracted folder. Configure your public IPv4 or DNS name, start the server and retrieve its owner setup code there. Configure port forwarding and verify access from another network, then create a readable account/community invite in the owner client. Keep operator files on the host and share the full invite privately. App and hosted-server updates verify signed releases; server updates retain a verified rollback backup.
+Install Docker Desktop and Node.js 22+, then open Hosting & updates in the desktop app and choose this extracted folder. Configure your public IPv4 or DNS name, start the server and retrieve its owner setup code there. Configure port forwarding and verify access from another network, then create a readable account/community invite in the owner client. You can stay connected to localhost while preparing a code for the public HTTPS address. Keep operator files on the host and share only the pretty code and separate server address privately. App and hosted-server updates verify signed releases; server updates retain a verified rollback backup.
 `)
 const files={}
 for(const f of [zipName,archiveName,'client/'+installerName,'deploy/compose.yaml','deploy/compose.https.yaml','deploy/setup.mjs','deploy/Caddyfile','deploy/storage-entrypoint.sh','deploy/.env.example','client/START_HERE.txt','client/SHA256SUMS.txt','START_HOST_HERE.md','TWO_PC_LATEST_TEST.md'])files[f]=digest(join(directory,f))
