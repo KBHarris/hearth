@@ -5,7 +5,8 @@ Items 1–9 are implemented and locally validated; they are not included in the
 immutable Hearth Test 0.3.0 distribution. Hearth Preview 0.3.1 is packaged and
 installed locally. See [local acceptance](evidence/phase3-local-2026-10-16.json)
 and [19 installer/package checks](evidence/windows-preview-2026-10-16.json).
-Signed public update feeds remain unavailable until release publication.
+The [public Preview release](https://github.com/KBHarris/hearth/releases/tag/v0.3.1)
+and both signed Preview update feeds are live; anonymous downloads are verified.
 Existing implementation and dated evidence are in [the development guide](PHASE3_DEVELOPMENT.md).
 
 The [Actions budget standard](CI_STANDARD.md) applies to every item: validate locally

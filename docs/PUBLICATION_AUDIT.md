@@ -44,5 +44,8 @@ from source and package staging. Final release assets require their own scan.
 The prepared Preview 0.3.1 host staging directory also passes a separate secret
 scan with zero matches. Its explicit manifest allowlist excludes operator files,
 profiles, backups and private signing keys. The final source scan covers 299
-files with the same four reviewed false positives. Binary publication remains
-separate from the already completed repository visibility change.
+files with the same four reviewed false positives. Binary publication was
+separately authorized on October 16. Preview 0.3.1 is public; all eleven anonymous
+downloads match the locally tested asset hashes. Both Preview update feeds
+resolve to the prepared 0.3.1 manifests. See
+[publication verification](evidence/preview-release-2026-10-16.json).

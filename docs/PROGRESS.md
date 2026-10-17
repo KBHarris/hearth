@@ -15,8 +15,11 @@ All [19 installer/package checks](evidence/windows-preview-2026-10-16.json) pass
 including OS invite association, cold/warm handoff, native Start/Stop/setup-code
 controls, all 23 migrations and private storage. The old local install/profile
 were backed up and replaced with Preview; the new host package is selected for
-local testing. No hosted Actions were dispatched. Public binary publication is
-awaiting authorization; update feeds remain unavailable until publication.
+local testing. No hosted Actions were dispatched. Following explicit approval,
+[Preview 0.3.1 was published](https://github.com/KBHarris/hearth/releases/tag/v0.3.1)
+on October 16. All eleven anonymous asset downloads match the tested hashes, and
+both Preview update feeds resolve to 0.3.1. See the
+[publication verification](evidence/preview-release-2026-10-16.json).
 
 The [ordered checklist](PHASE3_REMAINING.md) remains authoritative for open gates:
 two-house/buddy testing, real push/OS delivery and explicitly requested current

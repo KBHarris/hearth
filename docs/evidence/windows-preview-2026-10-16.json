@@ -67,7 +67,7 @@
     "START_HOST_HERE.md": "b9e4865533b1881660cc608c025f4c34edf705c367514506a2adae032b3a9605",
     "TWO_PC_LATEST_TEST.md": "abbeba2626f60d7c324e4477399e44c538ed6c4bd751010db1d27c4cad6176f2"
   },
-  "publication": "Prepared locally; public binary publication awaits authorization",
+  "publication": "Published with explicit user authorization: https://github.com/KBHarris/hearth/releases/tag/v0.3.1",
   "releaseHostSecretScan": {
     "outcome": "pass",
     "findings": 0

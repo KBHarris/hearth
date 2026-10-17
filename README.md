@@ -6,7 +6,10 @@ Messages and files are end-to-end encrypted. The application is licensed AGPLv3.
 The locally tested **Hearth Preview 0.3.1** includes guided Host/Join, encrypted DMs and
 communities, 50 MB files, member profiles, readable invites, desktop hosting controls,
 signed app/server updates, native invite opening, roles, reports, forums and polls.
-Public binary publication is pending; signed update feeds report unavailable until published.
+Download the Windows [client ZIP](https://github.com/KBHarris/hearth/releases/download/v0.3.1/Hearth_Test_02b5010_Windows_x64.zip)
+or [host package](https://github.com/KBHarris/hearth/releases/download/v0.3.1/Hearth_Host_0.3.1_Windows_x64.zip)
+from the [Preview release](https://github.com/KBHarris/hearth/releases/tag/v0.3.1).
+The signed Preview app/server update feeds are live.
 Follow
 [the latest two-PC test guide](docs/TWO_PC_LATEST_TEST.md) for the prepared Windows
 installer and matching fresh server. Older test deployments and profiles have been retired.
