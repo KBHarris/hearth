@@ -33,6 +33,13 @@ async function exit(child) {
   child.kill();await closed
 }
 async function closePanel(client){await client.findElement(By.css('dialog[open] .panel-heading button')).click()}
+async function replaceSetupAddress(client,value){
+  const field=await client.findElement(By.id('setup-address'))
+  // Join pre-fills the current server for signed-in clients. Replace that value
+  // with real keyboard input rather than appending a second URL to it.
+  await field.sendKeys(Key.chord(process.platform==='darwin'?Key.COMMAND:Key.CONTROL,'a'),Key.BACK_SPACE,value)
+  assert.equal(await field.getAttribute('value'),value)
+}
 async function verifyOwnershipUi(owner,buddy,checks){
   await pace(owner);await pace(buddy)
   await owner.findElement(By.css('[aria-label="Manage community"]')).click()
@@ -247,7 +254,7 @@ async function verifyNavigation(client,checks,fixtureOrigin){
   await client.findElement(By.css('[aria-label="Add server"]')).click()
   assert.equal(await client.findElement(By.css('dialog[open] h2')).getText(),'Add a server')
   await client.findElement(By.xpath('//button[contains(.,"Join a server")]')).click()
-  await client.findElement(By.id('setup-address')).sendKeys('javascript:invalid')
+  await replaceSetupAddress(client,'javascript:invalid')
   await client.findElement(By.css('dialog[open] form button[type="submit"]')).click()
   await client.wait(async()=>{const alerts=await client.findElements(By.css('dialog[open] [role="alert"]'));return alerts.length>0},5000)
   checks.add_server_opens_and_rejects_invalid_address_without_signing_out=true
@@ -280,7 +287,7 @@ async function verifyNavigation(client,checks,fixtureOrigin){
   await client.findElement(By.css('[aria-label="Add server"]')).click()
   await client.executeScript("window.__identityFetch=window.fetch;window.fetch=async(...args)=>{const response=await window.__identityFetch(...args);if(String(args[0]).includes('/.well-known/hearth')){const info=await response.json();return new Response(JSON.stringify({...info,server_key:'0'.repeat(64)}),{status:200,headers:{'Content-Type':'application/json'}})}return response}")
   await client.findElement(By.xpath('//button[contains(.,"Join a server")]')).click()
-  await client.findElement(By.id('setup-address')).sendKeys('http://127.0.0.1:5174')
+  await replaceSetupAddress(client,'http://127.0.0.1:5174')
   await client.findElement(By.css('dialog[open] form button[type="submit"]')).click()
   await client.wait(async()=>{const alerts=await client.findElements(By.css('dialog[open] [role="alert"]'));return alerts.length>0 && (await alerts[0].getText()).includes('identity does not match')},15000)
   await client.executeScript('window.fetch=window.__identityFetch;delete window.__identityFetch')
@@ -288,7 +295,7 @@ async function verifyNavigation(client,checks,fixtureOrigin){
   checks.reconnecting_changed_server_identity_preserves_current_session=true
   await client.findElement(By.css('[aria-label="Add server"]')).click()
   await client.findElement(By.xpath('//button[contains(.,"Join a server")]')).click()
-  await client.findElement(By.id('setup-address')).sendKeys(fixtureOrigin)
+  await replaceSetupAddress(client,fixtureOrigin)
   await client.findElement(By.css('dialog[open] form button[type="submit"]')).click()
   await client.wait(async()=>{const buttons=await client.findElements(By.xpath('//button[text()="Continue to sign in"]'));return buttons[0]??false},15000).then(button=>button.click())
   await client.wait(async()=>{const fields=await client.findElements(By.id('username'));return fields[0]??false},15000)

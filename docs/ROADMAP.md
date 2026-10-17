@@ -157,7 +157,13 @@ records 94 HTTP/private-S3, 51 browser and 19 packaged Windows outcomes. The
 first full hosted milestone passed core and browser jobs, but failed Linux
 desktop compilation on an upstream dependency mismatch; Windows/macOS were
 cancelled. The Preview 0.3.3 compatibility pin passes local Linux compilation.
-Current full hosted acceptance remains pending. The user confirmed public HTTPS
+The October 17 corrected [full run](https://github.com/KBHarris/hearth/actions/runs/39070916430)
+on frozen Preview 0.3.3 passed all core/browser jobs, Linux/macOS desktop jobs and
+all three Phase 3 packaged suites. Windows community UI failed after 22 checks
+when the fixture appended to a prefilled server address; a local test correction
+replaces that value and passes all [42 local UI checks](evidence/phase3-ui-correction-2026-10-17.json)
+against current 0.3.4 product source. Windows native media acceptance was skipped. Full hosted
+closeout remains open; no automatic retry is authorized. The user confirmed public HTTPS
 health from a phone on cellular on October 17; full two-household messaging and
 actual notification delivery remain explicit preview waivers.
 
@@ -219,7 +225,8 @@ See [the development guide](PHASE3_DEVELOPMENT.md),
 - [x] Provider/OS notification acceptance waived by the user for this preview on 2026-10-16; unverified.
 - [ ] Hosted cross-platform and packaged desktop Phase 3 acceptance.
 - [x] Manual-only Actions budget controls and local policy checks. The corrected
-  full hosted milestone above still needs fresh authorization.
+  full hosted milestone was explicitly authorized once; any further hosted run
+  requires a new request.
 
 Work through the unchecked items in the exact order and scope defined by
 [the Phase 3 remaining-work checklist](PHASE3_REMAINING.md).

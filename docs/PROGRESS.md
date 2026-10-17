@@ -17,15 +17,25 @@ exercise real WebView2 owner authorization, remote rejection and expiry without
 creating disposable accounts in the user's OS key store. Existing native profiles,
 operator configuration and the running host are preserved. See the [checkpoint evidence](evidence/host-join-checkpoint-2026-10-17.json).
 The distribution secret scan has no findings; all eleven public downloads and
-both live feeds match the tested files. The installed native updater reports the
-app current and offers the signed server update; that update has not been applied
-to the current host. See the [publication record](evidence/preview-0.3.4-release-2026-10-17.json).
+both live feeds match the tested files. At publication time, the installed native
+updater reported the app current and offered the signed server update; that update
+had not yet been applied to the host. See the [publication record](evidence/preview-0.3.4-release-2026-10-17.json).
 
 The user authorized one corrected full hosted milestone on October 17. The
 [run for frozen Preview 0.3.3](https://github.com/KBHarris/hearth/actions/runs/39070916430)
-is in progress; its [dated record](evidence/phase3-hosted-2026-10-17.json) will
-retain the outcome. No automatic retries are authorized. Later 0.3.4 checkpoint
-changes are covered by local validation and are outside this run's source scope.
+finished with a Windows community UI failure; the [dated record](evidence/phase3-hosted-2026-10-17.json)
+retains that result. All seven core jobs, three browser jobs, Linux/macOS desktop
+jobs and all three platforms' 16-outcome Phase 3 packaged suites passed. The
+Windows UI fixture passed 22 checks, then appended a URL to the signed-in Join
+form's prefilled address and timed out awaiting an identity error. Its correction
+replaces the address using keyboard input and asserts the resulting value. The
+[complete corrected local UI suite](evidence/phase3-ui-correction-2026-10-17.json)
+passes all 42 checks against the current 0.3.4 product source; this does not change
+the frozen hosted result.
+Windows native media checks were skipped after that failure. Linux WebKitGTK
+retains its explicitly unsupported media capability result; no Linux media pass
+is claimed. Phase 3 hosted closeout remains open; no automatic retry is authorized.
+Later 0.3.4 checkpoint changes are locally validated and outside this run's scope.
 The [remaining setup order](GUIDED_SETUP.md#next-implementation-slice) is automatic
 runtime/package preparation, opt-in startup, fresh-host restore, internet setup
 and relay evaluation, then clean-machine/cross-OS acceptance. Docker installation
@@ -38,9 +48,9 @@ and preservation of the existing native profile and running host. The distributi
 secret scan has no findings. All eleven anonymous downloads match tested hashes,
 and both signed Preview feeds serve 0.3.3. See the [publication record](evidence/preview-0.3.3-release-2026-10-17.json).
 New sharing exposes only pretty codes and a separate recipient server address;
-the owner can remain connected locally. A corrected full hosted run is awaiting
-fresh authorization under the Actions budget policy. The original failed run
-remains recorded below; Phase 3 is not yet closed.
+the owner can remain connected locally. The corrected hosted run's result is
+recorded above. The original failed run remains recorded below; Phase 3 is not
+yet closed.
 
 Preview closeout update, 2026-10-16: the user waived the real two-household and
 provider/OS notification gates for this preview and authorized one full hosted

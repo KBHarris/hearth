@@ -16,8 +16,14 @@ pass. Its [eleven public downloads and both feeds](evidence/preview-0.3.3-releas
 match the tested artifacts. The first full hosted run failed on the now-locally
 corrected Linux dependency. One corrected [full run](https://github.com/KBHarris/hearth/actions/runs/39070916430)
 was explicitly authorized and dispatched for frozen 0.3.3 source on October 17.
-It remains in progress; no automatic retry is authorized. The later 0.3.4 setup
-checkpoint slice is not covered by that frozen-source run.
+It finished with a Windows UI-fixture failure after 22 passing checks: the test
+appended a URL to the prefilled signed-in Join address. Core/browser jobs,
+Linux/macOS desktop jobs and all three Phase 3 packaged-client suites passed.
+The test now replaces the address and asserts its exact value; all
+[42 corrected local UI checks](evidence/phase3-ui-correction-2026-10-17.json) pass
+against current 0.3.4 product source. Hosted closeout
+remains open, with no automatic retry authorized. See the [run record](evidence/phase3-hosted-2026-10-17.json).
+The later 0.3.4 setup checkpoint slice is not covered by that frozen-source run.
 The [0.3.4 checkpoint slice](evidence/host-join-checkpoint-2026-10-17.json) removes
 the desktop Node prerequisite and adds protected local owner authorization. Its
 [18 installed checks](evidence/windows-preview-0.3.4-2026-10-17.json) and
@@ -101,7 +107,12 @@ run at closeout; do not spend hosted minutes on each feature, push or PR.
    it failed Linux desktop compilation. That dependency correction passes locally.
    The user approved one corrected full milestone on October 17; run
    [39070916430](https://github.com/KBHarris/hearth/actions/runs/39070916430) tests frozen
-   Preview 0.3.3. It remains in progress, with no automatic retry authorized. Run current Windows, macOS
+   Preview 0.3.3. Core/browser jobs, Linux/macOS desktop jobs and every platform's
+   Phase 3 packaged suite passed. Windows community UI timed out after 22 checks
+   because the fixture appended to a prefilled address; the replacement-input
+   correction passes all 42 local UI checks on the current 0.3.4 product source.
+   This does not change the frozen hosted result. Windows native media acceptance was
+   consequently skipped. No automatic retry is authorized. Run current Windows, macOS
    and Linux packaged runtime acceptance against
    the final Phase 3 source, including the new features and existing permission,
    reporting, retention and account-departure coverage. Investigate a hosted job
