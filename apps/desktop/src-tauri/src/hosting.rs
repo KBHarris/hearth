@@ -74,6 +74,7 @@ mod tests {
 
 #[derive(Default)]
 pub struct HostState(pub Arc<Mutex<()>>);
+pub(crate) const SHUTDOWN_TIMEOUT: u64 = 150;
 #[derive(Serialize, Deserialize)]
 pub struct Selection {
     pub root: PathBuf,
@@ -302,7 +303,7 @@ fn command_env(
         use std::os::windows::process::CommandExt;
         command.creation_flags(0x08000000);
     }
-    let mut child = command.spawn().map_err(|_| format!("{program} is unavailable. Install Node.js 22+ and Docker Desktop with Compose, then start Docker Desktop."))?;
+    let mut child = command.spawn().map_err(|_| format!("{program} is unavailable. Install Docker Desktop with Compose, then start Docker Desktop."))?;
     let mut output = child
         .stdout
         .take()
@@ -508,7 +509,7 @@ fn parse_local_port(text: &str, fallback: u16) -> Result<u16, String> {
         _ => Err("Use exactly one HEARTH_PORT entry in the host's .env.".into()),
     }
 }
-fn local_port(selection: &Selection, fallback: u16) -> Result<u16, String> {
+pub(crate) fn local_port(selection: &Selection, fallback: u16) -> Result<u16, String> {
     let path = selection.root.join("deploy/.env");
     if !path.exists() {
         return Ok(fallback);
@@ -647,12 +648,7 @@ pub(crate) fn control(selection: &Selection, action: &str) -> Result<HostStatus,
                     regular(&path)?;
                 }
             }
-            command(
-                "node",
-                &["setup.mjs".into(), "--init-only".into()],
-                &selection.root.join("deploy"),
-                30,
-            )?;
+            crate::host_configuration::initialize(&selection.root.join("deploy"))?;
             for file in [".env", "s3.json"] {
                 regular(&selection.root.join("deploy").join(file))?;
             }
@@ -717,7 +713,9 @@ pub(crate) fn control(selection: &Selection, action: &str) -> Result<HostStatus,
             ).map_err(|_| format!("Hearth could not finish starting. Check whether local port {} is already in use and whether Docker services are healthy, then retry. Existing data and configuration were preserved.", local_port(selection, bundle.server.backend_port).unwrap_or(bundle.server.backend_port)))?;
         }
         "stop" => {
-            compose(selection, &["stop", "--timeout", "30"], 60)?;
+            // Compose stops in dependency order. Proxy, backend and storage may
+            // each use their 30-second grace period before the command returns.
+            compose(selection, &["stop", "--timeout", "30"], SHUTDOWN_TIMEOUT)?;
         }
         "status" => {}
         _ => return Err("Unknown host action.".into()),
@@ -734,22 +732,26 @@ pub async fn host_setup_code(
     tauri::async_runtime::spawn_blocking(move || {
         let _guard = lock.lock().map_err(|_| "Host controls are busy.")?;
         let selection = selected(&app)?;
-        let output = compose(
-            &selection,
-            &["exec", "-T", "server", "hearth-server", "--setup-code"],
-            20,
-        )?;
-        let code = String::from_utf8(output)
-            .map_err(|_| "The local setup code is unavailable.")?
-            .trim()
-            .to_string();
-        if code.len() != 64 || !code.bytes().all(|b| b.is_ascii_hexdigit()) {
-            return Err("The local setup code is unavailable. Start this host first.".into());
-        }
-        Ok(code)
+        setup_code(&selection)
     })
     .await
     .map_err(|_| "Host controls are unavailable.".to_string())?
+}
+
+pub(crate) fn setup_code(selection: &Selection) -> Result<String, String> {
+    let output = compose(
+        selection,
+        &["exec", "-T", "server", "hearth-server", "--setup-code"],
+        20,
+    )?;
+    let code = String::from_utf8(output)
+        .map_err(|_| "The local setup code is unavailable.")?
+        .trim()
+        .to_string();
+    if code.len() != 64 || !code.bytes().all(|b| b.is_ascii_hexdigit()) {
+        return Err("The local setup code is unavailable. Start this host first.".into());
+    }
+    Ok(code)
 }
 
 #[tauri::command]

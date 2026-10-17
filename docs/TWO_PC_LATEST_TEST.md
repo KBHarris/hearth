@@ -2,7 +2,7 @@
 
 This Windows x64 test bundle includes guided Host/Join, encrypted communities,
 50 MB files, member profiles, readable invites, roles, reports, forums and polls.
-Both people install **Hearth Preview 0.3.3**. The steps below assume a fresh test host.
+Both people install **Hearth Preview 0.3.4**. The steps below assume a fresh test host.
 Keep any existing host's database, operator configuration and signing keys together;
 never regenerate credentials for existing volumes. The local older
 test deployments and profiles were retired on 2026-10-15. Create new accounts for
@@ -20,14 +20,14 @@ The manifest pins the source commit, server image and file checksums.
 
 Keep a host's original `.env` and `s3.json` with its Docker volumes. A new extraction
 does not create a new server when the same Compose project already has data.
-Preview 0.3.3 stops before generating replacement credentials over existing data
+Preview 0.3.4 stops before generating replacement credentials over existing data
 and checks database authentication before starting Hearth. For an existing host,
 select its original folder or restore its matching operator files; retrying keeps
 its data and identity. Reset test data only when its owner explicitly authorizes it.
 
 ## Host: start the new server
 
-You need Docker Desktop running Linux containers, Node.js 22+ and an internet
+You need Docker Desktop running Linux containers and an internet
 connection for prerequisite images and HTTPS setup. Prerequisite installation is
 manual; starting and stopping a configured Hearth host is available in the app.
 
@@ -35,12 +35,13 @@ Install the client on your PC too. Open **Hosting & updates** (server icon on th
 left, also available from **Host a server**), turn off public HTTPS for this first
 local check, and choose the extracted folder containing `manifest.json`. Choose
 **Start server**. The app imports the matching server image if needed and creates
-private configuration. Expand **Owner setup → Get owner setup code**.
+private configuration natively; Node.js is not required for UI hosting.
 
 Open **Hearth Preview → Host a server**, enter `http://127.0.0.1:8080`, check it, and
-choose **Set up owner account**. Enter the private setup code and create your new
-owner account. The setup code is cleared when the hosting panel closes; select it
-and copy before closing. This uses Compose project `hearth-guided-test`, backend 8080 and S3
+choose **Set up owner account**, then **Use this computer’s host**. Hearth verifies
+the selected local host and keeps its owner authorization in memory for up to
+five minutes. Create your owner account without copying a private code. A manual
+setup-code field remains available for remote/advanced hosts. This uses Compose project `hearth-guided-test`, backend 8080 and S3
 18335, with separate data volumes. Keep this folder in place while hosting.
 Port 8080 must be available. Older host packages keep their configured port until
 the operator changes `HEARTH_PORT` in their original `.env`; restart the server
@@ -65,7 +66,7 @@ after changing it. The app's local connection button reads that configuration.
    separate troubleshooting if the public address fails only inside your LAN.
 
 You can keep your owner client connected to `http://localhost:8080`. Preview
-0.3.3 uses the selected host's configured public HTTPS address for pretty codes
+0.3.4 uses the selected host's configured public HTTPS address for pretty codes
 after checking the local server identity. Authenticated storage requests stay on
 your current local connection. In the invite panel, verify **Server address for
 your friend** is the public HTTPS address. You can enter that address explicitly

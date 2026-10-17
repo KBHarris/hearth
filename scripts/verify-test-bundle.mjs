@@ -58,7 +58,7 @@ try{
   for(let attempt=0;attempt<60;attempt++){try{if((await json('/health')).status==='ok'){healthy=true;break}}catch{}await delay(250)}
   assert.ok(healthy);assert.equal((await json('/.well-known/hearth')).server_key,key)
   checks.server_restart_preserves_signing_identity=true
-  const native=process.argv.includes('--upgrade-installed')?await verifyInstalledPreviewUpgrade({bundle,output:directory}):await verifyInstalledTestClient({bundle,origin,output:directory,hostProject:project});Object.assign(checks,native.checks)
+  const native=process.argv.includes('--upgrade-installed')?await verifyInstalledPreviewUpgrade({bundle,output:directory,origin,hostProject:project,ownerEnrollment:process.argv.includes('--owner-enrollment')}):await verifyInstalledTestClient({bundle,origin,output:directory,hostProject:project});Object.assign(checks,native.checks)
   const report={measuredAt:new Date().toISOString(),outcome:'pass',sourceCommit:manifest.sourceCommit,checks,humanPending:['clean buddy-PC installation and two-house reachability','actual Windows SmartScreen experience on the buddy PC','manual encrypted messaging between the two households'],nativeClient:native}
   writeFileSync(join(bundle,'VALIDATION.json'),JSON.stringify(report,null,2)+'\n');console.log(JSON.stringify(report,null,2))
 }finally{

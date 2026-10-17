@@ -7,6 +7,7 @@ import {createServer} from 'node:net'
 import {spawn,spawnSync} from 'node:child_process'
 const root=resolve('.'),source=realpathSync(resolve(process.argv.slice(2).find(arg=>!arg.startsWith('--'))??'target/manual-test/guided-efd4af6'))
 const integrityOnly=process.argv.includes('--integrity-only')
+const ownerOnly=process.argv.includes('--owner-only')
 const id=randomBytes(12).toString('hex'),project='hearth-host-'+id,directory=join(root,'target/host-acceptance',id)
 assert.ok(directory.startsWith(join(root,'target/host-acceptance')+sep))
 mkdirSync(join(directory,'deploy'),{recursive:true})
@@ -25,8 +26,8 @@ manifest.server.composeProject=project;manifest.server.backendPort=backend;manif
 writeFileSync(join(directory,'manifest.json'),JSON.stringify(manifest,null,2)+'\n')
 const signingKey=process.env.TAURI_SIGNING_PRIVATE_KEY_PATH??join(root,'.release-keys/updater.key')
 assert.equal(spawnSync(process.execPath,[join(root,'node_modules/@tauri-apps/cli/tauri.js'),'signer','sign','--private-key-path',signingKey,'--app-version',manifest.client.version,join(directory,'manifest.json')],{cwd:root,stdio:'ignore',windowsHide:true}).status,0,'Sign the disposable manifest with the local test release key')
-const code=await new Promise((resolve,reject)=>{const child=spawn('cargo',['test','--locked','-p','hearth-desktop','--lib',integrityOnly?'managed_host_package_integrity':'managed_host_lifecycle_and_failed_update_restore','--','--ignored','--nocapture'],{cwd:root,env:{...process.env,HEARTH_HOST_TEST_DIR:directory},stdio:'inherit',windowsHide:true});child.once('error',reject);child.once('exit',resolve)})
+const code=await new Promise((resolve,reject)=>{const child=spawn('cargo',['test','--locked','-p','hearth-desktop','--lib',integrityOnly?'managed_host_package_integrity':ownerOnly?'managed_owner_enrollment':'managed_host_lifecycle_and_failed_update_restore','--','--ignored','--nocapture'],{cwd:root,env:{...process.env,HEARTH_HOST_TEST_DIR:directory},stdio:'inherit',windowsHide:true});child.once('error',reject);child.once('exit',resolve)})
 assert.equal(code,0,'Native host/backup acceptance failed; cleanup removes only the disposable project')
 const report=JSON.parse(readFileSync(join(directory,'native-report.json'),'utf8'));assert.equal(report.outcome,'pass')
-mkdirSync(join(root,'target/host-controls-evidence'),{recursive:true});writeFileSync(join(root,'target/host-controls-evidence',integrityOnly?'integrity.json':'native.json'),JSON.stringify({measuredAt:new Date().toISOString(),...report},null,2)+'\n')
+mkdirSync(join(root,'target/host-controls-evidence'),{recursive:true});writeFileSync(join(root,'target/host-controls-evidence',integrityOnly?'integrity.json':ownerOnly?'owner-enrollment.json':'native.json'),JSON.stringify({measuredAt:new Date().toISOString(),...report},null,2)+'\n')
 console.log(JSON.stringify(report))

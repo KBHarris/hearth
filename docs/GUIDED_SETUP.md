@@ -113,15 +113,29 @@ new macOS/Linux packaging.
 
 ## Next implementation slice
 
+Checkpoint source update, 2026-10-17 (next Preview 0.3.4; not included in the
+published 0.3.3 installer): desktop host configuration is generated natively,
+removing the Node.js prerequisite from UI hosting. The advanced CLI still uses
+Node. Existing credentials and storage configuration remain unchanged on retry;
+conflicting files fail before any write. Docker installation remains manual.
+
+The native owner form adds **Use this computer's host**. Protected IPC accepts
+only the selected loopback host and configured port, rechecks its identity and
+requires incomplete owner setup before retrieving its private code. The code
+stays in component memory for at most five minutes, never appears in an input
+or clipboard, and clears on submit, cancellation, expiry or unmount. Manual
+setup remains available for remote hosts. This does not complete clean-machine
+or packaged owner-enrollment acceptance.
+
 The original [installation acceptance standard](HAVEN_PARITY_AND_SETUP.md) remains
 the target. This pass does not complete the no-prerequisite hosting installer.
 
 1. Choose and package the supported hosting runtime and dependencies for each OS.
    Separate app installation from privileged service/firewall operations. Bind
    management to the local app and avoid exposing an unauthenticated control API.
-2. Add native, bounded prepare/start/status/retry operations over app-owned data,
-   preserving an existing instance's keys and volumes. Retrieve the owner code
-   through protected native IPC, use it only for owner enrollment and clear it.
+2. Native Start/Stop/Status and protected owner enrollment are implemented, with
+   preserved existing keys and volumes. Finish app-managed package preparation
+   and exercise the new enrollment in an installed client on a clean machine.
 3. Add explicit local/internet hosting choices, HTTPS configuration and independent
    outside-network verification. Diagnose CGNAT/loopback only with sufficient
    evidence; an optional relay requires an explicit trust design.

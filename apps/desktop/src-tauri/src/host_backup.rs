@@ -391,7 +391,11 @@ fn restore(selection: &Selection, directory: &Path, backup: &Backup) -> Result<(
     )?;
     let mount = bind(directory)?;
     // Remove containers first so no service can write during volume restoration.
-    hosting::compose_recovery(selection, &["down", "--timeout", "30"], 90)?;
+    hosting::compose_recovery(
+        selection,
+        &["down", "--timeout", "30"],
+        hosting::SHUTDOWN_TIMEOUT,
+    )?;
     for file in backup
         .hashes
         .keys()
@@ -463,7 +467,11 @@ pub(crate) fn apply_with_data(
     signed: &SignedRelease,
     release: &ServerRelease,
 ) -> Result<(), String> {
-    hosting::compose(selection, &["stop", "--timeout", "30"], 90)?;
+    hosting::compose(
+        selection,
+        &["stop", "--timeout", "30"],
+        hosting::SHUTDOWN_TIMEOUT,
+    )?;
     let (directory, backup) = match snapshot(data, selection) {
         Ok(backup) => backup,
         Err(error) => {

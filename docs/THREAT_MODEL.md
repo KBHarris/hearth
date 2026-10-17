@@ -14,6 +14,20 @@ the authenticated transport and is never sent to an editable sharing address.
 Pretty codes require an explicit server address; a bare code is never resolved
 through DNS or an external global directory. Legacy links remain readable.
 
+## Local owner enrollment
+
+Native automatic owner enrollment is available only to the bundled main window.
+It accepts the selected host's configured loopback HTTP port, sends readiness
+requests directly to 127.0.0.1 without proxies or redirects, and checks the
+displayed server identity and incomplete setup before retrieving the local code
+through Docker. The form retains it in memory for at most five minutes and clears
+it on submit, cancellation, expiry or unmount. No code is written to browser
+storage, a URL, an input or the clipboard by this handoff. A compromised host OS
+can already read its operator files and is outside this protection boundary.
+Native configuration generation uses OS randomness and exclusive first creation;
+it preserves existing credentials, rejects conflicting storage configuration,
+and still refuses regeneration over persistent volumes missing their original files.
+
 ## Assets
 
 1. Message, attachment, and media plaintext

@@ -12,7 +12,7 @@ import chrome from 'selenium-webdriver/chrome.js'
 const root = fileURLToPath(new URL('../', import.meta.url))
 const output = join(root, 'target/setup-failure-evidence')
 mkdirSync(output, { recursive: true })
-let mode = 'ready', registrationFails = false, requests = 0, release
+let mode = 'ready', registrationFails = false, requests = 0, release, setupComplete = true
 const gates = new Set()
 const key = 'a'.repeat(64), account = 'b'.repeat(64)
 let advertisedKey = key
@@ -24,7 +24,7 @@ const fixture = createServer(async (request, response) => {
   if (response.destroyed) return
   if (request.url === '/health') response.end(JSON.stringify({ status: mode === 'degraded' ? 'degraded' : 'ok', version: '0.1.0', protocol: 1 }))
   else if (request.url === '/.well-known/hearth') response.end(JSON.stringify({ server_name: 'Setup test fixture', server_key: advertisedKey, protocols: mode === 'incompatible' ? [99] : [1], federation: false }))
-  else if (request.url === '/api/v1/setup') response.end(JSON.stringify({ setup_complete: true }))
+  else if (request.url === '/api/v1/setup') response.end(JSON.stringify({ setup_complete: setupComplete }))
   else if (request.url === '/api/v1/auth/registration') {
     response.statusCode = registrationFails ? 503 : 200
     response.end(JSON.stringify({ registration_mode: 'invite' }))
@@ -118,6 +118,47 @@ try {
   assert.ok((await (await wait('.setup-error')).getText()).includes('identity does not match'))
   await driver.executeScript('Storage.prototype.getItem=window.__setupGetItem;delete window.__setupGetItem')
   checks.current_server_identity_is_preserved_even_when_saved_pins_cannot_be_read = true
+
+  // The bridge is deliberately mocked here; real native destination/identity checks
+  // run separately with verify-host-controls.mjs --owner-only.
+  await driver.executeScript('localStorage.clear();sessionStorage.clear()')
+  setupComplete = false; advertisedKey = key
+  await driver.get('http://127.0.0.1:5176')
+  await wait('.setup-choices')
+  await driver.executeScript(`window.isTauri=true;window.__ownerMode='ready';window.__TAURI_INTERNALS__={invoke:async command=>{if(command==='host_owner_code'){if(window.__ownerMode==='slow')return new Promise(resolve=>window.__releaseOwner=()=>resolve('d'.repeat(64)));if(window.__ownerMode==='error')throw new Error('Test local host is unavailable.');return 'd'.repeat(64)}throw new Error('Unexpected mocked native command')}}`)
+  await driver.findElement(By.xpath('//button[contains(. ,"Host a server")]')).click()
+  await fill(origin); await check(); await wait('.setup-result')
+  await (await button('Set up owner account')).click(); await wait('.local-owner-setup')
+  await (await button('Use this computer’s host')).click()
+  await wait('.auth-panel form .notice')
+  assert.equal((await driver.findElements(By.id('setup-code'))).length, 0)
+  assert.equal(await driver.executeScript(`return (document.documentElement.outerHTML+JSON.stringify({...localStorage,...sessionStorage})).includes('d'.repeat(64))`), false)
+  checks.local_owner_handoff_keeps_secret_out_of_dom_and_storage = true
+
+  await driver.executeScript('window.__ownerNow=Date.now;Date.now=()=>window.__ownerNow()+300001')
+  for (const [id, value] of [['username','test_owner'],['password','Owner-test-password'],['confirm-password','Owner-test-password']]) await (await driver.findElement(By.id(id))).sendKeys(value)
+  await driver.findElement(By.css('.auth-panel form button[type=submit]')).click()
+  await wait('#setup-code')
+  assert.ok((await (await wait('.auth-panel [role=alert]')).getText()).includes('expired'))
+  await driver.executeScript('Date.now=window.__ownerNow')
+  checks.expired_local_authorization_cannot_submit_owner_creation = true
+
+  await driver.executeScript("window.__ownerMode='slow'")
+  await (await button('Use this computer’s host')).click()
+  await driver.wait(()=>driver.executeScript('return !!window.__releaseOwner'),5000)
+  await (await button('Cancel')).click()
+  await driver.executeScript('window.__releaseOwner()')
+  await new Promise(resolve=>setTimeout(resolve,50))
+  assert.equal((await driver.findElements(By.id('setup-code'))).length,1)
+  assert.equal((await driver.findElements(By.xpath('//p[contains(.,"Local owner setup is ready")]'))).length,0)
+  assert.equal(await driver.findElement(By.css('.local-owner-setup')).isEnabled(),true)
+  checks.cancelled_local_lookup_cannot_restore_owner_authorization = true
+
+  await driver.executeScript("window.__ownerMode='error'")
+  await (await button('Use this computer’s host')).click()
+  assert.ok((await (await wait('.auth-panel [role=alert]')).getText()).includes('unavailable'))
+  assert.equal((await driver.findElements(By.id('setup-code'))).length,1)
+  checks.failed_local_owner_lookup_keeps_manual_recovery_available = true
   outcome = 'pass'
   console.log('Setup failure/cancellation checks passed: ' + Object.keys(checks).length)
 } finally {

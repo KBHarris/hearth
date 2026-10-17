@@ -4,6 +4,10 @@
 #[cfg(not(any(feature = "phase0-spike", feature = "phase1-acceptance")))]
 mod host_backup;
 #[cfg(not(any(feature = "phase0-spike", feature = "phase1-acceptance")))]
+mod host_configuration;
+#[cfg(not(any(feature = "phase0-spike", feature = "phase1-acceptance")))]
+mod host_enrollment;
+#[cfg(not(any(feature = "phase0-spike", feature = "phase1-acceptance")))]
 mod hosting;
 #[cfg(not(any(feature = "phase0-spike", feature = "phase1-acceptance")))]
 mod invite_links;
@@ -72,6 +76,7 @@ pub fn run() {
             hosting::host_select,
             hosting::host_control,
             hosting::host_setup_code,
+            host_enrollment::host_owner_code,
             hosting::host_configure,
             updates::desktop_update,
             updates::server_update,

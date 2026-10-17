@@ -7,6 +7,7 @@ import { AdminPanel } from './AdminPanel'
 import { ChatPanel } from './ChatPanel'
 import { Modal } from './Modal'
 import { Icon } from './Icons'
+import { invoke, isTauri } from '@tauri-apps/api/core'
 
 export function AuthPanel({ url, info, setupFinished,configured,onSessionChange,invite=null,onInviteChange }: { url: string; info: ServerInfo; setupFinished: () => void;configured:(settings:ServerSettings)=>void;onSessionChange:(signedIn:boolean)=>void;invite?:HearthInvite|null;onInviteChange?:(invite:HearthInvite|null)=>void }) {
   const [panel, setPanel] = useState<'account' | 'server' | null>(null)
@@ -25,6 +26,27 @@ export function AuthPanel({ url, info, setupFinished,configured,onSessionChange,
   const [clientCrypto, setClientCrypto] = useState<AuthCrypto | null>(null)
   const unlocked = useRef<AuthCrypto | null>(null)
   const active = useRef<{ crypto: AuthCrypto; controller: AbortController } | null>(null)
+  const localOwner = useRef<{ code: string; expires: number } | null>(null)
+  const ownerRequest = useRef(0)
+  const [ownerReady, setOwnerReady] = useState(false)
+  function clearLocalOwner() { localOwner.current = null; setOwnerReady(false) }
+  useEffect(() => () => { ownerRequest.current++; localOwner.current = null }, [])
+  useEffect(() => {
+    if (!ownerReady) return
+    const timer = window.setTimeout(clearLocalOwner, Math.max(0, (localOwner.current?.expires ?? 0) - Date.now()))
+    return () => window.clearTimeout(timer)
+  }, [ownerReady])
+  async function prepareLocalOwner() {
+    const request = ++ownerRequest.current
+    clearLocalOwner(); setError(''); setBusy(true)
+    try {
+      const code = await invoke<string>('host_owner_code', { server: url, serverKey: info.wellKnown.server_key })
+      if (request !== ownerRequest.current) return
+      if (!/^[a-f0-9]{64}$/.test(code)) throw new Error('Local owner setup is unavailable. Retry or use the manual setup code.')
+      localOwner.current = { code, expires: Date.now() + 300_000 }; setOwnerReady(true)
+    } catch (error) { if (request === ownerRequest.current) setError(error instanceof Error ? error.message : String(error)) }
+    finally { if (request === ownerRequest.current) setBusy(false) }
+  }
   useEffect(() => { onSessionChange(!!session) }, [session,onSessionChange])
   const ownerSetup = !info.setup.setup_complete && !created
   const register = ownerSetup || signup
@@ -57,6 +79,11 @@ export function AuthPanel({ url, info, setupFinished,configured,onSessionChange,
     setDevice(null); setUnlinked(false)
     if (register && (password.length < 12 || password !== confirmation)) { setError('Use at least 12 characters and enter the same password twice.'); return }
     if (password.length > 1024) { setError('Use a password of no more than 1024 characters.'); return }
+    if (ownerSetup && ownerReady) {
+      if (!localOwner.current || localOwner.current.expires <= Date.now()) { clearLocalOwner(); setError('Local owner setup expired. Choose Use this computer’s host again.'); return }
+      code = localOwner.current.code
+    }
+    clearLocalOwner()
     // Password fields are uncontrolled, cleared before asynchronous work, and never saved.
     for (const name of ['password', 'confirm-password', 'setup-code','invite-code']) {
       const input = form.elements.namedItem(name)
@@ -173,21 +200,22 @@ export function AuthPanel({ url, info, setupFinished,configured,onSessionChange,
   </div>
   return <section className="auth-screen auth-panel" aria-labelledby="auth-heading">
     <div className="auth-intro"><p className="eyebrow">{info.wellKnown.server_name}</p><h1 id="auth-heading">{ownerSetup ? 'Set up your server' : signup ? 'Create your account' : 'Welcome back.'}</h1>
-      <p>{ownerSetup ? 'Create the owner account using the setup code from your server’s installer.' : signup ? invite?.account ? 'Your invite includes what you need to create an account here.' : registrationMode === 'invite' ? 'Enter the account invite shared by this server’s owner. Community invites are used after signing in.' : 'Create an account on this server.' : 'Sign in to open your messages and communities.'}</p></div>
+      <p>{ownerSetup ? isTauri() ? 'Create the first owner account. On the host computer, Hearth can authorize setup for you.' : 'Create the first owner account using the private setup code from your host.' : signup ? invite?.account ? 'Your invite includes what you need to create an account here.' : registrationMode === 'invite' ? 'Enter the account invite shared by this server’s owner. Community invites are used after signing in.' : 'Create an account on this server.' : 'Sign in to open your messages and communities.'}</p></div>
       {invite && <div className="pending-invite"><strong>Your invite is ready.</strong><p>{invite.community ? 'Sign in or create your account, then confirm joining the invited community. An approved member’s device may need to be online before encrypted channels open.' : 'Create your account with the included invite, or sign in to an existing account.'}</p><button type="button" disabled={busy} onClick={() => {onInviteChange?.(null);setAccountMode('signin')}}>Discard invite</button></div>}
       {!ownerSetup && registrationError && <p className="input-error" role="alert">{registrationError} <button type="button" onClick={()=>{setRegistrationError('');setRegistrationAttempt(value=>value+1)}}>Check again</button></p>}
       {signup && !registrationReady && !registrationError && <p role="status">Checking account registration…</p>}
       {signup && registrationReady && registrationMode === 'closed' && <p className="notice">This server is not accepting new accounts. Sign in below or ask its host to enable invitations.</p>}
       <form onSubmit={(event) => void authenticate(event)} aria-busy={busy}>
         <fieldset disabled={busy}>
-          {ownerSetup && <><label htmlFor="setup-code">Setup code</label><input id="setup-code" name="setup-code" type="password" required minLength={64} maxLength={64} autoComplete="off" /><small>Use the private owner setup code from the existing server’s installer. Keep it on the host computer.</small></>}
+          {ownerSetup && <>{isTauri() && <button type="button" className="local-owner-setup" onClick={() => void prepareLocalOwner()}>Use this computer’s host</button>}
+            {ownerReady ? <><p className="notice" role="status">Local owner setup is ready. Create your account within five minutes. The private setup code stays in memory.</p><button type="button" onClick={clearLocalOwner}>Use a setup code instead</button></> : <><label htmlFor="setup-code">Setup code</label><input id="setup-code" name="setup-code" type="password" required minLength={64} maxLength={64} autoComplete="off" /><small>For a remote or manually managed host, use its private owner setup code. Keep it on the host computer.</small></>}</>}
           {signup && invite?.account ? <p className="notice">Account invite included.</p> : signup && registrationMode === 'invite' && <><label htmlFor="invite-code">Account invite or code</label><input id="invite-code" name="invite-code" type="password" required minLength={32} maxLength={2048} autoComplete="off"/><small>Paste the full Hearth invite or its 32-character code for this server.</small></>}
           <label htmlFor="username">Username</label><input id="username" name="username" required pattern="[a-z0-9_]{3,32}" minLength={3} maxLength={32} autoComplete="username" spellCheck={false} /><small>3–32 lowercase letters, numbers, or underscores.</small>
           <label htmlFor="password">Password</label><input id="password" name="password" type="password" required maxLength={1024} minLength={register ? 12 : 1} autoComplete={register ? 'new-password' : 'current-password'} />
           {register && <><label htmlFor="confirm-password">Confirm password</label><input id="confirm-password" name="confirm-password" type="password" required autoComplete="new-password" /></>}
           <button className="primary-button" type="submit" disabled={signup && (!registrationReady || registrationMode === 'closed')}>{busy ? 'Verifying…' : ownerSetup ? 'Create owner account' : signup ? 'Create account' : 'Sign in'}</button>
         </fieldset>
-        {busy && <button className="retry-button" type="button" onClick={() => { active.current?.controller.abort(); active.current?.crypto.close() }}>Cancel</button>}
+        {busy && <button className="retry-button" type="button" onClick={() => { ownerRequest.current++; clearLocalOwner(); active.current?.controller.abort(); active.current?.crypto.close(); if (!active.current) setBusy(false) }}>Cancel</button>}
       </form>
       {!ownerSetup && (registrationMode !== 'closed' || signup) && <button type="button" className="retry-button" disabled={busy} onClick={() => {setAccountMode(signup?'signin':'signup');setError('')}}>{signup ? 'Already have an account? Sign in' : 'Create an account'}</button>}
       <small>Your password stays on this device. Reloading or changing servers signs you out of this client.</small>

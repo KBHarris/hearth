@@ -141,7 +141,7 @@ export async function verifyInstalledTestClient({ bundle, origin, output, hostPr
       await eventually(()=>cdp.evaluate('document.querySelector(".hosting-panel")?.textContent.includes("Running")'),'native host status',30000)
       await cdp.evaluate('[...document.querySelectorAll(".hosting-panel button")].find(e=>e.textContent==="Stop server").click()')
       await cdp.evaluate('[...document.querySelectorAll(".hosting-panel button")].find(e=>e.textContent==="Stop hosting").click()')
-      await eventually(()=>cdp.evaluate('document.querySelector(".hosting-panel")?.textContent.includes("Stopped")'),'native stop',90000)
+      await eventually(()=>cdp.evaluate('document.querySelector(".hosting-panel")?.textContent.includes("Stopped")'),'native stop',180000)
       await cdp.evaluate('[...document.querySelectorAll(".hosting-panel button")].find(e=>e.textContent==="Start server").click()')
       await eventually(()=>cdp.evaluate('document.querySelector(".hosting-panel")?.textContent.includes("Running")'),'native start',180000)
       await cdp.evaluate('document.querySelector(".hosting-panel details").open=true;[...document.querySelectorAll(".hosting-panel button")].find(e=>e.textContent==="Get owner setup code").click()')
@@ -187,7 +187,7 @@ export async function verifyInstalledTestClient({ bundle, origin, output, hostPr
 }
 
 // Validate an in-place Preview upgrade without replacing the user's profile or host selection.
-export async function verifyInstalledPreviewUpgrade({bundle,output}) {
+export async function verifyInstalledPreviewUpgrade({bundle,output,origin,hostProject,ownerEnrollment=false}) {
   assert.equal(process.platform,'win32')
   const manifest=JSON.parse(readFileSync(join(bundle,'manifest.json'),'utf8'))
   assert.equal(manifest.client.productName,'Hearth Preview');assert.equal(manifest.client.identifier,'chat.hearth.preview')
@@ -214,7 +214,9 @@ export async function verifyInstalledPreviewUpgrade({bundle,output}) {
   }
   for(const [label,base] of [['local',process.env.LOCALAPPDATA],['roaming',process.env.APPDATA]])snapshot(join(base,manifest.client.identifier),join(backup,label))
   const checks={},installer=join(bundle,'client',manifest.client.installer)
-  let child,cdp
+  const hostSelection=join(process.env.APPDATA,manifest.client.identifier,'host-selection.json')
+  const originalSelection=readFileSync(hostSelection)
+  let child,cdp,changedSelection=false
   try {
     const result=spawnSync(installer,['/S','/D='+install],{argv0:`"${installer}"`,windowsVerbatimArguments:true,windowsHide:true,timeout:180000,stdio:'ignore'})
     assert.equal(result.status,0,'Preview upgrade installer failed');checks.actual_nsis_upgrade_installs_successfully=true
@@ -242,10 +244,49 @@ export async function verifyInstalledPreviewUpgrade({bundle,output}) {
     const status=await cdp.evaluate('window.__TAURI_INTERNALS__.invoke("host_control",{action:"status"})')
     assert.equal(status.state,'running','The existing selected host must remain running')
     checks.existing_host_remains_running_without_restart_or_data_reset=true
+    if(ownerEnrollment){
+      assert.match(hostProject,/^hearth-host-[a-f0-9]{24}$/)
+      const hostRoot=join(output,'native-owner-host');mkdirSync(join(hostRoot,'deploy'),{recursive:true})
+      const hostManifest=structuredClone(manifest);hostManifest.server.composeProject=hostProject;hostManifest.server.backendPort=Number(new URL(origin).port)
+      for(const file of ['compose.yaml','compose.https.yaml','setup.mjs','.env.example','Caddyfile','storage-entrypoint.sh']){
+        copyFileSync(join(bundle,'deploy',file),join(hostRoot,'deploy',file))
+        hostManifest.files['deploy/'+file]=createHash('sha256').update(readFileSync(join(hostRoot,'deploy',file))).digest('hex')
+      }
+      for(const file of ['.env','s3.json'])copyFileSync(join(output,file),join(hostRoot,'deploy',file))
+      writeFileSync(join(hostRoot,'manifest.json'),JSON.stringify(hostManifest))
+      const signingKey=process.env.TAURI_SIGNING_PRIVATE_KEY_PATH??join(root,'.release-keys/updater.key')
+      assert.equal(spawnSync(process.execPath,[join(root,'node_modules/@tauri-apps/cli/tauri.js'),'signer','sign','--private-key-path',signingKey,'--app-version',manifest.client.version,join(hostRoot,'manifest.json')],{cwd:root,stdio:'ignore',windowsHide:true}).status,0)
+      changedSelection=true;writeFileSync(hostSelection,JSON.stringify({root:hostRoot,https:false,project:hostProject,public_address:null}))
+      await cdp.evaluate('[...document.querySelectorAll(".setup-choice")].find(e=>e.textContent.includes("Host a server")).click()')
+      await cdp.evaluate('document.querySelector("#setup-address").focus();document.querySelector("#setup-address").select()')
+      await cdp.send('Input.insertText',{text:origin})
+      await cdp.evaluate('document.querySelector(".guided-setup form button[type=submit]").click()')
+      await eventually(()=>cdp.evaluate('!!document.querySelector(".setup-result .primary-button")'),'owner host readiness')
+      await cdp.evaluate('document.querySelector(".setup-result .primary-button").click()')
+      await eventually(()=>cdp.evaluate('!!document.querySelector(".local-owner-setup")'),'native owner form')
+      await cdp.evaluate('document.querySelector(".local-owner-setup").click()')
+      await eventually(()=>cdp.evaluate('document.querySelector(".auth-panel form .notice")?.textContent.includes("Local owner setup is ready")'),'native owner authorization')
+      assert.equal(await cdp.evaluate('document.querySelector("#setup-code")'),null)
+      assert.equal(await cdp.evaluate(`(async()=>{const info=await(await fetch(${JSON.stringify(origin+'/.well-known/hearth')})).json();const code=await window.__TAURI_INTERNALS__.invoke('host_owner_code',{server:${JSON.stringify(origin)},serverKey:info.server_key});return !(document.documentElement.outerHTML+JSON.stringify({...localStorage,...sessionStorage})).includes(code)})()`),true)
+      checks.installed_owner_form_authorizes_without_code_in_dom_or_storage=true
+      assert.equal(await cdp.evaluate(`window.__TAURI_INTERNALS__.invoke('host_owner_code',{server:'https://example.org',serverKey:'a'.repeat(64)}).then(()=>false,error=>String(error).includes('selected local server'))`),true)
+      checks.installed_owner_handoff_rejects_remote_destination=true
+      await cdp.evaluate('window.__ownerNow=Date.now;Date.now=()=>window.__ownerNow()+300001')
+      for(const [id,value] of [['username','test_owner'],['password','Owner-test-password'],['confirm-password','Owner-test-password']]){
+        await cdp.evaluate(`document.querySelector(${JSON.stringify('#'+id)}).focus()`);await cdp.send('Input.insertText',{text:value})
+      }
+      await cdp.evaluate('document.querySelector(".auth-panel form button[type=submit]").click()')
+      await eventually(()=>cdp.evaluate('!!document.querySelector("#setup-code") && document.querySelector(".auth-panel [role=alert]")?.textContent.includes("expired")'),'native authorization expiry')
+      await cdp.evaluate('Date.now=window.__ownerNow')
+      checks.installed_owner_authorization_expires_before_account_creation=true
+      writeFileSync(hostSelection,originalSelection);changedSelection=false
+      assert.equal((await cdp.evaluate('window.__TAURI_INTERNALS__.invoke("host_control",{action:"status"})')).state,'running')
+    }
     for(const item of saved)assert.equal(createHash('sha256').update(readFileSync(item.path)).digest('hex'),item.hash)
     checks.native_profiles_and_host_configuration_are_preserved=true
     return {checks,runtime:'in-place Windows Preview NSIS upgrade / isolated system WebView2; existing native profiles preserved',version:manifest.client.version,identifier:manifest.client.identifier,screenshots:[]}
   } finally {
+    if(changedSelection)writeFileSync(hostSelection,originalSelection)
     cdp?.close()
     if(child&&child.exitCode===null){const done=new Promise(resolve=>child.once('close',resolve));child.kill();await done}
     const reopened=spawnSync('powershell.exe',['-NoProfile','-NonInteractive','-Command',`Start-Process -FilePath ${quote(executable)} -WorkingDirectory ${quote(install)}`],{windowsHide:true,stdio:'ignore'})

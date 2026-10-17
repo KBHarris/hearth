@@ -64,7 +64,7 @@ export function HostingPanel({ onConnect }: { onConnect: (address: string) => vo
   }
   return <div className="hosting-panel" aria-busy={!!busy}>
     <section aria-labelledby="local-host-heading"><h2 id="local-host-heading">Local hosting</h2>
-      <p>Choose the extracted Hearth host package on this computer. Docker Desktop and Node.js 22+ must be installed.</p>
+      <p>Choose the extracted Hearth host package on this computer. Docker Desktop must be installed and running.</p>
       <label className="checkbox-label"><input type="checkbox" checked={https} disabled={!!busy} onChange={event => { setHttps(event.target.checked); setSettingsDirty(true) }} />Use the package’s public HTTPS configuration</label>
       {https && <><label htmlFor="host-public-address">Public IPv4 address or DNS name</label><input id="host-public-address" value={publicAddress} onChange={event => { setPublicAddress(event.target.value); setSettingsDirty(true) }} placeholder="chat.example.org" autoComplete="off" disabled={!!busy} /><small>Use your router’s public address. HTTPS needs ports 80 and 443 forwarded to this computer. Access from another network still needs to be tested.</small></>}
       <button disabled={!!busy} onClick={() => void perform('Choosing host package…', async () => {
