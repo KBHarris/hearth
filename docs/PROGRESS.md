@@ -13,8 +13,17 @@ version, and browser builds use the Preview build version. New Preview host
 packages use local port 8080 at the user's request. Host controls read existing
 port overrides from .env, retaining compatibility with older packages and custom
 ports; startup failures identify the configured port as a possible conflict.
-Preview 0.3.2 is being
-validated for these changes; 0.3.1 remains the currently published immutable build.
+Preview 0.3.2 passes [13 package/upgrade checks](evidence/windows-preview-0.3.2-2026-10-16.json)
+and is installed locally. The user's current host was moved from 8183 to 8080
+after they authorized closing the conflicting Open WebUI app. Its credentials,
+data and identity were preserved; the client now uses the new local address.
+The [0.3.2 release](https://github.com/KBHarris/hearth/releases/tag/v0.3.2) is public.
+All eleven anonymous downloads match the tested files, the distribution secret
+scan has no findings, and both live Preview update feeds resolve to 0.3.2. The
+installed native updater confirms the app is current and offers the signed 0.3.2
+server update. See the [publication record](evidence/preview-0.3.2-release-2026-10-16.json).
+The authorized [full hosted run](https://github.com/KBHarris/hearth/actions/runs/38999371729)
+is in progress against frozen source `96548d8`; Phase 3 closeout remains pending.
 
 Current implementation pass, 2026-10-16: 50 MB encrypted files, server-owner file
 removal, authorized member sidebar/profile fingerprints, encrypted 32-character

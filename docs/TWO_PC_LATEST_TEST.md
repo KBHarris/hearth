@@ -123,8 +123,10 @@ Use **Hosting & updates → Stop server / Start server**. Hosting continues when
 client app closes. Stopping preserves data. Remove router forwarding when public
 testing is finished.
 
-**Check for updates** checks signed app and hosted-server releases. Update the app
-first if required. Server updates pause hosting, snapshot its data and operator
+**Check for updates** checks signed app and hosted-server releases. If you use
+and host Hearth on this PC, choose **Update app** first, finish the installation
+and reopen Hearth, then check again and choose **Update hosted server**. The
+client version appears beside the Preview label at the top. Server updates pause hosting, snapshot its data and operator
 configuration, rehearse restoring PostgreSQL and verify the restored identity
 before applying the new image. A failed start restores the previous image and data.
 **Restore last backup** also permits explicit recovery; it replaces changes made

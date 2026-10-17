@@ -1,5 +1,5 @@
 {
-  "measuredAt": "2026-10-17T03:30:44.698Z",
+  "measuredAt": "2026-10-17T03:42:17.746Z",
   "checks": {
     "backup_database_restore_rehearsal_and_identity_check": true,
     "failed_new_server_restores_database_and_original_identity": true,

@@ -204,7 +204,8 @@ See [the development guide](PHASE3_DEVELOPMENT.md),
 - [x] Visible **Server Members** sidebar with circular avatars, names and role labels;
   use authorized membership data without Online/Offline grouping.
 - [x] Clickable member profile modal with identity fingerprint, profile details and roles.
-- [x] Updated regression coverage and published Preview 0.3.1 Windows/server package.
+- [x] Updated regression coverage and published Preview 0.3.2 Windows/server package;
+  guarded host startup, installed version display and local port 8080 default.
 - [x] Real buddy-PC/two-house acceptance waived by the user for this preview on 2026-10-16; unverified.
 - [x] Provider/OS notification acceptance waived by the user for this preview on 2026-10-16; unverified.
 - [ ] Hosted cross-platform and packaged desktop Phase 3 acceptance.

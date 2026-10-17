@@ -1,13 +1,16 @@
 # Phase 3 development
 
-Current development branch: `codex/guided-setup`. The Phase 3 foundation is included
-in Hearth Test 0.3.0. Earlier test deployments and profiles have been retired; use
-[the latest two-PC guide](TWO_PC_LATEST_TEST.md) for a fresh manual test.
+Current development branch: `codex/guided-setup`, published through PR #4's
+`codex/phase3-navigation` branch. Hearth Preview 0.3.2 is public; use
+[the latest two-PC guide](TWO_PC_LATEST_TEST.md) for hosting and client updates.
 
 The [ordered remaining-work checklist](PHASE3_REMAINING.md) is the current Phase 3
-queue. It includes the requested 50 MB uploads, server-owner file deletion,
-**Server Members** sidebar and clickable member profiles, followed by validation.
-These additions are planned for the next build; they are not in 0.3.0.
+queue. The 50 MB uploads, server-owner file deletion, **Server Members** sidebar,
+clickable member profiles, readable invites and desktop hosting/update controls
+are implemented. Preview 0.3.2 also guards original host configuration, displays
+the installed client version and defaults new hosts to port 8080. The authorized
+full hosted acceptance is in progress; two-household and actual OS push gates
+were explicitly waived for this preview, rather than recorded as measured passes.
 
 The web client has a persistent server/community/channel sidebar and focused
 dialogs for server selection, account recovery, server settings, community settings,
@@ -47,14 +50,15 @@ The scripts use isolated accounts and databases and never target bundle data.
 
 ### Packaged Windows fixture
 
-Use the installed MSVC Build Tools and Git for Windows Perl for vendored OpenSSL.
+Use the installed MSVC Build Tools and a complete Strawberry Perl installation
+for vendored OpenSSL; an incomplete Git/MSYS Perl installation may fail.
 The acceptance features are fixture-only and do not enable a production test API.
 Build the harness before starting browser validation; rebuilding can reload its
 Vite profiles.
 
 ```powershell
 $env:PGBIN='C:\Program Files\PostgreSQL\17\bin'
-$env:PERL='C:\Program Files\Git\usr\bin\perl.exe'
+$env:PERL='C:\Strawberry\perl\bin\perl.exe'
 $env:OPENSSL_NO_ASM='1'
 $env:HEARTH_PHASE1_HARNESS='1'
 npm run build

@@ -1,0 +1,10 @@
+{
+  "measuredAt": "2026-10-17T03:41:22.322Z",
+  "outcome": "pass",
+  "checks": {
+    "existing_host_healthy_on_port_8080": true,
+    "server_identity_preserved": true,
+    "only_port_changed_in_operator_configuration": true,
+    "no_data_volumes_removed": true
+  }
+}

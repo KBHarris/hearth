@@ -2,10 +2,12 @@
 
 Updated 2026-10-16. This is the agreed work order for the remaining Phase 3 scope.
 Items 1–9 are implemented and locally validated; they are not included in the
-immutable Hearth Test 0.3.0 distribution. Hearth Preview 0.3.1 is packaged and
+immutable Hearth Test 0.3.0 distribution. Hearth Preview 0.3.2 is packaged and
 installed locally. See [local acceptance](evidence/phase3-local-2026-10-16.json)
 and [19 installer/package checks](evidence/windows-preview-2026-10-16.json).
-The [public Preview release](https://github.com/KBHarris/hearth/releases/tag/v0.3.1)
+The patch additionally passes [13 in-place upgrade/package checks](evidence/windows-preview-0.3.2-2026-10-16.json)
+and [nine native hosting/rollback checks](evidence/host-startup-regression-2026-10-16.json).
+The [public Preview release](https://github.com/KBHarris/hearth/releases/tag/v0.3.2)
 and both signed Preview update feeds are live; anonymous downloads are verified.
 Existing implementation and dated evidence are in [the development guide](PHASE3_DEVELOPMENT.md).
 
