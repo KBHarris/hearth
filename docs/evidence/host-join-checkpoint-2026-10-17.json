@@ -87,9 +87,11 @@
   ],
   "security": {
     "secretScanActualFindings": 0,
-    "reviewedSourceFalsePositives": 4,
+    "reviewedSourceFalsePositives": 5,
     "ownerCode": "Only selected loopback port, matching identity and incomplete setup; memory-only authorization clears on submit, cancellation, expiry or unmount",
-    "configuration": "Existing credentials and matching S3 files preserved; conflicts rejected before writes; guard against regeneration over existing volumes retained"
+    "configuration": "Existing credentials and matching S3 files preserved; conflicts rejected before writes; guard against regeneration over existing volumes retained",
+    "reviewedHistoryFalsePositives": 6,
+    "additionalFalsePositive": "Recorded SHA-256 of AuthPanel.tsx, independently matched to the source bytes; not a credential"
   },
   "pending": [
     "Automatic runtime and host-package preparation",

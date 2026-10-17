@@ -49,3 +49,13 @@ separately authorized on October 16. Preview 0.3.1 is public; all eleven anonymo
 downloads match the locally tested asset hashes. Both Preview update feeds
 resolve to the prepared 0.3.1 manifests. See
 [publication verification](evidence/preview-release-2026-10-16.json).
+
+Preview 0.3.4 follow-up, 2026-10-17: source and reachable-history scans were
+repeated. Five current-source and six history matches were reviewed. The added
+match is the public SHA-256 of `AuthPanel.tsx` in the checkpoint evidence; it was
+independently recomputed from the source bytes. No actual credential was found.
+The complete allowlisted 0.3.4 host distribution has zero scanner matches, and
+all eleven anonymous downloads match the tested hashes. The installed native
+updater verifies the current app and signed server feed. See the
+[release record](evidence/preview-0.3.4-release-2026-10-17.json) and
+[native update checks](evidence/preview-0.3.4-native-updates-2026-10-17.json).
