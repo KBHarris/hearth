@@ -1,0 +1,922 @@
+{
+  "recordedOn": "2026-10-18",
+  "timezone": "America/Chicago",
+  "outcome": "pass",
+  "phase3Complete": true,
+  "hostJoinCheckpointComplete": false,
+  "run": "https://github.com/KBHarris/hearth/actions/runs/39098465058",
+  "runId": 39098465058,
+  "sourceCommit": "53659dd40dfaca55f9b5dac073ecbd739ae97243",
+  "sourceRef": "codex/phase3-navigation",
+  "suite": "full",
+  "createdAt": "2026-10-18T04:50:07Z",
+  "authorization": "The user confirmed completing Phase 3 after the final full hosted cross-platform pass was presented as its remaining gate. One final full run authorized on 2026-10-17; no automatic retries.",
+  "localEvidence": "phase3-closeout-local-2026-10-17.json",
+  "manualAcceptance": "phase3-manual-acceptance-2026-10-17.json",
+  "checksComplete": true,
+  "interpretation": "All fourteen jobs and the final full-suite gate pass on the frozen source. Phase 3 preview exit criteria are complete with the recorded user-accepted buddy test and existing provider/OS notification waiver. The full Host/Join installation checkpoint remains open.",
+  "measuredAt": "2026-10-18T05:46:06.633Z",
+  "status": "completed",
+  "conclusion": "success",
+  "jobs": [
+    {
+      "id": 117589669008,
+      "name": "workflow-policy",
+      "status": "completed",
+      "conclusion": "success",
+      "url": "https://github.com/KBHarris/hearth/actions/runs/39098465058/job/117589669008",
+      "phase3Steps": []
+    },
+    {
+      "id": 117589699557,
+      "name": "rust",
+      "status": "completed",
+      "conclusion": "success",
+      "url": "https://github.com/KBHarris/hearth/actions/runs/39098465058/job/117589699557",
+      "phase3Steps": []
+    },
+    {
+      "id": 117589699608,
+      "name": "web",
+      "status": "completed",
+      "conclusion": "success",
+      "url": "https://github.com/KBHarris/hearth/actions/runs/39098465058/job/117589699608",
+      "phase3Steps": []
+    },
+    {
+      "id": 117590043199,
+      "name": "crypto-wasm",
+      "status": "completed",
+      "conclusion": "success",
+      "url": "https://github.com/KBHarris/hearth/actions/runs/39098465058/job/117590043199",
+      "phase3Steps": []
+    },
+    {
+      "id": 117590043231,
+      "name": "auth",
+      "status": "completed",
+      "conclusion": "success",
+      "url": "https://github.com/KBHarris/hearth/actions/runs/39098465058/job/117590043231",
+      "phase3Steps": []
+    },
+    {
+      "id": 117590916921,
+      "name": "compose",
+      "status": "completed",
+      "conclusion": "success",
+      "url": "https://github.com/KBHarris/hearth/actions/runs/39098465058/job/117590916921",
+      "phase3Steps": []
+    },
+    {
+      "id": 117590916998,
+      "name": "podman",
+      "status": "completed",
+      "conclusion": "success",
+      "url": "https://github.com/KBHarris/hearth/actions/runs/39098465058/job/117590916998",
+      "phase3Steps": []
+    },
+    {
+      "id": 117591744514,
+      "name": "desktop (macos-latest)",
+      "status": "completed",
+      "conclusion": "success",
+      "url": "https://github.com/KBHarris/hearth/actions/runs/39098465058/job/117591744514",
+      "phase3Steps": [
+        {
+          "name": "Full Phase 3 packaged client acceptance",
+          "conclusion": "success"
+        },
+        {
+          "name": "Full Phase 3 packaged Linux acceptance",
+          "conclusion": "skipped"
+        },
+        {
+          "name": "Windows community and encrypted channel UI acceptance",
+          "conclusion": "skipped"
+        },
+        {
+          "name": "Windows WebView2 acceptance",
+          "conclusion": "skipped"
+        },
+        {
+          "name": "macOS WKWebView acceptance",
+          "conclusion": "success"
+        },
+        {
+          "name": "Linux WebKitGTK acceptance and capability gate",
+          "conclusion": "skipped"
+        }
+      ]
+    },
+    {
+      "id": 117591744518,
+      "name": "media-browser (ubuntu-latest, chrome)",
+      "status": "completed",
+      "conclusion": "success",
+      "url": "https://github.com/KBHarris/hearth/actions/runs/39098465058/job/117591744518",
+      "phase3Steps": []
+    },
+    {
+      "id": 117591744532,
+      "name": "media-browser (ubuntu-latest, firefox)",
+      "status": "completed",
+      "conclusion": "success",
+      "url": "https://github.com/KBHarris/hearth/actions/runs/39098465058/job/117591744532",
+      "phase3Steps": []
+    },
+    {
+      "id": 117591744545,
+      "name": "desktop (ubuntu-22.04)",
+      "status": "completed",
+      "conclusion": "success",
+      "url": "https://github.com/KBHarris/hearth/actions/runs/39098465058/job/117591744545",
+      "phase3Steps": [
+        {
+          "name": "Full Phase 3 packaged client acceptance",
+          "conclusion": "skipped"
+        },
+        {
+          "name": "Full Phase 3 packaged Linux acceptance",
+          "conclusion": "success"
+        },
+        {
+          "name": "Windows community and encrypted channel UI acceptance",
+          "conclusion": "skipped"
+        },
+        {
+          "name": "Windows WebView2 acceptance",
+          "conclusion": "skipped"
+        },
+        {
+          "name": "macOS WKWebView acceptance",
+          "conclusion": "skipped"
+        },
+        {
+          "name": "Linux WebKitGTK acceptance and capability gate",
+          "conclusion": "success"
+        }
+      ]
+    },
+    {
+      "id": 117591744608,
+      "name": "media-browser (macos-latest, safari)",
+      "status": "completed",
+      "conclusion": "success",
+      "url": "https://github.com/KBHarris/hearth/actions/runs/39098465058/job/117591744608",
+      "phase3Steps": []
+    },
+    {
+      "id": 117591744628,
+      "name": "desktop (windows-latest)",
+      "status": "completed",
+      "conclusion": "success",
+      "url": "https://github.com/KBHarris/hearth/actions/runs/39098465058/job/117591744628",
+      "phase3Steps": [
+        {
+          "name": "Full Phase 3 packaged client acceptance",
+          "conclusion": "success"
+        },
+        {
+          "name": "Full Phase 3 packaged Linux acceptance",
+          "conclusion": "skipped"
+        },
+        {
+          "name": "Windows community and encrypted channel UI acceptance",
+          "conclusion": "success"
+        },
+        {
+          "name": "Windows WebView2 acceptance",
+          "conclusion": "success"
+        },
+        {
+          "name": "macOS WKWebView acceptance",
+          "conclusion": "skipped"
+        },
+        {
+          "name": "Linux WebKitGTK acceptance and capability gate",
+          "conclusion": "skipped"
+        }
+      ]
+    },
+    {
+      "id": 117598993044,
+      "name": "Acceptance (full)",
+      "status": "completed",
+      "conclusion": "success",
+      "url": "https://github.com/KBHarris/hearth/actions/runs/39098465058/job/117598993044",
+      "phase3Steps": []
+    }
+  ],
+  "reports": [
+    {
+      "file": "phase0-browser-chrome/browser-chrome-linux.json",
+      "outcome": "pass",
+      "measuredAt": "2026-10-18T05:03:13.686Z",
+      "runtime": "chrome (linux)",
+      "checks": 17,
+      "checkOutcomes": {
+        "signaling_connected_publisher": true,
+        "signaling_connected_receiver": true,
+        "signaling_connected_wrong-key": true,
+        "rooms_encrypted_before_publish": true,
+        "matching_key_video_decodes": true,
+        "matching_key_audio_recovers_tone": true,
+        "wrong_key_receives_packets": true,
+        "wrong_key_decodes_zero_frames": true,
+        "wrong_key_encryption_errors": 6,
+        "original_key_receiver_decodes_before_rotation": true,
+        "fresh_key_video_continues": true,
+        "matching_key_errors_during_rotation": 0,
+        "old_key_receives_new_packets": true,
+        "old_key_decodes_no_new_frames": true,
+        "matching_key_decoded_frames": 61,
+        "source_audio_peak": 0.1,
+        "received_audio_peak": 0.101
+      },
+      "capabilities": {
+        "userAgent": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) HeadlessChrome/155.0.0.0 Safari/537.36",
+        "secureContext": true,
+        "peerConnection": true,
+        "scriptTransform": true,
+        "legacyEncodedStreams": true,
+        "worker": true,
+        "webCrypto": true,
+        "canvasCapture": true,
+        "audioContext": true,
+        "sdkE2eeSupported": true
+      },
+      "fixtureCleanup": null,
+      "interpretation": null
+    },
+    {
+      "file": "phase0-browser-firefox/browser-firefox-linux.json",
+      "outcome": "pass",
+      "measuredAt": "2026-10-18T05:03:41.376Z",
+      "runtime": "firefox (linux)",
+      "checks": 17,
+      "checkOutcomes": {
+        "signaling_connected_publisher": true,
+        "signaling_connected_receiver": true,
+        "signaling_connected_wrong-key": true,
+        "rooms_encrypted_before_publish": true,
+        "matching_key_video_decodes": true,
+        "matching_key_audio_recovers_tone": true,
+        "wrong_key_receives_packets": true,
+        "wrong_key_decodes_zero_frames": true,
+        "wrong_key_encryption_errors": 7,
+        "original_key_receiver_decodes_before_rotation": true,
+        "fresh_key_video_continues": true,
+        "matching_key_errors_during_rotation": 0,
+        "old_key_receives_new_packets": true,
+        "old_key_decodes_no_new_frames": true,
+        "matching_key_decoded_frames": 47,
+        "source_audio_peak": 0.1,
+        "received_audio_peak": 0.101
+      },
+      "capabilities": {
+        "userAgent": "Mozilla/5.0 (X11; Linux x86_64; rv:157.0) Gecko/20100101 Firefox/157.0",
+        "secureContext": true,
+        "peerConnection": true,
+        "scriptTransform": true,
+        "legacyEncodedStreams": false,
+        "worker": true,
+        "webCrypto": true,
+        "canvasCapture": true,
+        "audioContext": true,
+        "sdkE2eeSupported": true
+      },
+      "fixtureCleanup": null,
+      "interpretation": null
+    },
+    {
+      "file": "phase0-browser-safari/browser-safari-darwin.json",
+      "outcome": "pass",
+      "measuredAt": "2026-10-18T05:04:54.216Z",
+      "runtime": "safari (darwin)",
+      "checks": 17,
+      "checkOutcomes": {
+        "signaling_connected_publisher": true,
+        "signaling_connected_receiver": true,
+        "signaling_connected_wrong-key": true,
+        "rooms_encrypted_before_publish": true,
+        "matching_key_video_decodes": true,
+        "matching_key_audio_recovers_tone": true,
+        "wrong_key_receives_packets": true,
+        "wrong_key_decodes_zero_frames": true,
+        "wrong_key_encryption_errors": 6,
+        "original_key_receiver_decodes_before_rotation": true,
+        "fresh_key_video_continues": true,
+        "matching_key_errors_during_rotation": 0,
+        "old_key_receives_new_packets": true,
+        "old_key_decodes_no_new_frames": true,
+        "matching_key_decoded_frames": 63,
+        "source_audio_peak": 0.1,
+        "received_audio_peak": 0.1
+      },
+      "capabilities": {
+        "userAgent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/26.6.2 Safari/605.1.15",
+        "secureContext": true,
+        "peerConnection": true,
+        "scriptTransform": true,
+        "legacyEncodedStreams": false,
+        "worker": true,
+        "webCrypto": true,
+        "canvasCapture": true,
+        "audioContext": true,
+        "sdkE2eeSupported": true
+      },
+      "fixtureCleanup": null,
+      "interpretation": null
+    },
+    {
+      "file": "phase0-webview-macos-latest/webview-darwin.json",
+      "outcome": "pass",
+      "measuredAt": "2026-10-18T05:20:03.934Z",
+      "runtime": "Tauri system webview (darwin)",
+      "checks": 18,
+      "checkOutcomes": {
+        "fresh_key_video_continues": true,
+        "matching_key_audio_recovers_tone": true,
+        "matching_key_decoded_frames": 28,
+        "matching_key_errors_during_rotation": 0,
+        "matching_key_video_decodes": true,
+        "native_mls_over_webview_ipc": true,
+        "old_key_decodes_no_new_frames": true,
+        "old_key_receives_new_packets": true,
+        "original_key_receiver_decodes_before_rotation": true,
+        "received_audio_peak": 0.101,
+        "rooms_encrypted_before_publish": true,
+        "signaling_connected_publisher": true,
+        "signaling_connected_receiver": true,
+        "signaling_connected_wrong-key": true,
+        "source_audio_peak": 0.1,
+        "wrong_key_decodes_zero_frames": true,
+        "wrong_key_encryption_errors": 12,
+        "wrong_key_receives_packets": true
+      },
+      "capabilities": {
+        "audioContext": true,
+        "canvasCapture": true,
+        "legacyEncodedStreams": false,
+        "peerConnection": true,
+        "scriptTransform": true,
+        "sdkE2eeSupported": true,
+        "secureContext": true,
+        "userAgent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko)",
+        "webCrypto": true,
+        "worker": true
+      },
+      "fixtureCleanup": null,
+      "interpretation": null
+    },
+    {
+      "file": "phase0-webview-ubuntu-22.04/webview-linux.json",
+      "outcome": "fail",
+      "measuredAt": "2026-10-18T05:17:57.980Z",
+      "runtime": "Tauri system webview (linux)",
+      "checks": 1,
+      "checkOutcomes": {
+        "native_mls_over_webview_ipc": true
+      },
+      "capabilities": {
+        "audioContext": true,
+        "canvasCapture": true,
+        "legacyEncodedStreams": false,
+        "peerConnection": false,
+        "scriptTransform": false,
+        "sdkE2eeSupported": false,
+        "secureContext": true,
+        "userAgent": "Mozilla/5.0 (X11; Ubuntu; Linux x86_64) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/60.5 Safari/605.1.15",
+        "webCrypto": true,
+        "worker": true
+      },
+      "fixtureCleanup": null,
+      "interpretation": "Unsupported Linux WebKitGTK media capability accepted by the existing --allow-unsupported-media gate. Native MLS IPC passes; a supported browser is required for media."
+    },
+    {
+      "file": "phase0-webview-windows-latest/webview-win32.json",
+      "outcome": "pass",
+      "measuredAt": "2026-10-18T05:42:54.657Z",
+      "runtime": "Tauri system webview (win32)",
+      "checks": 18,
+      "checkOutcomes": {
+        "fresh_key_video_continues": true,
+        "matching_key_audio_recovers_tone": true,
+        "matching_key_decoded_frames": 64,
+        "matching_key_errors_during_rotation": 0,
+        "matching_key_video_decodes": true,
+        "native_mls_over_webview_ipc": true,
+        "old_key_decodes_no_new_frames": true,
+        "old_key_receives_new_packets": true,
+        "original_key_receiver_decodes_before_rotation": true,
+        "received_audio_peak": 0.101,
+        "rooms_encrypted_before_publish": true,
+        "signaling_connected_publisher": true,
+        "signaling_connected_receiver": true,
+        "signaling_connected_wrong-key": true,
+        "source_audio_peak": 0.1,
+        "wrong_key_decodes_zero_frames": true,
+        "wrong_key_encryption_errors": 6,
+        "wrong_key_receives_packets": true
+      },
+      "capabilities": {
+        "audioContext": true,
+        "canvasCapture": true,
+        "legacyEncodedStreams": true,
+        "peerConnection": true,
+        "scriptTransform": true,
+        "sdkE2eeSupported": true,
+        "secureContext": true,
+        "userAgent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/154.0.0.0 Safari/537.36 Edg/154.0.0.0",
+        "webCrypto": true,
+        "worker": true
+      },
+      "fixtureCleanup": null,
+      "interpretation": null
+    },
+    {
+      "file": "phase1-desktop-macos-latest/local-vault-darwin.json",
+      "outcome": "pass",
+      "measuredAt": "2026-10-18T05:10:52.296Z",
+      "runtime": null,
+      "checks": 5,
+      "checkOutcomes": {
+        "create_and_read": true,
+        "fresh_process_read": true,
+        "preserve_existing": true,
+        "preserve_damaged_entry": true,
+        "cleanup": true
+      },
+      "capabilities": null,
+      "fixtureCleanup": null,
+      "interpretation": null
+    },
+    {
+      "file": "phase1-desktop-macos-latest/message-store-darwin.json",
+      "outcome": "pass",
+      "measuredAt": "2026-10-18T05:10:52.468Z",
+      "runtime": null,
+      "checks": 8,
+      "checkOutcomes": {
+        "encrypted_database": true,
+        "fresh_process_read": true,
+        "atomic_compare_and_swap": true,
+        "concurrent_writer_rejected": true,
+        "wrong_key_rejected": true,
+        "canary_absent_from_file": true,
+        "missing_os_key_preserves_database": true,
+        "cleanup": true
+      },
+      "capabilities": null,
+      "fixtureCleanup": null,
+      "interpretation": null
+    },
+    {
+      "file": "phase1-desktop-macos-latest/packaged-darwin.json",
+      "outcome": "pass",
+      "measuredAt": "2026-10-18T05:12:03.269Z",
+      "runtime": "Tauri system webview (darwin)",
+      "checks": 9,
+      "checkOutcomes": {
+        "existing_install_identity_is_preserved": true,
+        "fresh_worker_restores_native_keys_sqlcipher_history_and_offline_backlog": true,
+        "packaged_authenticated_gateway_text_reply_edit_delete": true,
+        "packaged_channel_reactions_and_local_search_pass": true,
+        "packaged_signed_admission_and_since_invite_history_pass": true,
+        "packaged_sqlcipher_compare_and_swap_preserves_state": true,
+        "packaged_worker_opaque_and_native_identity_vault": true,
+        "recovery_fresh_device_rekeys_and_reads_new_messages_without_old_history": true,
+        "server_database_and_logs_exclude_packaged_message_canary": true
+      },
+      "capabilities": null,
+      "fixtureCleanup": {
+        "credentials_removed": true,
+        "files_removed": true,
+        "native_calls_drained": true
+      },
+      "interpretation": null
+    },
+    {
+      "file": "phase1-desktop-ubuntu-22.04/local-vault-linux.json",
+      "outcome": "pass",
+      "measuredAt": "2026-10-18T05:10:57.404Z",
+      "runtime": null,
+      "checks": 5,
+      "checkOutcomes": {
+        "create_and_read": true,
+        "fresh_process_read": true,
+        "preserve_existing": true,
+        "preserve_damaged_entry": true,
+        "cleanup": true
+      },
+      "capabilities": null,
+      "fixtureCleanup": null,
+      "interpretation": null
+    },
+    {
+      "file": "phase1-desktop-ubuntu-22.04/message-store-linux.json",
+      "outcome": "pass",
+      "measuredAt": "2026-10-18T05:10:58.276Z",
+      "runtime": null,
+      "checks": 8,
+      "checkOutcomes": {
+        "encrypted_database": true,
+        "fresh_process_read": true,
+        "atomic_compare_and_swap": true,
+        "concurrent_writer_rejected": true,
+        "wrong_key_rejected": true,
+        "canary_absent_from_file": true,
+        "missing_os_key_preserves_database": true,
+        "cleanup": true
+      },
+      "capabilities": null,
+      "fixtureCleanup": null,
+      "interpretation": null
+    },
+    {
+      "file": "phase1-desktop-ubuntu-22.04/packaged-linux.json",
+      "outcome": "pass",
+      "measuredAt": "2026-10-18T05:10:56.195Z",
+      "runtime": "Tauri system webview (linux)",
+      "checks": 9,
+      "checkOutcomes": {
+        "existing_install_identity_is_preserved": true,
+        "fresh_worker_restores_native_keys_sqlcipher_history_and_offline_backlog": true,
+        "packaged_authenticated_gateway_text_reply_edit_delete": true,
+        "packaged_channel_reactions_and_local_search_pass": true,
+        "packaged_signed_admission_and_since_invite_history_pass": true,
+        "packaged_sqlcipher_compare_and_swap_preserves_state": true,
+        "packaged_worker_opaque_and_native_identity_vault": true,
+        "recovery_fresh_device_rekeys_and_reads_new_messages_without_old_history": true,
+        "server_database_and_logs_exclude_packaged_message_canary": true
+      },
+      "capabilities": null,
+      "fixtureCleanup": {
+        "credentials_removed": true,
+        "files_removed": true,
+        "native_calls_drained": true
+      },
+      "interpretation": null
+    },
+    {
+      "file": "phase1-desktop-windows-latest/local-vault-win32.json",
+      "outcome": "pass",
+      "measuredAt": "2026-10-18T05:20:52.981Z",
+      "runtime": null,
+      "checks": 5,
+      "checkOutcomes": {
+        "create_and_read": true,
+        "fresh_process_read": true,
+        "preserve_existing": true,
+        "preserve_damaged_entry": true,
+        "cleanup": true
+      },
+      "capabilities": null,
+      "fixtureCleanup": null,
+      "interpretation": null
+    },
+    {
+      "file": "phase1-desktop-windows-latest/message-store-win32.json",
+      "outcome": "pass",
+      "measuredAt": "2026-10-18T05:20:53.788Z",
+      "runtime": null,
+      "checks": 8,
+      "checkOutcomes": {
+        "encrypted_database": true,
+        "fresh_process_read": true,
+        "atomic_compare_and_swap": true,
+        "concurrent_writer_rejected": true,
+        "wrong_key_rejected": true,
+        "canary_absent_from_file": true,
+        "missing_os_key_preserves_database": true,
+        "cleanup": true
+      },
+      "capabilities": null,
+      "fixtureCleanup": null,
+      "interpretation": null
+    },
+    {
+      "file": "phase1-desktop-windows-latest/packaged-win32.json",
+      "outcome": "pass",
+      "measuredAt": "2026-10-18T05:22:16.841Z",
+      "runtime": "Tauri system webview (win32)",
+      "checks": 9,
+      "checkOutcomes": {
+        "existing_install_identity_is_preserved": true,
+        "fresh_worker_restores_native_keys_sqlcipher_history_and_offline_backlog": true,
+        "packaged_authenticated_gateway_text_reply_edit_delete": true,
+        "packaged_channel_reactions_and_local_search_pass": true,
+        "packaged_signed_admission_and_since_invite_history_pass": true,
+        "packaged_sqlcipher_compare_and_swap_preserves_state": true,
+        "packaged_worker_opaque_and_native_identity_vault": true,
+        "recovery_fresh_device_rekeys_and_reads_new_messages_without_old_history": true,
+        "server_database_and_logs_exclude_packaged_message_canary": true
+      },
+      "capabilities": null,
+      "fixtureCleanup": {
+        "credentials_removed": true,
+        "files_removed": true,
+        "native_calls_drained": true
+      },
+      "interpretation": null
+    },
+    {
+      "file": "phase3-auth/auth.json",
+      "outcome": "pass",
+      "measuredAt": "2026-10-18T04:57:21.611Z",
+      "runtime": null,
+      "checks": 94,
+      "checkOutcomes": {
+        "setup_code_required": true,
+        "one_owner_under_concurrent_claims": true,
+        "short_invites_round_trip_all_three_scopes_with_no_plaintext_capability_on_relay": true,
+        "short_invites_are_immutable_survive_restart_and_expire_without_authentication_bypass": true,
+        "one_use_login_proof": true,
+        "cross_signed_device_bound_to_account_and_server": true,
+        "encrypted_vault_only_client_side": true,
+        "credentials_pending_proofs_and_sessions_survive_restart": true,
+        "optimized_client_unlocks_debug_build_credentials_and_vault": true,
+        "vault_unlock_after_fresh_login_and_identity_replacement_rejected": true,
+        "recovery_kit_restores_identity_with_fresh_device": true,
+        "approved_device_link_delivers_identity_once": true,
+        "single_use_invite_creates_second_account": true,
+        "owner_only_registration_settings_survive_restart": true,
+        "wasm_mls_authenticated_gateway_and_offline_resume_after_restart": true,
+        "linked_device_joins_new_epoch_without_old_history": true,
+        "encrypted_reply_edit_and_delete": true,
+        "gateway_rejects_forged_device_token_binding_and_future_resume": true,
+        "permission_matrix_every_gateway_op_rejects_invalid_auth_order_or_cursor": true,
+        "open_registration_three_person_group_dm_and_encrypted_typing": true,
+        "channel_solo_initialization_and_commit_replay": true,
+        "channel_nonmembers_cannot_read_roster_or_join_mls_and_dm_audience_stays_fixed": true,
+        "channel_owner_signatures_block_fabricated_admission_and_pinned_owner_replacement": true,
+        "channel_invite_member_receives_new_epoch_without_prejoin_history": true,
+        "channel_stale_epoch_upload_rejected_without_accepting_local_content": true,
+        "channel_later_account_and_linked_device_rekey_preserves_existing_members": true,
+        "channel_announcements_encrypt_for_members_and_reject_member_send_typing_edit_delete": true,
+        "encrypted_reactions_are_per_actor_and_channel_pins_require_owner": true,
+        "threads_read_state_profiles_and_presence_are_encrypted": true,
+        "local_full_text_search_normalizes_case_and_excludes_deleted_content": true,
+        "encrypted_chunked_attachment_download_tamper_scope_and_sealed_restart_pass": true,
+        "encrypted_thumbnail_and_local_view_exclude_file_keys": true,
+        "owner_custom_emoji_is_encrypted_and_member_definition_is_rejected": true,
+        "attachment_canary_absent_from_host_database_logs_and_s3_volume": true,
+        "exact_50MB_encrypted_round_trip_and_over_limit_rejection_pass": true,
+        "operator_removal_blocks_uploader_wrong_device_and_late_lease_resurrection": true,
+        "history_none_full_and_signed_since_invite_cutoff_pass_with_late_linked_owner_device": true,
+        "history_archive_tampering_wrong_device_and_duplicate_import_are_rejected": true,
+        "history_survives_sealed_restart_and_plaintext_is_absent_from_host": true,
+        "channel_sealed_store_and_offline_delivery_survive_server_restart": true,
+        "channel_content_absent_from_server_database_logs_gateway_and_sealed_store": true,
+        "governance_role_grants_pin_permission_in_product_crypto_and_http": true,
+        "governance_owner_signature_cas_scope_and_content_free_audit": true,
+        "governance_member_override_rejects_stale_send_and_client_rollback": true,
+        "permission_matrix_react_pin_owner_only_management_and_nonmember_read_endpoints": true,
+        "governance_slowmode_is_serialized_and_idempotent_retries_remain_allowed": true,
+        "governance_timeout_preserves_read_access_and_blocks_posting": true,
+        "rules_screening_preserves_read_access_requires_matching_consent_and_survives_restart": true,
+        "changed_signed_rules_invalidate_prior_acceptance": true,
+        "retention_expiry_removes_database_ciphertext_preserves_fresh_history_and_retry_digests": true,
+        "retention_expiry_physically_deletes_private_s3_object_before_database_index": true,
+        "governance_read_revocation_blocks_rest_blobs_backlog_and_rotates_mls_audience": true,
+        "governance_permissions_and_audit_survive_server_restart": true,
+        "governance_message_canary_absent_from_host": true,
+        "ownership_offer_requires_current_owner_approved_successor_and_membership": true,
+        "ownership_canceled_and_stale_offers_cannot_change_root": true,
+        "ownership_joint_acceptance_is_signed_atomic_idempotent_and_sealed_restart_safe": true,
+        "ownership_former_owner_privileges_and_unused_invites_are_revoked": true,
+        "ownership_historical_queued_message_and_successor_mls_rotation_preserve_access": true,
+        "ownership_transfer_back_preserves_invitation_binding_and_monotonic_root_lineage": true,
+        "ownership_transfer_and_content_free_audit_survive_server_restart": true,
+        "forum_titles_posts_and_replies_are_encrypted_with_signed_channel_kind": true,
+        "poll_votes_replace_withdraw_and_close_with_authenticated_participants": true,
+        "forum_polls_restart_and_plaintext_canary_absence": true,
+        "selected_report_evidence_is_sender_verified_and_encrypted_for_approved_moderator_device": true,
+        "report_queue_permission_tamper_rejection_resolution_and_restart_canary_absence": true,
+        "delegated_moderator_signed_timeout_and_slowmode_apply_without_owner_impersonation": true,
+        "delegated_moderation_cannot_escalate_roles_change_rules_retention_or_target_owner_and_moderators": true,
+        "delegated_kick_denies_old_invites_rest_and_removes_mls_audience_before_new_messages": true,
+        "kicked_member_rejoins_with_fresh_signed_invite_owner_admission_and_new_welcome_after_restart": true,
+        "delegated_policy_cas_revocation_audit_and_canary_survive_restart": true,
+        "permission_matrix_account_directory_admin_and_community_entry_require_sessions": true,
+        "opt_in_web_push_validates_provider_keys_device_ownership_and_stable_vapid_identity": true,
+        "account_export_pages_owned_metadata_and_ciphertext_without_credentials_or_other_senders": true,
+        "user_dm_blocks_are_private_per_account_block_delivery_and_survive_restart": true,
+        "server_operator_bans_revoke_sessions_live_gateway_and_pending_login_without_community_privileges": true,
+        "account_deletion_requires_signature_session_and_transferred_community_ownership": true,
+        "account_deletion_erases_credentials_archives_and_queues_revokes_linked_devices_and_fences_writes": true,
+        "account_deletion_removes_private_storage_after_upload_leases_expire": true,
+        "signed_account_departure_prunes_mls_preserves_other_authors_and_idempotent_retry_after_restart": true,
+        "live_gateway_closes_after_session_revocation": true,
+        "message_canary_absent_from_server_database_and_gateway": true,
+        "community_directory_requires_membership": true,
+        "community_category_scope_and_channel_types": true,
+        "community_server_owner_has_no_implicit_access": true,
+        "community_single_use_invite_serializes_competing_accounts": true,
+        "community_owner_controls_and_expired_invite_rejection": true,
+        "community_multi_use_invites_do_not_charge_existing_members": true,
+        "community_structure_and_membership_survive_restart": true,
+        "missing_key_refuses_existing_account_startup": true,
+        "logout_revokes_session": true,
+        "wrong_password_rejected": true,
+        "no_password_on_wire_or_secrets_in_logs": true,
+        "permission_matrix_all_http_routes_have_valid_and_rejected_access_fixtures": true
+      },
+      "capabilities": null,
+      "fixtureCleanup": null,
+      "interpretation": null
+    },
+    {
+      "file": "phase3-community-ui-windows/community-ui.json",
+      "outcome": "pass",
+      "measuredAt": "2026-10-18T05:41:04.317Z",
+      "runtime": "win32 headless Chrome, two isolated profiles, real client controls",
+      "checks": 42,
+      "checkOutcomes": {
+        "create_and_select_community_with_literal_text": true,
+        "create_category_text_and_announcement_channels": true,
+        "open_channel_and_send_encrypted_solo_message": true,
+        "share_ui_exposes_only_pretty_codes_and_separate_server_address": true,
+        "create_and_hide_invite_without_persisting_it": true,
+        "real_second_client_join_automatic_roster_rekey_and_no_old_history": true,
+        "reactions_sync_and_only_owner_has_channel_pin_controls": true,
+        "markdown_and_mentions_render_without_raw_html_or_remote_images": true,
+        "thread_filter_and_explicit_encrypted_read_receipt_sync": true,
+        "local_search_finds_decrypted_text_without_server_query": true,
+        "member_sidebar_has_profiles_roles_fingerprints_copy_and_escape_focus_return": true,
+        "profiles_and_presence_share_over_encrypted_conversations": true,
+        "automatic_link_preview_and_display_setting_work_without_metadata_fetch": true,
+        "signed_since_invite_history_backfills_after_owner_key_handoff": true,
+        "announcement_member_reads_ciphertext_with_publish_controls_disabled": true,
+        "unavailable_directory_has_retry_and_restores_saved_structure": true,
+        "messaging_startup_retry_preserves_encrypted_history_after_directory_outage": true,
+        "add_server_opens_and_rejects_invalid_address_without_signing_out": true,
+        "escape_closes_panel_and_restores_keyboard_focus": true,
+        "management_panels_preserve_chat_draft_and_device_session": true,
+        "daily_chat_has_no_setup_recovery_or_owner_forms": true,
+        "modal_keyboard_focus_stays_inside_management_panel": true,
+        "reconnecting_changed_server_identity_preserves_current_session": true,
+        "add_server_connects_remembers_and_switches_without_losing_saved_messages": true,
+        "role_creation_assignment_and_delegated_pin_work_in_real_client": true,
+        "channel_override_disables_reactions_without_losing_read_access_or_session": true,
+        "governance_audit_view_shows_revisions_without_message_plaintext": true,
+        "signed_rules_screening_has_explicit_read_and_accept_flow": true,
+        "changed_rules_require_fresh_acceptance_in_real_client": true,
+        "retention_controls_explain_expiry_and_save_signed_channel_policy": true,
+        "delegated_moderator_ui_saves_slowmode_and_keeps_roles_retention_owner_only": true,
+        "ownership_offer_and_explicit_acceptance_update_both_clients_without_losing_session": true,
+        "ownership_return_transfer_preserves_invited_member_history_and_signed_root": true,
+        "forum_post_creation_dedicated_replies_and_explicit_back_navigation": true,
+        "report_preview_explicitly_shares_selected_message_without_unselected_context": true,
+        "moderator_inbox_decrypts_verifies_and_resolves_report_in_real_client": true,
+        "encrypted_poll_vote_sync_and_author_close_disable_voting_in_real_clients": true,
+        "account_export_download_has_explicit_plaintext_opt_in_and_excludes_credentials": true,
+        "private_block_settings_add_and_remove_people_in_real_client": true,
+        "account_deletion_requires_exact_username_and_acknowledgement_with_compact_checkboxes": true,
+        "member_drawer_opens_and_closes_with_keyboard_on_narrow_windows": true,
+        "narrow_layout_has_no_horizontal_overflow": true
+      },
+      "capabilities": null,
+      "fixtureCleanup": null,
+      "interpretation": null
+    },
+    {
+      "file": "phase3-community-ui-windows/packaged-win32.json",
+      "outcome": "pass",
+      "measuredAt": "2026-10-18T05:28:43.593Z",
+      "runtime": "Tauri system webview (win32)",
+      "checks": 16,
+      "checkOutcomes": {
+        "existing_install_identity_is_preserved": true,
+        "fresh_worker_restores_native_keys_sqlcipher_history_and_offline_backlog": true,
+        "packaged_authenticated_gateway_text_reply_edit_delete": true,
+        "packaged_authenticated_poll_vote_and_author_close_pass": true,
+        "packaged_channel_reactions_and_local_search_pass": true,
+        "packaged_delegated_moderation_keeps_owner_authority_pass": true,
+        "packaged_departure_revokes_session_prunes_audience_preserves_history": true,
+        "packaged_forum_posts_and_replies_are_encrypted": true,
+        "packaged_ownership_handoff_after_delegation_and_return_pass": true,
+        "packaged_private_block_export_and_generic_push_configuration_pass": true,
+        "packaged_report_selection_moderator_verification_and_resolution_pass": true,
+        "packaged_signed_admission_and_since_invite_history_pass": true,
+        "packaged_sqlcipher_compare_and_swap_preserves_state": true,
+        "packaged_worker_opaque_and_native_identity_vault": true,
+        "recovery_fresh_device_rekeys_and_reads_new_messages_without_old_history": true,
+        "server_database_and_logs_exclude_packaged_message_canary": true
+      },
+      "capabilities": null,
+      "fixtureCleanup": {
+        "credentials_removed": true,
+        "files_removed": true,
+        "native_calls_drained": true
+      },
+      "interpretation": null
+    },
+    {
+      "file": "phase3-desktop-macos-latest/packaged-darwin.json",
+      "outcome": "pass",
+      "measuredAt": "2026-10-18T05:17:22.030Z",
+      "runtime": "Tauri system webview (darwin)",
+      "checks": 16,
+      "checkOutcomes": {
+        "existing_install_identity_is_preserved": true,
+        "fresh_worker_restores_native_keys_sqlcipher_history_and_offline_backlog": true,
+        "packaged_authenticated_gateway_text_reply_edit_delete": true,
+        "packaged_authenticated_poll_vote_and_author_close_pass": true,
+        "packaged_channel_reactions_and_local_search_pass": true,
+        "packaged_delegated_moderation_keeps_owner_authority_pass": true,
+        "packaged_departure_revokes_session_prunes_audience_preserves_history": true,
+        "packaged_forum_posts_and_replies_are_encrypted": true,
+        "packaged_ownership_handoff_after_delegation_and_return_pass": true,
+        "packaged_private_block_export_and_generic_push_configuration_pass": true,
+        "packaged_report_selection_moderator_verification_and_resolution_pass": true,
+        "packaged_signed_admission_and_since_invite_history_pass": true,
+        "packaged_sqlcipher_compare_and_swap_preserves_state": true,
+        "packaged_worker_opaque_and_native_identity_vault": true,
+        "recovery_fresh_device_rekeys_and_reads_new_messages_without_old_history": true,
+        "server_database_and_logs_exclude_packaged_message_canary": true
+      },
+      "capabilities": null,
+      "fixtureCleanup": {
+        "credentials_removed": true,
+        "files_removed": true,
+        "native_calls_drained": true
+      },
+      "interpretation": null
+    },
+    {
+      "file": "phase3-desktop-ubuntu-22.04/packaged-linux.json",
+      "outcome": "pass",
+      "measuredAt": "2026-10-18T05:16:33.704Z",
+      "runtime": "Tauri system webview (linux)",
+      "checks": 16,
+      "checkOutcomes": {
+        "existing_install_identity_is_preserved": true,
+        "fresh_worker_restores_native_keys_sqlcipher_history_and_offline_backlog": true,
+        "packaged_authenticated_gateway_text_reply_edit_delete": true,
+        "packaged_authenticated_poll_vote_and_author_close_pass": true,
+        "packaged_channel_reactions_and_local_search_pass": true,
+        "packaged_delegated_moderation_keeps_owner_authority_pass": true,
+        "packaged_departure_revokes_session_prunes_audience_preserves_history": true,
+        "packaged_forum_posts_and_replies_are_encrypted": true,
+        "packaged_ownership_handoff_after_delegation_and_return_pass": true,
+        "packaged_private_block_export_and_generic_push_configuration_pass": true,
+        "packaged_report_selection_moderator_verification_and_resolution_pass": true,
+        "packaged_signed_admission_and_since_invite_history_pass": true,
+        "packaged_sqlcipher_compare_and_swap_preserves_state": true,
+        "packaged_worker_opaque_and_native_identity_vault": true,
+        "recovery_fresh_device_rekeys_and_reads_new_messages_without_old_history": true,
+        "server_database_and_logs_exclude_packaged_message_canary": true
+      },
+      "capabilities": null,
+      "fixtureCleanup": {
+        "credentials_removed": true,
+        "files_removed": true,
+        "native_calls_drained": true
+      },
+      "interpretation": null
+    },
+    {
+      "file": "phase3-desktop-windows-latest/packaged-win32.json",
+      "outcome": "pass",
+      "measuredAt": "2026-10-18T05:28:43.593Z",
+      "runtime": "Tauri system webview (win32)",
+      "checks": 16,
+      "checkOutcomes": {
+        "existing_install_identity_is_preserved": true,
+        "fresh_worker_restores_native_keys_sqlcipher_history_and_offline_backlog": true,
+        "packaged_authenticated_gateway_text_reply_edit_delete": true,
+        "packaged_authenticated_poll_vote_and_author_close_pass": true,
+        "packaged_channel_reactions_and_local_search_pass": true,
+        "packaged_delegated_moderation_keeps_owner_authority_pass": true,
+        "packaged_departure_revokes_session_prunes_audience_preserves_history": true,
+        "packaged_forum_posts_and_replies_are_encrypted": true,
+        "packaged_ownership_handoff_after_delegation_and_return_pass": true,
+        "packaged_private_block_export_and_generic_push_configuration_pass": true,
+        "packaged_report_selection_moderator_verification_and_resolution_pass": true,
+        "packaged_signed_admission_and_since_invite_history_pass": true,
+        "packaged_sqlcipher_compare_and_swap_preserves_state": true,
+        "packaged_worker_opaque_and_native_identity_vault": true,
+        "recovery_fresh_device_rekeys_and_reads_new_messages_without_old_history": true,
+        "server_database_and_logs_exclude_packaged_message_canary": true
+      },
+      "capabilities": null,
+      "fixtureCleanup": {
+        "credentials_removed": true,
+        "files_removed": true,
+        "native_calls_drained": true
+      },
+      "interpretation": null
+    }
+  ],
+  "limitations": [
+    "The buddy-PC test is accepted by user assumption; detailed independent manual results were not supplied.",
+    "Actual provider/OS notification delivery retains the explicit preview waiver.",
+    "The full Host/Join installation checkpoint and all-OS clean-machine installation acceptance remain open.",
+    "Linux WebKitGTK media remains unsupported in the tested runner; the raw capability report is preserved, with the supported-browser fallback.",
+    "Synthetic media checks do not establish Phase 4 product media integration, real-network media readiness or production security.",
+    "The separate Phase 2 50-person, one-week human trial remains open."
+  ],
+  "requestedOn": "2026-10-17",
+  "completedAt": "2026-10-18T05:45:45Z"
+}

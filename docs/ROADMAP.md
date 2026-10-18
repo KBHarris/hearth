@@ -151,8 +151,19 @@ attachment canary passes.
 **Goal:** communities can govern themselves safely, with clear member discovery
 and practical file controls.
 
-Current work is on `codex/guided-setup`. Governance and the new member/file
-requirements are implemented. The [2026-10-16 local acceptance](evidence/phase3-local-2026-10-16.json)
+**Phase 3 preview is complete, 2026-10-18.** The
+[final full hosted run](https://github.com/KBHarris/hearth/actions/runs/39098465058)
+passes all 14 jobs on source `53659dd`, including the final acceptance gate.
+Windows, macOS and Linux each pass all 16 Phase 3 packaged outcomes with fixture
+cleanup; Windows community UI passes all 42 checks. The
+[verified final evidence](evidence/phase3-final-hosted-2026-10-18.json) preserves
+the platform and browser reports, including Linux's documented native-media
+capability fallback. The user accepts the buddy test; the provider/OS notification
+preview waiver remains in force. The full Host/Join installation checkpoint is next.
+
+Earlier implementation and validation: work is on `codex/guided-setup`.
+Governance and the new member/file requirements are implemented. The
+[2026-10-16 local acceptance](evidence/phase3-local-2026-10-16.json)
 records 94 HTTP/private-S3, 51 browser and 19 packaged Windows outcomes. The
 first full hosted milestone passed core and browser jobs, but failed Linux
 desktop compilation on an upstream dependency mismatch; Windows/macOS were
@@ -162,8 +173,9 @@ on frozen Preview 0.3.3 passed all core/browser jobs, Linux/macOS desktop jobs a
 all three Phase 3 packaged suites. Windows community UI failed after 22 checks
 when the fixture appended to a prefilled server address; a local test correction
 replaces that value and passes all [42 local UI checks](evidence/phase3-ui-correction-2026-10-17.json)
-against current 0.3.4 product source. Windows native media acceptance was skipped. Full hosted
-closeout remains open; no automatic retry is authorized. The user confirmed public HTTPS
+against current 0.3.4 product source. Windows native media acceptance was skipped
+in that earlier run. The separately requested final run above closes hosted
+acceptance and retains the earlier failure as historical evidence. The user confirmed public HTTPS
 health from a phone on cellular on October 17 and subsequently accepted the buddy
 test by instruction. Actual provider/OS notification delivery retains its preview waiver.
 
@@ -185,8 +197,8 @@ polls, account privacy, exact deletion confirmation and narrow layout. Setup is
 paced under the real server rate limits. Dated sanitized local reports are linked
 from [PROGRESS.md](PROGRESS.md).
 The 2026-10-12 hosted attempts returned `startup_failure` before any jobs started,
-including a manual dispatch; the API gave no reason. Current macOS/Linux packaged results
-remain required. The earlier `e5c99a8` checkpoint passes all twelve hosted jobs in
+including a manual dispatch; the API gave no reason. Final-source macOS/Linux
+packaged acceptance now passes in the completed run above. The earlier `e5c99a8` checkpoint passes all twelve hosted jobs in
 [run 38205711382](https://github.com/KBHarris/hearth/actions/runs/38205711382),
 which does not validate the newest Phase 3 additions.
 
@@ -199,7 +211,8 @@ See [the development guide](PHASE3_DEVELOPMENT.md),
 
 - [x] Menu and navigation structure: persistent communities/channels, focused
   management panels, Add Server, keyboard focus/Escape and preserved drafts/keys.
-- [x] Final menu polish and all 41 current two-client/private-S3 UI checks.
+- [x] Final menu polish, all 54 expanded local two-client/private-S3 UI checks and
+  all 42 hosted Windows community UI checks.
 - [x] Owner-signed roles, active permission bits, assignments and channel overrides;
   rollback/tamper rejection and epoch-bound history authorization.
 - [x] READ revocation across REST and gateway, with MLS audience removal before publishing.
@@ -219,21 +232,23 @@ See [the development guide](PHASE3_DEVELOPMENT.md),
 - [x] Visible **Server Members** sidebar with circular avatars, names and role labels;
   use authorized membership data without Online/Offline grouping.
 - [x] Clickable member profile modal with identity fingerprint, profile details and roles.
-- [x] Updated regression coverage and published Preview 0.3.2 Windows/server package;
+- [x] Updated regression coverage and published Preview 0.3.4 Windows/server package;
   guarded host startup, installed version display and local port 8080 default.
 - [x] Buddy-PC/two-house acceptance accepted by user instruction on 2026-10-17,
   superseding the preview waiver; [manual record](evidence/phase3-manual-acceptance-2026-10-17.json).
   No independent telemetry or all-OS clean-machine pass is claimed.
 - [x] Provider/OS notification acceptance waived by the user for this preview on 2026-10-16; unverified.
-- [ ] Hosted cross-platform and packaged desktop Phase 3 acceptance.
+- [x] Hosted cross-platform and packaged desktop Phase 3 acceptance. The
+  [final full run](evidence/phase3-final-hosted-2026-10-18.json) passes all 14 jobs
+  on source `53659dd`, including all three Phase 3 packaged suites and the final gate.
   The [final local closeout](evidence/phase3-closeout-local-2026-10-17.json) passes
   94 HTTP/private-S3, 54 expanded two-client UI and 19 Windows packaged outcomes,
   including the corrected forum navigation fixture. Rust/web/WASM/native checks
-  pass. One final-source `full` hosted run awaits an explicit request; Phase 3
-  remains open until it succeeds.
-- [x] Manual-only Actions budget controls and local policy checks. The corrected
-  full hosted milestone was explicitly authorized once; any further hosted run
-  requires a new request.
+  pass. The successful hosted closeout retains the accepted buddy test and
+  explicit provider/OS notification preview waiver.
+- [x] Manual-only Actions budget controls and local policy checks. The final
+  full hosted milestone was explicitly requested and passed; any further hosted
+  run requires a new request.
 
 Work through the unchecked items in the exact order and scope defined by
 [the Phase 3 remaining-work checklist](PHASE3_REMAINING.md).

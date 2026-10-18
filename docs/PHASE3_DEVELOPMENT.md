@@ -4,12 +4,14 @@ Current development branch: `codex/guided-setup`, published through PR #4's
 `codex/phase3-navigation` branch. Hearth Preview 0.3.4 is public; use
 [the latest two-PC guide](TWO_PC_LATEST_TEST.md) for hosting and client updates.
 
-The [ordered remaining-work checklist](PHASE3_REMAINING.md) is the current Phase 3
-queue. The 50 MB uploads, server-owner file deletion, **Server Members** sidebar,
+The [completed Phase 3 checklist](PHASE3_REMAINING.md) records the preview exit
+criteria. The 50 MB uploads, server-owner file deletion, **Server Members** sidebar,
 clickable member profiles, readable invites and desktop hosting/update controls
 are implemented. Preview 0.3.2 also guards original host configuration, displays
-the installed client version and defaults new hosts to port 8080. The final
-full hosted acceptance remains open after the Windows UI fixture failure.
+the installed client version and defaults new hosts to port 8080. Phase 3 preview
+is complete: the [final full hosted run](evidence/phase3-final-hosted-2026-10-18.json)
+passes all 14 jobs on source `53659dd`, including all three platforms' Phase 3
+packaged suites, the corrected Windows UI fixture and the final acceptance gate.
 The [current local closeout](evidence/phase3-closeout-local-2026-10-17.json) passes
 94 HTTP/private-S3, 54 expanded two-client UI and 19 Windows packaged outcomes,
 plus Rust/web/WASM and native checks. The UI harness now waits for asynchronous
@@ -151,16 +153,18 @@ layout, with paced setup under the real rate limits. Sanitized dated local
 [HTTP/WASM](evidence/phase3-http-private-s3-2026-10-12.json),
 [Windows](evidence/phase3-windows-private-s3-2026-10-12.json) and
 [browser](evidence/phase3-ui-private-s3-2026-10-12.json) reports are checked in.
-GitHub returns `startup_failure` before any jobs start, including
-manual dispatch; no cause is available through its API. Current macOS/Linux
-packaged acceptance remains pending.
+In that October 12 record, GitHub returned `startup_failure` before any jobs
+started, including manual dispatch; no cause was available through its API.
+Later milestone results are recorded in [PROGRESS.md](PROGRESS.md).
 
 The `e5c99a8` checkpoint passes all twelve hosted jobs in run `38205711382`.
 Those older artifacts contain 61 HTTP/WASM and 29 Chrome UI checks and packaged
 messaging coverage; they do not validate the newer Phase 3 additions.
 
-Phase 3 is not complete until its exit criteria pass. The current two-person test
-and 50-person/week human checkpoint remain open.
+Phase 3 preview exit criteria now pass. The buddy-PC test is
+accepted by user instruction. The separate Phase 2 50-person/week human checkpoint
+remains open; see the [final Phase 3 run](evidence/phase3-final-hosted-2026-10-18.json)
+for the completed hosted gate.
 
 ## Menu refinements
 

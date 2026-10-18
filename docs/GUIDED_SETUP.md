@@ -5,6 +5,9 @@ Published Preview 0.3.4 includes code-only sharing, native host configuration an
 protected local owner authorization. See the [18 installed checks](evidence/windows-preview-0.3.4-2026-10-17.json).
 The buddy-PC/two-household test is [accepted by user instruction for Phase 3](evidence/phase3-manual-acceptance-2026-10-17.json).
 This does not close the all-OS clean-machine installation checkpoint below.
+Phase 3 preview is now [complete with full hosted acceptance](evidence/phase3-final-hosted-2026-10-18.json)
+on source `53659dd`. This document's remaining implementation slice is the next
+checkpoint before Phase 4.
 
 ## Available in this pass
 

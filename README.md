@@ -23,6 +23,9 @@ Automatic runtime and host-package preparation remain open.
 The desktop app can start/stop a configured host and authorize local owner setup
 without copying the private owner code.
 Voice/video, federation and the larger community trial remain on the roadmap.
+Phase 3 preview acceptance is [complete](docs/evidence/phase3-final-hosted-2026-10-18.json):
+all 14 full CI jobs pass on the validated source, with the accepted buddy test and
+existing notification preview waiver. The full Host/Join installation checkpoint is next.
 
 - [Architecture and product plan](PLAN.md)
 - [Roadmap](docs/ROADMAP.md) and [current progress and validation](docs/PROGRESS.md)

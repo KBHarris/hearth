@@ -1,5 +1,23 @@
 # Progress
 
+**Phase 3 preview is complete, 2026-10-18.** The requested
+[full run 39098465058](https://github.com/KBHarris/hearth/actions/runs/39098465058)
+passes all 14 jobs on source `53659dd`, including the final acceptance gate.
+Windows, macOS and Linux each pass all 16 Phase 3 packaged outcomes with native
+storage draining and fixture cleanup. The Windows community UI passes all 42
+checks; HTTP/private-S3 passes 94; Chrome, Firefox and Safari each pass their
+17-check browser fixture. The [verified hosted record](evidence/phase3-final-hosted-2026-10-18.json)
+preserves all 21 reports and the documented unsupported Linux native-media
+capability result, which uses the supported-browser fallback.
+
+The buddy-PC test is accepted by user instruction and the existing provider/OS
+notification preview waiver remains in force. Earlier failed runs retain their
+original results. The separate full Host/Join installation checkpoint remains
+next before Phase 4; this closeout does not complete that installer work or the
+separate Phase 2 50-person/week human trial.
+
+Earlier dated records below retain their scope and status at the time.
+
 Phase 3 local closeout, 2026-10-17: source `7ff42f0` passes 94 real HTTP/private-S3,
 54 expanded two-client browser and 19 Windows packaged outcomes. The current
 product code matches published Preview 0.3.4. A test-only forum navigation race

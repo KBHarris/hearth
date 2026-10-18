@@ -1,14 +1,17 @@
 # Phase 3 remaining work
 
-Updated 2026-10-17. This is the agreed work order for the remaining Phase 3 scope.
+Updated 2026-10-18. **Phase 3 preview is complete.** All items in the agreed
+checklist are closed by measured results, user acceptance or the explicit
+notification preview waiver. The [final full hosted run](evidence/phase3-final-hosted-2026-10-18.json)
+passes all 14 jobs on source `53659dd`, including the final acceptance gate.
 The user accepts the buddy-PC/two-household test as successful for this preview;
 see the [manual acceptance record](evidence/phase3-manual-acceptance-2026-10-17.json).
 This is acceptance by user instruction, without independently collected test results.
 The [final local closeout](evidence/phase3-closeout-local-2026-10-17.json) passes
 94 HTTP/private-S3, 54 expanded browser and 19 Windows packaged outcomes on the
 current product code, plus Rust/web/WASM/native checks. Source `7ff42f0` fixes
-asynchronous forum navigation in the UI fixture. The final full hosted run is
-the only remaining Phase 3 gate; the full installation checkpoint follows it.
+asynchronous forum navigation in the UI fixture. The successful hosted run closes
+the final Phase 3 gate; the full installation checkpoint follows it.
 Items 1–9 are implemented and locally validated; they are not included in the
 immutable Hearth Test 0.3.0 distribution. Hearth Preview 0.3.4 is published and
 installed locally. See [local acceptance](evidence/phase3-local-2026-10-16.json)
@@ -29,8 +32,9 @@ appended a URL to the prefilled signed-in Join address. Core/browser jobs,
 Linux/macOS desktop jobs and all three Phase 3 packaged-client suites passed.
 The test now replaces the address and asserts its exact value; all
 [42 corrected local UI checks](evidence/phase3-ui-correction-2026-10-17.json) pass
-against current 0.3.4 product source. Hosted closeout
-remains open, with no automatic retry authorized. See the [run record](evidence/phase3-hosted-2026-10-17.json).
+against current 0.3.4 product source. That frozen run's failure is retained in
+its [run record](evidence/phase3-hosted-2026-10-17.json); the separately requested
+final full run above passes without changing that historical result.
 The later 0.3.4 setup checkpoint slice is not covered by that frozen-source run.
 The [0.3.4 checkpoint slice](evidence/host-join-checkpoint-2026-10-17.json) removes
 the desktop Node prerequisite and adds protected local owner authorization. Its
@@ -41,8 +45,8 @@ remain checkpoint work.
 Existing implementation and dated evidence are in [the development guide](PHASE3_DEVELOPMENT.md).
 
 The [Actions budget standard](CI_STANDARD.md) applies to every item: validate locally
-first and keep hosted workflows manual-only. Request the final-source cross-platform
-run at closeout; do not spend hosted minutes on each feature, push or PR.
+first and keep hosted workflows manual-only. The final-source full run was
+explicitly requested and passed; future runs still require a new request.
 
 ## Ordered checklist
 
@@ -108,30 +112,20 @@ run at closeout; do not spend hosted minutes on each feature, push or PR.
    opt-in, actual provider acceptance, OS notification display, click navigation
    and disabling delivery. Notifications remain generic and content-free. Local
    push fixtures alone do not close this item.
-12. [ ] **Complete current cross-platform acceptance, then close Phase 3.**
-   Final local closeout on October 17 passes all 54 expanded UI outcomes after
-   fixing the forum-navigation readiness race, along with 94 HTTP/private-S3,
-   19 Windows packaged, Rust/web/WASM and Windows native regression checks.
-   See the [source-bound closeout evidence](evidence/phase3-closeout-local-2026-10-17.json).
-   The final `full` hosted run on the corrected Phase 3 branch awaits an explicit
-   request under the Actions budget policy; it has not been dispatched.
-   Local validation and manual-only budget controls pass. The user
-   authorized one full hosted milestone run on 2026-10-16 after the startup fix;
-   it failed Linux desktop compilation. That dependency correction passes locally.
-   The user approved one corrected full milestone on October 17; run
-   [39070916430](https://github.com/KBHarris/hearth/actions/runs/39070916430) tests frozen
-   Preview 0.3.3. Core/browser jobs, Linux/macOS desktop jobs and every platform's
-   Phase 3 packaged suite passed. Windows community UI timed out after 22 checks
-   because the fixture appended to a prefilled address; the replacement-input
-   correction passes all 42 local UI checks on the current 0.3.4 product source.
-   This does not change the frozen hosted result. Windows native media acceptance was
-   consequently skipped. No automatic retry is authorized. Run current Windows, macOS
-   and Linux packaged runtime acceptance against
-   the final Phase 3 source, including the new features and existing permission,
-   reporting, retention and account-departure coverage. Investigate a hosted job
-   startup failure if it recurs; older green artifacts do not validate this build.
-   Fix remaining failures, record results and confirm preceding items pass, are user-accepted or have explicit preview waivers
-   before marking Phase 3 complete.
+12. [x] **Complete current cross-platform acceptance, then close Phase 3.**
+   The explicitly requested [full run 39098465058](https://github.com/KBHarris/hearth/actions/runs/39098465058)
+   passes all 14 jobs on source `53659dd`, including the final acceptance gate.
+   Windows, macOS and Linux each pass 16 Phase 3 packaged outcomes with complete
+   fixture cleanup. Windows UI passes 42 checks, HTTP/private-S3 passes 94, and
+   Chrome/Firefox/Safari each pass their 17-check browser fixture. Windows/macOS
+   native media checks pass; Linux retains its documented unsupported native
+   capability result and supported-browser fallback. See the
+   [verified final hosted evidence](evidence/phase3-final-hosted-2026-10-18.json).
+   The [local closeout](evidence/phase3-closeout-local-2026-10-17.json) additionally
+   passes 54 expanded UI and 19 Windows/private-S3 packaged outcomes, plus
+   Rust/web/WASM/native checks. The preceding checklist items are measured,
+   user-accepted or explicitly waived for the preview. Earlier failed runs
+   remain recorded separately; no automatic retry was used for this final run.
 
 ## Following Phase 3
 
