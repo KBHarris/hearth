@@ -166,8 +166,17 @@ async function verifyForumUi(owner,buddy,checks){
   await pace(owner);await owner.findElement(By.xpath('//button[text()="Add channel"]')).click()
   await owner.wait(async()=>await owner.findElements(By.css('[data-channel-name="forum"]')).then(e=>e.length>0),30000)
   await closePanel(owner)
-  for(const client of [owner,buddy]){await client.wait(async()=>await client.findElements(By.css('[data-channel-name="forum"]')).then(e=>e.length>0),30000);await client.findElement(By.css('[data-channel-name="forum"]')).click()}
-  await owner.wait(async()=>await owner.findElement(By.xpath('//button[text()="New post"]')).isEnabled(),30000)
+  for(const client of [owner,buddy]){
+    await client.wait(async()=>await client.findElements(By.css('[data-channel-name="forum"]')).then(e=>e.length>0),30000)
+    await client.findElement(By.css('[data-channel-name="forum"]')).click()
+    // Channel opening includes async MLS work. Absence is a pending render, not
+    // a failed lookup; require both the selected forum and encrypted posting.
+    await client.wait(async()=>{
+      const headings=await client.findElements(By.css('.conversation-header strong'))
+      const buttons=await client.findElements(By.xpath('//button[text()="New post"]'))
+      return headings.length>0 && (await headings[0].getText())==='# forum' && buttons.length>0 && await buttons[0].isEnabled()
+    },30000,'Forum navigation and encrypted posting must be ready before creating a post')
+  }
   assert.equal((await owner.findElements(By.id('message-text'))).length,0)
   await pace(owner);await owner.findElement(By.xpath('//button[text()="New post"]')).click()
   await owner.findElement(By.id('post-title')).sendKeys('Weekend plans')
