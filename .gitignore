@@ -14,6 +14,7 @@ crates/hearth-wasm/pkg/
 apps/client/src/crypto/generated/
 
 # Env / secrets
+.release-keys/
 .env
 deploy/.env
 deploy/data/

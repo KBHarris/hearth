@@ -1,0 +1,114 @@
+{
+  "measuredAt": "2026-10-17T14:57:02.340Z",
+  "outcome": "pass",
+  "scope": "Local Host/Join checkpoint slice for Preview 0.3.4; full checkpoint remains open",
+  "sourceFiles": {
+    "apps/client/src/AuthPanel.tsx": "e9eff69733a738b07aeb531e2751aa40588357f33e7d11f1c6fdc1973b63cfb0",
+    "apps/client/src/HostingPanel.tsx": "aac729dca3f71b8d9aa43daca2d5785129b97c762eb5f1750f1d7291b4f56e4f",
+    "apps/desktop/src-tauri/src/host_enrollment.rs": "cda7747e887aa3c970033d39ed74a55268d8710f2f0cb611daa8fe8e1bf096b3",
+    "apps/desktop/src-tauri/src/host_configuration.rs": "d8889b1186127646cc6393f7746b9775d61d94e7b37e89343d1d56d9a1efa415",
+    "apps/desktop/src-tauri/src/hosting.rs": "2ab41353259af6a5a14862ff8cf6c6f851470e5570b65ee829651140631e60c6",
+    "apps/desktop/src-tauri/src/host_backup.rs": "2b2d74419e54f6b2972cf382cce094e42e3637ab8dc86a69cee4a8f56428c98d",
+    "apps/desktop/src-tauri/src/lib.rs": "b2fde7daa64c9dab4c791db91ce0ea0d196131988f77333312b6eb141e5551fb"
+  },
+  "checks": {
+    "web_verify": "pass",
+    "core_fmt_clippy_and_default_tests": "pass",
+    "native_clippy_all_targets": "pass",
+    "native_unit": {
+      "passed": 9,
+      "ignored": 3
+    },
+    "linux_desktop_compile": {
+      "outcome": "pass",
+      "runtime": false,
+      "network": "disabled",
+      "source": "read-only mount of final native sources"
+    },
+    "real_docker_host_lifecycle": {
+      "measuredAt": "2026-10-17T14:55:18.011Z",
+      "checks": {
+        "backup_database_restore_rehearsal_and_identity_check": true,
+        "failed_new_server_restores_database_and_original_identity": true,
+        "interrupted_override_can_be_recovered": true,
+        "missing_configuration_never_regenerates_credentials_over_existing_volumes": true,
+        "modified_bundle_rejected": true,
+        "native_start_stop_status_and_setup_code": true,
+        "only_disposable_project_resources_used": true,
+        "original_configuration_retries_successfully": true,
+        "wrong_database_credentials_are_rejected_without_changing_data_or_configuration": true
+      },
+      "outcome": "pass"
+    },
+    "real_docker_owner_enrollment": {
+      "measuredAt": "2026-10-17T14:49:21.557Z",
+      "checks": {
+        "changed_server_identity_is_rejected": true,
+        "completed_owner_setup_is_rejected": true,
+        "matching_fresh_local_host_retrieves_exact_owner_code": true,
+        "remote_destination_cannot_retrieve_local_owner_code": true,
+        "stopped_host_has_bounded_retryable_failure": true
+      },
+      "outcome": "pass"
+    },
+    "native_cli_configuration_compatibility": {
+      "measuredAt": "2026-10-17T14:55:31.373Z",
+      "outcome": "pass",
+      "checks": {
+        "native_generated_configuration_is_compatible_with_existing_node_cli_without_rewriting_credentials": true
+      }
+    },
+    "browser_ui": {
+      "runtime": "headless Chrome with mock discovery and registration responses",
+      "outcome": "pass",
+      "checks": {
+        "current_client_version_is_visible_at_430px": true,
+        "host_join_choices_fit_an_actual_430px_viewport": true,
+        "malformed_invites_and_bare_codes_are_rejected_before_network_access": true,
+        "cancelled_check_cannot_connect_or_overwrite_the_next_route": true,
+        "degraded_and_incompatible_servers_cannot_continue_or_save_address": true,
+        "editing_a_checked_address_invalidates_the_previous_result": true,
+        "registration_failure_has_working_retry_and_preserves_invite_only_in_memory": true,
+        "current_server_identity_is_preserved_even_when_saved_pins_cannot_be_read": true,
+        "local_owner_handoff_keeps_secret_out_of_dom_and_storage": true,
+        "expired_local_authorization_cannot_submit_owner_creation": true,
+        "cancelled_local_lookup_cannot_restore_owner_authorization": true,
+        "failed_local_owner_lookup_keeps_manual_recovery_available": true
+      },
+      "measuredAt": "2026-10-17T14:50:15.428Z"
+    }
+  },
+  "findingsFixed": [
+    {
+      "finding": "Native Stop could time out before ordered service shutdown finished",
+      "change": "Bounded native stop and backup/restore shutdown budget now 150 seconds for 30-second per-service grace periods",
+      "validation": "Final full real Docker lifecycle/rollback rerun passed"
+    }
+  ],
+  "security": {
+    "secretScanActualFindings": 0,
+    "reviewedSourceFalsePositives": 5,
+    "ownerCode": "Only selected loopback port, matching identity and incomplete setup; memory-only authorization clears on submit, cancellation, expiry or unmount",
+    "configuration": "Existing credentials and matching S3 files preserved; conflicts rejected before writes; guard against regeneration over existing volumes retained",
+    "reviewedHistoryFalsePositives": 6,
+    "additionalFalsePositive": "Recorded SHA-256 of AuthPanel.tsx, independently matched to the source bytes; not a credential"
+  },
+  "pending": [
+    "Automatic runtime and host-package preparation",
+    "Opt-in startup and fresh-host restore UI",
+    "Clean-machine and cross-OS installation/runtime acceptance",
+    "Complete outside-network encrypted messaging acceptance"
+  ],
+  "installedPackage": {
+    "outcome": "pass",
+    "checks": 18,
+    "sourceCommit": "11cd35e9985df0adf3cc96f5554436cbdc554926",
+    "record": "windows-preview-0.3.4-2026-10-17.json"
+  },
+  "publication": {
+    "outcome": "pass",
+    "assets": 11,
+    "distributionSecretFindings": 0,
+    "record": "preview-0.3.4-release-2026-10-17.json"
+  }
+}

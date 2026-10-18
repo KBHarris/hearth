@@ -1,0 +1,37 @@
+.setup-screen { flex: 1; min-height: 0; overflow: auto; padding: 40px 28px; display: grid; align-items: center; }
+.guided-setup { width: 100%; max-width: 540px; margin: 0 auto; text-align: left; }
+.guided-setup h1 { font-size: 28px; font-weight: 600; letter-spacing: -.6px; margin: 10px 0; line-height: 1.25; }
+.guided-setup p { color: var(--text-muted); font-size: 13px; line-height: 1.7; }
+.guided-setup .eyebrow { font-size: 10px; letter-spacing: 1.5px; color: var(--accent); margin-top: 16px; }
+.setup-choices { display: grid; gap: 12px; margin: 28px 0; }
+.app-shell .setup-choice,.panel-dialog .setup-choice { display: flex; align-items: center; gap: 16px; text-align: left; padding: 20px; background: var(--bg-sidebar); }
+.setup-choice > .icon { color: var(--accent); width: 22px; height: 22px; flex-shrink: 0; }
+.setup-choice > .icon:last-child { margin-left: auto; width: 16px; height: 16px; }
+.setup-choice span { display: grid; gap: 6px; }
+.setup-choice strong { font-size: 14px; font-weight: 600; }
+.setup-choice small { font-size: 12px; color: var(--text-muted); margin: 0; line-height: 1.5; }
+.guided-setup .setup-footnote { font-size: 11px; }
+.app-shell .setup-back,.panel-dialog .setup-back { border: 0; background: transparent; padding: 4px 0; color: var(--text-muted); font-size: 12px; }
+.guided-setup form { display: grid; gap: 10px; margin: 24px 0 16px; padding: 0; }
+.guided-setup label { font-size: 12px; }
+.guided-setup input { width: 100%; min-width: 0; color: var(--text); background: #161c17; border: 1px solid #465044; border-radius: 6px; padding: 10px 12px; }
+.guided-setup small { color: var(--text-muted); font-size: 11px; line-height: 1.6; }
+.guided-setup form button { justify-self: start; }
+.guided-setup .notice,.share-invite .notice { border-left: 2px solid var(--accent); padding-left: 12px; font-size: 12px; }
+.setup-error { border-left: 2px solid var(--err); padding-left: 12px; margin: 16px 0; }
+.setup-error p { color: var(--err); margin-bottom: 6px; }
+.setup-result { border-top: 1px solid var(--border); margin-top: 24px; padding-top: 20px; }
+.setup-result h2 { font-size: 17px; margin: 0; }
+.setup-origin { overflow-wrap: anywhere; margin: 6px 0 16px; }
+.setup-checks { padding: 0; list-style: none; margin: 16px 0; font-size: 12px; }
+.setup-checks li { display: flex; justify-content: space-between; align-items: start; gap: 18px; padding: 10px 0; border-bottom: 1px solid var(--border); }
+.setup-checks li > :last-child { text-align: right; flex-shrink: 0; }
+.setup-checks strong { color: var(--ok); font-weight: 500; }
+.share-invite { margin: 16px 0; display: grid; gap: 8px; }
+.share-invite button { justify-self: start; }
+.pending-invite { padding: 12px; border: 1px solid var(--border); border-radius: 6px; margin: 12px 0; font-size: 12px; }
+.pending-invite p { line-height: 1.6; color: var(--text-muted); }
+.pending-invite button { margin: 4px 4px 0 0; }
+.mobile-invite-handoff { display: none; }
+@media (max-width: 760px) { .mobile-invite-handoff { display: block; padding: 12px 16px 0; } }
+@media (max-width: 480px) { .setup-screen { padding: 24px 18px; } .guided-setup h1 { font-size: 24px; } .app-shell .setup-choice,.panel-dialog .setup-choice { padding: 16px 12px; gap: 12px; } .setup-checks { font-size: 11px; } .setup-checks li { gap: 8px; } }

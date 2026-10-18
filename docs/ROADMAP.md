@@ -2,13 +2,19 @@
 
 The architecture and the reasoning behind it are in [PLAN.md](../PLAN.md). Each phase ends in
 something usable and demoable. A phase isn't done until its **exit criteria** pass in CI.
+The [Actions budget standard](CI_STANDARD.md) applies throughout: local checks first,
+manual-only hosted runs and full platform acceptance at requested milestones.
 
 ```
-P0 Foundations ─► P1 Encrypted DMs ─► P2 Communities ─► P3 Governance ─┬─► P4 Voice/Video
+P0 Foundations ─► P1 Encrypted DMs ─► P2 Communities ─► P3 Governance ─┬─► Host/Join setup ─► P4 Cloud hosting + Voice/Video
                                                                       └─► P5 Federation ─► P6 Bots & Ops ─► P7 Release
 ```
 
-P4 and P5 can run in parallel once P3's permission model is stable.
+Prioritize the Host/Join setup checkpoint after P3. Federation is a later opt-in
+capability; it is not required for friends to join one server. P4 and P5 can run
+in parallel once P3's permission model is stable and the setup checkpoint passes.
+[Haven parity and setup requirements](HAVEN_PARITY_AND_SETUP.md) track the requested
+feature coverage without changing the all-message E2EE requirement.
 
 ---
 
@@ -73,12 +79,9 @@ The real HTTP/product-WASM suite passes 23 outcomes, including existing credenti
 compatibility across build profiles. Packaged Windows/macOS/Linux webviews pass all seven
 messaging outcomes; Linux passes ten isolated repetitions. SQLCipher and OS-store checks,
 browser media regressions, Docker and Podman pass. [ADR 0008](adr/0008-encrypted-direct-messages.md)
-records the slice's scope and limits. The next checkpoint is the
-[two-PC encrypted DM test](TWO_PC_DM_TEST.md) using the prepared Windows installer and
-optional public-IP HTTPS front end. Public certificate issuance and two-house reachability
-remain part of that human test. Phase 2 now uses a separate development checkout;
-PR #2 remains a draft. The original server/data are preserved; the old bundle files
-were replaced by the validated Phase 2 bundle on 2026-10-09.
+records the slice's scope and limits. Historical release reports are available in
+Git history. Current manual testing uses [the latest two-PC guide](TWO_PC_LATEST_TEST.md)
+and fresh server data; older test deployments and profiles have been retired.
 
 - [x] Guided first-run owner creation, closed registration, OPAQUE owner login/logout,
   and PostgreSQL sessions. Test concurrent claims, replay, expiry, restart and revocation.
@@ -121,12 +124,11 @@ hosted Windows UI passes 16 checks (files also have local UI/native and hosted H
 Owner-signed admission, signed history policies, encrypted files/thumbnails/custom emoji,
 reactions/pins/threads, Markdown/mentions/read state, profiles/presence/embeds and local
 search are implemented. [ADR 0012](adr/0012-signed-history-and-encrypted-files.md)
-and [the development guide](PHASE2_DEVELOPMENT.md) record scope and limits.
+records scope and limits.
 
-The versioned `7cc8852` Windows/server bundle passes eight assembled-artifact checks;
-its HTTPS proxy configuration validates. Old Phase 1 bundle files are removed, with the
-running server and data preserved. Follow [the two-PC Phase 2 guide](TWO_PC_PHASE2_TEST.md).
-WAN/clean buddy-PC installation and the separate 50-person/week exit criterion remain open.
+The Phase 2 staging bundle has been superseded by Hearth Test 0.3.0. Follow
+[the current two-PC guide](TWO_PC_LATEST_TEST.md). Clean buddy-PC installation,
+two-house reachability and the separate 50-person/week exit criterion remain open.
 
 - [x] Communities, categories, text/announcement channel records and invites (expiry, max uses).
 - [x] MLS group per channel, server-authorized roster sync and online rekey agent (128-device initial bound).
@@ -146,32 +148,217 @@ attachment canary passes.
 
 ## Phase 3: Governance and moderation
 
-**Goal:** communities can govern themselves safely.
+**Goal:** communities can govern themselves safely, with clear member discovery
+and practical file controls.
 
-- Roles, the permission bitset, channel overrides, and ownership transfer.
-- A content-free audit log.
-- Bans (channel, user, and server-wide), kicks, timeouts, slow mode, and rate limits.
-- Verifiable reports (plaintext + MLS signature + context), and a moderator queue.
-- Retention policies, per-user data export, and account deletion.
-- Onboarding flows, rules screening, and forum channels and polls.
-- Web Push with generic payloads.
+**Phase 3 preview is complete, 2026-10-18.** The
+[final full hosted run](https://github.com/KBHarris/hearth/actions/runs/39098465058)
+passes all 14 jobs on source `53659dd`, including the final acceptance gate.
+Windows, macOS and Linux each pass all 16 Phase 3 packaged outcomes with fixture
+cleanup; Windows community UI passes all 42 checks. The
+[verified final evidence](evidence/phase3-final-hosted-2026-10-18.json) preserves
+the platform and browser reports, including Linux's documented native-media
+capability fallback. The user accepts the buddy test; the provider/OS notification
+preview waiver remains in force. The full Host/Join installation checkpoint is next.
 
-**Exit:** the permission-matrix test suite is green for every endpoint and gateway op. A
-report is verifiable by a moderator. Retention expiry deletes the ciphertext.
+Earlier implementation and validation: work is on `codex/guided-setup`.
+Governance and the new member/file requirements are implemented. The
+[2026-10-16 local acceptance](evidence/phase3-local-2026-10-16.json)
+records 94 HTTP/private-S3, 51 browser and 19 packaged Windows outcomes. The
+first full hosted milestone passed core and browser jobs, but failed Linux
+desktop compilation on an upstream dependency mismatch; Windows/macOS were
+cancelled. The Preview 0.3.3 compatibility pin passes local Linux compilation.
+The October 17 corrected [full run](https://github.com/KBHarris/hearth/actions/runs/39070916430)
+on frozen Preview 0.3.3 passed all core/browser jobs, Linux/macOS desktop jobs and
+all three Phase 3 packaged suites. Windows community UI failed after 22 checks
+when the fixture appended to a prefilled server address; a local test correction
+replaces that value and passes all [42 local UI checks](evidence/phase3-ui-correction-2026-10-17.json)
+against current 0.3.4 product source. Windows native media acceptance was skipped
+in that earlier run. The separately requested final run above closes hosted
+acceptance and retains the earlier failure as historical evidence. The user confirmed public HTTPS
+health from a phone on cellular on October 17 and subsequently accepted the buddy
+test by instruction. Actual provider/OS notification delivery retains its preview waiver.
 
-## Phase 4: Voice, video, and events
+Historical governance foundation validation, 2026-10-12: the local real
+HTTP/product-WASM suite passed 90 checks with private S3, covering
+the complete REST inventory, every gateway operation, signed account departure,
+linked-session revocation, erasure, restart retry and physical file deletion.
+Packaged Windows acceptance passes all 17 checks with private S3 including forums, polls, selected
+reports, delegated moderation, ownership handoff in both directions and account
+departure. The native shutdown-barrier regression also passes.
 
-**Goal:** E2EE real-time media. It depends on P3 permissions and the Spike B decision.
+The second menu pass includes paperclip attachments, automatic address-derived
+link cards with a display setting, compact actions, aligned checkboxes, permission
+rows, empty states and explicit ownership device selection. Successor-authority
+ordering and newly created channel opening are fixed. Channel changes made on
+another device now appear in the sidebar without resetting management forms.
+All 41 two-client browser/private-S3 checks pass, including forums/replies, reports,
+polls, account privacy, exact deletion confirmation and narrow layout. Setup is
+paced under the real server rate limits. Dated sanitized local reports are linked
+from [PROGRESS.md](PROGRESS.md).
+The 2026-10-12 hosted attempts returned `startup_failure` before any jobs started,
+including a manual dispatch; the API gave no reason. Final-source macOS/Linux
+packaged acceptance now passes in the completed run above. The earlier `e5c99a8` checkpoint passes all twelve hosted jobs in
+[run 38205711382](https://github.com/KBHarris/hearth/actions/runs/38205711382),
+which does not validate the newest Phase 3 additions.
 
-- Add LiveKit and coturn to Compose. The server mints LiveKit tokens after permission checks.
-- SFrame keys come from the MLS exporter and rotate on every join and leave.
+See [the development guide](PHASE3_DEVELOPMENT.md),
+[the permission matrix](PHASE3_PERMISSION_MATRIX.md),
+[governance ADR](adr/0013-signed-community-governance.md),
+[ownership ADR](adr/0014-community-ownership-transfer.md),
+[reports ADR](adr/0015-selected-encrypted-reports.md) and
+[account departure ADR](adr/0016-signed-account-departure.md).
+
+- [x] Menu and navigation structure: persistent communities/channels, focused
+  management panels, Add Server, keyboard focus/Escape and preserved drafts/keys.
+- [x] Final menu polish, all 54 expanded local two-client/private-S3 UI checks and
+  all 42 hosted Windows community UI checks.
+- [x] Owner-signed roles, active permission bits, assignments and channel overrides;
+  rollback/tamper rejection and epoch-bound history authorization.
+- [x] READ revocation across REST and gateway, with MLS audience removal before publishing.
+- [x] Content-free governance audit log and owner management UI.
+- [x] Owner-managed community/channel bans, timeouts, serialized slow mode and abuse limits.
+- [x] Signed rules and read-only screening with renewed consent after changes.
+- [x] Signed retention, immediate filtering, database expiry and retry-digest preservation.
+- [x] Physical private-S3 retention expiry and account-deletion erasure acceptance.
+- [x] Ownership transfer: ordering regression, two-client and packaged Windows acceptance.
+- [x] Delegated moderation, kicks, private blocks and operator bans; complete permission matrix.
+- [x] Verifiable selected reports and encrypted moderator queue.
+- [x] Per-user data export and signed account deletion, including physical S3 erasure.
+- [x] Forum channels and encrypted polls.
+- [x] Generic Web Push encryption, bounded delivery queue, opt-in settings and local checks.
+- [x] Raise file uploads to 50 MB across the client, encrypted protocol and hosting stack.
+- [x] Server-owner file deletion, with explicit authority, revoked reads and physical ciphertext cleanup.
+- [x] Visible **Server Members** sidebar with circular avatars, names and role labels;
+  use authorized membership data without Online/Offline grouping.
+- [x] Clickable member profile modal with identity fingerprint, profile details and roles.
+- [x] Updated regression coverage and published Preview 0.3.4 Windows/server package;
+  guarded host startup, installed version display and local port 8080 default.
+- [x] Buddy-PC/two-house acceptance accepted by user instruction on 2026-10-17,
+  superseding the preview waiver; [manual record](evidence/phase3-manual-acceptance-2026-10-17.json).
+  No independent telemetry or all-OS clean-machine pass is claimed.
+- [x] Provider/OS notification acceptance waived by the user for this preview on 2026-10-16; unverified.
+- [x] Hosted cross-platform and packaged desktop Phase 3 acceptance. The
+  [final full run](evidence/phase3-final-hosted-2026-10-18.json) passes all 14 jobs
+  on source `53659dd`, including all three Phase 3 packaged suites and the final gate.
+  The [final local closeout](evidence/phase3-closeout-local-2026-10-17.json) passes
+  94 HTTP/private-S3, 54 expanded two-client UI and 19 Windows packaged outcomes,
+  including the corrected forum navigation fixture. Rust/web/WASM/native checks
+  pass. The successful hosted closeout retains the accepted buddy test and
+  explicit provider/OS notification preview waiver.
+- [x] Manual-only Actions budget controls and local policy checks. The final
+  full hosted milestone was explicitly requested and passed; any further hosted
+  run requires a new request.
+
+Work through the unchecked items in the exact order and scope defined by
+[the Phase 3 remaining-work checklist](PHASE3_REMAINING.md).
+
+**Exit:** the permission-matrix test suite is green for every endpoint and gateway op.
+A report is verifiable by a moderator. Retention expiry deletes the ciphertext.
+The new member/file requirements and remaining acceptance items pass, subject to
+the user-accepted buddy test and explicit real-notification preview waiver recorded above.
+
+## Checkpoint after Phase 3: Simple Host/Join setup
+
+**Goal:** Install → Host or Join → Share an invite, without a terminal or manually
+installed development dependencies. This moves essential user-facing operations
+ahead of media expansion; advanced deployment remains available.
+
+The [guided setup pass](GUIDED_SETUP.md) adds Host/Join entry points, real
+readiness for an existing host, identity-checked account/community invitations
+and a handoff through account creation and signed community admission. Windows
+native invite handoff, UI host controls and signed updates are implemented.
+Dependency installation, startup enrollment, fresh-host restore and clean-machine
+acceptance remain open. Public HTTPS health was confirmed from cellular; a complete
+outside-network encrypted messaging test is accepted by user instruction for the
+Phase 3 preview. Automated outside-reachability checks and all-OS clean-machine
+installation acceptance remain open.
+
+- [x] Host/Join client entry and explicit confirmation after checking an address.
+- [x] Pretty invite code carries server identity, account and community admission,
+  with a separate server address at the user's request; capabilities stay in
+  memory, with existing device approval preserved. Old links remain compatible.
+
+- [ ] A normal installer prepares services, storage, migrations and server identity;
+  owner enrollment and joining happen in the UI.
+- [ ] Guided local/internet hosting checks firewall, routing, HTTPS and actual outside
+  reachability. Diagnose CGNAT and loopback limitations with useful recovery actions.
+- [ ] Evaluate an optional tunnel/relay with explicit provider and web-client trust
+  boundaries; preserve all-message encryption.
+- [ ] One invite opens the correct server/community and explains approved-device
+  admission when a member cannot yet access encrypted channels.
+- [ ] Background hosting, opt-in startup, data-preserving retry, update, backup and
+  fresh-host restore are ordinary UI operations.
+- [ ] Clean-PC installation, two-house encrypted DMs, reboot persistence, failed-setup
+  recovery, update and restore receive actual Windows/macOS/Linux acceptance.
+
+**Exit:** a nontechnical host and friend complete the above flow without developer
+tools, manual commands or secrets in diagnostic exports. See
+[the detailed installation standard](HAVEN_PARITY_AND_SETUP.md).
+
+## Phase 4: Cloud hosting, voice, video, and events
+
+**Goal:** a reproducible hosted Hearth deployment with an optional browser client,
+plus E2EE real-time media with direct peer-to-peer calls and relay options. It
+depends on P3 permissions, the Host/Join checkpoint and the Spike B decision.
+Scope expanded 2026-10-16; the items below are planned, not deployed or validated.
+See [the Phase 4 hosting and media plan](PHASE4_HOSTING_AND_MEDIA.md) for work order,
+provider boundaries, bootstrap behavior and acceptance requirements.
+
+### Hosted deployment and browser client
+
+- [ ] Add Railway native IaC for the backend, PostgreSQL, private attachment bucket
+  and persistent server-key volume, with an optional browser-client service.
+- [ ] Add a guided deployment command for project selection, plan/apply, build/deploy,
+  generated HTTPS addresses, configuration wiring, readiness checks and owner setup.
+  Retry preserves resources, accounts and keys; credentials stay out of source/logs.
+- [ ] Make S3 bucket name, region, URL style and existing-bucket behavior configurable;
+  verify Railway buckets alongside the bundled SeaweedFS store, private presigned
+  transfers, browser CORS, 50 MB uploads, retention and owner-authorized deletion.
+- [ ] Package the production web client with crypto/WASM, correct backend and gateway
+  addresses, exact allowed origins, HTTPS, SPA navigation and safe asset updates.
+  Desktop-only hosting must work without deploying the website.
+- [ ] Add hosted backup/restore and update/recovery procedures that preserve PostgreSQL,
+  encrypted objects and matching server authentication keys. Verify on a fresh host.
+- [ ] Verify a fresh real Railway deployment, independent-network browser/desktop
+  messaging and files, idempotent retry and redeploy persistence. Keep hosted execution
+  explicitly requested and budgeted under [the Actions standard](CI_STANDARD.md).
+
+### Media and events
+
+- [ ] Add authenticated WebRTC signaling for direct P2P voice/video/screen sharing
+  in small calls, STUN/TURN fallback and a relay-only privacy option. Direct media
+  bypasses Railway; direct participants can learn each other's network addresses.
+- [ ] Keep LiveKit as the optional SFU for larger rooms/streams; define measured mesh
+  limits and safe transitions without weakening permissions or encryption.
+- [ ] Add LiveKit and coturn to the self-hosted Compose option. Evaluate LiveKit's
+  embedded TURN before requiring duplicate relay infrastructure. Railway deployment
+  must support a separately hosted SFU/TURN or managed media endpoint; do not assume
+  its public HTTPS/TCP networking provides the required public UDP reachability.
+- [ ] The server authorizes signaling and mints bounded room/device-scoped media tokens
+  and short-lived TURN credentials; provider API secrets remain server-side.
+- [ ] Media keys come from the MLS exporter and rotate on every join and leave.
+  Authenticate peer identity, reject stale/unauthorized participants and block
+  publication when encryption is unavailable. SFrame interoperability is still a
+  validation gate under [ADR 0004](adr/0004-media-feasibility.md).
 - Voice channels, 1:1 and group calls, video, and screen share with audio.
 - Go-live streaming and stage channels (speaker and audience roles).
 - Scheduled events with RSVP.
-- Canary test: the SFU's recorded packets contain no decodable media.
+- Simultaneous screen sharing, per-app audio where supported, mid-call device switching,
+  and clear microphone/speaker controls, verified separately on each platform.
+- Watch parties and synchronized listening; opt-in Spotify, YouTube and SoundCloud
+  integrations need explicit playback and identity designs.
+- [ ] Test actual direct, TURN and SFU paths, cross-house/NAT/firewall conditions,
+  relay-only IP privacy, reconnects, permission revocation and topology changes.
+- [ ] Canary tests: signaling, TURN/SFU captures, logs and storage contain no media
+  keys or decodable media. Record measured CPU, client upload and media egress costs.
 
-**Exit:** a 25-person voice room plus a screen share is stable on all three desktop platforms
-and in two browsers.
+**Exit:** a fresh Railway deployment serves encrypted chat/files to desktop and optional
+browser clients; retry, update and restore preserve identity and data. Direct P2P,
+TURN fallback and relay-only calls pass real-network encryption/permission checks.
+A 25-person SFU voice room plus a screen share is stable across the supported desktop
+and browser paths, with Linux browser fallback as specified by ADR 0004. Hosted
+provisioning, real-network media and the final platform suite have separate evidence.
 
 ## Phase 5: Federation
 
@@ -194,10 +381,18 @@ adversarial tests.
 - Bot accounts, capability grants, the bot event API, and the Rust and TS SDKs. The SDKs are
   permissively licensed, depend only on proto and crypto, and have the dependency rule
   enforced in CI (ADR 0001).
+- Webhooks and commands with explicit encrypted-conversation capabilities; content
+  automod/link filtering runs only in an authorized moderator client or admitted bot.
+- Discord import and bidirectional bridge with honest provenance and explicit disclosure.
+- Opt-in Steam/Last.fm rich presence and other integrations with scoped permissions.
 - The opt-in public directory service.
 - Operations: backup and restore, upgrade tooling (migrations and rollbacks), and
   content-free metrics and structured logs.
-- Admin UI completeness, and the documentation site.
+- Admin UI completeness, and the documentation site. Network-abuse controls, SSO/MFA,
+  guest access and rotating invites require designs compatible with local encryption keys.
+- Themes, stickers, personas, soundboard, avatar styling, server branding, density and
+  localization. Plugins require a permissions/trust design; keep the default UI coherent.
+- Additional generic notification adapters, including evaluation of UnifiedPush.
 
 **Exit:** an example bot works through the SDK. A backup is restored onto a fresh host. An
 upgrade from N-1 passes.
@@ -206,6 +401,7 @@ upgrade from N-1 passes.
 
 - Reproducible builds, signed installers (Authenticode, Apple notarization, and a Linux AppImage
   or Flatpak), and SBOMs.
+- Tray, native notifications and background behavior verified on each platform.
 - The final threat model, privacy docs, the deployment guide, and `SECURITY.md` with a
   disclosure process.
 - A public beta with community security review, and a bug bounty or disclosure program.

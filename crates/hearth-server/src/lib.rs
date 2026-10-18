@@ -3,16 +3,25 @@
 //! The server never sees plaintext content. It stores ciphertext envelopes and opaque
 //! blobs, enforces membership and permissions, and orders MLS commits for groups it hosts.
 
+mod account_departure;
 pub mod attachments;
 pub mod auth;
 pub mod community;
 pub mod config;
+mod data_export;
 pub mod delivery;
 pub mod device;
 pub mod gateway;
+mod governance;
+mod invites;
 pub mod keys;
+mod ownership;
+pub mod push;
 pub mod registration;
+mod reports;
+pub mod retention;
 pub mod routes;
+mod safety;
 
 use std::sync::Arc;
 

@@ -1,0 +1,12 @@
+{
+  "measuredAt": "2026-10-17T03:44:18.505Z",
+  "outcome": "pass",
+  "checks": {
+    "normal_profile_installed_version_is_0_3_2": true,
+    "host_controls_use_configured_port_8080": true,
+    "existing_host_running": true,
+    "native_app_update_check_reports_current_client": true,
+    "native_server_update_check_offers_signed_0_3_2": true
+  },
+  "localAddressChanged": false
+}

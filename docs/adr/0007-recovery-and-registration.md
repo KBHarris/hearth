@@ -36,7 +36,7 @@ session ends. A linked client clears the wrapping material after enrollment.
 
 ## Evidence and limits
 
-[Local acceptance](../evidence/recovery-registration-wasm-native-2026-10-07.json)
+Local acceptance (historical report in Git history)
 records fifteen outcomes, including actual OPAQUE second-account creation and
 concurrent single-use invitation claims. PostgreSQL tests separately exercise
 expired links, signature forgery and identity substitution. This does not establish

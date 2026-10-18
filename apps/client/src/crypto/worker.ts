@@ -23,6 +23,7 @@ self.onmessage = async ({ data }: MessageEvent<Request>) => {
           client[operation](password, data.response!, data.username!, data.serverId!)
     self.postMessage({ id: data.id, result })
   } catch (error) {
+    if(import.meta.env.DEV&&typeof error==='string'&&['commit_proof','commit_authorization', 'commit_auth_proofs', 'commit_auth_missing', 'commit_auth_ancestor', 'commit_auth_historical_proof', 'commit_auth_historical_channel', 'commit_auth_historical_policy', 'commit_auth_invite', 'commit_auth_root', 'commit_auth_departures', 'commit_auth_policy', 'commit_auth_governance','commit_accept','commit_roster','commit_rollback','commit_epoch','commit_mls','commit_members','commit_snapshot','commit_history'].includes(error))console.warn('Encrypted commit stage failed: '+error)
     // Only fixed classes cross the worker boundary; exception text can contain secrets.
     const message=error instanceof Error?error.message:''
     let failure:CryptoFailure=error==='Authentication exchange rejected'?'auth_protocol':'crypto_unknown'

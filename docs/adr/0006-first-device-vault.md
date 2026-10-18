@@ -53,14 +53,14 @@ authentication, account/server binding, competing initial claims, idempotent ret
 replacement and additional-device rejection, and revoked sessions. Product WASM/native
 HTTP acceptance restores the same identity after a fresh login and server restart and
 confirms that no vault ciphertext or password is sent to the server. The dated report is
-[identity-vault-wasm-native-2026-10-07.json](../evidence/identity-vault-wasm-native-2026-10-07.json).
+identity-vault-wasm-native-2026-10-07.json (historical report in Git history).
 
 Local Chromium UI checks observed first enrollment, identical fingerprints after sign-out
 and sign-in, and an unlinked fresh browser origin. The final screenshot and post-reload
 sign-in check were blocked when browser access changed. Windows native OS-store acceptance
 exercises create/read, a new process reading the same entry, preservation against alternate
 writes, damaged-entry preservation and cleanup; see the
-[Windows report](../evidence/local-vault-windows-2026-10-07.json). This CLI check is not packaged webview
+Windows report (historical report in Git history). This CLI check is not packaged webview
 authentication proof. macOS store acceptance runs in CI; Linux store runtime and packaged
 authentication remain separate validation gates. Build success alone does not close them.
 

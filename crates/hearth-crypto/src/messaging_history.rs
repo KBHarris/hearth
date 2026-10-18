@@ -13,7 +13,16 @@ pub(super) struct Request {
 struct EpochKey {
     epoch: u64,
     key: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    authorization: Option<String>,
 }
+#[derive(Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+struct HistoryBundle {
+    keys: Vec<EpochKey>,
+    authorizations: BTreeMap<String, ChannelAuthorization>,
+}
+
 fn array(value: &str) -> Result<[u8; 32], String> {
     fail(decode(value)?.try_into())
 }
@@ -26,7 +35,11 @@ fn scope(server: &str, id: &str, request: &str, device: &str) -> Result<Vec<u8>,
         device,
     )))
 }
-fn shared(secret: &StaticSecret, public: &str, aad: &[u8]) -> Result<Zeroizing<[u8; 32]>, String> {
+pub(super) fn shared(
+    secret: &StaticSecret,
+    public: &str,
+    aad: &[u8],
+) -> Result<Zeroizing<[u8; 32]>, String> {
     let shared = Zeroizing::new(
         secret
             .diffie_hellman(&PublicKey::from(array(public)?))
@@ -37,7 +50,7 @@ fn shared(secret: &StaticSecret, public: &str, aad: &[u8]) -> Result<Zeroizing<[
     fail(Hkdf::<Sha256>::new(None, &*shared).expand(aad, &mut *key))?;
     Ok(key)
 }
-fn encrypt(key: &[u8; 32], aad: &[u8], plaintext: &[u8]) -> Result<String, String> {
+pub(super) fn encrypt(key: &[u8; 32], aad: &[u8], plaintext: &[u8]) -> Result<String, String> {
     let mut nonce = [0; 24];
     OsRng.fill_bytes(&mut nonce);
     let mut wire = nonce.to_vec();
@@ -50,7 +63,11 @@ fn encrypt(key: &[u8; 32], aad: &[u8], plaintext: &[u8]) -> Result<String, Strin
     ))?);
     Ok(hex::encode(wire))
 }
-fn decrypt(key: &[u8; 32], aad: &[u8], wire: &str) -> Result<Zeroizing<Vec<u8>>, String> {
+pub(super) fn decrypt(
+    key: &[u8; 32],
+    aad: &[u8],
+    wire: &str,
+) -> Result<Zeroizing<Vec<u8>>, String> {
     let wire = decode(wire)?;
     require(wire.len() >= 40)?;
     Ok(Zeroizing::new(fail(
@@ -197,7 +214,7 @@ impl Messaging {
                     .remove(0);
                 return Ok(None);
             };
-            let keys = this
+            let mut keys = this
                 .state
                 .history_keys
                 .get(id)
@@ -206,11 +223,32 @@ impl Messaging {
                         .map(|(&epoch, key)| EpochKey {
                             epoch,
                             key: key.clone(),
+                            authorization: None,
                         })
                         .collect::<Vec<_>>()
                 })
                 .unwrap_or_default();
-            let plaintext = Zeroizing::new(fail(serde_json::to_vec(&keys))?);
+            let plaintext = if auth.governance.is_none() {
+                fail(serde_json::to_vec(&keys))?
+            } else {
+                let snapshots = this.state.epoch_authorizations.get(id).ok_or(ERROR)?;
+                let mut authorizations = BTreeMap::new();
+                for key in &mut keys {
+                    let bound = snapshots
+                        .get(&key.epoch)
+                        .or_else(|| snapshots.values().find(|a| a.governance.is_none()))
+                        .ok_or(ERROR)?;
+                    let hash = hex::encode(Sha256::digest(fail(serde_json::to_vec(bound))?));
+                    authorizations.insert(hash.clone(), bound.clone());
+                    key.authorization = Some(hash);
+                }
+                fail(serde_json::to_vec(&HistoryBundle {
+                    keys,
+                    authorizations,
+                }))?
+            };
+            require(plaintext.len() <= 100_000)?;
+            let plaintext = Zeroizing::new(plaintext);
             let secret = StaticSecret::random_from_rng(OsRng);
             let public_key = hex::encode(PublicKey::from(&secret).as_bytes());
             let device_key = request.member.enrollment.device_key.clone();
@@ -290,7 +328,43 @@ impl Messaging {
                 let aad = scope(&self.server, id, &request_id, &device_key)?;
                 let key = shared(&secret, &public_key, &aad)?;
                 let plaintext = decrypt(&key, &aad, &ciphertext)?;
-                let keys: Vec<EpochKey> = fail(serde_json::from_slice(&plaintext))?;
+                let value: serde_json::Value = fail(serde_json::from_slice(&plaintext))?;
+                let (keys, authorizations) = if value.is_array() {
+                    (
+                        fail(serde_json::from_value::<Vec<EpochKey>>(value))?,
+                        BTreeMap::new(),
+                    )
+                } else {
+                    let bundle: HistoryBundle = fail(serde_json::from_value(value))?;
+                    (bundle.keys, bundle.authorizations)
+                };
+                require(authorizations.len() <= 512)?;
+                let current = self.state.channels.get(id).ok_or(ERROR)?.clone();
+                for (hash, auth) in &authorizations {
+                    require(
+                        *hash == hex::encode(Sha256::digest(fail(serde_json::to_vec(auth))?))
+                            && crate::community::authority_descends(
+                                &current.authority,
+                                &auth.authority,
+                            ),
+                    )?;
+                    crate::community::verify_authorization(&self.server, id, auth, &[])?;
+                }
+                for record in &keys {
+                    if let Some(hash) = &record.authorization {
+                        let auth = authorizations.get(hash).ok_or(ERROR)?;
+                        let saved = self
+                            .state
+                            .epoch_authorizations
+                            .entry(id.into())
+                            .or_default();
+                        require(saved.get(&record.epoch).is_none_or(|old| old == auth))?;
+                        saved.insert(record.epoch, auth.clone());
+                        require(saved.len() <= 512)?;
+                    } else {
+                        require(current.governance.is_none())?;
+                    }
+                }
                 require(keys.len() <= 512)?;
                 let floor = self.history_floor(id, &self.own)?;
                 for record in &keys {
@@ -337,10 +411,22 @@ impl Messaging {
                 let archive = upload.archive.as_ref().ok_or(ERROR)?;
                 verify_member(&archive.member, &this.server)?;
                 require(archive.member.enrollment.device_key == upload.device_key)?;
-                let auth = this.state.channels.get(id).ok_or(ERROR)?;
+                let auth = this
+                    .state
+                    .epoch_authorizations
+                    .get(id)
+                    .and_then(|e| e.get(&upload.epoch))
+                    .or_else(|| {
+                        this.state
+                            .channels
+                            .get(id)
+                            .filter(|a| a.governance.is_none())
+                    })
+                    .cloned()
+                    .ok_or(ERROR)?;
                 require(
-                    crate::community::authorized(auth, &archive.member)
-                        && channel_action_allowed(auth, &archive.member.account_id, upload.action),
+                    crate::community::authorized(&auth, &archive.member)
+                        && channel_action_allowed(&auth, &archive.member.account_id, upload.action),
                 )?;
                 require(!matches!(
                     upload.action,
@@ -352,8 +438,16 @@ impl Messaging {
                     &archive_aad(&this.server, id, upload)?,
                     &archive.ciphertext,
                 )?;
-                let content: MessageContent = fail(serde_json::from_slice(&plaintext))?;
+                let content = this.decode_content(id, upload, &archive.member, &plaintext)?;
                 validate_content(&content)?;
+                require(content_channel_allowed(Some(&auth), &content))?;
+                if matches!(content, MessageContent::Attachment { .. }) {
+                    require(
+                        crate::community::permissions(&auth, &archive.member.account_id, u64::MAX)
+                            & hearth_proto::governance::ATTACH
+                            != 0,
+                    )?;
+                }
                 require(content_metadata(&content) == (upload.action, upload.target_id.clone()))?;
                 let already_live = this
                     .state

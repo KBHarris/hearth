@@ -143,7 +143,7 @@ Native storage calls hold fixture operation leases through their blocking work. 
 rejects new calls and waits for existing calls before removing test credentials/files;
 an aborted JavaScript promise does not cancel a running native call. A regression test
 checks this ordering, and reports distinguish drained calls, credentials and files with
-boolean outcomes. [Optimized Linux evidence](../evidence/optimized-wasm-linux-repetitions-2026-10-08.json)
+boolean outcomes. Optimized Linux evidence (historical report in Git history)
 records all ten independent runs.
 
 Primary references checked 2026-10-07:

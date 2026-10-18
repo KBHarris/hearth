@@ -26,6 +26,15 @@ hearth-proto.workspace = true
 serde.workspace = true
 serde_json.workspace = true
 tauri = { version = "2", features = [] }
+tauri-plugin-dialog = "2"
+tauri-plugin-updater = "2"
+# 2.6.2 fails on Linux with current rust-ini; upstream workaround: plugins-workspace#3710.
+tauri-plugin-deep-link = "=2.6.1"
+tauri-plugin-single-instance = { version = "2", features = ["deep-link"] }
+base64 = "0.22"
+minisign-verify = "0.3"
+reqwest = { version = "0.12", default-features = false, features = ["blocking", "json", "rustls-tls"] }
+semver = "1"
 # Matches SQLx 0.8's libsqlite3-sys link version; one sqlite3 implementation per graph.
 rusqlite = { version = "=0.32.1", features = ["bundled-sqlcipher-vendored-openssl"] }
 zeroize = "1"

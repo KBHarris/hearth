@@ -54,7 +54,7 @@ export async function verifyHistory({alice,bob,carol,linked,request,json,op,view
     const allHistory=channel.history==='full'||install.session.account.id===alice.session.account.id
     assert.equal(page.value.items.length,allHistory?2:1)
     assert.equal((await request(`/api/v1/chat/conversations/${id}/history?device=${carol.identity.enrollment.device_key}&after=0`,undefined,install.session.token)).status,403)
-    const forged=structuredClone(page.value.items[0]);forged.archive.ciphertext='00'+forged.archive.ciphertext.slice(2)
+    const forged=structuredClone(page.value.items[0]);forged.archive.ciphertext=(parseInt(forged.archive.ciphertext.slice(0,2),16)^1).toString(16).padStart(2,'0')+forged.archive.ciphertext.slice(2)
     assert.throws(()=>json(install.client,'import_history',{id,uploads:[forged]}))
     json(install.client,'import_history',{id,uploads:page.value.items});op(install.client,'finish_history',id)
     const messages=view(install.client).messages.filter(m=>m.conversation_id===id)

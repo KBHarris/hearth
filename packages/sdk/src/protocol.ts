@@ -4,21 +4,77 @@
 
 export const PROTOCOL_VERSION = 1 as const
 
+export type InviteEnvelope = { nonce: string, ciphertext: string, };
+
+export type StoreInviteEnvelope = { id: string, envelope: InviteEnvelope, };
+
+export type AccountDeparture = { member: GroupMember, operation_id: string, signature: string, };
+
+export type ExportRecord = { cursor: string, data: unknown, };
+
+export type AccountExport = { account: Account, devices: Array<DeviceEnrollment>, communities: Array<Community>, blocks: Array<Account>, records: Array<ExportRecord>, next: string | null, };
+
+export type SenderProof = { server: string, channel_id: string, operation_id: string, epoch: number, member: GroupMember, content: MessageContent, signature: string, };
+
+export type ReportKey = { community_id: string, member: GroupMember, public_key: string, signature: string, };
+
+export type ReportEvidence = { reason: string, selected: Array<SenderProof>, };
+
+export type ReportEnvelope = { id: string, channel_id: string, reporter: GroupMember, recipient: ReportKey, ephemeral: string, ciphertext: string, signature: string, };
+
+export type QueuedReport = { envelope: ReportEnvelope, resolved: boolean, };
+
+export type Role = { id: string, name: string, permissions: number, };
+
+export type RoleAssignment = { account_id: string, role_ids: Array<string>, };
+
+export type OverrideKind = "everyone" | "role" | "member";
+
+export type PermissionOverride = { channel_id: string, kind: OverrideKind, target_id: string, allow: number, deny: number, };
+
+export type SanctionKind = "ban" | "kick" | "timeout";
+
+export type Sanction = { account_id: string, channel_id: string | null, kind: SanctionKind, until: number | null,
+/**
+ * Kicks deny every admission tied to an invitation issued at or before this cutoff.
+ */
+kick_after?: number, };
+
+export type ChannelLimits = { channel_id: string, slowmode_seconds: number, retention_days: number | null, };
+
+export type Governance = { community_id: string, revision: number, everyone: number, roles: Array<Role>, assignments: Array<RoleAssignment>, overrides: Array<PermissionOverride>, sanctions: Array<Sanction>, limits: Array<ChannelLimits>, rules: string, screening: boolean, owner: GroupMember, signature: string,
+/**
+ * A delegated moderator signs a restricted successor of this verified policy.
+ */
+delegation?: Governance, moderator_admission?: CommunityAdmission, };
+
+export type GovernanceView = { admission?: CommunityAdmission, governance: Governance | null, members: Array<Account>, rules_accepted: boolean, };
+
+export type RulesAcceptance = { digest: string, };
+
+export type AuditEntry = { revision: number, actor_id: string, action: string, digest: string, };
+
 export type CreateCommunity = { name: string, };
 
 export type Community = { id: string, name: string, owner_id: string, };
 
 export type Category = { id: string, community_id: string, name: string, };
 
-export type ChannelKind = "text" | "announcement";
+export type ChannelKind = "text" | "announcement" | "forum";
 
 export type CreateChannel = { name: string, category_id: string | null, kind: ChannelKind, };
 
 export type Channel = { id: string, community_id: string, name: string, category_id: string | null, kind: ChannelKind, };
 
-export type ChannelRoster = { community: Community, channel: Channel, people: Array<Person>, authority: CommunityAuthority | null, policy: ChannelPolicy | null, admissions: Array<CommunityAdmission>, invitations: Array<MemberInvitation>, };
+export type ChannelRoster = { community: Community, channel: Channel, people: Array<Person>, authority: CommunityAuthority | null, policy: ChannelPolicy | null, admissions: Array<CommunityAdmission>, departures?: Array<AccountDeparture>, invitations: Array<MemberInvitation>, governance?: Governance, rules_accepted?: boolean, };
 
-export type CommunityAuthority = { community_id: string, owner: GroupMember, signature: string, };
+export type CommunityAuthority = { community_id: string, owner: GroupMember, signature: string, handoff?: OwnershipHandoff, };
+
+export type OwnershipHandoff = { previous: CommunityAuthority, issuer: GroupMember, successor: GroupMember, endorsed: Array<string>, signature: string, };
+
+export type OwnershipAcceptance = { authority: CommunityAuthority, former_owner: CommunityAdmission, governance: Governance, };
+
+export type OwnershipState = { authority: CommunityAuthority, endorsed: Array<string>, offer: OwnershipHandoff | null, };
 
 export type CommunityAdmission = { community_id: string, account_id: string, identity_key: string, owner: GroupMember, history_from: Record<string, number>, signature: string, invitation?: CommunityInvitation, };
 
@@ -30,7 +86,7 @@ export type HistoryPolicy = "none" | "since_invite" | "full";
 
 export type ChannelPolicy = { channel_id: string, community_id: string, kind: ChannelKind, history: HistoryPolicy, revision: number, created_at: number, history_open_for: Array<string>, owner: GroupMember, signature: string, };
 
-export type ChannelAuthorization = { authority: CommunityAuthority, policy: ChannelPolicy, admissions: Array<CommunityAdmission>, };
+export type ChannelAuthorization = { authority: CommunityAuthority, policy: ChannelPolicy, admissions: Array<CommunityAdmission>, departures?: Array<AccountDeparture>, governance?: Governance, };
 
 export type CommunityStructure = { community: Community, categories: Array<Category>, channels: Array<Channel>, authority: CommunityAuthority | null, };
 
@@ -104,9 +160,11 @@ export type DeliveryData = { "kind": "commit", upload: CommitUpload, } | { "kind
 
 export type DeliveryEvent = { seq: number, conversation_id: string, data: DeliveryData, };
 
-export type MessageContent = { "kind": "attachment", text: string, files: Array<EncryptedAttachment>, } | { "kind": "emoji", alias: string, asset: EncryptedAttachment, } | { "kind": "history_request", request_id: string, device_key: string, public_key: string, } | { "kind": "history_share", request_id: string, device_key: string, public_key: string, ciphertext: string, } | { "kind": "text", text: string, reply_to: string | null, } | { "kind": "edit", id: string, text: string, } | { "kind": "delete", id: string, } | { "kind": "typing", active: boolean, } | { "kind": "thread", text: string, parent: string, } | { "kind": "reaction", id: string, emoji: string, active: boolean, } | { "kind": "pin", id: string, active: boolean, } | { "kind": "read", id: string, } | { "kind": "profile", display_name: string, bio: string, } | { "kind": "presence", state: string, until: number, } | { "kind": "rich_text", text: string, reply_to: string | null, embed: LinkEmbed, };
+export type MessageContent = { "kind": "forum_post", title: string, text: string, } | { "kind": "poll", question: string, options: Array<string>, multiple: boolean, parent: string | null, } | { "kind": "poll_vote", id: string, choices: Array<number>, } | { "kind": "poll_close", id: string, } | { "kind": "attachment", text: string, files: Array<EncryptedAttachment>, } | { "kind": "emoji", alias: string, asset: EncryptedAttachment, } | { "kind": "history_request", request_id: string, device_key: string, public_key: string, } | { "kind": "history_share", request_id: string, device_key: string, public_key: string, ciphertext: string, } | { "kind": "text", text: string, reply_to: string | null, } | { "kind": "edit", id: string, text: string, } | { "kind": "delete", id: string, } | { "kind": "typing", active: boolean, } | { "kind": "thread", text: string, parent: string, } | { "kind": "reaction", id: string, emoji: string, active: boolean, } | { "kind": "pin", id: string, active: boolean, } | { "kind": "read", id: string, } | { "kind": "profile", display_name: string, bio: string, } | { "kind": "presence", state: string, until: number, } | { "kind": "rich_text", text: string, reply_to: string | null, embed: LinkEmbed, };
 
-export type LocalMessage = { id: string, conversation_id: string, author_id: string, text: string, reply_to: string | null, edited: boolean, deleted: boolean, thread: string | null, reactions: { [key in string]: Array<string> }, pinned: boolean, embed: LinkEmbed | null, attachments: Array<LocalAttachment>, };
+export type LocalMessage = { id: string, conversation_id: string, author_id: string, text: string, reply_to: string | null, edited: boolean, deleted: boolean, thread: string | null, reactions: { [key in string]: Array<string> }, pinned: boolean, embed: LinkEmbed | null, attachments: Array<LocalAttachment>, topic: string | null, poll: LocalPoll | null, };
+
+export type LocalPoll = { options: Array<string>, multiple: boolean, closed: boolean, votes: { [key in string]: Array<number> }, };
 
 export type LocalProfile = { display_name: string, bio: string, };
 

@@ -1,9 +1,13 @@
+import {verifyForums} from './phase3-forum-acceptance.mjs'
+import {verifyGovernance} from './phase3-governance-acceptance.mjs'
+import {verifyOwnership} from './phase3-ownership-acceptance.mjs'
+import {verifyDelegation} from './phase3-delegation-acceptance.mjs'
 import {verifyAttachments} from './phase2-attachment-acceptance.mjs'
 // Product MLS/WASM, authenticated HTTP, and ordered device delivery; disposable fixtures only.
 import assert from 'node:assert/strict'
 import {verifyHistory} from './phase2-history-acceptance.mjs'
 
-export async function verifyChannels({alice,bob,carol,linked,dmId,request,json,op,view,uploadedPackage,submitted,connect,until,pause,sockets,start,stop,healthy,checks,wire,scanDatabase,storage}) {
+export async function verifyChannels({alice,bob,carol,linked,dmId,request,json,op,view,uploadedPackage,submitted,connect,until,pause,sockets,start,stop,healthy,checks,wire,scanDatabase,storage,retentionFixture}) {
   for(const socket of sockets)socket.close()
   await pause(200);await stop();start();await healthy()
   const gateways=await Promise.all([alice,bob,carol].map(connect))
@@ -185,4 +189,8 @@ export async function verifyChannels({alice,bob,carol,linked,dmId,request,json,o
   for(const install of [alice,bob,carol,linked])assert.ok(!Buffer.from(op(install.client,'seal'),'hex').includes(Buffer.from(before)))
   await scanDatabase(before)
   checks.channel_content_absent_from_server_database_logs_gateway_and_sealed_store=true
+  if(process.argv.includes('--phase3'))await verifyGovernance({alice,bob,carol,request,json,op,view,uploadedPackage,submitted,start,stop,healthy,checks,scanDatabase,retentionFixture,storage})
+  if(process.argv.includes('--phase3'))await verifyOwnership({alice,bob,carol,request,json,op,view,uploadedPackage,submitted,start,stop,healthy,checks,scanDatabase})
+  if(process.argv.includes('--phase3'))await verifyForums({alice,bob,request,json,op,view,uploadedPackage,submitted,start,stop,healthy,checks,scanDatabase})
+  if(process.argv.includes('--phase3'))await verifyDelegation({alice,bob,carol,request,json,op,view,uploadedPackage,submitted,start,stop,healthy,checks,scanDatabase})
 }

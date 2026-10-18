@@ -1,0 +1,144 @@
+# Phase 3 remaining work
+
+Updated 2026-10-18. **Phase 3 preview is complete.** All items in the agreed
+checklist are closed by measured results, user acceptance or the explicit
+notification preview waiver. The [final full hosted run](evidence/phase3-final-hosted-2026-10-18.json)
+passes all 14 jobs on source `53659dd`, including the final acceptance gate.
+The user accepts the buddy-PC/two-household test as successful for this preview;
+see the [manual acceptance record](evidence/phase3-manual-acceptance-2026-10-17.json).
+This is acceptance by user instruction, without independently collected test results.
+The [final local closeout](evidence/phase3-closeout-local-2026-10-17.json) passes
+94 HTTP/private-S3, 54 expanded browser and 19 Windows packaged outcomes on the
+current product code, plus Rust/web/WASM/native checks. Source `7ff42f0` fixes
+asynchronous forum navigation in the UI fixture. The successful hosted run closes
+the final Phase 3 gate; the full installation checkpoint follows it.
+Items 1–9 are implemented and locally validated; they are not included in the
+immutable Hearth Test 0.3.0 distribution. Hearth Preview 0.3.4 is published and
+installed locally. See [local acceptance](evidence/phase3-local-2026-10-16.json)
+and [19 installer/package checks](evidence/windows-preview-2026-10-16.json).
+The patch additionally passes [13 in-place upgrade/package checks](evidence/windows-preview-0.3.2-2026-10-16.json)
+and [nine native hosting/rollback checks](evidence/host-startup-regression-2026-10-16.json).
+The [public Preview release](https://github.com/KBHarris/hearth/releases/tag/v0.3.2)
+and both signed Preview update feeds are live; anonymous downloads are verified.
+Preview 0.3.3 was [published](https://github.com/KBHarris/hearth/releases/tag/v0.3.3)
+and installed, adding code-only/public-address sharing and the Linux compatibility
+pin. All [15 package/upgrade checks](evidence/windows-preview-0.3.3-2026-10-17.json)
+pass. Its [eleven public downloads and both feeds](evidence/preview-0.3.3-release-2026-10-17.json)
+match the tested artifacts. The first full hosted run failed on the now-locally
+corrected Linux dependency. One corrected [full run](https://github.com/KBHarris/hearth/actions/runs/39070916430)
+was explicitly authorized and dispatched for frozen 0.3.3 source on October 17.
+It finished with a Windows UI-fixture failure after 22 passing checks: the test
+appended a URL to the prefilled signed-in Join address. Core/browser jobs,
+Linux/macOS desktop jobs and all three Phase 3 packaged-client suites passed.
+The test now replaces the address and asserts its exact value; all
+[42 corrected local UI checks](evidence/phase3-ui-correction-2026-10-17.json) pass
+against current 0.3.4 product source. That frozen run's failure is retained in
+its [run record](evidence/phase3-hosted-2026-10-17.json); the separately requested
+final full run above passes without changing that historical result.
+The later 0.3.4 setup checkpoint slice is not covered by that frozen-source run.
+The [0.3.4 checkpoint slice](evidence/host-join-checkpoint-2026-10-17.json) removes
+the desktop Node prerequisite and adds protected local owner authorization. Its
+[18 installed checks](evidence/windows-preview-0.3.4-2026-10-17.json) and
+[eleven anonymous downloads/both update feeds](evidence/preview-0.3.4-release-2026-10-17.json)
+pass. Docker runtime installation, startup enrollment and fresh-host restore
+remain checkpoint work.
+Existing implementation and dated evidence are in [the development guide](PHASE3_DEVELOPMENT.md).
+
+The [Actions budget standard](CI_STANDARD.md) applies to every item: validate locally
+first and keep hosted workflows manual-only. The final-source full run was
+explicitly requested and passed; future runs still require a new request.
+
+## Ordered checklist
+
+1. [x] **Raise file uploads to 50 MB.** Accept files through 50,000,000 bytes,
+   replacing the current 8 MiB client limit. Align client, protocol, server,
+   storage and proxy limits, allowing for encryption overhead. Update visible
+   limits and errors. Check boundary sizes, encrypted round-trip integrity,
+   cancellation and rejection above the limit; retain private storage.
+2. [x] **Let the server owner delete uploaded files.** Provide a clear owner
+   action with confirmation and visible completion/error states. Define explicit
+   operator authority separately from community ownership and ordinary membership;
+   extend the permission matrix with allowed and denied cases. Block new reads,
+   remove stored ciphertext and handle active upload leases, retry and restart.
+   The server receives no plaintext or decryption keys. Previously downloaded
+   copies cannot be recalled; removal must not break the remaining conversation.
+3. [x] **Add the member sidebar.** Use the heading **Server Members**, with circular
+   avatars (initials as a fallback), names and readable role labels. Use the
+   current community's authorized membership and role data; the heading does not
+   authorize revealing every server account or membership in private communities.
+   Reflect joins, departures and role changes without losing drafts or sessions.
+   Make the list easy to open on narrow windows and usable with a keyboard.
+   Replace the hidden Conversation members workflow for everyday discovery.
+   Do not group by Online/Offline: current encrypted presence reaches shared
+   conversations only, and missing/expired presence is not proof of being offline.
+4. [x] **Open a profile modal from a member.** Show their avatar, display name,
+   username, about information, applicable roles and identity fingerprint, with
+   an easy way to copy/compare the fingerprint. Use verified identity data and
+   authorized profile data; distinguish unavailable data from verified data.
+   Avatar images, if added, follow the encrypted-file model. Support Escape,
+   focus return and narrow layouts. Keep identity comparison available in DMs.
+5. [x] **Use readable short invites.** Server-account, community and combined
+   invitations use a random 32-character code grouped in fours. Preview 0.3.3
+   shares only that code with a separate server address, including the public
+   address when the owner is connected locally. Store only a domain-separated code hash and client-encrypted
+   invite envelope; preserve identity pinning, expiry, use limits and approved
+   device requirements. Keep old links compatible and never send bare codes to DNS.
+6. [x] **Control local hosting from the desktop UI.** Add Start, Stop and Status
+   for the configured local host, available before sign-in. Report missing runtime
+   prerequisites and startup failures clearly. Keep host data and identity persistent.
+7. [x] **Audit before making the GitHub repository public.** Review source, all
+   reachable history, PR content, Actions logs/artifacts and release assets. Resolve
+   any actual private data or credentials before changing visibility. Keep workflows
+   manual-only and validate the budget policy locally.
+8. [x] **Add one-click updates for both app and hosted server.** Use a public,
+   signed release source after the audit; verify downloads, preserve server data
+   and signing identity, and verify backup/rollback before applying migrations.
+   Show honest unavailable/error states until a usable release exists.
+9. [x] **Validate the changes and prepare the next test build.** Extend the real
+   HTTP/private-S3, two-client UI and packaged Windows checks for the four items
+   above, including permission failures, 50 MB encrypted files, physical deletion,
+   roster/role updates, profile fingerprints, invite resolution, hosting controls
+   and signed update failures. Run normal Rust/web/WASM checks.
+   Produce a new versioned installer/server package with matching source, manifest
+   and checksums. Keep the existing 0.3.0 distribution immutable.
+10. [x] **Buddy-PC/two-household test accepted for this preview.** On 2026-10-17,
+   the user instructed us to assume their buddy test went well. This supersedes
+   the earlier preview waiver for this Phase 3 gate. Record it as user-accepted
+   manual testing, without inventing per-feature results or independent telemetry.
+   The current manual deployment path is sufficient for this Phase 3 test;
+   clean-machine acceptance on every OS remains a separate installation checkpoint.
+11. [x] **Real notification delivery waived for this preview.** Waived by the user
+   on 2026-10-16; provider/OS delivery remains unverified. Future acceptance: in supported secure browsers, test
+   opt-in, actual provider acceptance, OS notification display, click navigation
+   and disabling delivery. Notifications remain generic and content-free. Local
+   push fixtures alone do not close this item.
+12. [x] **Complete current cross-platform acceptance, then close Phase 3.**
+   The explicitly requested [full run 39098465058](https://github.com/KBHarris/hearth/actions/runs/39098465058)
+   passes all 14 jobs on source `53659dd`, including the final acceptance gate.
+   Windows, macOS and Linux each pass 16 Phase 3 packaged outcomes with complete
+   fixture cleanup. Windows UI passes 42 checks, HTTP/private-S3 passes 94, and
+   Chrome/Firefox/Safari each pass their 17-check browser fixture. Windows/macOS
+   native media checks pass; Linux retains its documented unsupported native
+   capability result and supported-browser fallback. See the
+   [verified final hosted evidence](evidence/phase3-final-hosted-2026-10-18.json).
+   The [local closeout](evidence/phase3-closeout-local-2026-10-17.json) additionally
+   passes 54 expanded UI and 19 Windows/private-S3 packaged outcomes, plus
+   Rust/web/WASM/native checks. The preceding checklist items are measured,
+   user-accepted or explicitly waived for the preview. Earlier failed runs
+   remain recorded separately; no automatic retry was used for this final run.
+
+## Following Phase 3
+
+The [full Host/Join installation checkpoint](GUIDED_SETUP.md#next-implementation-slice)
+remains next, before Phase 4 media: installer-managed services and owner enrollment,
+local versus public address guidance, HTTPS/firewall/outside-reachability checks,
+cross-platform native invite acceptance, background startup and clean-machine
+acceptance. Guided client entry, pasted invites and Windows native handoff are implemented.
+The optional tunnel/relay evaluation remains part of that setup checkpoint.
+Desktop hosting controls and app/server updates have moved into the active scope
+above at the user's request; completing those does not close the remaining installer
+and outside-network acceptance work.
+
+The 50-person, one-week community trial remains an open **Phase 2** human gate;
+the two-PC test does not substitute for it. It is not silently marked complete by
+finishing the Phase 3 checklist. See [the roadmap](ROADMAP.md).

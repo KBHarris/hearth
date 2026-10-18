@@ -1,0 +1,85 @@
+{
+  "measuredAt": "2026-10-17T04:10:37.877Z",
+  "outcome": "failure",
+  "run": "https://github.com/KBHarris/hearth/actions/runs/38999371729",
+  "sourceCommit": "96548d8c6725bb71a1cc1114704024305960d3c0",
+  "suite": "full",
+  "jobs": [
+    {
+      "name": "workflow-policy",
+      "status": "completed",
+      "conclusion": "success"
+    },
+    {
+      "name": "web",
+      "status": "completed",
+      "conclusion": "success"
+    },
+    {
+      "name": "rust",
+      "status": "completed",
+      "conclusion": "success"
+    },
+    {
+      "name": "crypto-wasm",
+      "status": "completed",
+      "conclusion": "success"
+    },
+    {
+      "name": "auth",
+      "status": "completed",
+      "conclusion": "success"
+    },
+    {
+      "name": "compose",
+      "status": "completed",
+      "conclusion": "success"
+    },
+    {
+      "name": "podman",
+      "status": "completed",
+      "conclusion": "success"
+    },
+    {
+      "name": "media-browser (ubuntu-latest, chrome)",
+      "status": "completed",
+      "conclusion": "success"
+    },
+    {
+      "name": "desktop (ubuntu-22.04)",
+      "status": "completed",
+      "conclusion": "failure"
+    },
+    {
+      "name": "desktop (macos-latest)",
+      "status": "completed",
+      "conclusion": "cancelled"
+    },
+    {
+      "name": "media-browser (macos-latest, safari)",
+      "status": "completed",
+      "conclusion": "success"
+    },
+    {
+      "name": "media-browser (ubuntu-latest, firefox)",
+      "status": "completed",
+      "conclusion": "success"
+    },
+    {
+      "name": "desktop (windows-latest)",
+      "status": "completed",
+      "conclusion": "cancelled"
+    },
+    {
+      "name": "Acceptance (full)",
+      "status": "completed",
+      "conclusion": "failure"
+    }
+  ],
+  "http": {
+    "outcome": "pass",
+    "checks": 94
+  },
+  "cause": "tauri-plugin-deep-link 2.6.2 does not compile on Linux with rust-ini 0.21.3 (upstream #3710). Windows and macOS were cancelled by fail-fast.",
+  "limitation": "This run does not close cross-platform Phase 3 acceptance. No further hosted run has been dispatched."
+}
