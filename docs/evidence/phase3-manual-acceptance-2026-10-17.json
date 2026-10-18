@@ -1,0 +1,16 @@
+{
+  "recordedOn": "2026-10-17",
+  "scope": "Phase 3 preview buddy-PC / two-household manual acceptance",
+  "outcome": "accepted_by_user_assumption",
+  "authorization": "Then finish the phase 3 work, let's assume that the test my buddy and I did went well.",
+  "basis": "Direct user instruction; no independently collected test telemetry or detailed per-feature results were supplied.",
+  "supersedes": "The 2026-10-16 preview waiver of the Phase 3 two-PC / two-household test, for the purpose of Phase 3 closeout.",
+  "limitations": [
+    "This is an accepted manual gate, not an automated or independently observed pass.",
+    "It does not establish clean-machine installation and runtime acceptance on every supported OS.",
+    "It does not close the separate full Host/Join installation checkpoint.",
+    "It does not waive the final-source cross-platform hosted acceptance requirement.",
+    "The existing real provider / OS notification preview waiver remains unchanged.",
+    "The separate Phase 2 50-person, one-week human trial remains open."
+  ]
+}

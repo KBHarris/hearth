@@ -1,16 +1,24 @@
 # Phase 3 development
 
 Current development branch: `codex/guided-setup`, published through PR #4's
-`codex/phase3-navigation` branch. Hearth Preview 0.3.2 is public; use
+`codex/phase3-navigation` branch. Hearth Preview 0.3.4 is public; use
 [the latest two-PC guide](TWO_PC_LATEST_TEST.md) for hosting and client updates.
 
 The [ordered remaining-work checklist](PHASE3_REMAINING.md) is the current Phase 3
 queue. The 50 MB uploads, server-owner file deletion, **Server Members** sidebar,
 clickable member profiles, readable invites and desktop hosting/update controls
 are implemented. Preview 0.3.2 also guards original host configuration, displays
-the installed client version and defaults new hosts to port 8080. The authorized
-full hosted acceptance is in progress; two-household and actual OS push gates
-were explicitly waived for this preview, rather than recorded as measured passes.
+the installed client version and defaults new hosts to port 8080. The final
+full hosted acceptance remains open after the Windows UI fixture failure.
+The [current local closeout](evidence/phase3-closeout-local-2026-10-17.json) passes
+94 HTTP/private-S3, 54 expanded two-client UI and 19 Windows packaged outcomes,
+plus Rust/web/WASM and native checks. The UI harness now waits for asynchronous
+forum navigation and encrypted posting readiness on both clients. These changes
+are test and documentation only; product code still matches Preview 0.3.4.
+The buddy-PC/two-household test is now
+[accepted by user instruction](evidence/phase3-manual-acceptance-2026-10-17.json),
+without independently collected results. Actual provider/OS push delivery retains
+its explicit preview waiver. The full Host/Join installation checkpoint is separate.
 
 The web client has a persistent server/community/channel sidebar and focused
 dialogs for server selection, account recovery, server settings, community settings,

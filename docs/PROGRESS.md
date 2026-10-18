@@ -1,5 +1,37 @@
 # Progress
 
+Phase 3 local closeout, 2026-10-17: source `7ff42f0` passes 94 real HTTP/private-S3,
+54 expanded two-client browser and 19 Windows packaged outcomes. The current
+product code matches published Preview 0.3.4. A test-only forum navigation race
+was fixed: the harness now waits for the selected forum and enabled encrypted
+posting controls on both clients, within the existing deadline. The complete
+expanded rerun passes forums, reports, polls, ownership in both directions,
+50 MB files, exports, departure and narrow layouts. See the
+[local closeout record](evidence/phase3-closeout-local-2026-10-17.json).
+
+The same closeout passes 49 JavaScript tests, web typecheck/lint/build, Rust
+formatting/Clippy, 34 default Rust tests plus all four otherwise-ignored PostgreSQL
+tests on an isolated database, protocol generation and WASM checks. Windows
+native Clippy, nine unit checks, the shutdown barrier, five OS-vault checks,
+eight SQLCipher checks, native MLS and all 18 synthetic native media outcomes
+pass. Manual-only workflow policy and all 11 suite-result tests pass; local
+actionlint passes without ShellCheck. The native media fixture was rerun on its
+own after an initial shared-port conflict. No product media readiness is claimed.
+
+Phase 3's final-source full hosted acceptance remains the sole open Phase 3 gate.
+The corrected source and local evidence are ready for one explicitly requested
+`full` run on `codex/phase3-navigation`. No new hosted run has been dispatched;
+the earlier frozen-source failure remains recorded. The full Host/Join installer
+checkpoint remains separate and open before Phase 4.
+
+Phase 3 manual acceptance update, 2026-10-17: the user instructed us to assume
+their buddy-PC test went well. The [manual acceptance record](evidence/phase3-manual-acceptance-2026-10-17.json)
+closes that Phase 3 preview gate by user acceptance, superseding its October 16
+waiver. No detailed results or independent telemetry were supplied. The existing
+real provider/OS notification waiver remains in force. Final-source hosted
+cross-platform acceptance and the separate full Host/Join installation checkpoint
+remain open; the buddy result does not establish all-OS clean-machine acceptance.
+
 Host/Join checkpoint update, 2026-10-17: [Preview 0.3.4](https://github.com/KBHarris/hearth/releases/tag/v0.3.4)
 is published and installed from frozen product source `11cd35e`. Desktop hosting
 generates its configuration natively; Node.js is now only an advanced CLI

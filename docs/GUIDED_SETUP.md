@@ -3,6 +3,8 @@
 Updated 2026-10-17, branch `codex/guided-setup`. Existing releases remain immutable.
 Published Preview 0.3.4 includes code-only sharing, native host configuration and
 protected local owner authorization. See the [18 installed checks](evidence/windows-preview-0.3.4-2026-10-17.json).
+The buddy-PC/two-household test is [accepted by user instruction for Phase 3](evidence/phase3-manual-acceptance-2026-10-17.json).
+This does not close the all-OS clean-machine installation checkpoint below.
 
 ## Available in this pass
 

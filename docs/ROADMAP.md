@@ -164,8 +164,8 @@ when the fixture appended to a prefilled server address; a local test correction
 replaces that value and passes all [42 local UI checks](evidence/phase3-ui-correction-2026-10-17.json)
 against current 0.3.4 product source. Windows native media acceptance was skipped. Full hosted
 closeout remains open; no automatic retry is authorized. The user confirmed public HTTPS
-health from a phone on cellular on October 17; full two-household messaging and
-actual notification delivery remain explicit preview waivers.
+health from a phone on cellular on October 17 and subsequently accepted the buddy
+test by instruction. Actual provider/OS notification delivery retains its preview waiver.
 
 Historical governance foundation validation, 2026-10-12: the local real
 HTTP/product-WASM suite passed 90 checks with private S3, covering
@@ -221,9 +221,16 @@ See [the development guide](PHASE3_DEVELOPMENT.md),
 - [x] Clickable member profile modal with identity fingerprint, profile details and roles.
 - [x] Updated regression coverage and published Preview 0.3.2 Windows/server package;
   guarded host startup, installed version display and local port 8080 default.
-- [x] Real buddy-PC/two-house acceptance waived by the user for this preview on 2026-10-16; unverified.
+- [x] Buddy-PC/two-house acceptance accepted by user instruction on 2026-10-17,
+  superseding the preview waiver; [manual record](evidence/phase3-manual-acceptance-2026-10-17.json).
+  No independent telemetry or all-OS clean-machine pass is claimed.
 - [x] Provider/OS notification acceptance waived by the user for this preview on 2026-10-16; unverified.
 - [ ] Hosted cross-platform and packaged desktop Phase 3 acceptance.
+  The [final local closeout](evidence/phase3-closeout-local-2026-10-17.json) passes
+  94 HTTP/private-S3, 54 expanded two-client UI and 19 Windows packaged outcomes,
+  including the corrected forum navigation fixture. Rust/web/WASM/native checks
+  pass. One final-source `full` hosted run awaits an explicit request; Phase 3
+  remains open until it succeeds.
 - [x] Manual-only Actions budget controls and local policy checks. The corrected
   full hosted milestone was explicitly authorized once; any further hosted run
   requires a new request.
@@ -234,7 +241,7 @@ Work through the unchecked items in the exact order and scope defined by
 **Exit:** the permission-matrix test suite is green for every endpoint and gateway op.
 A report is verifiable by a moderator. Retention expiry deletes the ciphertext.
 The new member/file requirements and remaining acceptance items pass, subject to
-the explicit two-household and real-notification preview waivers recorded above.
+the user-accepted buddy test and explicit real-notification preview waiver recorded above.
 
 ## Checkpoint after Phase 3: Simple Host/Join setup
 
@@ -248,7 +255,9 @@ and a handoff through account creation and signed community admission. Windows
 native invite handoff, UI host controls and signed updates are implemented.
 Dependency installation, startup enrollment, fresh-host restore and clean-machine
 acceptance remain open. Public HTTPS health was confirmed from cellular; a complete
-outside-network encrypted messaging pass remains unverified.
+outside-network encrypted messaging test is accepted by user instruction for the
+Phase 3 preview. Automated outside-reachability checks and all-OS clean-machine
+installation acceptance remain open.
 
 - [x] Host/Join client entry and explicit confirmation after checking an address.
 - [x] Pretty invite code carries server identity, account and community admission,

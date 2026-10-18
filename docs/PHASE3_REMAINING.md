@@ -1,6 +1,14 @@
 # Phase 3 remaining work
 
 Updated 2026-10-17. This is the agreed work order for the remaining Phase 3 scope.
+The user accepts the buddy-PC/two-household test as successful for this preview;
+see the [manual acceptance record](evidence/phase3-manual-acceptance-2026-10-17.json).
+This is acceptance by user instruction, without independently collected test results.
+The [final local closeout](evidence/phase3-closeout-local-2026-10-17.json) passes
+94 HTTP/private-S3, 54 expanded browser and 19 Windows packaged outcomes on the
+current product code, plus Rust/web/WASM/native checks. Source `7ff42f0` fixes
+asynchronous forum navigation in the UI fixture. The final full hosted run is
+the only remaining Phase 3 gate; the full installation checkpoint follows it.
 Items 1–9 are implemented and locally validated; they are not included in the
 immutable Hearth Test 0.3.0 distribution. Hearth Preview 0.3.4 is published and
 installed locally. See [local acceptance](evidence/phase3-local-2026-10-16.json)
@@ -89,20 +97,25 @@ run at closeout; do not spend hosted minutes on each feature, push or PR.
    and signed update failures. Run normal Rust/web/WASM checks.
    Produce a new versioned installer/server package with matching source, manifest
    and checksums. Keep the existing 0.3.0 distribution immutable.
-10. [x] **Real two-PC test waived for this preview.** Waived by the user on
-   2026-10-16; this is not a claim of completed two-household testing. Future acceptance: install on a clean buddy
-   PC; exercise native owner/account creation, invitation, approved devices,
-   encrypted DMs/channels, files, owner deletion, roles, member profiles and
-   reopen/reboot persistence. Use the public HTTPS address before sharing an
-   invite and verify access from another household. Record failures and fix them.
-   The current manual deployment path is sufficient for this Phase 3 test.
+10. [x] **Buddy-PC/two-household test accepted for this preview.** On 2026-10-17,
+   the user instructed us to assume their buddy test went well. This supersedes
+   the earlier preview waiver for this Phase 3 gate. Record it as user-accepted
+   manual testing, without inventing per-feature results or independent telemetry.
+   The current manual deployment path is sufficient for this Phase 3 test;
+   clean-machine acceptance on every OS remains a separate installation checkpoint.
 11. [x] **Real notification delivery waived for this preview.** Waived by the user
    on 2026-10-16; provider/OS delivery remains unverified. Future acceptance: in supported secure browsers, test
    opt-in, actual provider acceptance, OS notification display, click navigation
    and disabling delivery. Notifications remain generic and content-free. Local
    push fixtures alone do not close this item.
 12. [ ] **Complete current cross-platform acceptance, then close Phase 3.**
-   Validate the manual-only budget controls and finish local checks. The user
+   Final local closeout on October 17 passes all 54 expanded UI outcomes after
+   fixing the forum-navigation readiness race, along with 94 HTTP/private-S3,
+   19 Windows packaged, Rust/web/WASM and Windows native regression checks.
+   See the [source-bound closeout evidence](evidence/phase3-closeout-local-2026-10-17.json).
+   The final `full` hosted run on the corrected Phase 3 branch awaits an explicit
+   request under the Actions budget policy; it has not been dispatched.
+   Local validation and manual-only budget controls pass. The user
    authorized one full hosted milestone run on 2026-10-16 after the startup fix;
    it failed Linux desktop compilation. That dependency correction passes locally.
    The user approved one corrected full milestone on October 17; run
@@ -117,7 +130,7 @@ run at closeout; do not spend hosted minutes on each feature, push or PR.
    the final Phase 3 source, including the new features and existing permission,
    reporting, retention and account-departure coverage. Investigate a hosted job
    startup failure if it recurs; older green artifacts do not validate this build.
-   Fix remaining failures, record results and confirm preceding items pass or have explicit preview waivers
+   Fix remaining failures, record results and confirm preceding items pass, are user-accepted or have explicit preview waivers
    before marking Phase 3 complete.
 
 ## Following Phase 3
