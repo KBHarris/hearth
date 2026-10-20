@@ -244,6 +244,10 @@ export async function verifyInstalledPreviewUpgrade({bundle,output,origin,hostPr
     const status=await cdp.evaluate('window.__TAURI_INTERNALS__.invoke("host_control",{action:"status"})')
     assert.equal(status.state,'running','The existing selected host must remain running')
     checks.existing_host_remains_running_without_restart_or_data_reset=true
+    const savedHost=await cdp.evaluate('window.__TAURI_INTERNALS__.invoke("host_saved")')
+    assert.ok(savedHost?.local_url,'Native selection remains available independently of browser storage')
+    await eventually(()=>cdp.evaluate(`!!document.querySelector('[aria-label="Open your hosted server"]')`),'saved host rail after installed upgrade')
+    checks.installed_host_reappears_with_empty_browser_server_storage=true
     if(ownerEnrollment){
       assert.match(hostProject,/^hearth-host-[a-f0-9]{24}$/)
       const hostRoot=join(output,'native-owner-host');mkdirSync(join(hostRoot,'deploy'),{recursive:true})
