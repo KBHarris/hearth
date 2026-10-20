@@ -1,5 +1,25 @@
 # Progress
 
+**Host/Join implementation update, 2026-10-20:** Preview 0.3.5 source adds signed
+in-app host preparation, explicit runtime installation, opt-in sign-in startup,
+portable backup/fresh restore, and an identity-bound outside-network check with
+tester-declared network location. Native saved-host discovery now survives empty
+browser server storage and Docker failure, addressing the reported missing-host
+entry after reopening. The user's existing saved selection and four running host
+services were inspected read-only and preserved.
+
+Local verification passes 53 JavaScript tests, web typecheck/lint/build, 12 guided
+browser checks, 14 default desktop Rust tests, 4 signed-package/TAR checks,
+12 isolated Docker recovery outcomes and 6 Windows native WebView2 checks.
+Fresh-volume restore checks original server/OPAQUE identity files, credentials
+and database contents, rejects an existing host and retries the same journal.
+This is not a fresh OS installation measurement. Cross-OS clean installation,
+actual reboot/sign-in execution, new two-household messaging and published-catalog
+download acceptance remain open in [the acceptance matrix](HOST_JOIN_ACCEPTANCE.md).
+
+Phase 3's existing final-source hosted results below remain scoped to Phase 3;
+they do not validate the new Host/Join source. No new hosted run was dispatched.
+
 **Phase 3 preview is complete, 2026-10-18.** The requested
 [full run 39098465058](https://github.com/KBHarris/hearth/actions/runs/39098465058)
 passes all 14 jobs on source `53659dd`, including the final acceptance gate.

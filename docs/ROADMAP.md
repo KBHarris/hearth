@@ -268,11 +268,15 @@ The [guided setup pass](GUIDED_SETUP.md) adds Host/Join entry points, real
 readiness for an existing host, identity-checked account/community invitations
 and a handoff through account creation and signed community admission. Windows
 native invite handoff, UI host controls and signed updates are implemented.
-Dependency installation, startup enrollment, fresh-host restore and clean-machine
-acceptance remain open. Public HTTPS health was confirmed from cellular; a complete
+The 2026-10-20 [Host/Join implementation](GUIDED_SETUP.md#hostjoin-implementation-2026-10-20)
+adds runtime/package preparation, startup enrollment, portable fresh-host restore,
+outside-network challenge checking and saved-host recovery. Local Windows/native
+and isolated Docker checks pass; new release publication and actual clean-machine
+acceptance remain open in the [acceptance matrix](HOST_JOIN_ACCEPTANCE.md).
+Public HTTPS health was confirmed from cellular; a complete
 outside-network encrypted messaging test is accepted by user instruction for the
-Phase 3 preview. Automated outside-reachability checks and all-OS clean-machine
-installation acceptance remain open.
+Phase 3 preview. The new outside-check flow and all-OS clean-machine installation
+still need actual independent-network/installation acceptance.
 
 - [x] Host/Join client entry and explicit confirmation after checking an address.
 - [x] Pretty invite code carries server identity, account and community admission,

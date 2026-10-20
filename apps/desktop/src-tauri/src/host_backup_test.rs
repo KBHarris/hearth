@@ -1,11 +1,68 @@
 use super::*;
 #[test]
+fn backup_volume_rejects_links_before_restoring_any_data() {
+    let directory =
+        std::env::temp_dir().join(format!("hearth-backup-safety-{}", std::process::id()));
+    fs::create_dir_all(&directory).unwrap();
+    let file = directory.join("volume.tar");
+    let mut builder = tar::Builder::new(fs::File::create(&file).unwrap());
+    let mut header = tar::Header::new_gnu();
+    header.set_entry_type(tar::EntryType::Symlink);
+    header.set_size(0);
+    header.set_mode(0o600);
+    header.set_link_name("/backup/.env").unwrap();
+    header.set_cksum();
+    builder
+        .append_data(&mut header, "./escape", std::io::empty())
+        .unwrap();
+    builder.finish().unwrap();
+    drop(builder);
+    assert!(
+        validate_volume_archive(&file)
+            .unwrap_err()
+            .contains("Unsafe")
+    );
+    fs::remove_dir_all(directory).unwrap();
+}
+#[test]
 #[ignore = "Requires a locally signed disposable package from verify-host-controls.mjs --integrity-only"]
 fn managed_host_package_integrity() {
     let root = PathBuf::from(std::env::var("HEARTH_HOST_TEST_DIR").unwrap())
         .canonicalize()
         .unwrap();
     assert!(hosting::validate(&root).is_ok());
+    let package_archive = root.join("prepared-host.tar");
+    let mut builder = tar::Builder::new(fs::File::create(&package_archive).unwrap());
+    let bundle = hosting::validate(&root).unwrap();
+    for name in [
+        "manifest.json",
+        "manifest.json.sig",
+        "deploy/compose.yaml",
+        "deploy/compose.https.yaml",
+        "deploy/setup.mjs",
+        "deploy/.env.example",
+        "deploy/Caddyfile",
+        "deploy/storage-entrypoint.sh",
+    ] {
+        builder
+            .append_path_with_name(root.join(name), name)
+            .unwrap();
+    }
+    for name in bundle
+        .files
+        .keys()
+        .filter(|name| name.starts_with("Hearth_Server_Test_") && name.ends_with(".tar"))
+    {
+        builder
+            .append_path_with_name(root.join(name), name)
+            .unwrap();
+    }
+    builder.finish().unwrap();
+    drop(builder);
+    let extracted = root.join("prepared-host");
+    crate::host_package::extract(&package_archive, &extracted).unwrap();
+    assert!(hosting::validate(&extracted).is_ok());
+    assert!(!extracted.join("deploy/.env").exists());
     let path = root.join("manifest.json");
     let original = fs::read(&path).unwrap();
     let mut changed = original.clone();
@@ -23,7 +80,7 @@ fn managed_host_package_integrity() {
     fs::remove_file(&signature).unwrap();
     assert!(hosting::validate(&root).is_err());
     fs::write(signature, original).unwrap();
-    fs::write(root.join("native-report.json"),serde_json::json!({"outcome":"pass","checks":{"signed_host_package_validates":true,"modified_manifest_and_script_are_rejected":true,"unsigned_host_package_is_rejected":true}}).to_string()).unwrap();
+    fs::write(root.join("native-report.json"),serde_json::json!({"outcome":"pass","checks":{"signed_host_package_validates":true,"signed_host_tar_extracts_without_operator_configuration":true,"modified_manifest_and_script_are_rejected":true,"unsigned_host_package_is_rejected":true}}).to_string()).unwrap();
 }
 struct Cleanup<'a> {
     selection: &'a Selection,
@@ -280,6 +337,74 @@ fn managed_host_lifecycle_and_failed_update_restore() {
         serde_json::to_value(hosting::control(&selection, "start").unwrap()).unwrap()["state"],
         "running"
     );
-    let report = serde_json::json!({"outcome":"pass","checks":{"native_start_stop_status_and_setup_code":true,"missing_configuration_never_regenerates_credentials_over_existing_volumes":true,"wrong_database_credentials_are_rejected_without_changing_data_or_configuration":true,"original_configuration_retries_successfully":true,"modified_bundle_rejected":true,"backup_database_restore_rehearsal_and_identity_check":true,"failed_new_server_restores_database_and_original_identity":true,"interrupted_override_can_be_recovered":true,"only_disposable_project_resources_used":true}});
+    let fresh_data = root.join("fresh-machine-app-data");
+    assert!(
+        fresh_restore(&fresh_data, &directory)
+            .unwrap_err()
+            .contains("already has data")
+    );
+    let server_identity = hosting::compose(
+        &selection,
+        &[
+            "exec",
+            "-T",
+            "server",
+            "sha256sum",
+            "/var/lib/hearth/server.key",
+            "/var/lib/hearth/opaque.setup",
+        ],
+        20,
+    )
+    .unwrap();
+    // Remove only this test's randomly named project, simulating a new machine's empty volumes.
+    assert!(selection.project.starts_with("hearth-host-"));
+    hosting::compose(&selection, &["down", "--volumes", "--timeout", "10"], 90).unwrap();
+    let fresh = fresh_restore(&fresh_data, &directory).unwrap();
+    assert_ne!(fresh.root, selection.root);
+    assert_eq!(
+        hosting::compose(
+            &fresh,
+            &[
+                "exec",
+                "-T",
+                "server",
+                "sha256sum",
+                "/var/lib/hearth/server.key",
+                "/var/lib/hearth/opaque.setup"
+            ],
+            20
+        )
+        .unwrap(),
+        server_identity
+    );
+    assert_eq!(
+        fs::read(fresh.root.join("deploy/.env")).unwrap(),
+        fs::read(directory.join(".env")).unwrap()
+    );
+    let restored = hosting::compose(
+        &fresh,
+        &[
+            "exec",
+            "-T",
+            "postgres",
+            "psql",
+            "-U",
+            "hearth",
+            "-d",
+            "hearth",
+            "-tAc",
+            "SELECT ciphertext FROM host_restore_probe",
+        ],
+        20,
+    )
+    .unwrap();
+    assert_eq!(
+        String::from_utf8_lossy(&restored).trim(),
+        "0123456789abcdef"
+    );
+    // Retry the same recovery journal without generating new credentials or identity.
+    let retried = fresh_restore(&fresh_data, &directory).unwrap();
+    assert_eq!(retried.root, fresh.root);
+    let report = serde_json::json!({"outcome":"pass","checks":{"native_start_stop_status_and_setup_code":true,"missing_configuration_never_regenerates_credentials_over_existing_volumes":true,"wrong_database_credentials_are_rejected_without_changing_data_or_configuration":true,"original_configuration_retries_successfully":true,"modified_bundle_rejected":true,"backup_database_restore_rehearsal_and_identity_check":true,"failed_new_server_restores_database_and_original_identity":true,"interrupted_override_can_be_recovered":true,"fresh_restore_rejects_existing_host_data":true,"fresh_restore_preserves_identity_credentials_and_database":true,"fresh_restore_retry_reuses_recovery_journal":true,"only_disposable_project_resources_used":true}});
     fs::write(root.join("native-report.json"), report.to_string()).unwrap();
 }

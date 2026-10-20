@@ -19,7 +19,7 @@ async function eventually(test, label, ms = 20000) {
   throw new Error('Installed client timeout: ' + label)
 }
 
-async function devtools(url) {
+export async function devtools(url) {
   const socket = new WebSocket(url), pending = new Map()
   let next = 0
   await new Promise((resolve, reject) => { socket.addEventListener('open', resolve, { once: true }); socket.addEventListener('error', reject, { once: true }) })

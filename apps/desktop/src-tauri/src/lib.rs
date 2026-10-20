@@ -8,6 +8,12 @@ mod host_configuration;
 #[cfg(not(any(feature = "phase0-spike", feature = "phase1-acceptance")))]
 mod host_enrollment;
 #[cfg(not(any(feature = "phase0-spike", feature = "phase1-acceptance")))]
+mod host_package;
+#[cfg(not(any(feature = "phase0-spike", feature = "phase1-acceptance")))]
+mod host_runtime;
+#[cfg(not(any(feature = "phase0-spike", feature = "phase1-acceptance")))]
+mod host_startup;
+#[cfg(not(any(feature = "phase0-spike", feature = "phase1-acceptance")))]
 mod hosting;
 #[cfg(not(any(feature = "phase0-spike", feature = "phase1-acceptance")))]
 mod invite_links;
@@ -40,7 +46,10 @@ pub fn run() {
     use tauri_plugin_deep_link::DeepLinkExt;
 
     tauri::Builder::default()
-        .plugin(tauri_plugin_single_instance::init(|app, _, _| {
+        .plugin(tauri_plugin_single_instance::init(|app, args, _| {
+            if args.iter().any(|arg| arg == "--host-autostart") {
+                return;
+            }
             if let Some(window) = app.get_webview_window("main") {
                 let _ = window.show();
                 let _ = window.unminimize();
@@ -53,6 +62,7 @@ pub fn run() {
         .manage(hosting::HostState::default())
         .manage(invite_links::PendingInvite::default())
         .setup(|app| {
+            host_startup::resume(app.handle().clone());
             if let Some(urls) = app.deep_link().get_current()? {
                 for url in urls {
                     app.state::<invite_links::PendingInvite>()
@@ -74,6 +84,10 @@ pub fn run() {
             build_revision,
             invite_links::take_invite_link,
             hosting::host_select,
+            hosting::host_saved,
+            host_package::host_prepare,
+            host_runtime::host_runtime,
+            host_startup::host_startup,
             hosting::host_control,
             hosting::host_setup_code,
             host_enrollment::host_owner_code,
@@ -81,6 +95,8 @@ pub fn run() {
             updates::desktop_update,
             updates::server_update,
             host_backup::host_rollback,
+            host_backup::host_backup_export,
+            host_backup::host_backup_import,
             vault_store::identity_vault_read,
             vault_store::identity_vault_create,
             message_store::message_store_read,

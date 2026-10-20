@@ -17,6 +17,23 @@ use tauri_plugin_dialog::DialogExt;
 mod tests {
     use super::*;
     #[test]
+    fn host_controls_accept_only_local_docker_endpoints() {
+        for endpoint in [
+            "tcp://example.org:2376",
+            "ssh://host",
+            "npipe:////server/pipe/docker",
+            "unix://host/path",
+        ] {
+            assert!(!local_docker_endpoint(endpoint));
+        }
+        for endpoint in [
+            "unix:///var/run/docker.sock",
+            "npipe:////./pipe/dockerDesktopLinuxEngine",
+        ] {
+            assert!(local_docker_endpoint(endpoint));
+        }
+    }
+    #[test]
     fn public_address_rejects_credentials_paths_private_and_shared_addresses() {
         for value in [
             "localhost",
@@ -75,7 +92,7 @@ mod tests {
 #[derive(Default)]
 pub struct HostState(pub Arc<Mutex<()>>);
 pub(crate) const SHUTDOWN_TIMEOUT: u64 = 150;
-#[derive(Serialize, Deserialize)]
+#[derive(Debug, Serialize, Deserialize)]
 pub struct Selection {
     pub root: PathBuf,
     pub https: bool,
@@ -184,6 +201,36 @@ pub struct HostStatus {
     local_url: Option<String>,
     public_address: Option<String>,
 }
+pub(crate) fn prepared_status(selection: &Selection, message: String) -> HostStatus {
+    HostStatus {
+        folder: Some(selection.root.to_string_lossy().into()),
+        https: selection.https,
+        state: "selected".into(),
+        message,
+        local_url: None,
+        public_address: selection.public_address.clone(),
+    }
+}
+#[tauri::command]
+pub async fn host_saved(app: tauri::AppHandle) -> Result<Option<HostStatus>, String> {
+    tauri::async_runtime::spawn_blocking(move || {
+        let path = selection_path(&app)?;
+        if !path.exists() { return Ok(None); }
+        regular(&path)?;
+        let bytes = fs::read(path).map_err(|_| "Cannot read the saved host. Open Hosting & updates to recover it.")?;
+        if bytes.len() > 16384 { return Err("Invalid saved host selection. Choose its original signed package again.".into()); }
+        let selection: Selection = serde_json::from_slice(&bytes).map_err(|_| "The saved host needs attention. Choose its original signed package again; existing data was preserved.")?;
+        let mut status = prepared_status(&selection, "Saved host found. Refresh status to check Docker.".into());
+        match selected_for_recovery(&app) {
+            Ok(selection) => {
+                let bundle = validate_base(&selection.root)?;
+                status.local_url = Some(format!("http://localhost:{}", local_port(&selection, bundle.server.backend_port)?));
+            }
+            Err(error) => { status.state = "error".into(); status.message = format!("{error} Your saved host selection was preserved. Choose its original signed package to recover it."); }
+        }
+        Ok(Some(status))
+    }).await.map_err(|_| "Saved host lookup is unavailable.".to_string())?
+}
 pub(crate) fn regular(path: &Path) -> Result<(), String> {
     let meta = fs::symlink_metadata(path).map_err(|_| "A required host file is missing.")?;
     #[cfg(windows)]
@@ -276,7 +323,44 @@ pub(crate) fn command(
 ) -> Result<Vec<u8>, String> {
     command_env(program, args, cwd, seconds, &[])
 }
-fn command_env(
+pub(crate) fn command_env(
+    program: &str,
+    args: &[String],
+    cwd: &Path,
+    seconds: u64,
+    environment: &[(&str, &str)],
+) -> Result<Vec<u8>, String> {
+    if program == "docker" {
+        if let Ok(endpoint) = std::env::var("DOCKER_HOST")
+            && std::env::var_os("DOCKER_CONTEXT").is_none()
+        {
+            if !local_docker_endpoint(&endpoint) {
+                return Err("Hearth host controls require a local Docker runtime. Switch away from the remote Docker endpoint; no remote services were changed.".into());
+            }
+        } else {
+            let endpoint = command_raw(
+                "docker",
+                &[
+                    "context".into(),
+                    "inspect".into(),
+                    "--format".into(),
+                    "{{.Endpoints.docker.Host}}".into(),
+                ],
+                cwd,
+                10,
+                &[],
+            )?;
+            if !local_docker_endpoint(String::from_utf8_lossy(&endpoint).trim()) {
+                return Err("The selected Docker context is remote. Choose a local Docker runtime before managing this host.".into());
+            }
+        }
+    }
+    command_raw(program, args, cwd, seconds, environment)
+}
+fn local_docker_endpoint(endpoint: &str) -> bool {
+    endpoint.starts_with("unix:///") || endpoint.starts_with("npipe:////./pipe/")
+}
+fn command_raw(
     program: &str,
     args: &[String],
     cwd: &Path,
@@ -287,7 +371,11 @@ fn command_env(
     if std::env::var_os("HEARTH_HOST_TEST_DIR").is_some() {
         eprintln!("Host fixture command: {program} {args:?}");
     }
-    let mut command = Command::new(program);
+    let mut command = Command::new(if program == "docker" {
+        docker_program()
+    } else {
+        PathBuf::from(program)
+    });
     command
         .args(args)
         .current_dir(cwd)
@@ -340,6 +428,29 @@ fn command_env(
             }
         }
     }
+}
+fn docker_program() -> PathBuf {
+    #[cfg(target_os = "windows")]
+    if let Some(directory) = std::env::var_os("ProgramFiles") {
+        let path = PathBuf::from(directory).join("Docker/Docker/resources/bin/docker.exe");
+        if path.is_file() {
+            return path;
+        }
+    }
+    #[cfg(target_os = "macos")]
+    for path in [
+        "/Applications/Docker.app/Contents/Resources/bin/docker",
+        "/usr/local/bin/docker",
+    ] {
+        if Path::new(path).is_file() {
+            return PathBuf::from(path);
+        }
+    }
+    #[cfg(target_os = "linux")]
+    if Path::new("/usr/bin/docker").is_file() {
+        return PathBuf::from("/usr/bin/docker");
+    }
+    PathBuf::from("docker")
 }
 pub(crate) fn compose(
     selection: &Selection,
@@ -465,13 +576,38 @@ fn verify_database_configuration(selection: &Selection) -> Result<(), String> {
     .map(|_| ())
     .map_err(|_| WRONG_DATABASE_CONFIG.into())
 }
-fn selection_path(app: &tauri::AppHandle) -> Result<PathBuf, String> {
+pub(crate) fn selection_path(app: &tauri::AppHandle) -> Result<PathBuf, String> {
     let directory = app
         .path()
         .app_data_dir()
         .map_err(|_| "Local app storage is unavailable.")?;
     fs::create_dir_all(&directory).map_err(|_| "Local app storage is unavailable.")?;
     Ok(directory.join("host-selection.json"))
+}
+pub(crate) fn save_selection(app: &tauri::AppHandle, selection: &Selection) -> Result<(), String> {
+    use rand_core::{OsRng, RngCore};
+    use std::io::Write;
+    let target = selection_path(app)?;
+    if target.exists() {
+        regular(&target)?;
+    }
+    let mut nonce = [0u8; 12];
+    OsRng.fill_bytes(&mut nonce);
+    let temporary = target.with_extension(format!("{}.partial", hex::encode(nonce)));
+    let mut file = fs::OpenOptions::new()
+        .write(true)
+        .create_new(true)
+        .open(&temporary)
+        .map_err(|_| "Cannot save the host selection.")?;
+    file.write_all(&serde_json::to_vec(selection).map_err(|_| "Cannot save the host selection.")?)
+        .and_then(|_| file.sync_all())
+        .map_err(
+            |_| "Cannot finish saving the host selection. The previous selection was preserved.",
+        )?;
+    drop(file);
+    fs::rename(temporary, target).map_err(|_| {
+        "Cannot replace the saved host selection. The previous selection was preserved.".into()
+    })
 }
 pub(crate) fn selected_for_recovery(app: &tauri::AppHandle) -> Result<Selection, String> {
     let path = selection_path(app)?;
@@ -520,7 +656,7 @@ pub(crate) fn local_port(selection: &Selection, fallback: u16) -> Result<u16, St
         fallback,
     )
 }
-fn status(selection: &Selection) -> Result<HostStatus, String> {
+pub(crate) fn status(selection: &Selection) -> Result<HostStatus, String> {
     let bundle = validate(&selection.root)?;
     let running = compose(selection, &["ps", "--services", "--status", "running"], 20)?;
     let running = String::from_utf8_lossy(&running);
@@ -586,8 +722,7 @@ pub async fn host_select(
             project: bundle.server.compose_project,
             public_address,
         };
-        let bytes = serde_json::to_vec(&selection).map_err(|_| "Cannot save host selection.")?;
-        fs::write(selection_path(&app)?, bytes).map_err(|_| "Cannot save host selection.")?;
+        save_selection(&app, &selection)?;
         Ok(Some(HostStatus {
             folder: Some(selection.root.to_string_lossy().into()),
             https,
@@ -787,11 +922,7 @@ pub async fn host_configure(
             .filter(|v| !v.trim().is_empty())
             .map(|v| public_address(&v))
             .transpose()?;
-        fs::write(
-            selection_path(&app)?,
-            serde_json::to_vec(&selection).map_err(|_| "Cannot save host settings.")?,
-        )
-        .map_err(|_| "Cannot save host settings.")?;
+        save_selection(&app, &selection)?;
         Ok(HostStatus {
             folder: Some(selection.root.to_string_lossy().into()),
             https,

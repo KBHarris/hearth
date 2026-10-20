@@ -24,6 +24,7 @@ import type {Governance,GovernanceView,AuditEntry} from './protocol.ts'
 export type ErrorKind = 'invalid_url' | 'http' | 'network' | 'timeout' | 'invalid_response' | 'incompatible' | 'degraded'
 
 export { createHearthInvite, parseHearthInvite, setupTarget, addressScope, type HearthInvite } from './setup.ts'
+export { createReachabilityRequest, parseReachabilityRequest, checkReachabilityRequest, verifyReachabilityReceipt, type ReachabilityRequest, type ReachabilityReceipt } from './reachability.ts'
 export { createShortInvite, resolveSetupTarget, resolveInviteCode, formatInviteCode, normalizeInviteCode } from './short-invite.ts'
 
 export class HearthError extends Error {

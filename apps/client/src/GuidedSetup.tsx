@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState, type FormEvent } from 'react'
 import { addressScope, HearthClient, normalizeServerUrl, resolveInviteCode, resolveSetupTarget, type HearthInvite, type ServerInfo } from '@hearth/sdk'
 import { Icon } from './Icons'
+import { NetworkCheckPanel } from './NetworkCheckPanel'
 
 export type CheckedServer = { server: string; info: ServerInfo; invite: HearthInvite | null }
 
@@ -51,6 +52,7 @@ export function GuidedSetup({ defaultServer, signedIn = false, currentServer, on
         <button className="setup-choice" onClick={() => choose('host')}><Icon name="server" /><span><strong>Host a server</strong><small>Check my server and set up its owner.</small></span><Icon name="arrow" /></button>
       </div>
       <p className="setup-footnote">Messages and files stay end-to-end encrypted.</p>
+      <details><summary>Help someone check their internet host</summary><NetworkCheckPanel /></details>
     </> : <>
       <button type="button" className="setup-back" onClick={() => choose(null)}>← Host or join</button>
       <p className="eyebrow">{route === 'host' ? 'HOST A SERVER' : 'JOIN A SERVER'}</p>

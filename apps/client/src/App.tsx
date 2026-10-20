@@ -54,11 +54,13 @@ export default function App() {
   const [error, setError] = useState('')
   const [checking, setChecking] = useState(false)
   const [signedIn, setSignedIn] = useState(false)
+  const [hostedAddress, setHostedAddress] = useState<string | null>(null)
   const candidate = useRef<AbortController | null>(null)
   useEffect(() => {
     if (!isTauri()) return
     let disposed = false
     void getVersion().then(version => { if (!disposed) setClientVersion(version) }).catch(() => { /* Keep the version hidden if the native runtime is unavailable. */ })
+    void invoke<{ local_url: string | null } | null>('host_saved').then(saved => { if (!disposed) setHostedAddress(saved?.local_url ?? null) }).catch(() => { /* Hosting panel exposes recovery details. */ })
     return () => { disposed = true }
   }, [])
   function remember(nextUrl: string, name: string) {
@@ -139,6 +141,7 @@ export default function App() {
       {servers.map(server => <button key={server.url} className={`server-tile ${url === server.url ? 'selected' : ''}`}
         aria-label={`Open server ${server.name}`} aria-current={url === server.url ? 'page' : undefined} title={server.name}
         onClick={() => openConnection('connection', server.url)}>{server.name.slice(0, 2).toUpperCase()}</button>)}
+      {hostedAddress && !servers.some(server => server.url === hostedAddress) && <button className="server-tile" aria-label="Open your hosted server" title="Your hosted server" onClick={() => openConnection('connection', hostedAddress)}><Icon name="server" /></button>}
       <button className="server-tile add-server" aria-label="Add server" title="Add server" onClick={() => openConnection('add')}><Icon name="plus" /></button>
       {isTauri() && <button className="server-tile" aria-label="Hosting and updates" title="Hosting & updates" onClick={() => setPanel('host')}><Icon name="server" /></button>}
       <span className="rail-bottom" title="Messages are encrypted"><Icon name="shield" /></span>

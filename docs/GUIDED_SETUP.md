@@ -119,7 +119,67 @@ new macOS/Linux packaging.
   failed discovery and registration retry using mock public responses. Its
   `target/setup-failure-evidence` report is not evidence of real server admission.
 
-## Next implementation slice
+## Host/Join implementation, 2026-10-20
+
+Preview 0.3.5 source adds the following ordinary UI operations. This is an
+implementation update; the [clean-machine acceptance matrix](HOST_JOIN_ACCEPTANCE.md)
+remains a separate gate before Phase 4.
+
+- **Prepare this computer to host** downloads a signed catalog from the pinned
+  Hearth release source, checks client compatibility and the archive digest,
+  extracts only regular allowlisted package files, and validates the inner signed
+  manifest and server archive. Preparation reuses an existing selected host.
+  Release tooling prepares `host-package.json`, its signature and a host-only TAR;
+  downloading requires those new assets to be published. Stable and preview feeds
+  remain separate. Existing signed folders can still be selected without downloads.
+- **Install hosting runtime** is an explicit action with separate OS consent.
+  Windows x64 and macOS Intel/Apple Silicon use immutable Docker Desktop 4.96.0
+  vendor downloads and pinned SHA-256 checksums, reviewed 2026-10-20. Windows also
+  checks Authenticode; macOS checks the application code signature and runs the
+  vendor installer through its administrator prompt. Docker presents its own
+  license/first-run choices. Ubuntu uses authenticated distribution packages
+  `docker.io` and `docker-compose-v2` through PolicyKit, with explicit Docker group
+  enrollment and a required sign-out. Other Linux distributions retain their
+  supported package-installation path. Virtualization and supported OS versions
+  remain vendor prerequisites; installation is not claimed to pass on every PC.
+- **Start this host when I sign in** creates a per-profile Windows startup shortcut,
+  macOS LaunchAgent or Linux autostart entry. It reopens this app's existing host,
+  waits for Docker and starts the existing services. Startup status and disabling
+  enrollment are available in the same panel. Disabling app startup does not stop
+  already running Docker containers. **Stop server** stops hosting explicitly.
+- **Export server backup** pauses the selected host, rehearses PostgreSQL recovery,
+  checks the server identity files, includes the signed deployment package and
+  server/helper images, and restarts the host. Export folders contain private
+  server credentials and signing keys as well as encrypted content: protect them
+  like a recovery kit. They are not an encrypted backup format.
+- **Restore server onto this computer** validates all declared files and volume
+  archive paths, checks the signed package/runtime, rejects an existing project's
+  containers or volumes, then restores to a new app-managed folder. An interrupted
+  import retains a journal so retry reuses the same target and credentials. The
+  selected host changes only after successful startup. The old host must remain
+  stopped to prevent two servers from using the same identity. Backups are trusted
+  local inputs containing executable server images; do not import strangers' backups.
+- **Check access from another network** creates a 15-minute public-address/identity
+  challenge. A tester on another household or cellular checks HTTPS, protocol,
+  health and the expected server identity without credentials. The result is
+  matched to the originating challenge and local identity. Network location is
+  explicitly tester-declared, not cryptographically proven or geolocated; these
+  JSON results are not signatures. No third-party probe is contacted. Firewall,
+  routing, WAN-address interpretation and optional tunnel trust boundaries appear
+  alongside the checks. A tunnel is never provisioned or enrolled automatically.
+- Native saved-host discovery is independent of browser saved-server storage and
+  Docker availability. The rail offers the selected host after reopening even
+  when the browser's server list is empty. Failed status checks preserve the host
+  and display recovery information. Host selections are saved with atomic replacement.
+
+Runtime references reviewed 2026-10-20:
+[Windows](https://docs.docker.com/desktop/setup/install/windows-install/),
+[macOS](https://docs.docker.com/desktop/setup/install/mac-install/),
+[vendor checksums](https://docs.docker.com/desktop/release-notes/).
+Linux automatic setup deliberately uses Ubuntu's authenticated distribution
+packages rather than downloading and executing an unsigned installation script.
+
+## Previous checkpoint baseline
 
 Checkpoint update, 2026-10-17 (published Preview 0.3.4): desktop host configuration is generated natively,
 removing the Node.js prerequisite from UI hosting. The advanced CLI still uses

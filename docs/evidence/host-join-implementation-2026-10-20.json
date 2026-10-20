@@ -1,0 +1,88 @@
+{
+  "measuredAt": "2026-10-20T23:49:22.403Z",
+  "outcome": "pass",
+  "scope": "Local Host/Join implementation slice; full clean-machine checkpoint remains open",
+  "version": "0.3.5",
+  "sourceFiles": {
+    "apps/client/src/App.tsx": "c69dd77e7d0f9aaccdc101a6f62461d7cd7013a63095c8d6e8107bab9f701399",
+    "apps/client/src/HostingPanel.tsx": "ff2180aff63f8e02a052b96e571951623c231950230e1e75b2ced8c5e8f5b461",
+    "apps/client/src/NetworkCheckPanel.tsx": "594097f43b2e2294647774aed061bd7363aab491ffac0109fbcdd5ae72a34989",
+    "apps/desktop/src-tauri/src/hosting.rs": "9780a6e565b3a35497224ea0de6963b066447c1c566bd9819ac04bb043d7f875",
+    "apps/desktop/src-tauri/src/host_package.rs": "d080e45b5e74c7d06a7076f594cb2fe6e9a7c1564a7a7add2cd420338e3c07df",
+    "apps/desktop/src-tauri/src/host_runtime.rs": "fd419f7ebef5cafce865e6280b556f7f9efce22195ffe8a64d18ec5018c04f00",
+    "apps/desktop/src-tauri/src/host_startup.rs": "4a065e203e4ccbd304b745c8e000ddfe7b3ed252cbe16391ef1f5d5867263471",
+    "apps/desktop/src-tauri/src/host_backup.rs": "dc13ba9b7e60cf6dfdee653f474c69a31c27d34360864ced444b1906dfe45fc5",
+    "packages/sdk/src/reachability.ts": "69392e01ba48dafafeaa3a13ef24a5c5caa35d98f1ee69895f3de3e329c6813e"
+  },
+  "checks": {
+    "web": {
+      "outcome": "pass",
+      "tests": 53,
+      "typecheck": true,
+      "lint": true,
+      "productionBuild": true
+    },
+    "windowsClippy": "pass",
+    "linuxClippy": {
+      "outcome": "pass",
+      "runtime": "offline cached Linux desktop container, disposable source copy"
+    },
+    "rust": {
+      "passed": 14,
+      "defaultIgnored": 3
+    },
+    "guidedBrowser": {
+      "passed": 12
+    },
+    "native": {
+      "outcome": "pass",
+      "measuredAt": "2026-10-20T23:45:39.305Z",
+      "scope": "Windows isolated native WebView2; not a clean-machine installer or internet test",
+      "checks": {
+        "saved_host_is_visible_without_browser_saved_servers_or_docker_access": true,
+        "runtime_failure_preserves_host_and_shows_recovery_status": true,
+        "user_level_startup_enrollment_can_be_enabled_read_and_disabled": true,
+        "backup_and_network_controls_are_present": true,
+        "host_recovery_fits_430px_viewport": true,
+        "reopening_retains_native_host_when_browser_server_list_is_empty": true
+      }
+    },
+    "dockerRecovery": {
+      "measuredAt": "2026-10-20T23:44:17.327Z",
+      "checks": {
+        "backup_database_restore_rehearsal_and_identity_check": true,
+        "failed_new_server_restores_database_and_original_identity": true,
+        "fresh_restore_preserves_identity_credentials_and_database": true,
+        "fresh_restore_rejects_existing_host_data": true,
+        "fresh_restore_retry_reuses_recovery_journal": true,
+        "interrupted_override_can_be_recovered": true,
+        "missing_configuration_never_regenerates_credentials_over_existing_volumes": true,
+        "modified_bundle_rejected": true,
+        "native_start_stop_status_and_setup_code": true,
+        "only_disposable_project_resources_used": true,
+        "original_configuration_retries_successfully": true,
+        "wrong_database_credentials_are_rejected_without_changing_data_or_configuration": true
+      },
+      "outcome": "pass"
+    },
+    "signedPackage": {
+      "measuredAt": "2026-10-20T23:44:58.930Z",
+      "checks": {
+        "modified_manifest_and_script_are_rejected": true,
+        "signed_host_package_validates": true,
+        "signed_host_tar_extracts_without_operator_configuration": true,
+        "unsigned_host_package_is_rejected": true
+      },
+      "outcome": "pass"
+    }
+  },
+  "stillOpen": [
+    "Publish and verify signed package catalog on frozen release source",
+    "Clean Windows/macOS/Linux installation and runtime provisioning",
+    "Actual reboot/sign-in startup execution",
+    "New independent-network and two-household encrypted messaging acceptance",
+    "Actual fresh-OS restore and native macOS/Linux invite handoff"
+  ],
+  "hostedWorkflowDispatched": false,
+  "userExistingHostPreserved": true
+}
