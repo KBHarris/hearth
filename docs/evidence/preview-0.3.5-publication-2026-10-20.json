@@ -1,0 +1,91 @@
+{
+  "measuredAt": "2026-10-21T00:05:34.581Z",
+  "outcome": "pass",
+  "version": "0.3.5",
+  "sourceCommit": "b84c11f32452c1bdd2aa64fdd43bb768b2c7cdfa",
+  "releaseUrl": "https://github.com/KBHarris/hearth/releases/tag/v0.3.5",
+  "verification": "Unauthenticated public HTTPS downloads; all published payload digests and six latest-feed files match prepared release",
+  "assets": [
+    {
+      "name": "Hearth_Test_b84c11f_Windows_x64.zip",
+      "bytes": 6313250,
+      "sha256": "d5bcae8f4fbc14e3b1d9334d2d182c124e6ac2f65d56abd7daf49419c3fe4176",
+      "verified": true
+    },
+    {
+      "name": "Hearth_Host_0.3.5_Windows_x64.zip",
+      "bytes": 51282350,
+      "sha256": "197adface6d41a59d65a37461ed59b6ccd637cd56d3905835c37c37ced1ffa77",
+      "verified": true
+    },
+    {
+      "name": "Hearth_Server_Test_b84c11f.tar",
+      "bytes": 38992896,
+      "sha256": "010fbd54f484ff09e308874bd44493d803f3c9e6f5b449a9027fb0441edb8862",
+      "verified": true
+    },
+    {
+      "name": "Hearth_Preview_0.3.5_x64-setup.exe",
+      "bytes": 6330307,
+      "sha256": "0304b5560468ff96674406d871e5d828b3e9df590950533b15c924f94f71a776",
+      "verified": true
+    },
+    {
+      "name": "Hearth_Preview_0.3.5_x64-setup.exe.sig",
+      "bytes": 444,
+      "sha256": "734710b4d157c59dd990675a1e548099ffff12aa82e9a8cba71a040dcdb9ab63",
+      "verified": true
+    },
+    {
+      "name": "server.json",
+      "bytes": 424,
+      "sha256": "9b58554b8e1eeffa00544011c68fba0fc877926ffa975813b696edf2bd84c3c7",
+      "verified": true
+    },
+    {
+      "name": "server.json.sig",
+      "bytes": 416,
+      "sha256": "f27b1ecb233b993499244f27776388723dccb89334a5144b2a87e4c2affd7df7",
+      "verified": true
+    },
+    {
+      "name": "latest.json",
+      "bytes": 887,
+      "sha256": "0e2bb117cfab2268f7f1cbf6bd32c891645ecd427e7702e5c5e67fe9d16c60de",
+      "verified": true
+    },
+    {
+      "name": "manifest.json",
+      "bytes": 1995,
+      "sha256": "9d5b28d56c61146a0c87463813568aebc76f1d64b033bb57b4e582c4a1344e61",
+      "verified": true
+    },
+    {
+      "name": "manifest.json.sig",
+      "bytes": 416,
+      "sha256": "e9aaea45e99e812300a6c6fa763a71b41bbd879c234305587990756355372162",
+      "verified": true
+    },
+    {
+      "name": "Hearth_Host_0.3.5.tar",
+      "bytes": 39015424,
+      "sha256": "bda1b6ea96aedb5e03d5be091d40c8f0284a9cdcb61ebffb38dfc4cfdafb294f",
+      "verified": true
+    },
+    {
+      "name": "host-package.json",
+      "bytes": 290,
+      "sha256": "69536ce046655bb746fc69fb1c193c6bca1cd873780687edff259b20b8a9d0eb",
+      "verified": true
+    },
+    {
+      "name": "host-package.json.sig",
+      "bytes": 424,
+      "sha256": "acb9c7c4919e8542c932db0e70bb4b6fd66fa49a81a2a7ab0624115c283f3510",
+      "verified": true
+    }
+  ],
+  "latestFeedFiles": 6,
+  "cleanMachineAcceptanceComplete": false,
+  "hostedWorkflowDispatched": false
+}

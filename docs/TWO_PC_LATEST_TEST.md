@@ -2,7 +2,10 @@
 
 This Windows x64 test bundle includes guided Host/Join, encrypted communities,
 50 MB files, member profiles, readable invites, roles, reports, forums and polls.
-Both people install **Hearth Preview 0.3.4**. The steps below assume a fresh test host.
+Both people install **Hearth Preview 0.3.5** from the
+[published release](https://github.com/KBHarris/hearth/releases/tag/v0.3.5).
+The steps below assume a fresh test host. Existing hosts can update the client
+while keeping their original running server and configuration.
 Keep any existing host's database, operator configuration and signing keys together;
 never regenerate credentials for existing volumes. The local older
 test deployments and profiles were retired on 2026-10-15. Create new accounts for
@@ -20,7 +23,7 @@ The manifest pins the source commit, server image and file checksums.
 
 Keep a host's original `.env` and `s3.json` with its Docker volumes. A new extraction
 does not create a new server when the same Compose project already has data.
-Preview 0.3.4 stops before generating replacement credentials over existing data
+Preview 0.3.5 stops before generating replacement credentials over existing data
 and checks database authentication before starting Hearth. For an existing host,
 select its original folder or restore its matching operator files; retrying keeps
 its data and identity. Reset test data only when its owner explicitly authorizes it.
@@ -28,12 +31,15 @@ its data and identity. Reset test data only when its owner explicitly authorizes
 ## Host: start the new server
 
 You need Docker Desktop running Linux containers and an internet
-connection for prerequisite images and HTTPS setup. Prerequisite installation is
-manual; starting and stopping a configured Hearth host is available in the app.
+connection for prerequisite images and HTTPS setup. **Install hosting runtime**
+in the app downloads the verified Windows installer; complete Docker's own
+permission, license and first-run prompts, then use **Check runtime**. Starting
+and stopping a configured Hearth host is available in the app.
 
 Install the client on your PC too. Open **Hosting & updates** (server icon on the
 left, also available from **Host a server**), turn off public HTTPS for this first
-local check, and choose the extracted folder containing `manifest.json`. Choose
+local check, and choose **Prepare this computer to host** to download the signed
+package, or choose the extracted folder containing `manifest.json`. Choose
 **Start server**. The app imports the matching server image if needed and creates
 private configuration natively; Node.js is not required for UI hosting.
 
@@ -66,7 +72,7 @@ after changing it. The app's local connection button reads that configuration.
    separate troubleshooting if the public address fails only inside your LAN.
 
 You can keep your owner client connected to `http://localhost:8080`. Preview
-0.3.4 uses the selected host's configured public HTTPS address for pretty codes
+0.3.5 uses the selected host's configured public HTTPS address for pretty codes
 after checking the local server identity. Authenticated storage requests stay on
 your current local connection. In the invite panel, verify **Server address for
 your friend** is the public HTTPS address. You can enter that address explicitly

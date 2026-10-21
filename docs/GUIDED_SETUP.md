@@ -1,8 +1,12 @@
 # Guided Host/Join setup
 
-Updated 2026-10-17, branch `codex/guided-setup`. Existing releases remain immutable.
-Published Preview 0.3.4 includes code-only sharing, native host configuration and
-protected local owner authorization. See the [18 installed checks](evidence/windows-preview-0.3.4-2026-10-17.json).
+Updated 2026-10-20, branch `codex/guided-setup`. Existing releases remain immutable.
+Published [Preview 0.3.5](https://github.com/KBHarris/hearth/releases/tag/v0.3.5)
+adds the Host/Join operations described below, with
+[16 installed checks](evidence/windows-host-join-preview-0.3.5-2026-10-20.json) and
+[verified public downloads/catalog](evidence/preview-0.3.5-publication-2026-10-20.json).
+Earlier Preview 0.3.4 code-only sharing, native host configuration and protected
+local owner authorization retain their [18 installed checks](evidence/windows-preview-0.3.4-2026-10-17.json).
 The buddy-PC/two-household test is [accepted by user instruction for Phase 3](evidence/phase3-manual-acceptance-2026-10-17.json).
 This does not close the all-OS clean-machine installation checkpoint below.
 Phase 3 preview is now [complete with full hosted acceptance](evidence/phase3-final-hosted-2026-10-18.json)
@@ -134,7 +138,8 @@ running host, compatible native invite handoff and fresh package services.
   extracts only regular allowlisted package files, and validates the inner signed
   manifest and server archive. Preparation reuses an existing selected host.
   Release tooling prepares `host-package.json`, its signature and a host-only TAR;
-  downloading requires those new assets to be published. Stable and preview feeds
+  those assets are now published with Preview 0.3.5 and verified over public HTTPS.
+  Stable and preview feeds
   remain separate. Existing signed folders can still be selected without downloads.
 - **Install hosting runtime** is an explicit action with separate OS consent.
   Windows x64 and macOS Intel/Apple Silicon use immutable Docker Desktop 4.96.0

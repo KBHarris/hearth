@@ -14,8 +14,8 @@ browser checks, 14 default desktop Rust tests, 4 signed-package/TAR checks,
 Fresh-volume restore checks original server/OPAQUE identity files, credentials
 and database contents, rejects an existing host and retries the same journal.
 This is not a fresh OS installation measurement. Cross-OS clean installation,
-actual reboot/sign-in execution, new two-household messaging and published-catalog
-download acceptance remain open in [the acceptance matrix](HOST_JOIN_ACCEPTANCE.md).
+actual reboot/sign-in execution, new two-household messaging and fresh installed
+host-preparation acceptance remain open in [the acceptance matrix](HOST_JOIN_ACCEPTANCE.md).
 
 The actual [Windows Preview 0.3.5 upgrade](evidence/windows-host-join-preview-0.3.5-2026-10-20.json)
 also passes all 16 checks on frozen product source `b84c11f`. The installed app
@@ -24,7 +24,11 @@ saved host reappears with empty browser storage. Existing profiles/configuration
 are preserved and the user's four host services stay running without restart.
 All 23 migrations, private storage and signing-identity persistence pass in the
 new package's disposable server. Signed release assets and a host-preparation
-catalog/TAR are prepared locally; they are not published. The user and buddy
+catalog/TAR were [published and verified](evidence/preview-0.3.5-publication-2026-10-20.json)
+on 2026-10-20. All 14 uploaded asset digests match their prepared files;
+unauthenticated HTTPS downloads verify the 13 payloads and six latest-feed files,
+including the checksum list. The release tag points to frozen source `b84c11f`.
+The user and buddy
 currently have Windows machines only; macOS/Linux installation acceptance is not
 waived by that availability limit.
 

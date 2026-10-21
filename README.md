@@ -3,12 +3,12 @@
 Hearth is a privacy-first, self-hostable community chat platform in early development.
 Messages and files are end-to-end encrypted. The application is licensed AGPLv3.
 
-The locally tested **Hearth Preview 0.3.4** includes guided Host/Join, encrypted DMs and
+The locally tested **Hearth Preview 0.3.5** includes guided Host/Join, encrypted DMs and
 communities, 50 MB files, member profiles, readable invites, desktop hosting controls,
 signed app/server updates, native invite opening, roles, reports, forums and polls.
-Download the Windows [client ZIP](https://github.com/KBHarris/hearth/releases/download/v0.3.4/Hearth_Test_11cd35e_Windows_x64.zip)
-or [host package](https://github.com/KBHarris/hearth/releases/download/v0.3.4/Hearth_Host_0.3.4_Windows_x64.zip)
-from the [Preview release](https://github.com/KBHarris/hearth/releases/tag/v0.3.4).
+Download the Windows [client ZIP](https://github.com/KBHarris/hearth/releases/download/v0.3.5/Hearth_Test_b84c11f_Windows_x64.zip)
+or [host package](https://github.com/KBHarris/hearth/releases/download/v0.3.5/Hearth_Host_0.3.5_Windows_x64.zip)
+from the [Preview release](https://github.com/KBHarris/hearth/releases/tag/v0.3.5).
 The signed Preview app/server update feeds are live. Invitations share only pretty
 codes with a separate server address. Hosts can stay connected locally while
 creating codes for their public HTTPS address.
@@ -18,8 +18,13 @@ mismatched original host configuration stops startup with recovery instructions.
 Follow
 [the latest two-PC test guide](docs/TWO_PC_LATEST_TEST.md) for the prepared Windows
 installer and matching fresh server. Older test deployments and profiles have been retired.
-Desktop hosting currently needs Docker; Node.js is only needed for the advanced CLI.
-Automatic runtime and host-package preparation remain open.
+Desktop hosting uses Docker; Node.js is only needed for the advanced CLI.
+Preview 0.3.5 adds signed in-app host preparation, explicit runtime installation,
+opt-in sign-in startup, portable backup/fresh restore and outside-network checks.
+The saved local host stays discoverable when browser server storage is empty or
+Docker is unavailable. The [installed upgrade passes 16 checks](docs/evidence/windows-host-join-preview-0.3.5-2026-10-20.json),
+and [public release downloads are verified](docs/evidence/preview-0.3.5-publication-2026-10-20.json).
+Clean-machine, reboot and cross-platform installation acceptance remain open.
 The desktop app can start/stop a configured host and authorize local owner setup
 without copying the private owner code.
 Voice/video, federation and the larger community trial remain on the roadmap.

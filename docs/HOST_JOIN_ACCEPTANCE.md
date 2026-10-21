@@ -11,13 +11,13 @@ unit tests or a Docker volume reset.
 | Check | Windows x64 | macOS Intel / Apple Silicon | Linux desktop |
 |---|---|---|---|
 | Clean installer, no development tools, runtime install | Pending | Pending on both architectures | Pending on supported Ubuntu; other distributions use manual runtime install |
-| Signed host preparation through published catalog | Pending publication and installed test | Pending | Pending |
+| Signed host preparation through published catalog | Public catalog/archive verified; fresh installed flow pending | Pending | Pending |
 | Native saved host survives empty browser server list and Docker failure | Six local native QA checks pass | Pending | Pending |
 | Actual opt-in sign-in/reboot, host identity/account/history preserved | Pending | Pending | Pending |
 | Owner, invite, approved device, encrypted two-household DM/file | Pending | Pending | Pending |
 | Failed setup retry, update failure recovery | Local isolated Docker coverage; installed acceptance pending | Pending | Pending |
 | Portable export and fresh-machine restore through UI | Local isolated Docker coverage; actual fresh OS pending | Pending | Pending |
-| Native cold/warm invite opening | Existing Windows 0.3.4 evidence; repeat on new installer | Pending | Pending |
+| Native cold/warm invite opening | Installed 0.3.5 upgrade passes | Pending | Pending |
 
 The actual Windows 0.3.5 installer upgrade passes 16 checks, including preserved
 native profiles/host configuration, a running original host, cold/warm native
