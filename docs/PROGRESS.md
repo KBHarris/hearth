@@ -17,6 +17,17 @@ This is not a fresh OS installation measurement. Cross-OS clean installation,
 actual reboot/sign-in execution, new two-household messaging and published-catalog
 download acceptance remain open in [the acceptance matrix](HOST_JOIN_ACCEPTANCE.md).
 
+The actual [Windows Preview 0.3.5 upgrade](evidence/windows-host-join-preview-0.3.5-2026-10-20.json)
+also passes all 16 checks on frozen product source `b84c11f`. The installed app
+matches that version/revision, native cold/warm invites still work, and the native
+saved host reappears with empty browser storage. Existing profiles/configuration
+are preserved and the user's four host services stay running without restart.
+All 23 migrations, private storage and signing-identity persistence pass in the
+new package's disposable server. Signed release assets and a host-preparation
+catalog/TAR are prepared locally; they are not published. The user and buddy
+currently have Windows machines only; macOS/Linux installation acceptance is not
+waived by that availability limit.
+
 Phase 3's existing final-source hosted results below remain scoped to Phase 3;
 they do not validate the new Host/Join source. No new hosted run was dispatched.
 

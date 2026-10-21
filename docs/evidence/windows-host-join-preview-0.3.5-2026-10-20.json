@@ -1,0 +1,48 @@
+{
+  "measuredAt": "2026-10-20T23:57:45.781Z",
+  "outcome": "pass",
+  "sourceCommit": "b84c11f32452c1bdd2aa64fdd43bb768b2c7cdfa",
+  "checks": {
+    "all_manifest_hashes_match": true,
+    "host_secrets_absent_from_distribution": true,
+    "friend_zip_contains_only_installer_guide_and_checksum": true,
+    "loaded_server_archive_matches_pinned_image": true,
+    "fresh_server_health_discovery_and_owner_bootstrap_pass": true,
+    "all_23_migrations_applied_to_fresh_data": true,
+    "storage_rejects_anonymous_requests": true,
+    "server_restart_preserves_signing_identity": true,
+    "actual_nsis_upgrade_installs_successfully": true,
+    "upgraded_native_binary_matches_version_and_source": true,
+    "visible_client_version_matches_installed_binary": true,
+    "existing_os_invites_still_require_review_after_cold_start": true,
+    "existing_os_invites_still_reach_the_running_instance": true,
+    "existing_host_remains_running_without_restart_or_data_reset": true,
+    "installed_host_reappears_with_empty_browser_server_storage": true,
+    "native_profiles_and_host_configuration_are_preserved": true
+  },
+  "humanPending": [
+    "clean buddy-PC installation and two-house reachability",
+    "actual Windows SmartScreen experience on the buddy PC",
+    "manual encrypted messaging between the two households"
+  ],
+  "nativeClient": {
+    "checks": {
+      "actual_nsis_upgrade_installs_successfully": true,
+      "upgraded_native_binary_matches_version_and_source": true,
+      "visible_client_version_matches_installed_binary": true,
+      "existing_os_invites_still_require_review_after_cold_start": true,
+      "existing_os_invites_still_reach_the_running_instance": true,
+      "existing_host_remains_running_without_restart_or_data_reset": true,
+      "installed_host_reappears_with_empty_browser_server_storage": true,
+      "native_profiles_and_host_configuration_are_preserved": true
+    },
+    "runtime": "in-place Windows Preview NSIS upgrade / isolated system WebView2; existing native profiles preserved",
+    "version": "0.3.5",
+    "identifier": "chat.hearth.preview",
+    "screenshots": []
+  },
+  "installerSha256": "0304b5560468ff96674406d871e5d828b3e9df590950533b15c924f94f71a776",
+  "releaseAssetsPrepared": true,
+  "releasePublished": false,
+  "hostedWorkflowDispatched": false
+}

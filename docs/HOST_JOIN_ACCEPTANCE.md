@@ -19,6 +19,14 @@ unit tests or a Docker volume reset.
 | Portable export and fresh-machine restore through UI | Local isolated Docker coverage; actual fresh OS pending | Pending | Pending |
 | Native cold/warm invite opening | Existing Windows 0.3.4 evidence; repeat on new installer | Pending | Pending |
 
+The actual Windows 0.3.5 installer upgrade passes 16 checks, including preserved
+native profiles/host configuration, a running original host, cold/warm native
+invites and the saved-host entry in a fresh browser profile. The new disposable
+server passes health, discovery, all 23 migrations, private S3 and identity
+persistence after restart. This is an upgrade on the existing Windows PC, not
+a clean Windows runtime-install measurement. The user confirmed only Windows
+machines are currently available for their buddy test; other OS gates remain open.
+
 ## Tester flow
 
 1. Install the new version on a supported clean PC with no Node, development tools

@@ -124,6 +124,10 @@ new macOS/Linux packaging.
 Preview 0.3.5 source adds the following ordinary UI operations. This is an
 implementation update; the [clean-machine acceptance matrix](HOST_JOIN_ACCEPTANCE.md)
 remains a separate gate before Phase 4.
+The [actual Windows installer upgrade](evidence/windows-host-join-preview-0.3.5-2026-10-20.json)
+passes 16 checks on source `b84c11f`, including the reported missing-host recovery
+with empty browser storage, preservation of native profiles and the existing
+running host, compatible native invite handoff and fresh package services.
 
 - **Prepare this computer to host** downloads a signed catalog from the pinned
   Hearth release source, checks client compatibility and the archive digest,
