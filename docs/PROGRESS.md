@@ -141,6 +141,17 @@ and LISTEN decisions. An isolated PostgreSQL regression passes deletion,
 departure, screening, read/listen denial and re-invitation checks. Limits and
 authorization deadlines are unchanged; real media acceptance is being repeated.
 
+The first batched-policy stage repeat hit a temporary HTTP 503 during a role
+change and stopped a listener. Room availability failures now enter the existing
+paused, thirty-second/three-per-minute recovery; permission denials remain
+terminal. The real stage repeat passes all nine checks. A further capacity
+attempt exposed independent keepalives still suppressing policy polling through
+the old shared schedule. Policy polling now continues every five seconds while
+renewal is pending, with one coalesced fresh read and the unchanged twenty-five
+second authorization deadline. A regression proves a denial stops capture before
+a pending renewal can return. All npm checks pass, including 129 client tests.
+The complete capacity fixture is running with this final scheduling correction.
+
 **Phase 4 SFU and computer audio, 2026-10-22:** optional SFU community rooms
 are implemented with a 25-account admission bound, current signed device/room
 leases and 60-second revision-specific routing tokens. Each publisher derives

@@ -91,6 +91,18 @@ test('old SFU controls cannot refresh against a replacement contribution during 
   try{f.epoch();assert.equal(reads,1);f.receive({voice_room:roomId,kind:'sfu-key',expires_at:Date.now()+60000});await tick();assert.equal(reads,1);assert.equal(f.call.state.phase,'connecting');assert.equal(f.call.source.getTracks()[0].enabled,false)}finally{f.call.close()}
 })
 
+test('a pending presence renewal cannot suppress fresh permission checks or delay a denial',async t=>{
+  t.mock.timers.enable({apis:['Date'],now:1000});const f=fixture();await seedAudio(f);await f.call.microphone();const source=f.call.source.getTracks()[0]
+  let release,checks=0,denied=false;f.call.lastHeartbeat=Date.now()
+  f.transport.renewVoicePresence=()=>new Promise(resolve=>{release=resolve})
+  f.call.refresh=async()=>{checks++;if(denied)throw Object.assign(new Error('revoked'),{status:403});f.call.checkedAt=Date.now()}
+  try{t.mock.timers.tick(11000);f.call.watch();await tick();assert.equal(f.call.renewing,true);assert.equal(checks,1)
+    t.mock.timers.tick(6000);f.call.watch();await tick();assert.equal(f.call.renewing,true);assert.equal(checks,2)
+    denied=true;t.mock.timers.tick(6000);f.call.watch();await tick();assert.equal(checks,3);assert.equal(source.readyState,'ended');assert.equal(f.call.busy,false)
+    release(Date.now()+30000);await tick();assert.equal(f.call.own,null);assert.equal(f.call.busy,false)
+  }finally{f.call.close()}
+})
+
 test('SFU periodic state is bounded to thirty seconds while changed state sends immediately and policy checks retain their deadline',async t=>{
   t.mock.timers.enable({apis:['Date'],now:1000});const f=fixture();await seedAudio(f);await f.call.microphone();const source=f.call.source.getTracks()[0],sent=[]
   f.call.admission.context.sfu=true
@@ -106,10 +118,11 @@ test('SFU periodic state is bounded to thirty seconds while changed state sends 
 
 test('transient signaling pauses capture for bounded recovery, while denied access still stops it',async t=>{
   t.mock.timers.enable({apis:['Date'],now:1000})
-  for(const denied of [false,true]){
+  for(const status of [0,503,403]){
+    const denied=status===403
     const f=fixture();await seedAudio(f);await f.call.microphone();const track=f.call.source.getTracks()[0]
     f.call.edges.set(peer,{call:{state:{phase:'connecting'},setRoomVideo:async()=>{},close(){}}});f.call.lastHeartbeat=Date.now();f.call.renewedAt=Date.now()
-    f.call.refresh=async()=>{throw Object.assign(new Error('fixture'),denied?{status:403}:{kind:'timeout'})};f.transport.voiceRoom=()=>new Promise(()=>{})
+    f.call.refresh=async()=>{throw Object.assign(new Error('fixture'),status?{status}:{kind:'timeout'})};f.transport.voiceRoom=()=>new Promise(()=>{})
     try{t.mock.timers.tick(6000);f.call.watch();await tick()
       if(denied){assert.equal(track.readyState,'ended');assert.equal(f.call.busy,false)}
       else{assert.equal(track.enabled,false);assert.equal(track.readyState,'live');assert.equal(f.call.state.phase,'connecting');t.mock.timers.tick(31000);f.call.watch();assert.equal(track.readyState,'ended');assert.equal(f.call.busy,false)}
