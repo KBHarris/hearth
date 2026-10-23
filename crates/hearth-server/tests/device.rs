@@ -65,6 +65,7 @@ async fn first_device_scope_race_immutability_and_revocation(db: PgPool) {
         .unwrap();
     let app = router(Arc::new(AppState {
         config: Config {
+            media: Default::default(),
             storage: None,
             server_name: "device-test".into(),
             bind: "127.0.0.1:0".parse().unwrap(),
@@ -275,6 +276,7 @@ async fn recovery_and_link_require_identity_possession_and_scope(db: PgPool) {
     }
     let app = router(Arc::new(AppState {
         config: Config {
+            media: Default::default(),
             storage: None,
             server_name: "recovery-test".into(),
             bind: "127.0.0.1:0".parse().unwrap(),

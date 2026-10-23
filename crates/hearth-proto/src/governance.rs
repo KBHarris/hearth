@@ -14,6 +14,13 @@ pub const MODERATE: u32 = 256;
 pub const AUDIT: u32 = 512;
 pub const ALL: u32 = 1023;
 pub const DEFAULT: u32 = READ | SEND | REACT | ATTACH;
+pub const CONNECT: u32 = 1024;
+pub const SPEAK: u32 = 2048;
+pub const LISTEN: u32 = 4096;
+pub const CAMERA: u32 = 8192;
+pub const SCREEN: u32 = 16384;
+pub const MEDIA: u32 = CONNECT | SPEAK | LISTEN | CAMERA | SCREEN;
+pub const ALL_WITH_MEDIA: u32 = ALL | MEDIA;
 
 #[derive(Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
@@ -82,6 +89,10 @@ pub struct ChannelLimits {
 #[serde(deny_unknown_fields)]
 #[cfg_attr(feature = "typescript", derive(ts_rs::TS))]
 pub struct Governance {
+    /// Explicit media bits. Absence preserves the signed pre-media policy.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[cfg_attr(feature = "typescript", ts(optional))]
+    pub media_version: Option<u8>,
     pub community_id: String,
     #[cfg_attr(feature = "typescript", ts(type = "number"))]
     pub revision: u64,
@@ -166,7 +177,7 @@ pub fn permissions_with_invite(
     invite_issued_at: Option<u64>,
 ) -> u32 {
     if account == owner {
-        return ALL;
+        return ALL_WITH_MEDIA;
     }
     let Some(p) = policy else {
         return DEFAULT;
@@ -221,11 +232,41 @@ pub fn permissions_with_invite(
                         return 0;
                     }
                 }
-                SanctionKind::Timeout => bits &= !(SEND | REACT | ATTACH | PIN),
+                SanctionKind::Timeout => {
+                    bits &= !(SEND | REACT | ATTACH | PIN | SPEAK | CAMERA | SCREEN)
+                }
             }
         }
     }
-    bits & ALL
+    bits & ALL_WITH_MEDIA
+}
+
+/// Legacy signed policies retain their read/send voice gate until an owner
+/// explicitly upgrades them. New policies grant each media action separately.
+pub fn media_permissions(policy: Option<&Governance>, bits: u32) -> u32 {
+    if bits & READ == 0 {
+        return 0;
+    }
+    if policy.is_some_and(|p| p.media_version == Some(1)) {
+        bits & MEDIA
+    } else if bits & (READ | SEND) == READ | SEND {
+        MEDIA
+    } else {
+        0
+    }
+}
+pub fn room_media_permissions(
+    policy: Option<&Governance>,
+    bits: u32,
+    stage: bool,
+    owner: bool,
+) -> u32 {
+    let media = media_permissions(policy, bits);
+    if stage && !owner && policy.is_none_or(|policy| policy.media_version.is_none()) {
+        media & (CONNECT | LISTEN)
+    } else {
+        media
+    }
 }
 
 #[cfg(test)]
@@ -233,6 +274,48 @@ mod tests {
     use super::*;
     fn policy() -> Governance {
         serde_json::from_value(serde_json::json!({"community_id":"c","revision":1,"everyone":DEFAULT,"roles":[],"assignments":[],"overrides":[],"sanctions":[],"limits":[],"rules":"","screening":false,"owner":{"account_id":"owner","enrollment":{"identity_key":"i","device_key":"d","certificate":"c","account_signature":"a","device_signature":"s"}},"signature":""})).unwrap()
+    }
+    #[test]
+    fn media_actions_are_independent_and_timeouts_remove_publication() {
+        let mut p = policy();
+        assert_eq!(media_permissions(Some(&p), DEFAULT), MEDIA);
+        assert_eq!(media_permissions(Some(&p), READ), 0);
+        p.media_version = Some(1);
+        p.everyone = READ | CONNECT | LISTEN;
+        let room = |p: &Governance| {
+            media_permissions(
+                Some(p),
+                permissions(Some(p), "owner", "member", Some("room"), 10),
+            )
+        };
+        assert_eq!(room(&p), CONNECT | LISTEN);
+        p.overrides.push(PermissionOverride {
+            channel_id: "room".into(),
+            kind: OverrideKind::Member,
+            target_id: "member".into(),
+            allow: SPEAK | CAMERA | SCREEN,
+            deny: 0,
+        });
+        assert_eq!(room(&p), MEDIA);
+        p.sanctions.push(Sanction {
+            account_id: "member".into(),
+            channel_id: None,
+            kind: SanctionKind::Timeout,
+            until: Some(100),
+            kick_after: None,
+        });
+        assert_eq!(room(&p), CONNECT | LISTEN);
+        p.overrides[0].deny = LISTEN;
+        assert_eq!(room(&p), CONNECT);
+        assert_eq!(
+            media_permissions(
+                Some(&p),
+                permissions(Some(&p), "owner", "owner", Some("room"), 10)
+            ),
+            MEDIA
+        );
+        p.overrides[0].deny = READ;
+        assert_eq!(room(&p), 0);
     }
     #[test]
     fn matrix_override_precedence_and_sanctions() {
@@ -307,7 +390,7 @@ mod tests {
         );
         assert_eq!(
             permissions(Some(&p), "owner", "owner", Some("room"), 101),
-            ALL
+            ALL_WITH_MEDIA
         );
         assert_eq!(
             permissions(None, "owner", "other", Some("room"), 0),

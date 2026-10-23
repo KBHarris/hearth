@@ -1,0 +1,27 @@
+# Optional SFU. Initialize with: node deploy/media/setup.mjs
+# Add to the existing stack with both Compose files and the generated env file.
+services:
+  server:
+    environment:
+      HEARTH_SFU_URL: ${HEARTH_SFU_URL:?initialize the media package}
+      HEARTH_SFU_LOCAL_URL: ${HEARTH_SFU_LOCAL_URL:?initialize local signaling}
+      HEARTH_SFU_API_KEY: ${HEARTH_SFU_API_KEY:?initialize the media package}
+      HEARTH_SFU_API_SECRET: ${HEARTH_SFU_API_SECRET:?initialize the media package}
+      HEARTH_REQUEST_PROFILE: ${HEARTH_REQUEST_PROFILE:-standard}
+    depends_on:
+      media:
+        condition: service_started
+  media:
+    image: livekit/livekit-server:v1.13.8@sha256:ad961c9b4b064298cc08d618d772671f7c783e036001388079fa813929cc357e
+    restart: unless-stopped
+    command: ["--config", "/etc/hearth/livekit.yaml"]
+    cap_drop: [ALL]
+    security_opt: ["no-new-privileges:true"]
+    read_only: true
+    tmpfs: [/tmp]
+    ports:
+      - "127.0.0.1:${HEARTH_SFU_SIGNAL_PORT:-7880}:${HEARTH_SFU_SIGNAL_PORT:-7880}/tcp"
+      - "${HEARTH_MEDIA_BIND:-127.0.0.1}:${HEARTH_SFU_TCP_PORT:-7881}:${HEARTH_SFU_TCP_PORT:-7881}/tcp"
+      - "${HEARTH_MEDIA_BIND:-127.0.0.1}:${HEARTH_SFU_UDP_PORT:-7882}:${HEARTH_SFU_UDP_PORT:-7882}/udp"
+    volumes:
+      - ${HEARTH_SFU_CONFIG_PATH:-./media/data/livekit.yaml}:/etc/hearth/livekit.yaml:ro

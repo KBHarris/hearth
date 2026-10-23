@@ -1,5 +1,566 @@
 # Progress
 
+**Phase 4 completion work in progress, 2026-10-23:** the user authorized finishing
+all remaining implementation and automated validation, followed by a new release
+and data-preserving upgrades of this computer's client and existing server. Human
+device/network acceptance may remain. Railway is still paused; no hosted CI run
+is authorized or dispatched. Nothing has been released or installed in this pass.
+
+New work includes independent connect/listen/speak/camera/screen permissions with
+signed legacy-policy compatibility, stage channel types and explicit speaker
+consent, microphone/camera switching, speaker selection/volume/deafen, bounded
+community/private-group MLS recovery, and encrypted scheduled events/RSVP and
+shared playback controls. Events pass a real two-device MLS and sealed-storage
+test. Provider URL normalization and stale-host clock bounds pass unit tests.
+Chromium verifies that the opaque player cannot read the parent page/storage
+or navigate back to the application origin, and makes no provider request before
+consent. Native Windows acceptance also rejects frame access to storage/native
+commands. YouTube and SoundCloud's official public examples initialize after
+fixture consent; real playback/account/autoplay acceptance remains manual.
+The user chose to disable Spotify for this release on 2026-10-23. Its player
+connection and creation are disabled and its origins removed from player CSPs.
+These are implementation/testing updates, not a claim that Phase 4 has closed.
+
+**Additional local results, 2026-10-23:** the three-person SFU stage fixture passes
+listener-only capture, explicit speaking consent after promotion, demotion,
+repeat promotion without microphone reopening, targeted listening revocation and
+owned-track cleanup. This uses unchanged request/recovery limits and deliberately
+paces repeated owner policy edits across their budget windows. The production
+TURN-TLS certificate-wait wrapper passes trusted fixture TLS 1.3, authenticated
+allocation and bidirectional relay traffic; it does not establish WebRTC TLS
+route selection or public certificate/router acceptance. Private-group camera,
+screen and separate computer audio now pass together with microphone switching
+and an actual linked-device MLS epoch change after consolidating duplicate
+heartbeats. The current Windows native direct-call fixture passes 22 checks,
+including media, ICE recovery, relay-only selection, block enforcement and
+provider/native isolation. No rate or recovery limits were increased.
+
+Native host implementation now stages a matching signed deployment package before
+an update, includes media configuration/credentials in protected backup and
+restore, and exposes optional SFU/relay controls. A disposable signed legacy host
+passes backup rehearsal, failed-update rollback, protected media-file retention
+and fresh restore. The packaged WSS route passes an authenticated WebSocket
+upgrade through the pinned production proxy with a trusted private certificate.
+This computer's selected real host has not been changed.
+
+The focused room/media permission and capture suite passes 23 tests. The first
+updated six-person SFU run passes decoded microphone/camera/screen/computer audio,
+independent mute, wrong-key rejection, and capture-preserving join/leave rotation;
+it then exposes a permission-change recovery race. The corrected epoch handling
+is being retested. Large-room attempts are retained as failures: conservative
+setup pacing preserves login/account budgets, exact credential/policy reuse and
+read-only room checks remove redundant work, and the latest 25-person attempt
+reaches 11 joined endpoints without throttling or lease errors before a
+connection timeout. The 25-person stable-media/load milestone remains open.
+
+The isolated-renderer 25-person attempt reached its final join before several
+leases/verification checks expired; it is a failure, with no stable-media/load
+claim. The next attempt uses an optimized server matching production's build
+profile, retaining every request, account and lease bound. Its result and the
+new browser TURN-TLS route check are pending. Rust formatting, workspace Clippy
+and all default Rust tests pass with loopback networking available. The private
+S3/real HTTP/MLS regression and new exact-device/block admission tests pass.
+
+Remaining work and release gates are tracked in
+[the Phase 4 release checklist](PHASE4_RELEASE_CHECKLIST.md). Historical frozen
+checkpoints below retain their original scope and counts.
+
+**Phase 4 SFU and computer audio, 2026-10-22:** optional SFU community rooms
+are implemented with a 25-account admission bound, current signed device/room
+leases and 60-second revision-specific routing tokens. Each publisher derives
+fresh sender material from randomness and the MLS exporter, then individually
+wraps it to the other joined devices using their authenticated ECDH agreements.
+The SFU receives no frame keys. A worker readiness challenge precedes capture;
+unknown/plain publications are not subscribed. Format 5 and migration 0028 gate
+the expanded layout while private group format 2 is retained.
+
+Camera, screen video and explicitly selected computer/tab audio publish once
+per SFU endpoint. Ordinary SFU join/leave changes replace physical rooms and
+keys while preserving continuing originals and microphone mute. Microphone
+mute remains independent of screen audio; stopping sharing stops its audio.
+Permission loss, worker/connection failure and stale authorization stop capture.
+A late microphone permission grant now requires fresh authorization before any
+clone is returned. Mesh rooms retain their four-person and video-stop policies.
+
+The isolated six-person Windows WebView2 SFU fixture passes 17 checks over
+TURN/TCP, using six bidirectional peer connections. All 30 directed microphone
+paths decode; camera, screen and computer audio decode and survive membership
+rotation. Both logical directions select relays with zero host candidates.
+A routing-authorized observer with wrong media keys receives encrypted packets
+but decodes zero video frames and silent audio. All 40 tracked original/owned
+clone tracks stop, and native SQLCipher fixture credentials/files drain and
+are removed. This uses synthetic media and a test loopback/autoplay profile,
+not physical-device, installed-client or internet acceptance.
+
+The 25-device signed MLS/key-admission milestone test also passes. It is an
+explicit five-minute test; default Rust verification passes 53 tests with six
+ignored. All 165 JavaScript tests, typechecking, lint, normal production build,
+Rust formatting/clippy, protocol drift and WASM target checking pass. Optional
+pinned LiveKit/coturn Compose overlays pass disposable startup, custom-port and
+private-file cleanup checks. No user host services or installed client changed.
+
+The live 25-person media/load target and the updated 1:1/mesh computer-audio
+regressions are being checked separately. Separate connect/speak/listen and
+camera/screen permissions, device switching, general MLS room rekey, resilient
+network recovery, stage channels, events and watch parties remain open, along
+with physical platforms, independent networks, TURN-TLS and deployment gates.
+See [SFU rooms](SFU_ROOMS.md) and [computer audio](COMPUTER_AUDIO.md).
+Railway and hosted CI remain paused; this is not a release.
+
+**Phase 4 community room camera/screen video, 2026-10-22:** the local
+four-person room now offers independent camera and screen controls after audio
+connects. Multiple participants can share simultaneously, using one original
+capture per source and a clone for each encrypted peer edge. Admission/policy is
+checked before capture, again after the permission prompt, and on each sender.
+Cancel/leave/lock/epoch changes invalidate late grants. Permission denial leaves
+audio running; unexpected captured audio is stopped. Room roster changes stop
+all video originals/clones before rebuilding keys, preserve continuing microphone
+sources/mute and require explicit video consent for the new audience.
+
+Authenticated camera/share flags travel in encrypted room heartbeats with a
+mesh-scoped monotonic counter. Labeled camera/screen tiles and muted local
+previews use the correct negotiated slots; stale or conflicting states cannot
+restore a stopped tile. Format 4 and migration 0027 require upgraded channel
+devices before room capture, while private-group format 2 is retained. No new
+public camera/share fields or media keys reach the host.
+
+Final Chrome direct (26), relay-only TURN/UDP with signed revocation (23), and
+isolated Windows WebView2 over TURN/TCP including native cleanup (28) pass 77 room
+outcomes. Each decodes twelve distinct video paths alongside twelve audio paths,
+from two cameras/two simultaneous shares and twelve owned sender clones. Camera
+stop preserves shares/audio; membership changes stop every video original/clone;
+rejoining requires fresh video consent. Permission loss stops video and denies
+rejoin. The older-client gate rejects audio-only format 3 before capture. Relay
+metrics select relays with zero host candidates, and no final room run has HTTP
+429 responses. Private-group rejoin (27) and 1:1 voice/camera/share/four-restart
+regressions (18) pass another 45 outcomes.
+
+All 151 JavaScript tests and 52 default Rust tests (five ignored), Rust formatting/
+clippy, current WASM build/target check, protocol drift, normal production build
+and normal Windows desktop compilation pass. The normal production assets were
+restored after the isolated native fixture and exclude acceptance entry points
+and canaries. Native fixture credentials/files are removed after native calls
+drain. Preliminary format-3 runs and the restricted invocation's SDK loopback
+failures remain recorded separately from the final format-4 routes. See
+[the frozen local checkpoint](evidence/phase4-room-video-local-2026-10-22.json).
+
+See [room video](ROOM_VIDEO.md). Larger SFU rooms, separate connect/speak/listen
+and video-publication permissions, shared computer audio, seamless video roster
+changes, physical devices and independent-network/platform acceptance remain
+open. The installed Preview 0.3.6 and user's host are unchanged. Railway and
+hosted CI remain paused.
+
+**Phase 4 community voice rooms, 2026-10-22:** the local development client now
+supports persistent Voice channels with explicit join/leave rather than ringing
+invitations. Up to four people, one approved device each, can participate from a
+larger channel audience. The first person waits with the microphone off, and the
+room remains available after everyone leaves or the owner closes their session.
+Joining/rejoining uses a fresh nonextractable contribution; occupancy changes
+refresh pair keys/connections while continuing sources and mute are preserved.
+Read/send permission, signed community admission, device approval, rules screening
+and control format 3 are required. Separate listen/connect/speak permissions and
+seamless general MLS epoch changes remain open.
+
+Migration 0026 adds the Voice channel kind and bounded public room/presence
+metadata. Approved devices sign the room generation, epoch, incarnation, public
+P-256 point, privacy, state and short lifetime. The backend never receives media
+keys. Clients verify signatures and policy, bind the room revision into keys,
+reject backwards/equivocating manifests and stop capture on expired verification.
+An existing local crypto-view bug labeled channels as private conversations; the
+view now reports its authenticated channel association, with a regression test.
+Room liveness uses one MLS-authenticated broadcast per participant instead of
+separate network heartbeats for every pair. Default server request limits remain.
+
+The direct scenario passes four-person/twelve-path audio, capacity denial before
+capture, owner departure, mute/source preservation, fresh-key rejoin, empty-room
+reuse and private wire canaries. The fixture separates its rapid five-account
+provisioning burst from media acceptance and holds the room beyond the peer
+watchdog to verify heartbeat/lease renewal. Direct Chrome (19), relay-only UDP
+Chrome (20), isolated Windows WebView2 over TURN/TCP (21) and signed-permission
+revocation (16) pass 76 room outcomes. All twelve full-room directions decrypt
+and decode; final room runs have no HTTP 429 responses and relay paths select
+relays with zero host candidates. Native fixture credentials/files are removed
+after native calls drain. The original private-group rejoin (27) and 1:1
+voice/camera/share/recovery (18) regressions also pass.
+
+All 142 JavaScript tests, 52 default Rust tests (five ignored), formatting/clippy,
+WASM build/target check, protocol drift, normal production build and normal
+Windows desktop compilation pass. Acceptance entry points and canaries are
+excluded from normal production assets. The initial Windows run had an oversized
+test label and an insufficient harness deadline; the corrected room-only harness
+retains its strict report contract and records renderer results before cleanup.
+The earlier development failures and the fixture-only source cut are retained in
+[the checkpoint](evidence/phase4-community-voice-local-2026-10-22.json).
+See [the room guide](COMMUNITY_VOICE.md).
+The room-video follow-up above supersedes this audio-only checkpoint's camera/
+share limits. Computer audio, larger SFU rooms and physical/independent-network
+acceptance remain open. Installed Preview 0.3.6 and the user's host are unchanged;
+Railway and hosted CI remain paused.
+
+**Phase 4 same-call rejoining, 2026-10-22:** the development client now offers
+**Rejoin group call** after leaving or declining while a selected peer is still
+live. Rejoin checks authorization again, creates a fresh ephemeral ECDH key and
+microphone source, and refreshes all active pair connections/keys. Continuing
+participants keep their original microphone sources and mute state. Leaving
+releases media and the active call slot; only public call state remains in memory.
+Lock, epoch change, client close, another group start/invitation or expired peers
+removes that option. This is bounded to the current session and fixed three-device
+private roster, with at most 32 joins per device and the original 50-minute lifetime.
+
+Version 2 `group-member` controls bind the public contribution and joined/left
+state to a monotonic participation round. Leaves dominate joins in the same
+round, including when delivered first; old joins/leaves cannot resurrect or
+remove a later incarnation. Round state also binds pair keys and connection IDs.
+The old membership object is invalidated before resuming, so late grants or
+capture cannot enter the new attempt. Mesh endpoints share an authorization
+grant for at most two seconds; explicit rejoin always requests a fresh grant.
+Production request limits are unchanged. Migration 0025 stores only a public
+format number beside the existing device capability record; older group
+announcements downgrade it and block version 2 controls until upgraded again.
+
+Validation and boundaries are recorded in
+[the rejoin checkpoint](evidence/phase4-group-rejoin-local-2026-10-22.json).
+Local direct, TURN/UDP, TURN/TCP, isolated Windows WebView2 and block-revocation
+scenarios pass 129 group outcomes, including six decoded audio directions after
+rejoin, preserved survivor capture/mute, replayed old round controls and a second
+leave. The 18-outcome existing 1:1 voice/camera/share/recovery regression also
+passes. All 130 JavaScript tests and 50 default Rust tests pass (five ignored),
+along with formatting/clippy, WASM build/target check, protocol drift, the normal
+production build and normal Windows desktop compilation. The final observer
+timer guard was verified by a focused test and repeated direct/native relay
+acceptance; the earlier browser UDP/TCP/block reports retain their explicit
+pre-guard source hashes. Test relay containers and native credentials/files are
+removed; the original four Hearth containers remain up. The checkpoint preserves
+development failures and distinguishes local generated media from physical or
+internet acceptance.
+The earlier group evidence below remains a frozen historical checkpoint.
+The installed Preview 0.3.6 and user's host are unchanged; Railway and hosted CI
+remain paused. Persistent community rooms, larger rosters, group video/share and
+physical/independent-network acceptance remain open.
+
+**Phase 4 private group voice, 2026-10-22:** the development client now supports
+three-account private voice calls with independent joins. Two people can talk
+while the third invitation is unanswered; the third can join later. An ordinary
+leave, including the original caller leaving, keeps the remaining pair in the
+call. A join/leave refreshes derived media keys and peer connections while
+preserving continuing microphone sources and mute settings. The last person
+releases microphone capture while waiting. This replaces the original fixed
+all-answer/end-on-leave draft after the user's feedback.
+
+The mesh reuses authenticated MLS signaling and SFrame workers, with one original
+microphone per device and cloned tracks per peer link. Public contribution and
+departure transcripts bind fresh pair keys; departure tombstones prevent reuse
+of pre-join keys. Asynchronous work is scoped to the membership generation.
+Group compatibility is stored as approved-device format support (migration 0024),
+separately from online presence. Older-format clients block incompatible controls;
+a previously upgraded device going offline does not end the other callers' call.
+Readiness rejects a private block between any account pair. Chat MLS epoch changes,
+lock and lost authorization stop capture before the transition.
+
+Local browser and isolated Windows WebView2 acceptance now cover the product
+group interface, real accounts/MLS, independently joining participants, all six
+decoded/encrypted directions, direct and relay-only paths, mute, caller departure,
+survivor key changes, capture preservation, last-person source release and cleanup.
+The separate block scenario stops all three captures. Exact route/check counts,
+validation, retained failures and boundaries are in
+[the checkpoint](evidence/phase4-group-voice-local-2026-10-22.json).
+The group matrix passes 21 direct, 21 TURN/UDP, 21 TURN/TCP, 23 native Windows
+TURN/UDP and 16 block-revocation outcomes (102 total). Direct and native relay
+runs additionally measure decoded survivor audio after leave/rekey/unmute.
+The 18-outcome 1:1 recovery and 16-outcome relay key-update regressions pass.
+All matching-key authentication/replay/malformed rejections are zero; relay
+links select relays with zero host candidates. Native test credentials/files
+are removed after storage calls drain. Web typecheck/lint, all 120 JavaScript
+tests, the normal production build, Rust formatting/clippy, 49 default tests
+(five ignored), WASM build/target check, protocol drift and normal Windows
+desktop compilation pass. Acceptance pages/canaries are excluded from the
+normal production assets.
+
+This remains invited private voice for three selected devices, rather than a
+persistent community voice room. Same-call rejoining was completed in the later
+checkpoint above; larger groups, group camera/share, general chat-membership rekey,
+physical devices and internet/
+full-platform acceptance remain open. The installed Preview 0.3.6 and user's
+host are unchanged; Railway and hosted CI remain paused. See
+[the behavior and implementation](GROUP_VOICE.md).
+
+**Phase 4 three-person admission/key foundation, 2026-10-22:** fixed-roster
+group call controls now bind exactly one selected device from each of three
+private-chat accounts. The pure client state machine requires explicit consent
+and directly authenticated public contributions from every selected device.
+Each selected pair adds fresh nonextractable P-256 ECDH material to its MLS base
+with transcript-bound HKDF-SHA-256. Knowing the chat's MLS state alone is
+insufficient to derive that pair's media key. Invalid points, key changes, leave,
+deadlines, access loss and late crypto completion fail closed.
+
+The messaging observer registry now supports independent call consumers and
+waits for every publication-pause acknowledgment before an MLS commit. Ordinary
+1:1 wire serialization remains unchanged; its controller ignores group messages.
+Seventeen new JavaScript safety tests and three new Rust tests cover admission,
+pair-key isolation/frame authentication, cancellation, observer barriers, real
+three-account/four-device MLS roster checks and legacy wire compatibility.
+Web typecheck/lint, all 103 JavaScript tests, normal production build, Rust
+formatting/clippy, 49 default tests (five ignored), WASM build/target check,
+protocol drift and normal Windows desktop compilation pass.
+Existing 1:1 acceptance also passes 18 direct recovery checks and 16 TURN/UDP
+key-update checks. Both relay endpoints select relays with zero host candidates
+and complete one key update; all matching-key authentication/replay/malformed
+rejections are zero. These are synthetic loopback regressions, not group media
+or physical/internet acceptance. Checkpoint-specific output preserves earlier runs.
+
+**Group calls remain disabled.** The interface, server readiness gate and usable
+calling feature remain 1:1. A distinct group-format compatibility lease, shared
+microphone/mesh controller, live whole-roster permission checks, lifecycle cleanup
+and all six directed audio/relay paths still need integration and acceptance.
+The foundation itself performs no capture or networking. See
+[the design and next implementation steps](GROUP_CALLS.md) and
+[the local checkpoint](evidence/phase4-group-admission-local-2026-10-22.json).
+Railway, hosted CI, installed Preview 0.3.6 and the user's host are unchanged.
+
+**Phase 4 active-call key updates, 2026-10-22:** an established two-device call
+now survives a verified linked-device addition to its two-account MLS DM. Before
+processing or producing the commit, messaging waits for the media worker to
+acknowledge publication pause. Old key references and in-flight crypto outputs
+are invalidated. Both selected endpoints are reauthorized; fresh exporter keys
+bind a random transaction, new epoch, server/conversation, original device pair
+and relay policy. Install/ready/commit/done confirmation plus advancing new-key
+media and route verification are required before connected is shown again.
+Microphone/camera capture, mute state and the peer connection remain in place.
+
+Ten focused safety tests cover pause acknowledgment, old-key/stale-frame drops,
+in-flight cancellation, rollback, stale controls, missing confirmation, access
+denial, session lock, repeated epochs and stalled-request cleanup. A 20-second
+deadline and 32-update call limit bound the transition. An epoch change during
+network recovery, overlapping epoch changes, lost access or incomplete updates
+end capture. General group-call admission/rekey and physical/network acceptance
+remain open. See [the key-update design](CALL_KEY_UPDATES.md) and
+[the local checkpoint](evidence/phase4-call-rekey-local-2026-10-22.json).
+The frozen key-update matrix passes 15 direct, 16 TURN/UDP, 16 TURN/TCP and
+17 native Windows TURN/UDP outcomes (64 total). Both peers confirm one successful
+key update in each run, with zero authentication/replay/malformed-frame rejections.
+Paused/retired-key frame drops are counted separately. Relay-only runs report
+selected relays and zero host candidates. The existing 18-outcome direct recovery
+scenario also passes all four restarts. Native fixture storage/credentials are
+drained and removed. Web typecheck/lint, all 86 JavaScript tests, production build,
+Rust formatting/clippy, 46 default tests (five ignored), WASM build/check, protocol
+drift check and normal Windows desktop compilation pass. Normal production assets
+exclude synthetic acceptance pages and canaries.
+
+The first integration attempts exposed a mutable two-person UI fixture growing
+to three device entries, then an HTTP 429 from combining four rapid ICE restarts
+with device linking/maintenance. Both failures are retained. Panel participants
+are now snapshotted, and the new `--rekey` scenario runs independently with real
+production request limits. The installed 0.3.6 client and running host are
+unchanged; Railway and hosted CI remain paused.
+
+**Phase 4 same-epoch call recovery, 2026-10-22:** established calls now attempt
+bounded ICE recovery while keeping their existing microphone/camera/share tracks,
+peer connection and SFrame workers/counters. Either participant may initiate;
+simultaneous offers converge using deterministic glare roles. Encrypted SDP
+transaction markers reject stale/mismatched answers and replayed offers. New
+descriptions are reauthorized, relay-only routes are rechecked, and authenticated
+media must advance before showing connected. Recovery has an independent
+20-second deadline and six-transaction-per-minute bound. Mute, stopping active
+video/share and hangup remain available while reconnecting.
+
+Ten focused regressions cover transaction/replay handling, glare, rate limits,
+authorization denial, epoch changes, hangup, stalled-request timeout and stale
+answers. The synthetic route matrix covers caller/callee restarts, simultaneous
+restarts, real ICE credential changes, continued decoded audio/video and unchanged
+capture/key acquisition. Automatic triggering uses an injected disconnect event;
+it does not measure a physical outage. See
+[the recovery checkpoint](evidence/phase4-call-recovery-local-2026-10-22.json).
+Final acceptance passes 18 direct, 19 TURN/UDP, 19 TURN/TCP and 20 native Windows
+TURN/UDP outcomes (76 total), with four completed recovery scenarios on both
+peers in every run. Matching-key authentication/replay/malformed rejections are
+zero; relay peers report selected relays and zero host candidates. Native fixture
+credentials/files are removed after its storage operations drain. Web typecheck,
+lint, all 76 JavaScript tests and normal production build pass, as do Rust
+formatting/clippy, 45 default tests (five ignored) and normal Windows desktop
+compilation. Production assets exclude synthetic acceptance pages and canaries.
+
+The first TURN run passed recovery but failed a subsequent call with no caller
+relay candidate, consistent with overlapping ICE allocations exhausting the tiny
+fixture quotas. That failure is retained; the disposable fixture now allows bounded
+overlap and each new call fetches fresh credentials. No production quotas changed.
+Automatic in-call key rotation, full signaling/network reconnection, real network
+switches/outages, TURN-TLS, physical capture and group calls remain open. Epoch
+changes still end capture. The installed 0.3.6 client/host are unchanged; Railway
+and hosted CI remain paused.
+
+**Phase 4 native Windows media acceptance, 2026-10-21:** an explicitly enabled
+Tauri acceptance build now runs the product call panel, crypto/WASM, real accounts,
+MLS delivery and native SQLCipher message storage in Windows WebView2. Direct,
+forced TURN/UDP and forced TURN/TCP runs pass **15/16/16 checks**. Both relay peers
+select verified relay candidates and gather zero host candidates. Synthetic audio,
+camera and screen video decode, with zero authentication/replay/malformed-frame
+rejections; hangup and block revocation stop capture. Each successful native run
+verifies that pending storage operations drain and temporary credentials/files are
+removed. A browser direct regression also passes all 14 checks.
+
+The first native attempt completed media checks but failed its fixture-completion
+call because the command argument wrapper was missing. The wrapper is corrected
+and all three final native runs pass. The interrupted directory was removed;
+credential cleanup for that first attempt could not be independently verified
+from the separate cleanup process. Its failure remains recorded. See
+[the native acceptance record](evidence/phase4-native-direct-calls-local-2026-10-21.json)
+and [repeatable commands and scope](DIRECT_CALLS.md).
+
+This advances native runtime acceptance, using synthetic tracks and a test autoplay
+override. Physical microphones/cameras, screen-picker permissions, installed release
+behavior, cross-platform and independent-network/TURN-TLS acceptance remain open.
+The user's installed 0.3.6/sidebar profile and existing host were not updated.
+Railway and hosted CI remain paused.
+Final verification passes all 66 JavaScript tests, typecheck, lint and production
+build; Rust formatting/clippy and 45 default tests pass (five database/storage
+integration tests remain ignored). Native fixture clippy, the storage-drain test
+and default Windows desktop compilation also pass. The normal production bundle
+contains neither acceptance page nor synthetic call canaries. Initial restricted
+HTTP/mock test failures are retained in local logs; the network-enabled reruns pass.
+
+**Start-menu profile recovery, 2026-10-21:** the user's 0.3.6 screenshot confirmed
+the sidebar was still empty. The exact failure was then reproduced by opening
+the installed Start-menu shortcut in the real File Explorer UI with no WebView
+debug flags. The normal Windows profile contained only `host-backups`; its
+`host-selection.json` was absent. Codex-launched tests and PowerShell/COM probes
+saw a different, populated AppData view and therefore overclaimed normal-launch
+coverage. The retry patch cannot restore a selection that is absent in that profile.
+
+Recovery used the actual client UI to reselect the original signed host package,
+preserving its HTTPS/public address, then connect to the running local server.
+The real profile now contains `host-selection.json`; **Gold Team** appears in the
+sidebar and survives closing/reopening through that same Windows shortcut. The
+four original host containers remain running, with no recreation/restart or data
+reset. No account login, key migration, new installer or hosted run was performed.
+The client is left open at Gold Team's sign-in screen. See
+[the normal-launch evidence](evidence/host-sidebar-start-menu-2026-10-21.json) and
+[updated recovery/testing notes](HOST_SIDEBAR_RECOVERY.md). Earlier passing reports
+remain historical evidence of their narrower test contexts.
+
+**Saved-host sidebar follow-up, 2026-10-21:** the user reported that reopening
+Hearth with Docker running still did not show their server automatically. This
+reopens the real-use acceptance claim from Preview 0.3.5; its historical passing
+fixture does not resolve the new report. Read-only checks found the saved host
+selection, matching signed-package files and healthy running host services. The
+installed 0.3.5 client showed the saved server during diagnosis, so the original
+failure has not been reproduced and its exact cause remains unconfirmed.
+
+The sidebar now retries failed/timed-out native lookups, refreshes on focus,
+visibility and hosting changes, preserves the last known host on transient
+failure, and exposes a recovery entry when the saved package cannot provide an
+address. Four lifecycle tests and six production-UI checks pass. Web verification
+passes all 66 JavaScript tests, typecheck, lint and build. A separate local 0.3.6
+installer is built from frozen Preview source plus this frontend fix;
+unfinished Phase 4 media/cloud changes are excluded. Its exact UI bundle also
+passes the six checks. After the user closed Hearth, the local patch was installed
+and passed ten Windows native checks: matching version/revision and executable,
+saved-host visibility with empty browser storage, focus/reopen behavior, existing
+profile visibility and native-file preservation, aligned Desktop/Start shortcuts,
+and the original four host containers retained. The initial native fault-injection
+attempt timed out waiting for its injection counter; negative cases are covered by the browser fixture,
+while the final native run checks actual focus and reopening. See
+[the recovery notes](HOST_SIDEBAR_RECOVERY.md) and
+[local evidence](evidence/host-sidebar-recovery-2026-10-21.json). Actual normal-launch confirmation
+remains open; do not treat the original report as resolved by these fixtures.
+Final current-workspace Rust formatting/clippy, 45 default tests (five ignored),
+WASM release build and Windows desktop check also pass. Existing cache/linker
+warnings remain; PostgreSQL integration and physical-media gates are separate.
+
+**Phase 4 local call matrix completed, 2026-10-21:** the frozen sequential run
+passes 14 direct, 15 forced TURN/UDP and 15 forced TURN/TCP outcomes. Both relay
+runs report selected relay candidates on both peers and zero gathered host
+candidates. All three decode synthetic audio, camera and screen video with zero
+matching-key authentication, malformed-frame or replay rejections; block revocation
+and capture cleanup pass. TCP here means the client's TURN connection transport;
+this is not TURN-TLS or a claim of all-TCP peer relay traffic. See the
+[new local matrix record](evidence/phase4-direct-calls-local-2026-10-21.json).
+This closes the interrupted local matrix from the prior checkpoint. Physical
+capture/permissions, installed product media, independent networks, NAT/firewalls,
+TURN-TLS and platform interoperability remain open. The installed 0.3.6 sidebar
+patch excludes this development media slice. Railway and hosted CI remain paused.
+
+**Phase 4 encrypted 1:1 call checkpoint, 2026-10-20:** source now includes
+authenticated, MLS-encrypted call signaling, device/DM permission checks and
+client-only MLS-exported media keys. SFrame encoded-frame encryption must be
+ready before capture is published. The product call panel supports explicit
+answer/decline, microphone mute, camera, screen video and hangup. Blocks, expired
+authorization/heartbeats and conversation epoch changes stop capture; an epoch
+change requires a new call. All participating devices must run an active,
+compatible client. Calls are currently limited to two accounts and 50 minutes.
+
+Operator-configured STUN/TURN, authenticated short-lived coturn credentials and
+relay-only enforcement are implemented. No public STUN service is contacted by
+default. A prior loopback TURN/UDP run passed 15 outcomes; its result JSON was
+removed when the final rerun began. That rerun was interrupted by a fixture-page
+reload during the parallel production/WASM build, before producing a result.
+The final UDP/TCP matrix therefore remains incomplete; TCP was not reached.
+
+The retained direct Chromium report passes all 14 outcomes with actual product
+UI, accounts, WASM, MLS and peer connections, using synthetic audio/camera/screen
+tracks. It verifies decoded media, capture cleanup, block revocation, encryption
+and missing-TURN rejection. Final web typecheck/lint/build and 62 JavaScript
+tests pass. Rust checks pass: 45 default tests, four isolated PostgreSQL tests,
+formatting, clippy, protocol drift, WASM target and Windows desktop compilation.
+The HTTP/product-WASM/private-S3 regression passes 96 checks. See the
+[call guide](DIRECT_CALLS.md) and
+[checkpoint record](evidence/phase4-direct-calls-local-2026-10-20.json).
+
+Work stopped here at the user's usage-limit request. Next: rerun the frozen
+local direct/UDP/TCP matrix without concurrent source or WASM changes, then test
+physical capture/permissions and installed clients across independent networks,
+including TURN-TLS, NAT/firewalls and relay-only privacy. Cross-platform product
+media, automatic rekey/reconnect, group calls/SFU and screen audio remain open.
+Phase 4 is not complete. Railway remains paused; no hosted CI or deployment was
+started. The installed Preview and four existing host containers are preserved.
+
+**Phase 4 local hosting update, 2026-10-20:** native Railway IaC now defines the
+backend, private PostgreSQL/bucket, persistent server keys and optional website.
+Pinned CLI/SDK tooling prepares a filtered source snapshot, reviews/applies the
+definition, assigns generated domains and checks the exact uploaded deployments
+and public backend/proxy identity. These provider operations are implemented but
+have not been executed against Railway. The user chose **keep it local**; no
+cloud resources, usage charges or hosted CI runs were started.
+
+Production server/web images build from both the repository and filtered upload
+snapshot. Local Docker/Chromium acceptance passes eight outcomes: private keys and
+unprivileged runtimes; headers/deep links; worker/WASM/cache behavior; OPAQUE owner
+sign-in, device enrollment and WebSocket upgrade; restart persistence; fresh
+database/key-volume restore; missing-key rejection; and secret canaries absent
+from logs, including failed proxy requests. Matching restored identity, approved
+device and browser session are checked. This fixture does not restore encrypted
+objects or prove a provider backup works.
+
+Web typecheck/lint/build, 59 JavaScript tests, the separate IaC typecheck and the
+dependency audit pass (zero reported vulnerabilities). See the
+[cloud deployment guide](CLOUD_DEPLOYMENT.md) and
+[local acceptance record](evidence/phase4-cloud-local-2026-10-20.json).
+Protected cloud owner-code handoff, custom domains, actual provider retries,
+Railway bucket/CORS and cross-network browser/desktop acceptance remain open.
+At that hosting checkpoint, product media was unimplemented; the later call
+checkpoint above supersedes that status for 1:1 calls. SFU remains open. The installed Preview and four
+running local host services were preserved.
+
+**Stage 4 started, 2026-10-20:** the first cloud-hosting prerequisite is implemented:
+private S3 storage supports configurable bucket names, signing regions, path or
+virtual-hosted URLs, and existing buckets without bucket-level probes/creation.
+SeaweedFS defaults remain compatible. Partial/invalid configuration fails startup
+without echoing values; a bucket-creation conflict requires authenticated access
+before success. [Storage configuration](STORAGE_CONFIGURATION.md) documents the
+settings, Railway credential mapping and supported constraints.
+
+Local configuration/signing/mock checks and an isolated private-S3 transfer test
+pass, including 50,000,768-byte ciphertext, byte integrity, incorrect-length and
+anonymous-access rejection, signature tampering/expiry and object deletion.
+The [local acceptance record](evidence/phase4-storage-local-2026-10-20.json)
+also records 43 default Rust tests, four isolated PostgreSQL integration tests,
+94 HTTP/product-WASM/private-S3 checks, formatting and server clippy passing.
+Virtual-hosted URL generation is checked locally; actual virtual-hosted/Railway
+network transfers and browser CORS remain open. At this first storage checkpoint,
+Railway IaC, guided provisioning, production browser hosting and product media
+were subsequent work; the later local hosting update above records progress. The separate
+clean-machine Host/Join acceptance gates remain open. No cloud resources or hosted
+CI runs were started, and the installed Preview/running host were preserved.
+
 **Host/Join implementation update, 2026-10-20:** Preview 0.3.5 source adds signed
 in-app host preparation, explicit runtime installation, opt-in sign-in startup,
 portable backup/fresh restore, and an identity-bound outside-network check with

@@ -191,6 +191,30 @@ impl AuthClient {
         };
         let invalid = || JsValue::from_str("Invalid encrypted messaging request");
         let result = match operation {
+            "take_calls" => serde_json::to_value(engine.take_calls()),
+            "sign_voice_presence" => {
+                let value: hearth_proto::voice::VoicePresence =
+                    serde_json::from_str(input).map_err(|_| invalid())?;
+                serde_json::to_value(engine.sign_voice_presence(value).map_err(error)?)
+            }
+            "verify_voice_room" => {
+                let v: serde_json::Value = serde_json::from_str(input).map_err(|_| invalid())?;
+                let room: hearth_proto::voice::VoiceRoom =
+                    serde_json::from_value(v["room"].clone()).map_err(|_| invalid())?;
+                engine
+                    .verify_voice_room(&room, v["now"].as_u64().ok_or_else(invalid)?)
+                    .map_err(error)?;
+                serde_json::to_value(())
+            }
+            "call_key" => {
+                let v: serde_json::Value = serde_json::from_str(input).map_err(|_| invalid())?;
+                let signal = serde_json::from_value(v["signal"].clone()).map_err(|_| invalid())?;
+                serde_json::to_value(
+                    engine
+                        .call_key(v["id"].as_str().ok_or_else(invalid)?, &signal)
+                        .map_err(error)?,
+                )
+            }
             "sign_authority" => serde_json::to_value(engine.sign_authority(input).map_err(error)?),
             "offer_ownership" => {
                 let v: serde_json::Value = serde_json::from_str(input).map_err(|_| invalid())?;
@@ -412,10 +436,10 @@ impl AuthClient {
                 let v: serde_json::Value = serde_json::from_str(input).map_err(|_| invalid())?;
                 let auth =
                     serde_json::from_value(v["authorization"].clone()).map_err(|_| invalid())?;
-                engine
+                let changed = engine
                     .authorize_channel(v["id"].as_str().ok_or_else(invalid)?, &auth)
                     .map_err(error)?;
-                Ok(serde_json::Value::Null)
+                serde_json::to_value(changed)
             }
             "seal" => return engine.seal().map_err(error),
             "view" => serde_json::to_value(engine.view().map_err(error)?),
@@ -462,8 +486,9 @@ impl AuthClient {
                 let peers =
                     serde_json::from_str::<Vec<hearth_proto::messaging::GroupMember>>(input)
                         .map_err(|_| invalid())?;
-                engine.verify_peers(&peers).map_err(error)?;
-                Ok(serde_json::Value::Null)
+                Ok(serde_json::Value::Bool(
+                    engine.verify_peers(&peers).map_err(error)?,
+                ))
             }
             "package" => serde_json::to_value(engine.key_package().map_err(error)?),
             "add" | "add_channel" => {

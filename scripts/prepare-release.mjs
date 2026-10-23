@@ -17,9 +17,13 @@ const assets=join(directory,'release-assets');assert.ok(!existsSync(assets),'Ref
 const base=`https://github.com/KBHarris/hearth/releases/download/v${version}/`
 const installer=join(directory,'client',manifest.client.installer),installerSignature=sign(installer)
 const archive=Object.keys(manifest.files).find(file=>/^Hearth_Server_Test_[a-f0-9]+\.tar$/.test(file));assert.ok(archive)
-const server={schema:1,version,min_client_version:'0.3.1',source_commit:manifest.sourceCommit,image_id:manifest.server.imageId,archive_url:base+archive,archive_sha256:manifest.files[archive]}
+const hostTar = `Hearth_Host_${version}.tar`
+const preparedFiles = ['manifest.json','manifest.json.sig',archive,'deploy/compose.yaml','deploy/compose.https.yaml','deploy/setup.mjs','deploy/.env.example','deploy/Caddyfile','deploy/storage-entrypoint.sh','deploy/compose.media.yaml','deploy/compose.turn.yaml','deploy/compose.turn-tls.yaml','deploy/media/setup.mjs','deploy/media/turn-entrypoint.sh']
+const packed = spawnSync('tar', ['-cf', join(assets,hostTar), ...preparedFiles], {cwd:directory, encoding:'utf8', windowsHide:true})
+assert.equal(packed.status,0,'Could not assemble the host-only TAR')
+const server={schema:1,version,min_client_version:version,source_commit:manifest.sourceCommit,image_id:manifest.server.imageId,archive_url:base+archive,archive_sha256:manifest.files[archive],host_archive_sha256:digest(join(assets,hostTar))}
 writeFileSync(join(assets,'server.json'),JSON.stringify(server,null,2)+'\n');sign(join(assets,'server.json'))
-writeFileSync(join(assets,'latest.json'),JSON.stringify({version,notes:'Retains your hosted server after reopening and adds signed host preparation, runtime installation, optional sign-in startup, portable server backups and outside-network checks.',pub_date:new Date().toISOString(),platforms:{'windows-x86_64':{signature:installerSignature,url:base+manifest.client.installer}}},null,2)+'\n')
+writeFileSync(join(assets,'latest.json'),JSON.stringify({version,notes:'Encrypted voice, video, screen and optional computer audio in direct calls, private groups and community rooms; optional SFU/relay hosting, stages, scheduled events and consent-based shared playback.',pub_date:new Date().toISOString(),platforms:{'windows-x86_64':{signature:installerSignature,url:base+manifest.client.installer}}},null,2)+'\n')
 const clientZip=Object.keys(manifest.files).find(file=>file.endsWith('.zip'));assert.ok(clientZip)
 for(const file of [clientZip,archive])copyFileSync(join(directory,file),join(assets,file))
 copyFileSync(installer,join(assets,manifest.client.installer));copyFileSync(installer+'.sig',join(assets,manifest.client.installer+'.sig'))
@@ -33,13 +37,18 @@ for(const file of hostFiles){const target=join(stage,file);mkdirSync(resolve(tar
 const zip=spawnSync('powershell.exe',['-NoProfile','-NonInteractive','-Command',`Compress-Archive -LiteralPath @(${['client','deploy',...hostFiles.filter(file=>!file.includes('/'))].map(file=>quote(join(stage,file))).join(',')}) -DestinationPath ${quote(join(assets,hostZip))}`],{cwd:root,encoding:'utf8',windowsHide:true});assert.equal(zip.status,0,'Could not assemble the allowlisted host ZIP: '+(zip.stderr??''))
 const files=[clientZip,hostZip,archive,manifest.client.installer,manifest.client.installer+'.sig','server.json','server.json.sig','latest.json','manifest.json','manifest.json.sig']
 // A small signed catalog and a host-only TAR support in-app preparation on every desktop OS.
-const hostTar = `Hearth_Host_${version}.tar`
-const preparedFiles = ['manifest.json','manifest.json.sig',archive,'deploy/compose.yaml','deploy/compose.https.yaml','deploy/setup.mjs','deploy/.env.example','deploy/Caddyfile','deploy/storage-entrypoint.sh']
-const packed = spawnSync('tar', ['-cf', join(assets,hostTar), ...preparedFiles], {cwd:directory, encoding:'utf8', windowsHide:true})
-assert.equal(packed.status,0,'Could not assemble the host-only TAR')
-writeFileSync(join(assets,'host-package.json'),JSON.stringify({schema:1,version,min_client_version:'0.3.5',architecture:manifest.server.architecture,archive_url:base+hostTar,archive_sha256:digest(join(assets,hostTar))},null,2)+'\n')
+writeFileSync(join(assets,'host-package.json'),JSON.stringify({schema:1,version,min_client_version:version,architecture:manifest.server.architecture,archive_url:base+hostTar,archive_sha256:digest(join(assets,hostTar))},null,2)+'\n')
 sign(join(assets,'host-package.json'))
 files.push(hostTar,'host-package.json','host-package.json.sig')
 writeFileSync(join(assets,'SHA256SUMS.txt'),files.map(file=>`${digest(join(assets,file))}  ${file}`).join('\n')+'\n')
-writeFileSync(join(assets,'RELEASE_NOTES.md'),`# Hearth Preview ${version}\n\nWindows x64 Host/Join preview. Download ${clientZip} for a client, or ${hostZip} for an extracted host package. Existing hosts can keep their current server and configuration while updating the desktop app.\n\nAdds saved-host recovery after reopening, including when browser server storage is empty or Docker is unavailable. Adds signed host-package preparation, explicit runtime installation, optional start-at-sign-in, portable backup/export and fresh-host restore, and a timed outside-network check bound to the server identity. Package downloads require this release's signed catalog and TAR assets to be published. The network location in outside-check results is declared by the tester; it is not geolocated or cryptographically attested.\n\nBackup exports contain private server keys and credentials along with encrypted history. Keep them on protected storage. Keep the original server stopped when restoring onto another computer. Hearth refuses fresh import over an existing host's volumes. Runtime installers retain their own OS permission and license prompts. No third-party tunnel or probe is enrolled automatically.\n\nLocal web, Windows/Linux compilation, isolated Docker recovery and Windows native checks are recorded in the repository. The installed upgrade verifies that the existing host stays running and its entry reappears with empty browser storage. Clean Windows runtime provisioning, reboot/sign-in execution, new two-household messaging and macOS/Linux installation acceptance remain open. Earlier Phase 3 buddy acceptance does not close these checks. The Windows installer has no Authenticode publisher signature; Hearth verifies updater signatures.\n\nSource: ${manifest.sourceCommit}\n`)
+writeFileSync(join(assets,'RELEASE_NOTES.md'),`# Hearth Preview ${version}
+
+Encrypted voice, camera, screen sharing and optional computer audio in direct calls, three-person private calls and community voice rooms. Optional locally hosted SFU rooms support larger communities, with independent media permissions and stage speaker consent. Adds microphone/camera switching, speaker controls, scheduled events and encrypted RSVPs, and opt-in synchronized provider playback.
+
+Update the Windows app first, then the hosted server. Server updates verify signed deployment assets, rehearse the database backup and preserve the existing host configuration, server keys and encrypted history. Enable voice/video hosting in Hosting & updates; internet media still requires correct router/firewall configuration and outside-network acceptance. Railway remains paused.
+
+Automated local validation and its limits are recorded in docs/PHASE4_RELEASE_CHECKLIST.md and docs/PROGRESS.md. Physical devices, real provider accounts/autoplay, two-household restrictive networks, reboot, clean-machine/fresh-host and remaining platform acceptance require manual testing. Local health does not prove internet reachability. Backup exports contain private server keys and credentials; keep them protected. The Windows installer has no Authenticode publisher signature; updater signatures are verified.
+
+Source: ${manifest.sourceCommit}
+`)
 console.log(JSON.stringify({directory:assets,version,assets:[...files,'SHA256SUMS.txt'],sourceCommit:manifest.sourceCommit}))

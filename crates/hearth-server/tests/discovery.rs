@@ -10,6 +10,7 @@ fn app() -> axum::Router {
     let database_url = "postgres://hearth:unused@127.0.0.1:1/hearth";
     router(Arc::new(AppState {
         config: Config {
+            media: Default::default(),
             storage: None,
             server_name: "test.hearth".into(),
             bind: "127.0.0.1:0".parse().unwrap(),

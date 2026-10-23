@@ -25,9 +25,17 @@ The saved local host stays discoverable when browser server storage is empty or
 Docker is unavailable. The [installed upgrade passes 16 checks](docs/evidence/windows-host-join-preview-0.3.5-2026-10-20.json),
 and [public release downloads are verified](docs/evidence/preview-0.3.5-publication-2026-10-20.json).
 Clean-machine, reboot and cross-platform installation acceptance remain open.
+The local 0.3.6 [saved-host sidebar patch](docs/HOST_SIDEBAR_RECOVERY.md) adds
+retry/recovery and refresh after hosting changes. It is installed and locally
+verified on this Windows host; public downloads above remain 0.3.5.
 The desktop app can start/stop a configured host and authorize local owner setup
 without copying the private owner code.
-Voice/video, federation and the larger community trial remain on the roadmap.
+Development source now includes [encrypted 1:1 calls](docs/DIRECT_CALLS.md),
+[private group voice](docs/GROUP_VOICE.md), [community rooms](docs/COMMUNITY_VOICE.md),
+optional [SFU rooms](docs/SFU_ROOMS.md) and explicit [computer audio](docs/COMPUTER_AUDIO.md),
+with local synthetic-media checks. These features are not included in the installed
+Preview. Physical devices, independent networks, the larger media/platform target,
+federation and the community trial retain their roadmap gates. Railway stays paused.
 Phase 3 preview acceptance is [complete](docs/evidence/phase3-final-hosted-2026-10-18.json):
 all 14 full CI jobs pass on the validated source, with the accepted buddy test and
 existing notification preview waiver. The full Host/Join installation checkpoint is next.
@@ -35,6 +43,8 @@ existing notification preview waiver. The full Host/Join installation checkpoint
 - [Architecture and product plan](PLAN.md)
 - [Roadmap](docs/ROADMAP.md) and [current progress and validation](docs/PROGRESS.md)
 - [Guided setup scope](docs/GUIDED_SETUP.md) and [governance development](docs/PHASE3_DEVELOPMENT.md)
+- [Stage 4 hosting/media plan](docs/PHASE4_HOSTING_AND_MEDIA.md) and [private storage settings](docs/STORAGE_CONFIGURATION.md)
+- [Cloud deployment development](docs/CLOUD_DEPLOYMENT.md): native IaC, local tools and production web/server images.
 - [Threat model](docs/THREAT_MODEL.md)
 - [Repository publication review](docs/PUBLICATION_AUDIT.md)
 

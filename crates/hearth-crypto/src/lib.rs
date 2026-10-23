@@ -16,6 +16,8 @@ pub mod messaging;
 pub mod recovery;
 #[cfg(feature = "local-vault")]
 pub mod vault;
+#[cfg(feature = "messaging")]
+pub mod voice;
 
 #[cfg(feature = "auth")]
 pub mod auth;

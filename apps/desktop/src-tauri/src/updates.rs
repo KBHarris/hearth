@@ -21,6 +21,8 @@ pub struct ServerRelease {
     pub image_id: String,
     pub archive_url: String,
     pub archive_sha256: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub host_archive_sha256: Option<String>,
 }
 #[derive(Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
@@ -73,6 +75,10 @@ fn verify(signed: &SignedRelease) -> Result<ServerRelease, String> {
         || !image_id(&release.image_id)
         || !hex(&release.source_commit, 40)
         || !hex(&release.archive_sha256, 64)
+        || release
+            .host_archive_sha256
+            .as_deref()
+            .is_some_and(|value| !hex(value, 64))
         || !release.archive_url.starts_with(&format!(
             "https://github.com/KBHarris/hearth/releases/download/v{}/",
             release.version

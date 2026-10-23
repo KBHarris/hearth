@@ -179,6 +179,22 @@ export async function verifyMessaging({wasm,request,login,origin,serverId,owner,
     assert.equal(registration.status,200)
     assert.equal((await request('/api/v1/auth/register/finish',{username:'carol',message:registrationClient.registrationFinish(carolPassword,registration.value.message,'carol',serverId),invite_code:null})).status,200)
     const carol=await unlock('carol',carolPassword)
+    const mediaPath='/api/v1/chat/media/'+alice.identity.enrollment.device_key
+    assert.equal((await request(mediaPath)).status,401)
+    assert.equal((await request(mediaPath,undefined,carol.session.token)).status,403)
+    const media=await request(mediaPath,undefined,alice.session.token)
+    assert.equal(media.status,200);assert.ok(Array.isArray(media.value.ice_servers))
+    checks.media_ice_configuration_requires_session_and_own_approved_device=true
+    const legacyReadyPath=`/api/v1/chat/call-ready/${id}/${alice.identity.enrollment.device_key}`
+    const readyPath=legacyReadyPath+'?format=5'
+    assert.equal((await request(readyPath)).status,401)
+    assert.equal((await request(`/api/v1/chat/call-ready/${id}/${carol.identity.enrollment.device_key}`,undefined,carol.session.token)).status,403)
+    assert.equal((await request(readyPath,undefined,alice.session.token)).status,409)
+    const currentConversations=await request('/api/v1/chat/conversations',undefined,alice.session.token)
+    for(const member of currentConversations.value.find(c=>c.id===id).members)assert.equal((await request('/api/v1/chat/media/'+member.enrollment.device_key+'?group=true&format=5',undefined,member.account_id===alice.session.account.id?alice.session.token:resumed.session.token)).status,200)
+    assert.equal((await request(legacyReadyPath,undefined,alice.session.token)).status,409)
+    assert.equal((await request(readyPath,undefined,alice.session.token)).status,204)
+    checks.calls_require_current_capability_lease_for_every_mls_device=true
     const aliceGateway=await connect(alice)
     const groupBobGateway=await connect(resumed)
     const carolGateway=await connect(carol)

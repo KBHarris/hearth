@@ -20,17 +20,26 @@
     "spike:desktop:webview": "node scripts/verify-desktop-webview.mjs",
     "spike:media:browser": "node scripts/verify-browser-media.mjs",
     "setup": "node deploy/setup.mjs",
+    "media:setup": "node deploy/media/setup.mjs",
     "spike:compose": "node scripts/verify-compose.mjs",
+    "test:storage": "node scripts/verify-managed-storage.mjs",
+    "cloud": "node --experimental-strip-types deploy/railway/deploy.mjs",
+    "cloud:typecheck": "tsc -p .railway/tsconfig.json",
+    "test:cloud-images": "node scripts/verify-cloud-images.mjs",
+    "test:calls": "node scripts/verify-direct-calls.mjs",
     "dev": "npm run dev -w @hearth/client",
     "build": "npm run build -w @hearth/client",
     "typecheck": "npm run typecheck --workspaces --if-present",
     "lint": "npm run lint --workspaces --if-present",
-    "test": "npm run test --workspaces --if-present && node --test deploy/test/*.test.mjs",
+    "test": "npm run test --workspaces --if-present && node --experimental-strip-types --test deploy/test/*.test.mjs",
     "desktop:dev": "npm run tauri -w @hearth/desktop -- dev",
     "desktop:build": "npm run tauri -w @hearth/desktop -- build",
     "verify": "npm run typecheck && npm run lint && npm run test && npm run build"
   },
   "engines": {
     "node": ">=22"
+  },
+  "devDependencies": {
+    "railway": "3.16.0"
   }
 }

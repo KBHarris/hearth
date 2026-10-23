@@ -1,0 +1,28 @@
+# Optional common relay for both direct calls and SFU relay-only connections.
+# Prepare with npm run media:setup -- --turn, then include this overlay.
+services:
+  server:
+    environment:
+      HEARTH_TURN_URLS: ${HEARTH_TURN_URLS:?initialize the relay package}
+      HEARTH_TURN_SECRET: ${HEARTH_TURN_SECRET:?initialize the relay package}
+    depends_on:
+      relay:
+        condition: service_started
+  relay:
+    image: coturn/coturn:4.18.0-r0@sha256:bbefd3e1fdfdc0d58770fe01b581fd8b00d9f3a5580d00acb77cf719a6bc78e3
+    restart: unless-stopped
+    user: "0:0"
+    cap_drop: [ALL]
+    # The pinned coturn binary carries this file capability; Linux refuses to
+    # execute it when the capability is absent from the bounding set.
+    cap_add: [NET_BIND_SERVICE]
+    security_opt: ["no-new-privileges:true"]
+    read_only: true
+    tmpfs: [/tmp]
+    command: ["-c", "/etc/hearth/turnserver.conf"]
+    ports:
+      - "${HEARTH_MEDIA_BIND:-127.0.0.1}:${HEARTH_TURN_PORT:-3478}:${HEARTH_TURN_PORT:-3478}/udp"
+      - "${HEARTH_MEDIA_BIND:-127.0.0.1}:${HEARTH_TURN_PORT:-3478}:${HEARTH_TURN_PORT:-3478}/tcp"
+      - "${HEARTH_MEDIA_BIND:-127.0.0.1}:${HEARTH_TURN_RELAY_MIN:-49160}-${HEARTH_TURN_RELAY_MAX:-49259}:${HEARTH_TURN_RELAY_MIN:-49160}-${HEARTH_TURN_RELAY_MAX:-49259}/udp"
+    volumes:
+      - ${HEARTH_TURN_CONFIG_PATH:-./media/data/turnserver.conf}:/etc/hearth/turnserver.conf:ro

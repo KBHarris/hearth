@@ -1,13 +1,35 @@
 # Phase 4: hosted deployment and media
 
-Scope agreed 2026-10-16. This is planned work: no Railway resources, production
-website, direct P2P media or product LiveKit integration have been deployed by
-this planning change. The [roadmap](ROADMAP.md#phase-4-cloud-hosting-voice-video-and-events)
+Scope agreed 2026-10-16; implementation started 2026-10-20 with configurable
+private S3 storage, followed by native IaC, deployment tooling and production
+browser/server images with local acceptance. The first encrypted 1:1 voice,
+camera and screen-video implementation now has local synthetic-media acceptance;
+[the call guide](DIRECT_CALLS.md) records its limits. No Railway resources, public
+website or product media release has been deployed. LiveKit integration is now
+implemented; its 25-person stable-media/load release gate is still being tested.
+The [three-person admission and key foundation](GROUP_CALLS.md) provided local
+unit/crypto evidence before the interface and media integration.
+The subsequent [private group voice slice](GROUP_VOICE.md) implements the mesh
+and interface with independent joins and continuing calls after departure.
+The [community voice-room slice](COMMUNITY_VOICE.md) adds persistent channels
+with up to four simultaneous people, signed public occupancy and client-only
+pair keys. Its local direct/relay/native/revocation evidence is separate from
+the larger SFU and physical/network acceptance gates. The subsequent
+[room video slice](ROOM_VIDEO.md) adds explicit camera/screen consent and
+simultaneous screen video. Independent media permissions, stage consent,
+device controls, computer audio, events and isolated shared playback are now
+implemented. Spotify remains disabled for this release by the user's decision.
+See [the current completion checklist](PHASE4_RELEASE_CHECKLIST.md).
+Its current local acceptance is recorded separately; physical and internet gates
+remain open. Group format support is distinct from online presence.
+The [roadmap](ROADMAP.md#phase-4-cloud-hosting-voice-video-and-events)
 tracks the phase; [ADR 0004](adr/0004-media-feasibility.md) records the isolated
 media spike and its remaining product/platform gates.
 
-Finish the existing Phase 3 work and Host/Join checkpoint first. Cloud deployment
-is an additional hosting choice; it does not replace the local installer target.
+Phase 3 is complete. The user requested the Stage 4 start on 2026-10-20; cloud
+storage implementation proceeds while the separate clean-machine Host/Join
+acceptance remains open. Cloud deployment is an additional hosting choice; it
+does not replace the local installer target or close that acceptance checkpoint.
 
 ## Deployment shape
 
@@ -29,13 +51,18 @@ selected during packaging if it simplifies reliable deployment.
 
 ## 4A. Railway infrastructure and guided provisioning
 
-- [ ] Define the environment in native `.railway/railway.ts`: backend, PostgreSQL,
+The [cloud deployment guide](CLOUD_DEPLOYMENT.md) describes the implementation,
+pinned tools, public settings, filtered upload snapshot and production images.
+The user chose to keep provisioning local on 2026-10-20. The checklist separates
+implemented local pieces from the live provider flow that remains unverified.
+
+- [x] Define the environment in native `.railway/railway.ts`: backend, PostgreSQL,
   private bucket, server volume and optional website. Pin the supported CLI/SDK
   and container versions after rechecking current provider documentation.
-- [ ] Use the repository root as the Rust build context and the server Dockerfile
+- [x] Use the repository root as the Rust build context and the server Dockerfile
   path explicitly. Set the listener/target port and `/health` readiness check.
   Resolve volume ownership without making secret files broadly accessible.
-- [ ] Wire database and bucket credentials through provider references/secrets.
+- [x] Wire database and bucket credentials through provider references/secrets.
   Keep database ingress private, federation opt-in, browser origins exact, and
   secret values out of IaC source, build arguments, committed plans and diagnostics.
 - [ ] Provide a deployment command that signs into Railway, selects or creates
@@ -61,15 +88,22 @@ IaC application alone does not establish a successful application deployment.
 
 ## 4B. Storage compatibility
 
-Current `attachments.rs` assumes `hearth-blobs`, `us-east-1`, path-style URLs and
-bucket auto-creation. New Railway buckets have provider-assigned names and use
-virtual-hosted addressing. Existing endpoint/access-key settings alone are not
-sufficient for this integration.
+The first implementation slice removes the fixed bucket/region/addressing
+assumptions from `attachments.rs`. Configuration and supported constraints are
+in [the storage guide](STORAGE_CONFIGURATION.md). Defaults preserve SeaweedFS;
+managed buckets can disable all bucket-level probes/creation. New Railway
+buckets use provider-assigned names and usually virtual-hosted addressing;
+select the style shown in the provider's Credentials tab.
 
-- [ ] Add configurable bucket name, signing region, path versus virtual-hosted URL
+The [2026-10-20 local acceptance record](evidence/phase4-storage-local-2026-10-20.json)
+captures configuration/signing/mock tests, an existing custom SeaweedFS bucket
+transfer through the ciphertext size limit, and all 94 application regression
+checks. This does not validate real Railway storage or browser CORS.
+
+- [x] Add configurable bucket name, signing region, path versus virtual-hosted URL
   style and use-existing versus create-if-missing behavior. Preserve current
   SeaweedFS defaults and avoid attempting to create a provider-managed bucket.
-- [ ] Support provider-issued credentials without logging them or replacing them
+- [x] Support provider-issued credentials without logging them or replacing them
   on retry; validate configuration and document supported provider constraints.
 - [ ] Configure browser CORS and public HTTPS presigned endpoints. Keep buckets
   private, with short-lived, scoped upload/download URLs and no public listing.
@@ -81,20 +115,70 @@ sufficient for this integration.
 
 ## 4C. Browser client hosting
 
-- [ ] Build a production image containing the React UI and matching crypto/WASM;
+Local Linux Docker/Chromium acceptance covers these implemented image/configuration
+items. Railway, cross-platform desktop/browser and independent-network acceptance
+remain separate gates; the website has not been deployed publicly.
+
+- [x] Build a production image containing the React UI and matching crypto/WASM;
   serve static assets with a production web server, not the Vite development server.
-- [ ] Configure server discovery/default address, REST and gateway URLs, exact
+- [x] Configure server discovery/default address, REST and gateway URLs, exact
   backend CORS origins, HTTPS/WSS and attachment origins. Keep secrets out of the
   JavaScript bundle; only public connection settings belong there.
-- [ ] Verify SPA deep links, worker/WASM MIME types, CSP and asset caching. New
+- [x] Verify SPA deep links, worker/WASM MIME types, CSP and asset caching. New
   deployments must not mix incompatible application/crypto assets from old caches.
 - [ ] Support both hosted browser and packaged desktop clients on the same backend,
   with existing approved-device linking and local encrypted vault/history rules.
-- [ ] Explain website-host trust: a provider able to replace delivered JavaScript
+- [x] Explain website-host trust: a provider able to replace delivered JavaScript
   can affect client-side encryption. Desktop binaries have a separate update trust
   boundary. Neither path moves normal search, previews or media keys to the server.
 
 ## 4D. P2P, TURN and SFU media
+
+**2026-10-20 stopping point:** authenticated two-account calls, client-only
+MLS-exported SFrame keys, camera/screen-video controls, permission enforcement,
+short-lived TURN credentials and relay-only policy are implemented. The retained
+local direct report passes 14 synthetic-media checks. An earlier loopback UDP
+relay run passed, but the final matrix was interrupted by a build-triggered page
+reload and TCP was not reached. Resume with a frozen local matrix, then physical
+and independent-network acceptance. Railway stays paused. See
+[the checkpoint record](evidence/phase4-direct-calls-local-2026-10-20.json).
+The combined requirements below remain open for group calls and full acceptance.
+
+**2026-10-21 follow-up:** the frozen local matrix now passes 14 direct, 15
+TURN/UDP and 15 TURN/TCP checks. Both relay peers positively report selected relay
+candidates and zero gathered host candidates. This completes the interrupted
+local matrix above. Physical capture, installed product media, independent
+networks and TURN-TLS remain open. The [new record](evidence/phase4-direct-calls-local-2026-10-21.json)
+does not replace the frozen prior checkpoint or claim public connectivity.
+
+**2026-10-21 native follow-up:** an opt-in compiled Tauri/Windows WebView2 fixture
+passes 15 direct, 16 TURN/UDP and 16 TURN/TCP checks with the product call UI,
+WASM/MLS and native SQLCipher message storage. Each passing run drains native
+operations and removes its temporary credentials/files. Synthetic tracks and an
+autoplay override leave physical capture, picker permissions, installed release
+behavior and independent-network/platform acceptance open. See
+[the native record](evidence/phase4-native-direct-calls-local-2026-10-21.json).
+Railway remains paused; the installed 0.3.6 client does not contain this media slice.
+
+**2026-10-22 recovery follow-up:** established same-epoch calls can restart ICE
+using the existing capture, peer connection and SFrame workers/counters. Either
+peer may initiate; fixed glare roles and encrypted SDP transaction markers bind
+answers and reject replay. Authorization, selected relay routes and advancing
+authenticated media are rechecked, with an independent 20-second capture-ending
+deadline. Mute and stopping active video/share remain available while reconnecting.
+See [the recovery record](evidence/phase4-call-recovery-local-2026-10-22.json).
+The automatic-trigger fixture injects a state event rather than a physical outage.
+Full messaging/network reconnection, MLS in-call rekey and group media remain open.
+
+**2026-10-22 key-update follow-up:** the selected 1:1 pair can now keep an
+established call through a verified MLS linked-device join. Messaging waits for
+worker pause acknowledgment before the commit; new transaction/epoch-bound
+exporter keys are installed while paused and confirmed before media resumes.
+Authorization loss, overlapping epochs or a stalled handshake end capture.
+See [active call key updates](CALL_KEY_UPDATES.md) and
+[the key-update record](evidence/phase4-call-rekey-local-2026-10-22.json).
+This advances the 1:1 slice; general group-call rekey, physical/network/platform
+acceptance and full messaging reconnection remain open.
 
 Haven documents direct voice by default with an optional large-server relay.
 The earlier Hearth parity table omitted this topology requirement; the existing
@@ -180,6 +264,12 @@ Report local, real Railway, real-network media and final platform results separa
 No cloud deployment or hosted CI run is authorized merely by this planning update.
 
 ## Provider and parity references
+
+Implementation follow-up, 2026-10-22: [optional SFU rooms](SFU_ROOMS.md), bounded
+room/device-scoped tokens and [explicit computer audio](COMPUTER_AUDIO.md) are now
+implemented locally. The optional LiveKit/coturn Compose package has disposable
+startup/configuration checks. These follow-ups do not close the original
+25-person full-platform, public routing, cost or Railway acceptance gates above.
 
 Reviewed 2026-10-16 for scope; revalidate APIs, capabilities and terms during implementation.
 

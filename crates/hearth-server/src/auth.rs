@@ -38,15 +38,47 @@ pub struct AuthState {
     setup_digest: [u8; 32],
     budget: Mutex<Budget>,
     delivery_budget: Mutex<Budget>,
+    delivery_ceiling: u32,
     admission: tokio::sync::Semaphore,
     gateway_admission: Arc<tokio::sync::Semaphore>,
 }
+#[derive(Clone, Copy)]
+struct RequestCapacity {
+    delivery: u32,
+    parallel: usize,
+}
+impl RequestCapacity {
+    fn parse(value: Option<&str>) -> anyhow::Result<Self> {
+        match value {
+            None | Some("standard") => Ok(Self {
+                delivery: 600,
+                parallel: 16,
+            }),
+            Some("sfu25") => Ok(Self {
+                delivery: 3600,
+                parallel: 64,
+            }),
+            _ => anyhow::bail!("HEARTH_REQUEST_PROFILE must be standard or sfu25"),
+        }
+    }
+}
 impl AuthState {
     pub fn new(server: Server, setup_code: &[u8]) -> Self {
+        Self::with_capacity(
+            server,
+            setup_code,
+            RequestCapacity {
+                delivery: 600,
+                parallel: 16,
+            },
+        )
+    }
+    fn with_capacity(server: Server, setup_code: &[u8], capacity: RequestCapacity) -> Self {
         Self {
             server,
             setup_digest: Sha256::digest(setup_code).into(),
-            admission: tokio::sync::Semaphore::new(16),
+            admission: tokio::sync::Semaphore::new(capacity.parallel),
+            delivery_ceiling: capacity.delivery,
             gateway_admission: Arc::new(tokio::sync::Semaphore::new(64)),
             budget: Mutex::new(Budget {
                 since: Instant::now(),
@@ -70,9 +102,12 @@ impl AuthState {
         if code.len() != 64 || !code.iter().all(u8::is_ascii_hexdigit) {
             anyhow::bail!("invalid setup code file; refusing to overwrite it");
         }
-        Ok(Self::new(
+        let capacity =
+            RequestCapacity::parse(std::env::var("HEARTH_REQUEST_PROFILE").ok().as_deref())?;
+        Ok(Self::with_capacity(
             Server::deserialize(&setup).map_err(anyhow::Error::msg)?,
             &code,
+            capacity,
         ))
     }
     fn authorize_setup(&self, code: &str) -> Result<(), StatusCode> {
@@ -118,7 +153,9 @@ impl AuthState {
             budget.total = 0;
             budget.users.clear();
         }
-        if budget.total >= 600 || budget.users.get(account).copied().unwrap_or(0) >= 120 {
+        if budget.total >= self.delivery_ceiling
+            || budget.users.get(account).copied().unwrap_or(0) >= 120
+        {
             return Err(StatusCode::TOO_MANY_REQUESTS);
         }
         budget.total += 1;
@@ -480,4 +517,46 @@ async fn logout(
         .await
         .map_err(unavailable)?;
     Ok(StatusCode::NO_CONTENT)
+}
+
+#[cfg(test)]
+mod capacity_tests {
+    use super::*;
+    #[test]
+    fn request_profiles_preserve_account_login_and_parallel_bounds() {
+        assert_eq!(RequestCapacity::parse(None).unwrap().delivery, 600);
+        assert!(RequestCapacity::parse(Some("unlimited")).is_err());
+        for (name, total, parallel) in [("standard", 600, 16), ("sfu25", 3600, 64)] {
+            let capacity = RequestCapacity::parse(Some(name)).unwrap();
+            let state = AuthState::with_capacity(Server::default(), b"test-only", capacity);
+            for _ in 0..120 {
+                state.limit_delivery("same-account").unwrap();
+            }
+            assert_eq!(
+                state.limit_delivery("same-account").unwrap_err(),
+                StatusCode::TOO_MANY_REQUESTS
+            );
+            for account in 120..total {
+                state.limit_delivery(&format!("account-{account}")).unwrap();
+            }
+            assert_eq!(
+                state.limit_delivery("another-account").unwrap_err(),
+                StatusCode::TOO_MANY_REQUESTS
+            );
+            let mut permits = Vec::new();
+            for _ in 0..parallel {
+                permits.push(state.admit().unwrap());
+            }
+            assert!(state.admit().is_err());
+            drop(permits);
+            assert!(state.admit().is_ok());
+            for _ in 0..10 {
+                state.limit("login").unwrap();
+            }
+            assert_eq!(
+                state.limit("login").unwrap_err(),
+                StatusCode::TOO_MANY_REQUESTS
+            );
+        }
+    }
 }

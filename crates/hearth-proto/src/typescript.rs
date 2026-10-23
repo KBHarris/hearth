@@ -10,6 +10,17 @@ use crate::{
 pub fn generate() -> String {
     let config = Config::new();
     let declarations = [
+        crate::activity::ScheduledEvent::decl(&config),
+        crate::activity::Rsvp::decl(&config),
+        crate::activity::PlaybackProvider::decl(&config),
+        crate::activity::PlaybackPosition::decl(&config),
+        crate::activity::SharedPlayback::decl(&config),
+        crate::activity::Activity::decl(&config),
+        crate::activity::LocalEvent::decl(&config),
+        crate::voice::VoicePresence::decl(&config),
+        crate::voice::VoiceRoom::decl(&config),
+        crate::voice::SfuAccess::decl(&config),
+        crate::voice::WrappedMediaKey::decl(&config),
         crate::invite::InviteEnvelope::decl(&config),
         crate::invite::StoreInviteEnvelope::decl(&config),
         crate::lifecycle::AccountDeparture::decl(&config),
@@ -85,6 +96,10 @@ pub fn generate() -> String {
         crate::messaging::DeliveryData::decl(&config),
         crate::messaging::DeliveryEvent::decl(&config),
         crate::messaging::MessageContent::decl(&config),
+        crate::messaging::CallSignal::decl(&config),
+        crate::messaging::LocalCallSignal::decl(&config),
+        crate::messaging::IceServer::decl(&config),
+        crate::messaging::IceConfiguration::decl(&config),
         crate::messaging::LocalMessage::decl(&config),
         crate::messaging::LocalPoll::decl(&config),
         crate::messaging::LocalProfile::decl(&config),

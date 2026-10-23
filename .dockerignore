@@ -3,6 +3,7 @@ target
 **/node_modules
 **/dist
 .git
+.railway
 .release-keys
 .codex
 .agents
@@ -16,3 +17,4 @@ deploy/.env
 **/.env
 deploy/data
 **/s3.json
+deploy/media/data

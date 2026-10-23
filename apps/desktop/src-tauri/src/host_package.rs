@@ -85,9 +85,10 @@ pub(crate) fn extract(archive: &Path, destination: &Path) -> Result<(), String> 
                 | "deploy/.env.example"
                 | "deploy/Caddyfile"
                 | "deploy/storage-entrypoint.sh"
-        ) || (name.starts_with("Hearth_Server_Test_")
-            && name.ends_with(".tar")
-            && !name.contains(['/', '\\']));
+        ) || crate::host_media::PUBLIC_FILES.contains(&name)
+            || (name.starts_with("Hearth_Server_Test_")
+                && name.ends_with(".tar")
+                && !name.contains(['/', '\\']));
         total = total
             .checked_add(entry.size())
             .ok_or("Host package is too large.")?;
@@ -99,7 +100,7 @@ pub(crate) fn extract(archive: &Path, destination: &Path) -> Result<(), String> 
             || !entry.header().entry_type().is_file()
             || !seen.insert(name.to_owned())
             || total > LIMIT
-            || seen.len() > 16
+            || seen.len() > 32
         {
             return Err(
                 "Unsafe, duplicate or oversized host package entry. Nothing was selected.".into(),
@@ -134,6 +135,128 @@ pub(crate) fn extract(archive: &Path, destination: &Path) -> Result<(), String> 
         .collect::<Vec<_>>();
     if images.len() != 1 || hosting::sha256(&destination.join(images[0].0))? != *images[0].1 {
         return Err("The signed server archive is missing or damaged.".into());
+    }
+    Ok(())
+}
+/// Fetch the exact deployment archive named by the already verified server
+/// release before stopping hosting. Legacy releases retain image-only updates.
+pub(crate) fn update_candidate(
+    data: &Path,
+    release: &crate::updates::ServerRelease,
+) -> Result<Option<std::path::PathBuf>, String> {
+    let Some(expected) = release.host_archive_sha256.as_deref() else {
+        return Ok(None);
+    };
+    let mut nonce = [0u8; 12];
+    OsRng.fill_bytes(&mut nonce);
+    let directory = data
+        .join("host-updates")
+        .join(format!("package-{}", hex::encode(nonce)));
+    fs::create_dir_all(&directory).map_err(|_| "Cannot stage the signed deployment update.")?;
+    let client = reqwest::blocking::Client::builder()
+        .https_only(true)
+        .timeout(Duration::from_secs(600))
+        .build()
+        .map_err(|_| "Cannot initialize deployment downloads.")?;
+    let url = format!(
+        "https://github.com/KBHarris/hearth/releases/download/v{}/Hearth_Host_{}.tar",
+        release.version, release.version
+    );
+    let response = client
+        .get(url)
+        .send()
+        .and_then(|response| response.error_for_status())
+        .map_err(
+            |_| "Cannot fetch the matching deployment package; the current host was preserved.",
+        )?;
+    if response
+        .content_length()
+        .is_some_and(|length| length > LIMIT)
+    {
+        return Err("Deployment download is too large.".into());
+    }
+    let archive = directory.join("download.tar");
+    let mut file = fs::OpenOptions::new()
+        .write(true)
+        .create_new(true)
+        .open(&archive)
+        .map_err(|_| "Cannot stage the deployment download.")?;
+    let mut reader = response.take(LIMIT + 1);
+    let mut hash = Sha256::new();
+    let mut count = 0u64;
+    let mut bytes = [0u8; 65536];
+    loop {
+        let length = reader
+            .read(&mut bytes)
+            .map_err(|_| "Deployment download interrupted.")?;
+        if length == 0 {
+            break;
+        }
+        count += length as u64;
+        if count > LIMIT {
+            return Err("Deployment download is too large.".into());
+        }
+        hash.update(&bytes[..length]);
+        file.write_all(&bytes[..length])
+            .map_err(|_| "Cannot save deployment download.")?;
+    }
+    file.sync_all()
+        .map_err(|_| "Cannot finish deployment download.")?;
+    drop(file);
+    if hex::encode(hash.finalize()) != expected {
+        return Err("Deployment checksum verification failed; hosting was preserved.".into());
+    }
+    extract(&archive, &directory)?;
+    let bundle = hosting::validate(&directory)?;
+    let manifest: serde_json::Value = serde_json::from_slice(
+        &fs::read(directory.join("manifest.json"))
+            .map_err(|_| "Cannot read deployment revision.")?,
+    )
+    .map_err(|_| "Invalid deployment revision.")?;
+    if manifest["sourceCommit"] != release.source_commit {
+        return Err("Deployment and server source revisions differ.".into());
+    }
+    if bundle.client.version != release.version || bundle.server.image_id != release.image_id {
+        return Err("Deployment and server release do not match.".into());
+    }
+    Ok(Some(directory))
+}
+pub(crate) fn install_candidate(candidate: &Path, selection: &Selection) -> Result<(), String> {
+    let bundle = hosting::validate(candidate)?;
+    if bundle.server.compose_project != selection.project {
+        return Err("Deployment project changed; the host was preserved.".into());
+    }
+    let files = std::iter::once("manifest.json")
+        .chain(std::iter::once("manifest.json.sig"))
+        .chain(
+            bundle
+                .files
+                .keys()
+                .filter(|file| {
+                    matches!(
+                        file.as_str(),
+                        "deploy/compose.yaml"
+                            | "deploy/compose.https.yaml"
+                            | "deploy/setup.mjs"
+                            | "deploy/.env.example"
+                            | "deploy/Caddyfile"
+                            | "deploy/storage-entrypoint.sh"
+                    ) || crate::host_media::PUBLIC_FILES.contains(&file.as_str())
+                        || file.starts_with("Hearth_Server_Test_")
+                            && file.ends_with(".tar")
+                            && !file.contains(['/', '\\'])
+                })
+                .map(String::as_str),
+        );
+    for file in files {
+        let target = selection.root.join(file);
+        if target.exists() {
+            hosting::regular(&target)?;
+        }
+        fs::create_dir_all(target.parent().ok_or("Invalid deployment path.")?)
+            .map_err(|_| "Cannot prepare deployment update.")?;
+        fs::copy(candidate.join(file), target)
+            .map_err(|_| "Cannot install the verified deployment update.")?;
     }
     Ok(())
 }

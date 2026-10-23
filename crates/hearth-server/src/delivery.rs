@@ -35,6 +35,13 @@ pub fn routes(origins: &[String]) -> Router<SharedState> {
         .route("/conversations/{id}/message", post(message))
         .route("/conversations/{id}/history", get(history))
         .route("/events/{device}", get(events))
+        .route("/media/{device}", get(media_configuration))
+        .route("/call-ready/{id}/{device}", get(call_ready))
+        .route("/voice/{id}/{device}/sfu", get(crate::voice::sfu_access))
+        .route(
+            "/voice/{id}/{device}",
+            get(crate::voice::get).post(crate::voice::update),
+        )
         .layer(DefaultBodyLimit::max(4 * 1024 * 1024))
         .layer(
             CorsLayer::new()
@@ -80,6 +87,143 @@ async fn authenticated(state: &SharedState, headers: &HeaderMap) -> Result<Strin
     let account = account_id(state, headers).await?;
     state.auth.limit_delivery(&account)?;
     Ok(account)
+}
+#[derive(Default, Deserialize)]
+#[serde(deny_unknown_fields)]
+struct CallMode {
+    #[serde(default)]
+    group: bool,
+    #[serde(default)]
+    format: u8,
+}
+async fn media_configuration(
+    State(state): State<SharedState>,
+    headers: HeaderMap,
+    Path(device): Path<String>,
+    Query(mode): Query<CallMode>,
+) -> Result<Json<IceConfiguration>> {
+    let _permit = state.auth.admit()?;
+    let account = authenticated(&state, &headers).await?;
+    approved(&state, &account, &device).await?;
+    let media = &state.config.media;
+    if mode.group {
+        sqlx::query(
+            "INSERT INTO group_media_capabilities(device_key,format) VALUES($1,$2) ON CONFLICT(device_key) DO UPDATE SET format=EXCLUDED.format",
+        )
+        .bind(&device)
+        .bind(match mode.format { 5 => 5_i16, 4 => 4_i16, 3 => 3_i16, 2 => 2_i16, _ => 1_i16 })
+        .execute(&state.db)
+        .await
+        .map_err(unavailable)?;
+    } else {
+        // An old-format client returning on the same approved device invalidates
+        // its previous group support announcement before new controls are sent.
+        sqlx::query("DELETE FROM group_media_capabilities WHERE device_key=$1")
+            .bind(&device)
+            .execute(&state.db)
+            .await
+            .map_err(unavailable)?;
+    }
+    media
+        .announce(&device)
+        .map_err(|_| StatusCode::SERVICE_UNAVAILABLE)?;
+    state
+        .config
+        .media
+        .credentials()
+        .map(Json)
+        .map_err(|_| StatusCode::SERVICE_UNAVAILABLE)
+}
+async fn call_ready(
+    State(state): State<SharedState>,
+    headers: HeaderMap,
+    Path((id, device)): Path<(String, String)>,
+    Query(mode): Query<CallMode>,
+) -> Result<StatusCode> {
+    let _permit = state.auth.admit()?;
+    let account = authenticated(&state, &headers).await?;
+    approved(&state, &account, &device).await?;
+    if !valid_id(&id) {
+        return Err(StatusCode::BAD_REQUEST);
+    }
+    let mut tx = state.db.begin().await.map_err(unavailable)?;
+    crate::safety::dm_allowed(&mut tx, &id, &account).await?;
+    let value: serde_json::Value =
+        sqlx::query_scalar("SELECT members FROM conversations WHERE id=$1 AND channel_id IS NULL")
+            .bind(&id)
+            .fetch_optional(&mut *tx)
+            .await
+            .map_err(unavailable)?
+            .ok_or(StatusCode::FORBIDDEN)?;
+    let members: Vec<GroupMember> = parsed(value)?;
+    if !members
+        .iter()
+        .any(|m| m.enrollment.device_key == device && m.account_id == account)
+        || members
+            .iter()
+            .map(|m| &m.account_id)
+            .collect::<std::collections::BTreeSet<_>>()
+            .len()
+            != if mode.group { 3 } else { 2 }
+    {
+        return Err(StatusCode::FORBIDDEN);
+    }
+    let devices = members
+        .iter()
+        .map(|m| m.enrollment.device_key.clone())
+        .collect::<Vec<_>>();
+    // One fresh admission covers approval as well as block checks. Compare the
+    // exact enrolled proof, not only a durable format announcement. This keeps
+    // client authorization to one directory snapshot plus one admission request.
+    let current=sqlx::query("SELECT a.identity_key,d.account_id,d.device_key,d.certificate,d.account_signature,d.device_signature FROM account_devices d JOIN accounts a ON a.id=d.account_id WHERE d.device_key=ANY($1)")
+        .bind(&devices).fetch_all(&mut *tx).await.map_err(unavailable)?;
+    if current.len() != members.len()
+        || members.iter().any(|member| {
+            !current.iter().any(|row| {
+                row.get::<String, _>("account_id") == member.account_id
+                    && enrollment(row) == member.enrollment
+            })
+        })
+    {
+        return Err(StatusCode::FORBIDDEN);
+    }
+    if mode.group {
+        let accounts: std::collections::BTreeSet<_> =
+            members.iter().map(|member| &member.account_id).collect();
+        for peer in accounts {
+            crate::safety::dm_allowed(&mut tx, &id, peer).await?;
+        }
+    }
+    let media = &state.config.media;
+    let compatible = if mode.group {
+        if mode.format != 5 {
+            return Err(StatusCode::CONFLICT);
+        }
+        let count: i64 = sqlx::query_scalar(
+            "SELECT count(*) FROM group_media_capabilities WHERE device_key=ANY($1) AND format=5",
+        )
+        .bind(&devices)
+        .fetch_one(&mut *tx)
+        .await
+        .map_err(unavailable)?;
+        count == devices.len() as i64
+    } else {
+        if mode.format != 5 {
+            return Err(StatusCode::CONFLICT);
+        }
+        let count: i64 = sqlx::query_scalar(
+            "SELECT count(*) FROM group_media_capabilities WHERE device_key=ANY($1) AND format=5",
+        )
+        .bind(&devices)
+        .fetch_one(&mut *tx)
+        .await
+        .map_err(unavailable)?;
+        count == devices.len() as i64 && media.compatible(&devices)
+    };
+    if !compatible {
+        return Err(StatusCode::CONFLICT);
+    }
+    Ok(StatusCode::NO_CONTENT)
 }
 async fn person(
     State(state): State<SharedState>,

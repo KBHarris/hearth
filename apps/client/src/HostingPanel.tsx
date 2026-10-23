@@ -15,11 +15,15 @@ export function HostingPanel({ onConnect }: { onConnect: (address: string) => vo
   const [message, setMessage] = useState('')
   const [appUpdate, setAppUpdate] = useState<UpdateStatus | null>(null)
   const [serverUpdate, setServerUpdate] = useState<UpdateStatus | null>(null)
+  const [media,setMedia]=useState<{enabled:boolean;message:string}|null>(null)
   const [confirm, setConfirm] = useState<'stop' | 'restore' | 'backup-export' | 'backup-import' | 'runtime' | null>(null)
   const [runtime, setRuntime] = useState<{ ready: boolean; message: string } | null>(null)
   const [startup, setStartup] = useState<{ enabled: boolean; message: string } | null>(null)
   const [setupCode, setSetupCode] = useState('')
   const [showCode, setShowCode] = useState(false)
+  useEffect(() => {
+    if (host) window.dispatchEvent(new Event('hearth:host-changed'))
+  }, [host])
   useEffect(() => {
     let active = true
     void (async () => {
@@ -101,6 +105,10 @@ export function HostingPanel({ onConnect }: { onConnect: (address: string) => vo
           {setupCode && <><label htmlFor="local-owner-code">Owner setup code</label><input id="local-owner-code" type={showCode ? 'text' : 'password'} readOnly value={setupCode} onFocus={event => event.currentTarget.select()} autoComplete="off" /><button onClick={() => setShowCode(value => !value)}>{showCode ? 'Hide code' : 'Show code'}</button><small>Keep this code private. It is cleared when this panel closes.</small></>}
         </details></>}
     </section>
+    {host?.folder&&<section aria-labelledby="media-host-heading"><h2 id="media-host-heading">Voice and video hosting</h2><p>Run encrypted community rooms and a call relay on this computer. Media keys stay with participants. Enabling this starts two additional Docker services.</p>
+      <div className="button-row"><button disabled={!!busy||settingsDirty} onClick={()=>void perform('Checking media hosting…',async()=>setMedia(await invoke('host_media',{action:'status'})))}>Check media hosting</button><button disabled={!!busy||settingsDirty||media?.enabled} onClick={()=>void perform('Preparing voice and video hosting…',async()=>setMedia(await invoke('host_media',{action:'enable'})))}>Enable voice and video</button>{media?.enabled&&<button disabled={!!busy} onClick={()=>void perform('Stopping media hosting…',async()=>setMedia(await invoke('host_media',{action:'disable'})))}>Disable media hosting</button>}</div>
+      {media&&<p role="status">{media.message}</p>}
+    </section>}
     <NetworkCheckPanel localUrl={host?.local_url} publicAddress={host?.public_address} />
     <section aria-labelledby="update-heading"><h2 id="update-heading">Updates</h2><p>Install verified releases from Hearth’s public GitHub repository.</p>
       <button disabled={!!busy} onClick={() => void checkUpdates()}>Check for updates</button>

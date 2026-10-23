@@ -1,0 +1,142 @@
+{
+  "recordedAt": "2026-10-21T12:55:44.223Z",
+  "localDate": "2026-10-21",
+  "issue": "User reported saved server absent after reopening Hearth with Docker running",
+  "originalFailureReproduced": false,
+  "diagnosis": {
+    "installedVersion": "0.3.5",
+    "nativeSavedHostLookup": "success",
+    "namedServerVisibleDuringDiagnostic": true,
+    "signedHostPackageFiles": "match manifest",
+    "existingHearthContainers": "four running, backend and PostgreSQL healthy",
+    "desktopAndStartMenuTargets": "different paths, same executable version and SHA256; old-version mismatch not established"
+  },
+  "implementation": [
+    "Retry transient native lookup failures with bounded backoff",
+    "Timeout stalled IPC after five seconds",
+    "Refresh on focus, visibility and hosting changes",
+    "Preserve last known host after temporary errors",
+    "Keep package-recovery entry visible when local address is unavailable",
+    "Ignore superseded results and stop watchers on cleanup"
+  ],
+  "sourceSha256": {
+    "apps/client/src/App.tsx": "9b0d246b859b924fd059b00a886dcdf0bdc3f133fc33074e822259e567808556",
+    "apps/client/src/HostingPanel.tsx": "ced36229c70018f35d121999e8923cbfead83d04b16a843d8417d6c53bb16e9a",
+    "apps/client/src/saved-host.ts": "90f7186354eea80ae8a03018bef2945a3dff7fdb5eeb20479305d89e288d30f5",
+    "apps/client/test/saved-host.test.mjs": "f40e3e24ef2ba514f0db75b997b7869ad29c0a2c0c069baa46265efcad97f253",
+    "scripts/verify-saved-host-ui.mjs": "9379495ba8ce79b0e8ff1fc68e312f85819f5b4de52df3bb52522586452fc6d6"
+  },
+  "verification": {
+    "lifecycleTests": {
+      "passed": 4
+    },
+    "web": {
+      "outcome": "pass",
+      "javascriptTests": 66,
+      "typecheck": "pass",
+      "lint": "pass with existing warnings",
+      "productionBuild": "pass"
+    },
+    "productionUi": {
+      "outcome": "pass",
+      "measuredAt": "2026-10-21T12:36:38.531Z",
+      "scope": "Production browser UI with injected native IPC failures; no real desktop profile or host modified",
+      "checks": {
+        "startup_ipc_failure_recovers_without_reopening": true,
+        "transient_failure_preserves_last_known_host_entry": true,
+        "focus_refresh_uses_new_saved_host_address": true,
+        "saved_host_with_missing_package_address_opens_recovery": true,
+        "host_selection_updates_sidebar_while_settings_are_open": true,
+        "host_recovery_controls_fit_430px_viewport": true
+      }
+    },
+    "sidebarOnlyPatchUi": {
+      "outcome": "pass",
+      "measuredAt": "2026-10-21T12:41:02.450Z",
+      "scope": "Production browser UI with injected native IPC failures; no real desktop profile or host modified",
+      "checks": {
+        "startup_ipc_failure_recovers_without_reopening": true,
+        "transient_failure_preserves_last_known_host_entry": true,
+        "focus_refresh_uses_new_saved_host_address": true,
+        "saved_host_with_missing_package_address_opens_recovery": true,
+        "host_selection_updates_sidebar_while_settings_are_open": true,
+        "host_recovery_controls_fit_430px_viewport": true
+      }
+    }
+  },
+  "patch": {
+    "version": "0.3.6",
+    "baseRevision": "16c4cabfe0bfb25a40e21cfd34f126b8c79dcaf7",
+    "buildRevision": "16c4cab-sidebar-fda6f1b72626",
+    "sourceSha256": {
+      "apps/client/src/App.tsx": "9b0d246b859b924fd059b00a886dcdf0bdc3f133fc33074e822259e567808556",
+      "apps/client/src/HostingPanel.tsx": "ced36229c70018f35d121999e8923cbfead83d04b16a843d8417d6c53bb16e9a",
+      "apps/client/src/saved-host.ts": "90f7186354eea80ae8a03018bef2945a3dff7fdb5eeb20479305d89e288d30f5",
+      "apps/client/test/saved-host.test.mjs": "f40e3e24ef2ba514f0db75b997b7869ad29c0a2c0c069baa46265efcad97f253",
+      "apps/desktop/src-tauri/tauri.test.conf.json": "c7047b3abfeb4dd006d195eb5035f914895f0726d6e515c9975bbb712ba51a33"
+    },
+    "scope": "Local sidebar recovery patch only; snapshot excludes uncommitted Phase 4 changes",
+    "installer": "target/release/bundle/nsis/Hearth Preview_0.3.6_x64-setup.exe",
+    "installerSha256": "2b4f85b6ca9bf6fd6a3c2d79516f120b0b8a48eb4f39910f6a6db3ad39a276ed",
+    "windowsReleaseCompilation": "pass",
+    "nsisPackaging": "pass",
+    "updaterArtifactsGenerated": false,
+    "publicRelease": false,
+    "unfinishedPhase4ModulesExcluded": true
+  },
+  "installation": {
+    "status": "installed and locally verified",
+    "outcome": "pass",
+    "measuredAt": "2026-10-21T12:50:57.371Z",
+    "version": "0.3.6",
+    "revision": "16c4cab-sidebar-fda6f1b72626",
+    "installerSha256": "2b4f85b6ca9bf6fd6a3c2d79516f120b0b8a48eb4f39910f6a6db3ad39a276ed",
+    "installedExeSha256": "d710423bcc3df4b22424f35e142f14beb66d5675fdade7cd9b800f75de804ecf",
+    "checks": {
+      "actual_nsis_upgrade_passes": true,
+      "installed_executable_matches_frozen_patch": true,
+      "installed_native_version_and_patch_revision_match": true,
+      "actual_saved_host_visible_with_empty_browser_server_list": true,
+      "real_native_host_remains_visible_after_focus": true,
+      "actual_native_reopen_keeps_host_visible": true,
+      "desktop_and_start_menu_shortcuts_point_to_verified_install": true,
+      "normal_profile_saved_server_remains_visible": true,
+      "native_selection_and_non_webview_profile_files_preserved": true,
+      "original_four_host_containers_preserved": true
+    },
+    "scope": "Local Windows in-place upgrade, actual native selection, isolated and existing WebView profiles; original intermittent user failure not reproduced",
+    "normalUserLaunchConfirmation": "pending",
+    "profileEvidence": "Existing native selection and non-WebView profile files remained stable during final acceptance; normal browser profile retained saved server and selected address",
+    "initialAttempt": {
+      "outcome": "injection check timed out; not accepted as product failure or successful fault-injection evidence",
+      "reason": "The first test timed out waiting for its injection counter. Final native acceptance checks actual focus and reopening; the separate browser fixture verifies negative cases."
+    }
+  },
+  "operations": {
+    "railway": "paused",
+    "hostedCiDispatched": false,
+    "existingHostServicesRestarted": false,
+    "userServerConfigurationChanged": false
+  },
+  "remaining": [
+    "Confirm the patched sidebar during normal user reopening; original intermittent failure was not reproduced"
+  ],
+  "currentWorkspaceVerification": {
+    "format": "pass",
+    "clippyAllTargets": "pass; existing incremental-cache filesystem warnings",
+    "defaultRustTests": {
+      "passed": 45,
+      "ignored": 5
+    },
+    "currentWasmReleaseBuild": "pass",
+    "windowsDesktopCheck": "pass",
+    "currentProductionWasmMatchesGenerated": true,
+    "localLogsSha256": {
+      "target/host-sidebar-diagnosis/workspace-wasm.log": "6ee44416d2f975a53145887628311343051d7e108a99c606bf0e9008f794b9e1",
+      "target/host-sidebar-diagnosis/rust-clippy.log": "9ad24b2b4c70b34b420fd5867eb3a736eab7423a14c3749b2d45c03551482c17",
+      "target/host-sidebar-diagnosis/rust-tests.log": "bda7e37d3346321af0a36a68cfa103db116cb89e8453dd3d325ff89d97e6d9d8",
+      "target/host-sidebar-diagnosis/desktop-check.log": "b3cf3f3a3111b887479060202448e4bbeaf47544b627316c7376deea92dd704a",
+      "target/host-sidebar-diagnosis/web-verify.log": "8c46b0e97942701082e722af86b99f9cf31365c2993e21e387fe434804ae78f5"
+    }
+  }
+}

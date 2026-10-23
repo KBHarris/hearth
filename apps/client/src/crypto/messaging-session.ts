@@ -1,6 +1,7 @@
+import {deliveryBatch} from './delivery-batch'
 import type {ReportKey,ReportEvidence,QueuedReport,ReportEnvelope} from '@hearth/sdk'
 export type ReportReview=QueuedReport&{evidence?:ReportEvidence;error?:string}
-import {permissions,Permission,HearthClient,HearthError,PROTOCOL_VERSION,validateDeliveryEvent,type Session,type DeviceEnrollment,type Conversation,type LocalMessage,type KeyPackageRecord,type CommitUpload,type MessageUpload,type MessageContent,type Person,type DeliveryEvent,type ChannelRoster} from '@hearth/sdk'
+import {permissions,mediaPermissions,withMediaPermissions,Permission,HearthClient,HearthError,PROTOCOL_VERSION,validateDeliveryEvent,type Session,type DeviceEnrollment,type Conversation,type LocalMessage,type KeyPackageRecord,type CommitUpload,type MessageUpload,type MessageContent,type Person,type DeliveryEvent,type ChannelRoster} from '@hearth/sdk'
 import {AuthCrypto} from './client'
 import {messageScope,readMessages,writeMessages} from './message-store'
 import {storageDeadline} from './vault-store'
@@ -10,6 +11,11 @@ import type {LocalAttachment} from '@hearth/sdk'
 import type {OwnershipState,OwnershipHandoff,OwnershipAcceptance} from '@hearth/sdk'
 import {MAX_FILE,hex,unhex,thumbnail} from './file-tools'
 import {cachedFile,cacheFile} from './file-cache'
+import type {CallSignal,LocalCallSignal} from '@hearth/sdk'
+import {callCapability} from '../media/direct-call'
+import {CallObservers} from '../media/call-observers'
+import {groupContext} from '../media/group-admission'
+import type {VoiceRoom,VoicePresence,SfuAccess} from '@hearth/sdk'
 
 export function admitted(roster:ChannelRoster,person:Person):boolean {
   const key=person.devices[0]?.identity_key
@@ -24,6 +30,75 @@ export const initialChat:ChatState={blocked:[],conversations:[],channels:{},join
 
 /** One serialized stream owns the in-memory ratchets; CAS detects competing tabs/processes. */
 export class MessagingSession {
+  private callObservers=new CallObservers()
+  onCall(listener:(event:LocalCallSignal)=>void,locked:(conversation?:string)=>void,epochChanged?:(conversation:string,epoch?:number)=>void|Promise<void>){return this.callObservers.add(listener,locked,epochChanged)}
+  private lockCalls(conversation?:string){this.callObservers.lock(conversation)}
+  private changeCallEpoch(conversation:string,epoch?:number){return this.callObservers.changeEpoch(conversation,epoch)}
+  get callDevice(){return this.device.device_key}
+  get callAccount(){return this.session.account.id}
+  async callConfiguration():Promise<RTCIceServer[]>{
+    const config=await this.client.groupCallConfiguration(this.session.token,this.device.device_key,this.options)
+    return config.ice_servers.map(server=>({urls:server.urls,...(server.username&&server.credential?{username:server.username,credential:server.credential}:{})}))
+  }
+  callKey(id:string,signal:CallSignal):Promise<string>{return this.enqueue(()=>this.operation<string>('call_key',{id,signal}))}
+  authorizeCall(id:string,signal?:CallSignal):Promise<Conversation>{return this.authorizeMedia(id,signal,false)}
+  authorizeGroupCall(id:string,signal?:CallSignal):Promise<Conversation>{return this.authorizeMedia(id,signal,true)}
+  private async voiceAccess(id:string){
+    // Gateway delivery already serializes MLS updates. A newer server epoch in
+    // the room response fails verification before media; avoid a second inbox
+    // pull for every lease read/renewal in addition to the fresh signed policy.
+    const roster=await this.prepareChannel(id)
+    const local=this.view.groups.find(group=>group.id===id)
+    const person=roster.people.find(person=>person.account.id===this.session.account.id)
+    if(!['voice','stage'].includes(roster.channel.kind)||!local||local.channel_id!==id||!person||!admitted(roster,person)||
+      (mediaPermissions(roster.governance,permissions(roster.governance,roster.community.owner_id,this.session.account.id,id,Date.now(),roster.admissions.find(grant=>grant.account_id===this.session.account.id)?.invitation?.issued_at??null),roster.channel.kind==='stage',roster.community.owner_id===this.session.account.id)&(Permission.connect|Permission.listen))!==(Permission.connect|Permission.listen)||roster.rules_accepted===false)throw new Error('Your role or community rules prevent joining this voice room.')
+    const grants=Object.fromEntries(local.members.map(peer=>[peer.enrollment.device_key,mediaPermissions(roster.governance,permissions(roster.governance,roster.community.owner_id,peer.account_id,id,Date.now(),roster.admissions.find(grant=>grant.account_id===peer.account_id)?.invitation?.issued_at??null),roster.channel.kind==='stage',peer.account_id===roster.community.owner_id)]))
+    return {conversation:local,permissions:grants,stage:roster.channel.kind==='stage'}
+  }
+  private async verifyPeers(peers:Conversation['members']){
+    if(await this.operation<boolean>('verify_peers',peers))await this.persist()
+  }
+  voiceRoom(id:string):Promise<{room:VoiceRoom;conversation:Conversation;permissions:Record<string,number>;stage:boolean}>{return this.enqueue(async()=>{
+    let view=await this.voiceAccess(id),room=await this.client.voiceRoom(this.session.token,id,this.device.device_key,this.options)
+    if(room.epoch!==view.conversation.epoch){await this.synchronize();view=await this.voiceAccess(id);room=await this.client.voiceRoom(this.session.token,id,this.device.device_key,this.options)}
+    if(room.epoch!==view.conversation.epoch)throw Object.assign(new Error('Room encryption is updating.'),{status:409})
+    await this.operation('verify_voice_room',{room,now:Date.now()})
+    return {room,...view}
+  })}
+  voicePresence(value:VoicePresence):Promise<{room:VoiceRoom;conversation:Conversation;permissions:Record<string,number>;stage:boolean}>{return this.enqueue(async()=>{
+    const view=await this.voiceAccess(value.channel_id)
+    if(value.epoch!==view.conversation.epoch)throw Object.assign(new Error('Room encryption is updating.'),{status:409})
+    const signed=await this.operation<VoicePresence>('sign_voice_presence',value)
+    const room=await this.client.voicePresence(this.session.token,signed,this.options)
+    if(room.epoch!==view.conversation.epoch)throw Object.assign(new Error('Room encryption is updating.'),{status:409})
+    await this.operation('verify_voice_room',{room,now:Date.now()})
+    return {room,...view}
+  })}
+  sfuAccess(id:string,revision:number):Promise<SfuAccess>{return this.enqueue(async()=>{
+    await this.voiceAccess(id)
+    return this.client.sfuAccess(this.session.token,id,this.device.device_key,revision,this.options)
+  })}
+  private authorizeMedia(id:string,signal:CallSignal|undefined,group:boolean):Promise<Conversation>{return this.enqueue(async()=>{
+    await this.synchronize()
+    const conversations=await this.client.conversations(this.session.token,this.options)
+    const current=conversations.find(c=>c.id===id),local=this.view.groups.find(c=>c.id===id)
+    if(!current||current.channel_id||current.accounts.length!==(group?3:2)||!local||current.epoch!==local.epoch||!current.members.some(m=>m.enrollment.device_key===this.device.device_key))throw new Error(group?'Open an up-to-date private conversation with exactly three people.':'Open an up-to-date private conversation with one person first.')
+    // Authenticate the current conversation credentials locally. The fresh
+    // readiness request below checks every approved device and both directions
+    // of blocking for all participants; separate directory/block HTTP reads
+    // would repeat that same authorization and can race the final admission.
+    const peers=current.members
+    await this.verifyPeers(peers)
+    const devices=signal?(group?signal.participants??[]:[signal.from_device,signal.to_device]):[this.device.device_key]
+    if(group&&signal){
+      if(!signal.group_id||!signal.participants||!signal.participants.includes(this.device.device_key))throw new Error('This device is not invited.')
+      groupContext(this.server,current,signal.group_id,signal.from_device,signal.participants,signal.relay_only)
+    }
+    if(signal&&signal.epoch!==current.epoch)throw new Error('Encryption changed. Start a new call.')
+    if(devices.some(key=>!peers.some(p=>p.enrollment.device_key===key)||!local.members.some(p=>p.enrollment.device_key===key)))throw new Error('A call device is no longer approved. Start a new call after linking it.')
+    try{await (group?this.client.groupCallReady(this.session.token,id,this.device.device_key,this.options):this.client.callReady(this.session.token,id,this.device.device_key,this.options))}catch(error){if(error instanceof HearthError&&error.status===409)throw new Error(group?'Open current Hearth clients on each device in this conversation once to enable group calling. Devices can then be offline without blocking the call.':'Open current Hearth clients on every device in this conversation before calling. This protects older clients from incompatible call messages.');throw error}
+    return current
+  })}
   private crypto:AuthCrypto
   private session:Session
   private device:DeviceEnrollment
@@ -44,6 +119,8 @@ export class MessagingSession {
   private lastTyping=0
   private closed=false
   private refreshing=false
+  private deliveryInbox:DeliveryEvent[]=[]
+  private deliveryScheduled=false
   constructor(crypto:AuthCrypto,session:Session,device:DeviceEnrollment,server:string,url:string,changed:(state:ChatState)=>void) {
     this.crypto=crypto;this.session=session;this.device=device;this.changed=changed
     this.client=new HearthClient(url);this.scope=messageScope(session.account.id,server,device.device_key)
@@ -63,7 +140,12 @@ export class MessagingSession {
     this.state={...this.state,typing,...patch,messages:this.view.messages,profiles:this.view.profiles,presence:this.view.presence,read:this.view.read,history_waiting:this.view.history_waiting,emoji:this.view.emoji,joined:this.view.groups.map(g=>g.id),pending:this.view.pending.length+this.view.pending_packages.length}
     this.changed(this.state)
   }
-  private async inspect() {this.view=JSON.parse(await this.crypto.message('view')) as EngineView}
+  private async inspect() {
+    const previous=this.view.groups
+    this.view=JSON.parse(await this.crypto.message('view')) as EngineView
+    for(const group of previous)if(!this.view.groups.some(current=>current.id===group.id))this.lockCalls(group.id)
+    for(const group of this.view.groups)if(previous.some(old=>old.id===group.id&&old.epoch!==group.epoch))void this.changeCallEpoch(group.id,group.epoch).catch(()=>this.close())
+  }
   private async persist() {
     const sealed=await this.crypto.message('seal')
     try {
@@ -78,7 +160,10 @@ export class MessagingSession {
       this.close();this.publish({fatal:true,connection:'Encrypted storage needs attention',error:error instanceof Error?error.message:'Encrypted storage could not be saved. Sign in again.'});throw error
     }
   }
-  private async operation<T>(name:string,input:unknown=''):Promise<T> {try{return JSON.parse(await this.crypto.message(name,input)) as T}catch(error){if(import.meta.env.DEV)console.warn('Encrypted operation failed: '+name+(name==='receive'&&typeof input==='object'&&input!==null&&'data' in input?'/'+String((input as {data:{kind?:string}}).data.kind):''));throw error}}
+  private async operation<T>(name:string,input:unknown=''):Promise<T> {try{
+    if(name==='add'&&typeof input==='object'&&input!==null&&'id' in input)await this.changeCallEpoch(String(input.id))
+    return JSON.parse(await this.crypto.message(name,input)) as T
+  }catch(error){if(import.meta.env.DEV)console.warn('Encrypted operation failed: '+name+(name==='receive'&&typeof input==='object'&&input!==null&&'data' in input?'/'+String((input as {data:{kind?:string}}).data.kind):''));throw error}}
   async start() {
     return this.enqueue(async()=>{
       const saved=await storageDeadline(readMessages(this.scope),this.controller.signal)
@@ -88,6 +173,7 @@ export class MessagingSession {
       await this.inspect()
       if(!saved)await this.persist()
       this.initialized=true
+      if(callCapability())await this.callConfiguration().catch(()=>{})
       await this.synchronize()
       await this.refresh()
       this.openGateway()
@@ -110,7 +196,7 @@ export class MessagingSession {
         if(error instanceof HearthError && [400,403,409].includes(error.status)) {
           // A prior successful request can lose its reply just before policy changes.
           // Consume authenticated ordered delivery while the pending proof is retained.
-          for(;;){const backlog=await this.client.events(this.session.token,this.device.device_key,this.view.last_seq,this.options);for(const event of backlog)await this.receive(event);if(backlog.length<128)break}
+          for(;;){const backlog=await this.client.events(this.session.token,this.device.device_key,this.view.last_seq,this.options);await this.receiveBatch(backlog);if(backlog.length<128)break}
           if(!this.view.pending.some(p=>p.upload.operation_id===pending.upload.operation_id))continue
           await this.operation('reject',pending.upload.operation_id);await this.persist()
           this.publish({error:'Encryption or permissions changed. The queued operation was rejected; retry after updates arrive.'})
@@ -120,29 +206,37 @@ export class MessagingSession {
     }
     return rejected
   }
-  private async receive(event:DeliveryEvent) {
-    // HTTP backlog and a live gateway can overlap. Previously persisted deliveries
-    // are safe to acknowledge, but must never advance an MLS ratchet twice.
-    if(event.seq<=this.view.last_seq)return
-    const typing=await this.operation<[string,boolean]|null>('receive',event)
-    await this.persist()
-    if(typing){
-      const peers=this.state.typing[event.conversation_id]?.filter(peer=>peer.account!==typing[0]) ?? []
-      if(typing[1])peers.push({account:typing[0],until:Date.now()+8000})
-      this.state={...this.state,typing:{...this.state.typing,[event.conversation_id]:peers}}
-    }
-    this.publish()
+  private async receiveBatch(events:readonly DeliveryEvent[]){
+    for(let offset=0;offset<events.length;offset+=16)await deliveryBatch(events.slice(offset,offset+16),this.view.last_seq,{
+      before:async event=>{if(event.data.kind==='commit'&&event.data.upload.expected_epoch>=(this.view.groups.find(group=>group.id===event.conversation_id)?.epoch??0))await this.changeCallEpoch(event.conversation_id)},
+      receive:async event=>{const typing=await this.operation<[string,boolean]|null>('receive',event),calls=await this.operation<LocalCallSignal[]>('take_calls');return {typing,calls}},
+      persist:()=>this.persist(),
+      emit:items=>{for(const {event,value:{typing,calls}} of items){
+        for(const call of calls)if(call.signal.epoch===this.view.groups.find(group=>group.id===call.conversation_id)?.epoch)this.callObservers.emit(call)
+        if(typing){const peers=this.state.typing[event.conversation_id]?.filter(peer=>peer.account!==typing[0])??[];if(typing[1])peers.push({account:typing[0],until:Date.now()+8000});this.state={...this.state,typing:{...this.state.typing,[event.conversation_id]:peers}}}
+      }this.publish()},
+    })
+  }
+  private drainDelivery(socket:WebSocket){
+    if(this.deliveryScheduled||this.socket!==socket||this.closed)return
+    this.deliveryScheduled=true
+    void this.enqueue(async()=>{
+      if(this.socket!==socket)return
+      const events=this.deliveryInbox.splice(0,16);await this.receiveBatch(events)
+      if(this.socket===socket&&!this.closed)socket.send(JSON.stringify({op:'ack',d:{last_seq:this.view.last_seq}}))
+    }).catch(error=>{this.report(error);socket.close()}).finally(()=>{this.deliveryScheduled=false;if(this.socket===socket&&this.deliveryInbox.length)this.drainDelivery(socket)})
   }
   private async synchronize() {
     await this.flush()
     for(;;){
       const backlog=await this.client.events(this.session.token,this.device.device_key,this.view.last_seq,this.options)
-      for(const event of backlog)await this.receive(event)
+      await this.receiveBatch(backlog)
       if(backlog.length<128)break
     }
   }
   refreshBlocks():Promise<void>{return this.enqueue(async()=>{this.publish({blocked:(await this.client.blocks(this.session.token,this.options)).map(person=>person.id)})})}
   private async refresh() {
+    if(callCapability())await this.callConfiguration().catch(()=>{})
     // Drain the preceding epoch before adding a device. A commit must not discard
     // application secrets for messages still waiting in the ordered backlog.
     await this.synchronize()
@@ -158,9 +252,8 @@ export class MessagingSession {
       for(const person of roster.people)people[person.account.id]=person
     }
     const peers=Object.values(people).flatMap(person=>person.devices.map(enrollment=>({account_id:person.account.id,enrollment})))
-    try {for(let offset=0;offset<peers.length;offset+=128)await this.operation('verify_peers',peers.slice(offset,offset+128))}
+    try {for(let offset=0;offset<peers.length;offset+=128)await this.verifyPeers(peers.slice(offset,offset+128))}
     catch {throw new Error('A participant’s identity changed or could not be verified. Saved fingerprints were preserved. Compare identities using a trusted channel before adding devices.')}
-    await this.persist()
     this.publish({conversations,people,channels,blocked:(await this.client.blocks(this.session.token,this.options)).map(person=>person.id)})
     const count=await this.client.packageCount(this.session.token,this.device.device_key,this.options)
     if(count.available<4 && this.view.pending_packages.length===0){
@@ -256,6 +349,17 @@ export class MessagingSession {
     await this.operation('pin_governance',{authority:root,policy:acceptance.governance});await this.persist();await this.refresh()
   })}
   cancelOwnership(id:string):Promise<void>{return this.enqueue(async()=>{await this.client.cancelOwnership(this.session.token,id,this.options)})}
+  async stageSpeaker(channel:string,account:string,speaker:boolean):Promise<void>{
+    const roster=await this.enqueue(()=>this.prepareChannel(channel))
+    if(roster.channel.kind!=='stage'||roster.community.owner_id!==this.session.account.id||!roster.authority)throw new Error('Only the community owner can change stage speakers.')
+    const view=await this.loadGovernance(roster.community.id),structure=await this.client.communityStructure(this.session.token,roster.community.id,this.options)
+    const policy=withMediaPermissions(view.governance??{community_id:roster.community.id,revision:0,everyone:15,roles:[],assignments:[],overrides:[],sanctions:[],limits:[],rules:'',screening:false,owner:roster.authority.owner,signature:''},structure.channels.filter(channel=>channel.kind==='stage').map(channel=>channel.id))
+    const publication=Permission.speak|Permission.camera|Permission.screen,overrides=[...policy.overrides]
+    const index=overrides.findIndex(item=>item.channel_id===channel&&item.kind==='member'&&item.target_id===account)
+    const previous=index>=0?overrides.splice(index,1)[0]:{channel_id:channel,kind:'member' as const,target_id:account,allow:0,deny:0}
+    overrides.push({...previous,allow:(previous.allow&~publication)|(speaker?publication:0),deny:(previous.deny&~publication)|(speaker?0:publication)})
+    await this.saveGovernance(roster.community.id,{...policy,revision:policy.revision+1,overrides})
+  }
   saveGovernance(id:string,policy:Governance):Promise<Governance>{return this.enqueue(async()=>{
     await this.synchronize();const authority=await this.prepareCommunity(id)
     const signed=await this.operation<Governance>('sign_governance',{authority,policy});await this.persist()
@@ -300,7 +404,7 @@ export class MessagingSession {
     }
     if(!roster.authority||!roster.policy)throw new Error('The channel encryption policy is incomplete.')
     const authorization:ChannelAuthorization={authority:roster.authority,policy:roster.policy,admissions:roster.admissions,governance:roster.governance,departures:roster.departures}
-    await this.operation('authorize_channel',{id,authorization});await this.persist()
+    if(await this.operation<boolean>('authorize_channel',{id,authorization}))await this.persist()
     return roster
   }
   approveMember(channel:string,account:string,expectedKey:string):Promise<void>{return this.enqueue(async()=>{
@@ -308,7 +412,7 @@ export class MessagingSession {
     if(roster.community.owner_id!==this.session.account.id || !roster.authority)throw new Error('Only the community owner can approve a new member.')
     const person=roster.people.find(p=>p.account.id===account)
     if(!person?.devices.length || person.devices.some(d=>d.identity_key!==expectedKey))throw new Error('The member identity changed. Compare fingerprints before trying again.')
-    await this.operation('verify_peers',person.devices.map(enrollment=>({account_id:account,enrollment})));await this.persist()
+    await this.verifyPeers(person.devices.map(enrollment=>({account_id:account,enrollment})))
     const history_from=Object.fromEntries(Object.values(this.state.channels).filter(r=>r.community.id===roster.community.id).map(r=>[r.channel.id,this.state.conversations.find(c=>c.id===r.channel.id)?.epoch ?? 0]))
     const invitation=roster.invitations.find(i=>i.account_id===account)?.invitation
     const grant=await this.operation<CommunityAdmission>('sign_admission',{authority:roster.authority,account_id:account,identity_key:expectedKey,history_from,invitation});await this.persist()
@@ -321,8 +425,7 @@ export class MessagingSession {
       const roster=await this.prepareChannel(id)
       if(roster.channel.id!==id || !roster.people.some(p=>p.account.id===this.session.account.id))throw new Error('The channel roster could not be verified.')
       const peers=roster.people.flatMap(p=>p.devices.map(enrollment=>({account_id:p.account.id,enrollment})))
-      for(let offset=0;offset<peers.length;offset+=128)await this.operation('verify_peers',peers.slice(offset,offset+128))
-      await this.persist()
+      for(let offset=0;offset<peers.length;offset+=128)await this.verifyPeers(peers.slice(offset,offset+128))
       // A Welcome may arrive before the directory refresh adds this new channel.
       // Check current routing and the crypto store before attempting group creation.
       const conversations=await this.client.conversations(this.session.token,this.options)
@@ -346,9 +449,8 @@ export class MessagingSession {
       const people=await Promise.all([...new Set([this.session.account.username,...usernames])].map(username=>this.client.person(this.session.token,username,this.options)))
       if(people.length<2 || people.length>10)throw new Error('Choose one to nine other people for this conversation.')
       const peers=people.flatMap(person=>person.devices.map(enrollment=>({account_id:person.account.id,enrollment})))
-      try {for(let offset=0;offset<peers.length;offset+=128)await this.operation('verify_peers',peers.slice(offset,offset+128))}
+      try {for(let offset=0;offset<peers.length;offset+=128)await this.verifyPeers(peers.slice(offset,offset+128))}
       catch {throw new Error('A recipient’s identity changed or could not be verified. Saved fingerprints were preserved. Compare identities using a trusted channel before trying again.')}
-      await this.persist()
       const audience=people.map(person=>person.account.id).sort().join(':')
       const existing=this.state.conversations.find(conversation=>!conversation.channel_id && [...conversation.accounts].sort().join(':')===audience)
       if(existing)return existing.id
@@ -457,9 +559,18 @@ export class MessagingSession {
     if(this.closed)return
     const socket=new WebSocket(this.client.baseUrl.replace(/^http/,'ws')+'/gateway');this.socket=socket
     this.publish({connection:'Connecting…'})
-    socket.onmessage=event=>{void this.enqueue(async()=>{
+    socket.onmessage=event=>{
+      let input:{op:string;d?:Record<string,unknown>}
+      try{input=JSON.parse(String(event.data))}catch{this.report(new Error('Invalid gateway frame.'));socket.close();return}
       if(this.socket!==socket)return
-      const frame=JSON.parse(String(event.data)) as {op:string;d?:Record<string,unknown>}
+      if(input.op==='event'){
+        const delivery=input.d?.event
+        if(!validateDeliveryEvent(delivery)||input.d?.seq!==delivery.seq||this.deliveryInbox.length>=128){this.report(new Error('Invalid or overloaded encrypted gateway delivery.'));socket.close();return}
+        this.deliveryInbox.push(delivery);this.drainDelivery(socket);return
+      }
+      void this.enqueue(async()=>{
+      if(this.socket!==socket)return
+      const frame=input
       if(frame.op==='hello'){
         if(frame.d?.protocol!==PROTOCOL_VERSION)throw new Error('The gateway protocol changed. Update Hearth.')
       }else if(frame.op==='challenge'){
@@ -472,16 +583,11 @@ export class MessagingSession {
         this.heartbeatAt=Date.now();this.publish({connection:'Connected'})
         this.heartbeat=setInterval(()=>{if(this.socket!==socket || this.closed)return;if(Date.now()-this.heartbeatAt>65000){socket.close();return}socket.send(JSON.stringify({op:'heartbeat',d:{last_seq:this.view.last_seq}}));this.publish()},30000)
       }else if(frame.op==='heartbeat_ack')this.heartbeatAt=Date.now()
-      else if(frame.op==='event'){
-        const event=frame.d?.event
-        if(!validateDeliveryEvent(event) || frame.d?.seq!==event.seq)throw new Error('Invalid encrypted gateway event.')
-        await this.receive(event)
-        if(this.socket===socket && !this.closed)socket.send(JSON.stringify({op:'ack',d:{last_seq:this.view.last_seq}}))
-      }else if(frame.op==='invalid_session')throw new Error('The gateway session was rejected. Sign in again if reconnecting does not help.')
+      else if(frame.op==='invalid_session')throw new Error('The gateway session was rejected. Sign in again if reconnecting does not help.')
     }).catch(error=>{this.report(error);socket.close()})}
     socket.onclose=()=>{
       if(this.socket!==socket)return
-      this.socket=null;clearInterval(this.heartbeat)
+      this.socket=null;this.deliveryInbox=[];clearInterval(this.heartbeat)
       if(this.closed)return
       this.publish({connection:'Disconnected · retrying'})
       this.reconnect=setTimeout(()=>{void this.enqueue(async()=>{await this.synchronize();this.openGateway()}).catch(error=>{this.report(error);this.scheduleReconnect()})},2000)
@@ -493,5 +599,5 @@ export class MessagingSession {
     this.reconnect=setTimeout(()=>{void this.enqueue(async()=>{await this.synchronize();this.openGateway()}).catch(error=>{this.report(error);this.scheduleReconnect()})},5000)
   }
   private report(error:unknown){if(!this.closed)this.publish({error:error instanceof Error?error.message:'Encrypted delivery failed. Retry or sign in again.'})}
-  close(){this.closed=true;this.controller.abort();clearInterval(this.heartbeat);clearInterval(this.maintenance);clearTimeout(this.reconnect);const socket=this.socket;this.socket=null;socket?.close()}
+  close(){this.closed=true;this.lockCalls();this.controller.abort();clearInterval(this.heartbeat);clearInterval(this.maintenance);clearTimeout(this.reconnect);const socket=this.socket;this.socket=null;this.deliveryInbox=[];socket?.close()}
 }

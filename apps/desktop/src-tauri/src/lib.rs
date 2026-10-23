@@ -8,6 +8,8 @@ mod host_configuration;
 #[cfg(not(any(feature = "phase0-spike", feature = "phase1-acceptance")))]
 mod host_enrollment;
 #[cfg(not(any(feature = "phase0-spike", feature = "phase1-acceptance")))]
+mod host_media;
+#[cfg(not(any(feature = "phase0-spike", feature = "phase1-acceptance")))]
 mod host_package;
 #[cfg(not(any(feature = "phase0-spike", feature = "phase1-acceptance")))]
 mod host_runtime;
@@ -89,6 +91,7 @@ pub fn run() {
             host_runtime::host_runtime,
             host_startup::host_startup,
             hosting::host_control,
+            host_media::host_media,
             hosting::host_setup_code,
             host_enrollment::host_owner_code,
             hosting::host_configure,

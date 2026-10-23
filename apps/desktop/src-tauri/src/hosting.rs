@@ -262,6 +262,9 @@ pub(crate) fn sha256(path: &Path) -> Result<String, String> {
     Ok(hex::encode(digest.finalize()))
 }
 fn validate_base(root: &Path) -> Result<Bundle, String> {
+    let canonical_root = root
+        .canonicalize()
+        .map_err(|_| "The selected host folder is missing.")?;
     regular(&root.join("manifest.json"))?;
     let raw =
         fs::read(root.join("manifest.json")).map_err(|_| "Cannot read the package manifest.")?;
@@ -292,7 +295,14 @@ fn validate_base(root: &Path) -> Result<Bundle, String> {
         "deploy/.env.example",
         "deploy/Caddyfile",
         "deploy/storage-entrypoint.sh",
-    ] {
+    ]
+    .into_iter()
+    .chain(
+        crate::host_media::PUBLIC_FILES
+            .iter()
+            .copied()
+            .filter(|file| bundle.files.contains_key(*file)),
+    ) {
         let expected = bundle
             .files
             .get(file)
@@ -301,8 +311,7 @@ fn validate_base(root: &Path) -> Result<Bundle, String> {
         if path
             .canonicalize()
             .map_err(|_| "Host package is incomplete.")?
-            .parent()
-            != Some(root.join("deploy").as_path())
+            != canonical_root.join(file)
             || &sha256(&path)? != expected
         {
             return Err("Host package files changed. Extract a fresh package; keep your existing operator configuration and volumes.".into());
@@ -494,6 +503,7 @@ fn compose_environment(
     if selection.https {
         args.extend(["-f".into(), "compose.https.yaml".into()]);
     }
+    args.extend(crate::host_media::options(&selection.root)?);
     if runtime && selection.root.join("deploy/compose.runtime.json").exists() {
         args.extend(["-f".into(), "compose.runtime.json".into()]);
     }

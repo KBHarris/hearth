@@ -1,0 +1,8 @@
+{
+  "compilerOptions": {
+    "target": "ES2023", "module": "NodeNext", "moduleResolution": "NodeNext",
+    "noEmit": true, "strict": true, "allowJs": true, "skipLibCheck": true,
+    "allowImportingTsExtensions": true, "types": ["node"]
+  },
+  "include": ["railway.ts", "../deploy/railway/settings.mjs"]
+}

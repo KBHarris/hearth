@@ -1,0 +1,55 @@
+{
+  "measuredAt": "2026-10-21T13:20:25.632Z",
+  "runtime": "Normal File Explorer shortcut activation observed through Windows computer-use; no WebView debug flags",
+  "checks": {
+    "original_blank_setup_screen_reproduced": true,
+    "normal_profile_originally_lacked_host_selection_file": true,
+    "existing_signed_host_selected_through_product_ui": true,
+    "existing_https_and_public_address_preserved": true,
+    "native_host_entry_appeared_without_server_restart": true,
+    "local_server_connected_and_named_gold_team": true,
+    "actual_shortcut_close_reopen_retains_gold_team": true,
+    "normal_profile_now_contains_host_selection_json": true,
+    "persisted_public_address_verified_after_reopen": true,
+    "normal_client_reports_existing_services_running": true
+  },
+  "version": "0.3.6",
+  "newBuildInstalledThisTurn": false,
+  "accountSignInAutomated": false,
+  "issue": "Start-menu-launched Preview 0.3.6 showed empty setup and sidebar despite earlier direct-launch checks passing",
+  "cause": {
+    "normalProfile": "Real Windows Explorer showed host-backups only; no host-selection.json",
+    "testProfile": "Codex-launched probes saw a saved host selection and browser server in a different AppData view",
+    "diagnosticLimit": "Direct executable, PowerShell/COM launch and package-identity probes did not match the actual Windows shortcut context",
+    "classification": "Missing local host binding in the normal Windows profile; earlier fixture coverage was overstated"
+  },
+  "recovery": {
+    "method": "Actual Windows client UI: preserve existing HTTPS/public address; select original signed host package; connect restored local-server entry",
+    "result": "Gold Team visible and retained after normal Explorer shortcut close/reopen",
+    "normalProfileAfter": "File Explorer now lists host-backups and host-selection.json",
+    "installedVersion": "0.3.6",
+    "newInstallerRequired": false
+  },
+  "operations": {
+    "hostContainers": "All four hearth-guided-test containers still running for 14 hours; server and PostgreSQL healthy",
+    "serverStartStopOrRecreate": false,
+    "serverDataReset": false,
+    "accountLogin": false,
+    "credentialOrMediaKeyMigration": false,
+    "railway": "paused",
+    "hostedCiDispatched": false
+  },
+  "failedDiagnostics": [
+    {
+      "attempt": "Temporary Hearth-only WebView debug registry policy for AppID launch",
+      "outcome": "Windows denied registry key creation before any setting was written; cleanup completed",
+      "acceptedAsAcceptance": false
+    }
+  ],
+  "scope": "Actual installed Windows shortcut and product UI observed through computer-use; not a clean-machine or cross-platform acceptance run",
+  "localReportSha256": "c9f8929919c5e2b688b5d9de5aa2077bfd82f0391b15a71a51d54a447d9069fe",
+  "references": {
+    "earlierCheckpoint": "host-sidebar-recovery-2026-10-21.json",
+    "windowsAppDataBehavior": "https://learn.microsoft.com/en-us/windows/msix/desktop/desktop-to-uwp-behind-the-scenes#appdata-operations-on-windows-10-version-1903-and-later"
+  }
+}

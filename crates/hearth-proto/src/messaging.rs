@@ -138,6 +138,13 @@ pub struct DeliveryEvent {
 #[serde(deny_unknown_fields)]
 #[cfg_attr(feature = "typescript", derive(ts_rs::TS))]
 pub enum MessageContent {
+    Activity {
+        activity: crate::activity::Activity,
+    },
+    /// Client-only, encrypted call negotiation. Never a public signaling payload.
+    Call {
+        signal: CallSignal,
+    },
     ForumPost {
         title: String,
         text: String,
@@ -220,8 +227,81 @@ pub enum MessageContent {
     },
 }
 #[derive(Clone, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+#[cfg_attr(feature = "typescript", derive(ts_rs::TS))]
+pub struct CallSignal {
+    pub call_id: String,
+    #[cfg_attr(feature = "typescript", ts(type = "number"))]
+    pub epoch: u64,
+    pub from_device: String,
+    pub to_device: String,
+    #[cfg_attr(feature = "typescript", ts(type = "number"))]
+    pub expires_at: u64,
+    pub kind: String,
+    pub description: Option<String>,
+    pub relay_only: bool,
+    /// Private three-account admission context; absent for the existing 1:1 format.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[cfg_attr(feature = "typescript", ts(optional))]
+    pub group_id: Option<String>,
+    /// Exactly three sorted device keys, one per account. Client-only MLS content.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[cfg_attr(feature = "typescript", ts(optional))]
+    pub participants: Option<Vec<String>>,
+    /// Persistent community voice room generation; absent for private calls.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[cfg_attr(feature = "typescript", ts(optional))]
+    pub voice_room: Option<String>,
+}
+
+#[cfg(test)]
+mod call_wire_tests {
+    use super::*;
+    #[test]
+    fn direct_call_wire_format_omits_group_extensions() {
+        let input = serde_json::json!({
+            "call_id":"a".repeat(64), "epoch":1,
+            "from_device":"b".repeat(64), "to_device":"c".repeat(64),
+            "expires_at":1_900_000_000_000_u64, "kind":"heartbeat",
+            "description":null, "relay_only":true,
+        });
+        let signal: CallSignal = serde_json::from_value(input.clone()).unwrap();
+        assert!(signal.group_id.is_none() && signal.participants.is_none());
+        assert_eq!(serde_json::to_value(signal).unwrap(), input);
+    }
+}
+#[derive(Clone, Serialize, Deserialize)]
+#[cfg_attr(feature = "typescript", derive(ts_rs::TS))]
+pub struct LocalCallSignal {
+    pub conversation_id: String,
+    pub account_id: String,
+    pub signal: CallSignal,
+}
+#[derive(Clone, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+#[cfg_attr(feature = "typescript", derive(ts_rs::TS))]
+pub struct IceServer {
+    pub urls: Vec<String>,
+    pub username: Option<String>,
+    pub credential: Option<String>,
+}
+#[derive(Clone, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+#[cfg_attr(feature = "typescript", derive(ts_rs::TS))]
+pub struct IceConfiguration {
+    pub ice_servers: Vec<IceServer>,
+    #[cfg_attr(feature = "typescript", ts(type = "number"))]
+    pub expires_at: u64,
+}
+#[derive(Clone, Serialize, Deserialize)]
 #[cfg_attr(feature = "typescript", derive(ts_rs::TS))]
 pub struct LocalMessage {
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[cfg_attr(feature = "typescript", ts(optional))]
+    pub event: Option<crate::activity::LocalEvent>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[cfg_attr(feature = "typescript", ts(optional))]
+    pub playback: Option<crate::activity::SharedPlayback>,
     pub id: String,
     pub conversation_id: String,
     pub author_id: String,

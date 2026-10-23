@@ -1,0 +1,313 @@
+{
+  "recordedAt": "2026-10-21T12:55:44.225Z",
+  "localDate": "2026-10-21",
+  "outcome": "pass",
+  "sourceBaseRevision": "16c4cabfe0bfb25a40e21cfd34f126b8c79dcaf7",
+  "uncommittedChanges": true,
+  "sourceSha256": {
+    "package.json": "8eeecb32fccae8eced35553f5774bf70d3039898ae3b8b9800f5c880e697d436",
+    "package-lock.json": "64e19510de3bdf1bd92a43101f68d364ca45981509a00b25d4164db91a15cbf5",
+    "Cargo.lock": "1dd8719a53e927a2363df988b4839e384721bc16f4bef8d429cc05082cf88d05",
+    "crates/hearth-proto/src/messaging.rs": "3fd3ed48001fb20f33d9c917744e162bb272aec6e4fa887f693e2004ff917deb",
+    "crates/hearth-proto/src/typescript.rs": "02d7a318e09b47e53343f166af41f77d5fb9890a2829e6eda6ab361193ffcf80",
+    "crates/hearth-crypto/src/messaging.rs": "c9fb787ec9594aa92f2d3427ce9fc0f95e8d9571447a926b40badff6e12e3a8f",
+    "crates/hearth-crypto/src/messaging_calls.rs": "e214f4df7f06d9a6c8d5c7cf33a0c88d07eedbfdc2668184497a7bae41f39526",
+    "crates/hearth-wasm/src/lib.rs": "d96da56da556ccb1fdff782d13b842f855d6e525651653b1d5acdd343cd5504c",
+    "crates/hearth-server/Cargo.toml": "7e224202d2529965a06b3e58fdc55373788af2e6112047f2dc2e63b2c3060491",
+    "crates/hearth-server/src/media.rs": "e70c7a3fe529a2d3345010c516059c3830bbc3a0ea85feb6e04edc90260dc1cc",
+    "crates/hearth-server/src/config.rs": "08c6d590e2d81442716a543e55be2a9587cce5b41b92fad67ecfb208ce3dea0e",
+    "crates/hearth-server/src/delivery.rs": "14e01bd27fff7ab0b9fa6625bd05d587ed277cae7fee2cd719434719d4fd58db",
+    "crates/hearth-server/src/lib.rs": "e7d6ae63ef28b4c80a951bf8833832ef476020abe1a5964e9e6547e4eaca2fa4",
+    "packages/sdk/package.json": "4915be514581150ad88ac3cdee73e3df72fa211d9a6eefd6dc2c549879d73a4c",
+    "packages/sdk/src/index.ts": "76fdff4b3c1faf7f27e0b7e3c6fee59798d9e58c4fe894590c53b83319f95066",
+    "packages/sdk/src/protocol.ts": "b85b8c0d5f373c73a45154c61416e7b4a0cd597cc922d90682103cd79ee50a79",
+    "packages/sdk/src/calls.ts": "cc139bbc5b04a6419999dbaf4a0a64e966598aa59341773a33ec26d2cbbb749f",
+    "packages/sdk/src/sframe.ts": "d14a2a72e2e904b97c4be32bfcbfd3af43e32d70d0a5fff8f0e8ffb2ef99595f",
+    "packages/sdk/test/calls.test.mjs": "040093b6a4db79915c5e243eb88de4fa267ff8a5062445c5b5e381f504e3fe84",
+    "packages/sdk/test/sframe.test.mjs": "49d55ca78310d13cf082b2af2911421d4d32c632c7d1f65feda3f56dbb7c1d20",
+    "apps/client/src/ChatPanel.tsx": "eded888897b95937788ae071b6ee51fa2f7e921a029887885da4c2fd656f5aa5",
+    "apps/client/src/crypto/messaging-session.ts": "8f10678a65728b419945f26b9cb6097d0c8d347119a8daf33b71e39f3078c106",
+    "apps/client/src/CallPanel.tsx": "78bf1b9387dcd842cbfab47abf4daf7c34c504bca0e683b3d7d0939428134944",
+    "apps/client/src/CallPanel.css": "3f21e652b4e2287d5796b9621e398541e9c869701df837a627edde9b0480e64c",
+    "apps/client/media-test.html": "1d27c8dfd0c0bd7d242487c5c4f91acfb6034257ac2554341ef0770d15a597db",
+    "scripts/verify-direct-calls.mjs": "6cec90b48f5aac1f7f1e48faec84e16c3e996f0379703c52f56608b88de78447",
+    "scripts/phase1-messaging-acceptance.mjs": "757f1d81df0260bef211a2f92b239a4c69de83801eb6abfa3716d32f3bb53e7f",
+    "scripts/phase3-endpoint-matrix.mjs": "649cbf7ae18c31576fd24cba8e26b8facd4e1687f2e9234a4fd42b2e01bc9f7a",
+    "apps/client/src/media/acceptance-ui.tsx": "2ba91771cf9f88457363abceeb180aef231552b36460300334d6118204efa189",
+    "apps/client/src/media/acceptance.ts": "7e1904b96b30e1b3fec1f3564dff159e197f5de5d1ef559d4808c6e37d0347c2",
+    "apps/client/src/media/direct-call.ts": "0c6f9bacce634dbe83e3e3006ef5ad14594ffa191eae11d190c817836d561fd7",
+    "apps/client/src/media/transform-worker.ts": "098e4016457f4e5fddf3af3a5d6b5b46ae1b37ed0166e9da39e97873b8a91493",
+    "apps/client/src/App.tsx": "9b0d246b859b924fd059b00a886dcdf0bdc3f133fc33074e822259e567808556",
+    "apps/client/src/HostingPanel.tsx": "ced36229c70018f35d121999e8923cbfead83d04b16a843d8417d6c53bb16e9a",
+    "apps/client/src/saved-host.ts": "90f7186354eea80ae8a03018bef2945a3dff7fdb5eeb20479305d89e288d30f5"
+  },
+  "scope": "Frozen sequential local Chromium product UI/WASM/MLS/accounts with synthetic audio, camera and screen tracks; direct host candidates and loopback-only Docker coturn relays",
+  "runs": {
+    "direct": {
+      "measuredAt": "2026-10-21T12:49:16.606Z",
+      "audioPeak": 0.10077212005853653,
+      "checks": {
+        "block_revokes_active_call_and_stops_both_captures": true,
+        "both_directions_use_sframe_without_matching_key_rejections": true,
+        "camera_enable_decode_and_stop_use_same_encryption_worker": true,
+        "encryption_capability_required": true,
+        "hangup_stops_capture_and_notifies_peer": true,
+        "ice_configuration_requires_session_and_own_approved_device": true,
+        "incoming_call_does_not_capture_before_answer": true,
+        "microphone_mute_controls_track_enabled": true,
+        "product_call_decodes_encrypted_audio_over_peer_connection": true,
+        "real_accounts_approved_devices_and_mls_delivery": true,
+        "relay_only_without_turn_never_creates_direct_call": true,
+        "sdp_and_call_controls_never_appear_as_chat_messages": true,
+        "sdp_and_media_keys_absent_from_http_bodies_and_gateway": true,
+        "synthetic_screen_share_decodes_and_stops": true
+      },
+      "internetValidated": false,
+      "metrics": [
+        {
+          "authenticationFailures": 0,
+          "connectivity": {
+            "connectionState": "connected",
+            "gatheringState": "complete",
+            "hostCandidates": 2,
+            "iceState": "connected",
+            "relayCandidates": 0,
+            "selectedRelay": false,
+            "stopReason": ""
+          },
+          "decodedVideoFrames": 0,
+          "decrypted": 258,
+          "emptyDropped": 0,
+          "encrypted": 289,
+          "malformed": 0,
+          "rejected": 0,
+          "replayed": 0,
+          "unexpectedStream": 0
+        },
+        {
+          "authenticationFailures": 0,
+          "connectivity": {
+            "connectionState": "connected",
+            "gatheringState": "complete",
+            "hostCandidates": 2,
+            "iceState": "connected",
+            "relayCandidates": 0,
+            "selectedRelay": false,
+            "stopReason": ""
+          },
+          "decodedVideoFrames": 31,
+          "decrypted": 289,
+          "emptyDropped": 1,
+          "encrypted": 258,
+          "malformed": 0,
+          "rejected": 0,
+          "replayed": 0,
+          "unexpectedStream": 0
+        }
+      ],
+      "outcome": "pass",
+      "physicalDevicePermissionsValidated": false,
+      "railwayValidated": false,
+      "scope": "Local product UI/WASM/accounts/MLS and two peer connections in Chromium; synthetic audio/video/screen only",
+      "turnValidated": false
+    },
+    "turn-udp": {
+      "measuredAt": "2026-10-21T12:47:22.089Z",
+      "audioPeak": 0.10052797198295593,
+      "checks": {
+        "block_revokes_active_call_and_stops_both_captures": true,
+        "both_directions_use_sframe_without_matching_key_rejections": true,
+        "camera_enable_decode_and_stop_use_same_encryption_worker": true,
+        "encryption_capability_required": true,
+        "hangup_stops_capture_and_notifies_peer": true,
+        "ice_configuration_requires_session_and_own_approved_device": true,
+        "incoming_call_does_not_capture_before_answer": true,
+        "microphone_mute_controls_track_enabled": true,
+        "product_call_decodes_encrypted_audio_over_peer_connection": true,
+        "real_accounts_approved_devices_and_mls_delivery": true,
+        "relay_only_without_turn_never_creates_direct_call": true,
+        "sdp_and_call_controls_never_appear_as_chat_messages": true,
+        "sdp_and_media_keys_absent_from_http_bodies_and_gateway": true,
+        "selected_relay_candidates_verified_on_both_peers": true,
+        "synthetic_screen_share_decodes_and_stops": true
+      },
+      "internetValidated": false,
+      "metrics": [
+        {
+          "authenticationFailures": 0,
+          "connectivity": {
+            "connectionState": "connected",
+            "gatheringState": "complete",
+            "hostCandidates": 0,
+            "iceState": "connected",
+            "relayCandidates": 1,
+            "selectedRelay": true,
+            "stopReason": ""
+          },
+          "decodedVideoFrames": 0,
+          "decrypted": 241,
+          "emptyDropped": 0,
+          "encrypted": 272,
+          "malformed": 0,
+          "rejected": 0,
+          "replayed": 0,
+          "unexpectedStream": 0
+        },
+        {
+          "authenticationFailures": 0,
+          "connectivity": {
+            "connectionState": "connected",
+            "gatheringState": "complete",
+            "hostCandidates": 0,
+            "iceState": "connected",
+            "relayCandidates": 1,
+            "selectedRelay": true,
+            "stopReason": ""
+          },
+          "decodedVideoFrames": 31,
+          "decrypted": 272,
+          "emptyDropped": 1,
+          "encrypted": 241,
+          "malformed": 0,
+          "rejected": 0,
+          "replayed": 0,
+          "unexpectedStream": 0
+        }
+      ],
+      "outcome": "pass",
+      "physicalDevicePermissionsValidated": false,
+      "railwayValidated": false,
+      "scope": "Local product UI/WASM/accounts/MLS and two peer connections in Chromium; synthetic audio/video/screen only",
+      "turnValidated": true,
+      "turnImage": "coturn/coturn:4.18.0-r0@sha256:bbefd3e1fdfdc0d58770fe01b581fd8b00d9f3a5580d00acb77cf719a6bc78e3",
+      "turnTransport": "udp",
+      "turnScope": "Loopback Docker relay; not internet, TURN-TLS or NAT/firewall acceptance"
+    },
+    "turn-tcp": {
+      "measuredAt": "2026-10-21T12:48:20.536Z",
+      "audioPeak": 0.10028382390737534,
+      "checks": {
+        "block_revokes_active_call_and_stops_both_captures": true,
+        "both_directions_use_sframe_without_matching_key_rejections": true,
+        "camera_enable_decode_and_stop_use_same_encryption_worker": true,
+        "encryption_capability_required": true,
+        "hangup_stops_capture_and_notifies_peer": true,
+        "ice_configuration_requires_session_and_own_approved_device": true,
+        "incoming_call_does_not_capture_before_answer": true,
+        "microphone_mute_controls_track_enabled": true,
+        "product_call_decodes_encrypted_audio_over_peer_connection": true,
+        "real_accounts_approved_devices_and_mls_delivery": true,
+        "relay_only_without_turn_never_creates_direct_call": true,
+        "sdp_and_call_controls_never_appear_as_chat_messages": true,
+        "sdp_and_media_keys_absent_from_http_bodies_and_gateway": true,
+        "selected_relay_candidates_verified_on_both_peers": true,
+        "synthetic_screen_share_decodes_and_stops": true
+      },
+      "internetValidated": false,
+      "metrics": [
+        {
+          "authenticationFailures": 0,
+          "connectivity": {
+            "connectionState": "connected",
+            "gatheringState": "complete",
+            "hostCandidates": 0,
+            "iceState": "connected",
+            "relayCandidates": 1,
+            "selectedRelay": true,
+            "stopReason": ""
+          },
+          "decodedVideoFrames": 0,
+          "decrypted": 256,
+          "emptyDropped": 0,
+          "encrypted": 287,
+          "malformed": 0,
+          "rejected": 0,
+          "replayed": 0,
+          "unexpectedStream": 0
+        },
+        {
+          "authenticationFailures": 0,
+          "connectivity": {
+            "connectionState": "connected",
+            "gatheringState": "complete",
+            "hostCandidates": 0,
+            "iceState": "connected",
+            "relayCandidates": 1,
+            "selectedRelay": true,
+            "stopReason": ""
+          },
+          "decodedVideoFrames": 31,
+          "decrypted": 287,
+          "emptyDropped": 1,
+          "encrypted": 256,
+          "malformed": 0,
+          "rejected": 0,
+          "replayed": 0,
+          "unexpectedStream": 0
+        }
+      ],
+      "outcome": "pass",
+      "physicalDevicePermissionsValidated": false,
+      "railwayValidated": false,
+      "scope": "Local product UI/WASM/accounts/MLS and two peer connections in Chromium; synthetic audio/video/screen only",
+      "turnValidated": true,
+      "turnImage": "coturn/coturn:4.18.0-r0@sha256:bbefd3e1fdfdc0d58770fe01b581fd8b00d9f3a5580d00acb77cf719a6bc78e3",
+      "turnTransport": "tcp",
+      "turnScope": "Loopback Docker relay; not internet, TURN-TLS or NAT/firewall acceptance"
+    }
+  },
+  "counts": {
+    "direct": 14,
+    "turnUdp": 15,
+    "turnTcp": 15,
+    "total": 44
+  },
+  "routing": {
+    "direct": "Connected without relay candidates; local host candidates",
+    "turnUdp": "Client-to-TURN UDP, coturn TCP listener disabled; selected relay on both peers, zero gathered host candidates",
+    "turnTcp": "Client-to-TURN TCP, coturn UDP listener disabled; selected relay on both peers, zero gathered host candidates",
+    "peerRelayTraffic": "The TURN/TCP test still uses UDP relay allocations between TURN relay endpoints; not proof of all-TCP networking"
+  },
+  "cryptography": {
+    "matchingKeyAuthenticationFailures": 0,
+    "malformedFrames": 0,
+    "replayRejections": 0,
+    "remoteDecodedVideoFramesAtLeast": 31,
+    "note": "Empty browser frames are discarded separately; no independent SFrame interoperability/security audit is claimed"
+  },
+  "installedClient": "Local Preview 0.3.6 contains only sidebar recovery; this media slice remains development source",
+  "priorCheckpoint": "phase4-direct-calls-local-2026-10-20.json remains historical and unchanged; this later run closes its interrupted matrix",
+  "notValidated": [
+    "Physical microphone/camera/desktop-picker permissions",
+    "Installed native product media",
+    "Independent-network or public-internet calls",
+    "NAT/CGNAT/firewall traversal",
+    "TURN-TLS or all-TCP connectivity",
+    "Cross-platform product interoperability",
+    "Automatic in-call rekey/reconnect",
+    "Group calls, LiveKit/SFU, screen audio"
+  ],
+  "operations": {
+    "railway": "paused",
+    "hostedCiDispatched": false,
+    "fixtures": "Disposable local PostgreSQL/backend/browser/coturn; existing host services unchanged"
+  },
+  "currentWorkspaceVerification": {
+    "format": "pass",
+    "clippyAllTargets": "pass; existing incremental-cache filesystem warnings",
+    "defaultRustTests": {
+      "passed": 45,
+      "ignored": 5
+    },
+    "currentWasmReleaseBuild": "pass",
+    "windowsDesktopCheck": "pass",
+    "currentProductionWasmMatchesGenerated": true,
+    "localLogsSha256": {
+      "target/host-sidebar-diagnosis/workspace-wasm.log": "6ee44416d2f975a53145887628311343051d7e108a99c606bf0e9008f794b9e1",
+      "target/host-sidebar-diagnosis/rust-clippy.log": "9ad24b2b4c70b34b420fd5867eb3a736eab7423a14c3749b2d45c03551482c17",
+      "target/host-sidebar-diagnosis/rust-tests.log": "bda7e37d3346321af0a36a68cfa103db116cb89e8453dd3d325ff89d97e6d9d8",
+      "target/host-sidebar-diagnosis/desktop-check.log": "b3cf3f3a3111b887479060202448e4bbeaf47544b627316c7376deea92dd704a",
+      "target/host-sidebar-diagnosis/web-verify.log": "8c46b0e97942701082e722af86b99f9cf31365c2993e21e387fe434804ae78f5"
+    }
+  }
+}

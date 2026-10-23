@@ -1,4 +1,5 @@
 //! Private S3 leases. No file names, MIME types, thumbnails, content or file keys cross here.
+pub use crate::storage::StorageConfig;
 use crate::{SharedState, delivery::approved, device::account_id};
 use axum::{
     Json, Router,
@@ -9,114 +10,11 @@ use axum::{
 };
 use hearth_crypto::messaging::valid_id;
 use hearth_proto::messaging::{BlobReservation, BlobUrl, MAX_ATTACHMENT_CIPHER_BYTES};
-use s3::{Bucket, Region, bucket_ops::BucketConfiguration, creds::Credentials};
 use serde::Deserialize;
 use sqlx::Row;
+
 type Result<T> = std::result::Result<T, StatusCode>;
-const BUCKET: &str = "hearth-blobs";
 const EXPIRY: u32 = 300;
-#[derive(Clone)]
-pub struct StorageConfig {
-    pub endpoint: String,
-    pub public_endpoint: String,
-    pub access_key: String,
-    pub secret_key: String,
-}
-impl std::fmt::Debug for StorageConfig {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.write_str("StorageConfig([redacted])")
-    }
-}
-impl StorageConfig {
-    pub fn from_env() -> anyhow::Result<Option<Self>> {
-        let Ok(endpoint) = std::env::var("HEARTH_S3_ENDPOINT") else {
-            return Ok(None);
-        };
-        let public_endpoint = std::env::var("HEARTH_S3_PUBLIC_ENDPOINT")?;
-        let access_key = std::env::var("HEARTH_S3_ACCESS_KEY")?;
-        let secret_key = std::env::var("HEARTH_S3_SECRET_KEY")?;
-        for value in [&endpoint, &public_endpoint] {
-            let uri: axum::http::Uri = value.parse()?;
-            anyhow::ensure!(
-                uri.authority().is_some()
-                    && uri.path() == "/"
-                    && uri.query().is_none()
-                    && !value.contains('@')
-                    && matches!(uri.scheme_str(), Some("http" | "https")),
-                "S3 endpoint must be an HTTP(S) origin"
-            );
-        }
-        let uri: axum::http::Uri = public_endpoint.parse()?;
-        anyhow::ensure!(
-            uri.scheme_str() == Some("https")
-                || matches!(uri.host(), Some("127.0.0.1" | "localhost" | "[::1]")),
-            "Public S3 endpoint requires HTTPS or loopback"
-        );
-        anyhow::ensure!(
-            access_key.len() >= 16 && secret_key.len() >= 32,
-            "S3 credentials must be randomly generated"
-        );
-        Ok(Some(Self {
-            endpoint,
-            public_endpoint,
-            access_key,
-            secret_key,
-        }))
-    }
-    fn credentials(&self) -> Result<Credentials> {
-        Credentials::new(
-            Some(&self.access_key),
-            Some(&self.secret_key),
-            None,
-            None,
-            None,
-        )
-        .map_err(|_| StatusCode::SERVICE_UNAVAILABLE)
-    }
-    fn bucket(&self, public: bool) -> Result<Box<Bucket>> {
-        Bucket::new(
-            BUCKET,
-            Region::Custom {
-                region: "us-east-1".into(),
-                endpoint: if public {
-                    &self.public_endpoint
-                } else {
-                    &self.endpoint
-                }
-                .clone(),
-            },
-            self.credentials()?,
-        )
-        .map(|b| b.with_path_style())
-        .map_err(|_| StatusCode::SERVICE_UNAVAILABLE)
-    }
-    async fn ensure_bucket(&self) -> Result<()> {
-        let (_, status) = self
-            .bucket(false)?
-            .head_object("")
-            .await
-            .map_err(|_| StatusCode::SERVICE_UNAVAILABLE)?;
-        if status == 404 {
-            let result = Bucket::create_with_path_style(
-                BUCKET,
-                Region::Custom {
-                    region: "us-east-1".into(),
-                    endpoint: self.endpoint.clone(),
-                },
-                self.credentials()?,
-                BucketConfiguration::default(),
-            )
-            .await
-            .map_err(|_| StatusCode::SERVICE_UNAVAILABLE)?;
-            if !matches!(result.response_code, 200 | 204 | 409) {
-                return Err(StatusCode::SERVICE_UNAVAILABLE);
-            }
-        } else if status != 200 {
-            return Err(StatusCode::SERVICE_UNAVAILABLE);
-        }
-        Ok(())
-    }
-}
 pub fn routes(origins: &[String]) -> Router<SharedState> {
     Router::new()
         .route("/{conversation}", post(reserve))

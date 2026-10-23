@@ -219,15 +219,31 @@ pub fn run() {
             crate::message_store::message_store_write
         ])
         .setup(|app| {
-            let builder =
-                WebviewWindowBuilder::new(app, "main", WebviewUrl::App("phase1.html".into()))
-                    .title("Hearth Phase 1 acceptance")
-                    .visible(false)
-                    .on_navigation(|url| {
-                        (url.scheme() == "tauri" && url.host_str() == Some("localhost"))
-                            || (matches!(url.scheme(), "http" | "https")
-                                && url.host_str() == Some("tauri.localhost"))
-                    });
+            let direct_calls = app.state::<Fixture>().config["directCalls"].as_bool() == Some(true);
+            let builder = WebviewWindowBuilder::new(
+                app,
+                "main",
+                WebviewUrl::App(
+                    if direct_calls {
+                        "media-test.html"
+                    } else {
+                        "phase1.html"
+                    }
+                    .into(),
+                ),
+            )
+            .title(if direct_calls {
+                "Hearth direct call acceptance"
+            } else {
+                "Hearth Phase 1 acceptance"
+            })
+            .visible(false)
+            .on_navigation(move |url| {
+                (url.scheme() == "tauri" && url.host_str() == Some("localhost"))
+                    || (direct_calls && url.scheme() == "data")
+                    || (matches!(url.scheme(), "http" | "https")
+                        && url.host_str() == Some("tauri.localhost"))
+            });
             #[cfg(target_os = "macos")]
             let builder = builder
                 .background_throttling(tauri::utils::config::BackgroundThrottlingPolicy::Disabled);
@@ -237,6 +253,8 @@ pub fn run() {
                 let duration = if handle.state::<Fixture>().config["phase3"].as_bool() == Some(true)
                 {
                     410
+                } else if handle.state::<Fixture>().config["voiceRooms"].as_bool() == Some(true) {
+                    360
                 } else {
                     180
                 };

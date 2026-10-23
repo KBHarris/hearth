@@ -49,8 +49,9 @@ try{
   assert.match(key,/^[a-f0-9]{64}$/)
   const setup=compose(['exec','-T','server','hearth-server','--setup-code']);assert.match(setup,/^[a-f0-9]{64}$/)
   checks.fresh_server_health_discovery_and_owner_bootstrap_pass=true
-  assert.equal(compose(['exec','-T','postgres','psql','-U','hearth','-d','hearth','-tAc','SELECT max(version) FROM _sqlx_migrations WHERE success']), '23')
-  checks.all_23_migrations_applied_to_fresh_data=true
+  const latestMigration=Math.max(...readdirSync(join(root,'crates/hearth-server/migrations')).filter(name=>/^\d+.*\.sql$/.test(name)).map(name=>Number(name.split('_')[0])))
+  assert.equal(Number(compose(['exec','-T','postgres','psql','-U','hearth','-d','hearth','-tAc','SELECT max(version) FROM _sqlx_migrations WHERE success'])),latestMigration)
+  checks.all_current_migrations_applied_to_fresh_data=true
   let privateS3=false
   for(let attempt=0;attempt<60;attempt++){try{if((await fetch(`http://127.0.0.1:${s3Port}`,{signal:AbortSignal.timeout(1000)})).status===403){privateS3=true;break}}catch{}await delay(250)}
   assert.ok(privateS3);checks.storage_rejects_anonymous_requests=true

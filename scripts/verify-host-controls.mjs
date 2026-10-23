@@ -14,7 +14,7 @@ mkdirSync(join(directory,'deploy'),{recursive:true})
 const manifest=JSON.parse(readFileSync(join(source,'manifest.json'),'utf8'))
 async function port(){const server=createServer();await new Promise(resolve=>server.listen(0,'127.0.0.1',resolve));const port=server.address().port;await new Promise(resolve=>server.close(resolve));return port}
 const backend=await port(),storage=await port()
-for(const file of ['compose.yaml','compose.https.yaml','setup.mjs','.env.example','Caddyfile','storage-entrypoint.sh'])copyFileSync(join(source,'deploy',file),join(directory,'deploy',file))
+for(const file of Object.keys(manifest.files).filter(file=>file.startsWith('deploy/'))){mkdirSync(resolve(join(directory,file),'..'),{recursive:true});copyFileSync(join(source,file),join(directory,file))}
 const compose=readFileSync(join(directory,'deploy/compose.yaml'),'utf8').replace('name: '+manifest.server.composeProject,'name: '+project)
 writeFileSync(join(directory,'deploy/compose.yaml'),compose)
 const env=readFileSync(join(directory,'deploy/.env.example'),'utf8').replace('HEARTH_PORT='+manifest.server.backendPort,'HEARTH_PORT='+backend).replace('HEARTH_S3_PORT='+manifest.server.s3LoopbackPort,'HEARTH_S3_PORT='+storage).replace('http://127.0.0.1:'+manifest.server.s3LoopbackPort,'http://127.0.0.1:'+storage)

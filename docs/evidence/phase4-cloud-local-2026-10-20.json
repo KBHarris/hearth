@@ -1,0 +1,143 @@
+{
+  "recordedAt": "2026-10-21T01:22:28.998Z",
+  "localDate": "2026-10-20",
+  "timezone": "America/Chicago",
+  "outcome": "pass",
+  "scope": "Phase 4 native cloud IaC, filtered deployment tooling and production images; local evidence only",
+  "sourceBaseRevision": "16c4cabfe0bfb25a40e21cfd34f126b8c79dcaf7",
+  "includesUncommittedSourceChanges": true,
+  "sourceSha256": {
+    ".dockerignore": "1da0bed503203d1fb57cf89261cd46b6919d1aa221ab4966aa32c2036b408ee0",
+    ".railway/hearth.json": "e33e5118de6262c0cca1e8c9c65a73e83862595123ad6bd14295c76292f60166",
+    ".railway/package.json": "ad91c9ac9136396f5249a45e093bab863e9a23646620d911af827986f6180283",
+    ".railway/railway.ts": "edc8cdd1770c19ae820bddea59e00c36e4fff8068f5b51e845117bfb542a253e",
+    ".railway/tsconfig.json": "ea498d385a39a5d539a1cfb58c2bc5363db9525f06506d7b29c85cd8b496229f",
+    "Cargo.lock": "90360d39d047e044534b61398af98be293ebea26b36aee367e1167f010e8bfa8",
+    "apps/client/package.json": "aa2faee6fab9d2fb3119bc3d572f727e4fbb95bc4cf0fab62168d189379e1be2",
+    "crates/hearth-server/Dockerfile": "ad952273ef87da38a738247f3588f317270f597d98c68d3feb1edc687d68bbae",
+    "crates/hearth-server/src/attachments.rs": "1046426096628789370bc04f007e23bb48f82a4254ce43bfa415ab45305827ca",
+    "crates/hearth-server/src/lib.rs": "6b15c35a3affa1464da70590e1c404371fbf86ddc802581c2900f079ca7c7f3b",
+    "crates/hearth-server/src/storage.rs": "3799fa595e04496aa49f356daf2080ae664cbdfc24ffd811cb0358da0c63410e",
+    "crates/hearth-server/src/storage/tests.rs": "4eabb405eb7f608735916a942b26fdcb5731d304516aa1e8f7bf4b6252ed1907",
+    "deploy/railway/cli.mjs": "acb0c504fd202feced4807e8e161f5049192637bda31618a91ac155977a31bc9",
+    "deploy/railway/context.mjs": "a055776bc6c4f4d2b9ee5132e3f013bcfdde5a9c3c87d8ffb66276319e5787df",
+    "deploy/railway/deploy.mjs": "0baf2f5944c3580c7757acc2ce34de1d236368974c5388c6c4648d1e1a2bd633",
+    "deploy/railway/readiness.mjs": "c0b474c4bfb7c5ffcbff5606ee1e2c7dda9197150dc77d2fec29adb7cd5309cc",
+    "deploy/railway/settings.mjs": "98bef6d9eccbedb70cb113342294d8068d62b9eae0eacfab7d6c788527d7f416",
+    "deploy/server-entrypoint.sh": "57f3e3f77a8d959ff681a916f361a9fa0f9d764d37eb21ad38adcd6b27658034",
+    "deploy/test/cloud.test.mjs": "f2d4e176f7bdd959a537ff4b4637ab36d66576c8c086979accc244aa8f5ae26e",
+    "deploy/web/Caddyfile": "8cc74028d23e6d169fb0910518156ae078bd14fa98e2d5314ae574e5b1a717e7",
+    "deploy/web/Dockerfile": "4e659fd02b1e48dfc9da1ed0fc2ddb3c261fee7027c40c846c1ac568b7336961",
+    "deploy/web/Dockerfile.dockerignore": "b9424b285f80552513c854eebc5bb8216fe68020472a71a09aa41ae0a27b45a6",
+    "package-lock.json": "64e19510de3bdf1bd92a43101f68d364ca45981509a00b25d4164db91a15cbf5",
+    "package.json": "3b038e1fc270ba0c0b1e8295ea8c211200401ece22b15bf894822517dbb9c52c",
+    "rust-toolchain.toml": "55759668bdf041ef55e0d5e05aa459ad3b9aeeb391e9bb48db1c7d26dc121a63",
+    "scripts/verify-cloud-images.mjs": "f7c6808c9735e7f830f9519957f448dcc0e34caad9e46807a135ebeb1a2f9258",
+    "scripts/verify-managed-storage.mjs": "d802a95a849495c8d4d27dbf2d3349308054cb326363c4273d7218ed7486efc6"
+  },
+  "validation": {
+    "webVerify": {
+      "command": "npm run verify",
+      "outcome": "pass",
+      "javascriptTestsPassed": 59,
+      "testBreakdown": {
+        "sdk": 38,
+        "client": 9,
+        "deploy": 12
+      },
+      "typecheck": "pass",
+      "lint": "pass with existing warnings",
+      "productionBuild": "pass with bundle-size warning"
+    },
+    "nativeIaC": {
+      "command": "npm run cloud:typecheck",
+      "outcome": "pass",
+      "sdk": "3.16.0",
+      "cli": "5.71.0",
+      "localCliVersionVerified": true,
+      "offlineResourceEvaluation": "pass",
+      "providerPlanExecuted": false,
+      "resourceGraphTests": 6,
+      "resourceGraphTestsIncludedInJavaScriptTotal": true,
+      "testsCover": [
+        "desktop-only and web resource modes",
+        "exact origins and unknown-secret-key rejection",
+        "filtered source paths",
+        "generated-domain reuse and target port",
+        "exact uploaded deployment status",
+        "proxy/server identity and storage/media boundaries"
+      ]
+    },
+    "finalDeploymentTests": {
+      "command": "node --experimental-strip-types --test deploy/test/*.test.mjs",
+      "outcome": "pass",
+      "passed": 12
+    },
+    "dependencyAudit": {
+      "command": "npm audit --omit=optional --json",
+      "outcome": "pass",
+      "reportedVulnerabilities": 0
+    },
+    "imageBuilds": {
+      "outcome": "pass",
+      "repositoryContext": {
+        "server": "sha256:31535b3c80710a811f3d5abf33066d315a7e3533d7fd3cbdbcd17346b666daba",
+        "web": "sha256:933c62efa29be10e19914a3c1e31818e96cab9f7e0cd7d39c31873d72be00590"
+      },
+      "filteredContext": {
+        "files": 208,
+        "sourceManifestSha256": "0947c2d4529d9b38cea94e0de778b6f530363eef7509896bbaf40ac3b768840d",
+        "server": "sha256:66bc52239c18ee5d2b0c296dec9cd8c9a74303d739b683ef5274842e21b66852",
+        "web": "sha256:798fa68c5d6eb6b7cb5f61e3509150ea68919bcda64b8789ef5b13b9275d4755"
+      },
+      "scope": "Both images built locally from both source contexts; runtime acceptance below uses repository-context image tags"
+    },
+    "productionImages": {
+      "command": "node scripts/verify-cloud-images.mjs",
+      "measuredAt": "2026-10-21T01:20:23.193Z",
+      "outcome": "pass",
+      "scope": "Local Linux Docker images and headless Chromium; not Railway/network/media acceptance",
+      "serverImage": "sha256:31535b3c80710a811f3d5abf33066d315a7e3533d7fd3cbdbcd17346b666daba",
+      "webImage": "sha256:933c62efa29be10e19914a3c1e31818e96cab9f7e0cd7d39c31873d72be00590",
+      "checks": {
+        "root_owned_volume_initializes_and_server_runs_unprivileged_with_private_keys": true,
+        "static_html_deep_links_and_security_headers_pass": true,
+        "worker_wasm_mime_asset_cache_missing_asset_and_api_fallback_pass": true,
+        "production_chromium_worker_opaque_owner_login_device_and_websocket_upgrade_pass": true,
+        "restart_preserves_keys_accounts_and_authenticated_browser_session": true,
+        "fresh_database_and_matching_key_volume_restore_preserve_identity_device_and_session": true,
+        "existing_database_without_matching_server_keys_fails_closed": true,
+        "operator_bootstrap_and_password_canaries_absent_from_logs": true
+      },
+      "railwayValidated": false,
+      "mediaValidated": false,
+      "checksPassed": 8,
+      "backupScope": "PostgreSQL and matching server-key files copied in fixture memory into fresh resources; encrypted objects and provider backup/restore are not covered",
+      "proxyFailureLogCanaryCheckedBeforeContainerReplacement": true
+    },
+    "staticChecks": {
+      "nodeSyntax": "pass",
+      "gitDiffCheck": "pass"
+    }
+  },
+  "historicalStorageEvidence": "phase4-storage-local-2026-10-20.json",
+  "priorStorageRegressionScope": "Earlier storage slice records 43 default Rust tests, four isolated PostgreSQL integration tests and 94 HTTP/product-WASM/private-S3 checks; not rerun for this image/tooling slice",
+  "deploymentDecision": {
+    "instruction": "Keep it local for now",
+    "railwayProjectsCreated": 0,
+    "railwayResourcesProvisioned": 0,
+    "providerPlansOrApplies": 0,
+    "cloudDeploymentsStarted": 0,
+    "hostedCiRunsDispatched": 0,
+    "installedPreviewModified": false,
+    "existingFourServiceHostModified": false
+  },
+  "limitations": [
+    "No real Railway deployment, generated domain, private-network or provider restart/retry acceptance",
+    "Protected cloud owner bootstrap handoff and custom-domain DNS/TLS workflow remain open",
+    "No Railway virtual-hosted bucket transfer, browser CORS, real-provider limits or encrypted-object restore acceptance",
+    "No independent-network hosted browser/desktop messaging and attachment acceptance",
+    "Product direct P2P, TURN fallback, relay-only mode and LiveKit SFU integration remain unimplemented",
+    "Clean-machine Host/Join and cross-OS acceptance remain separate gates"
+  ]
+}

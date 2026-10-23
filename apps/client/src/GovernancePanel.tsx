@@ -1,6 +1,6 @@
 import {useEffect,useState,type FormEvent} from 'react'
-import {HearthClient,Permission,permissions,type Governance,type GovernanceView,type CommunityStructure,type Account,type AuditEntry,type Session} from '@hearth/sdk'
-const choices=[['read','View channel'],['send','Send messages'],['react','Add reactions'],['attach','Attach files'],['pin','Pin messages'],['moderate','Moderate members & slow mode'],['audit','View audit log']] as const
+import {HearthClient,Permission,permissions,withMediaPermissions,type Governance,type GovernanceView,type CommunityStructure,type Account,type AuditEntry,type Session} from '@hearth/sdk'
+const choices=[['read','View channel'],['send','Send messages'],['react','Add reactions'],['attach','Attach files'],['pin','Pin messages'],['moderate','Moderate members & slow mode'],['audit','View audit log'],['connect','Join voice rooms'],['listen','Listen in voice rooms'],['speak','Speak in voice rooms'],['camera','Publish camera video'],['screen','Share screen and computer audio']] as const
 const randomId=()=>Array.from(crypto.getRandomValues(new Uint8Array(32)),n=>n.toString(16).padStart(2,'0')).join('')
 export function GovernancePanel({structure,session,url,onSave,onLoad}:{onLoad:(id:string)=>Promise<GovernanceView>;structure:CommunityStructure;session:Session;url:string;onSave:(id:string,policy:Governance)=>Promise<Governance>}) {
   const [policy,setPolicy]=useState<Governance|null>(null)
@@ -21,8 +21,8 @@ export function GovernancePanel({structure,session,url,onSave,onLoad}:{onLoad:(i
     void onLoad(structure.community.id).then(view=>{
       if(controller.signal.aborted)return
       setMembers(view.members);setInviteIssuedAt(view.admission?.invitation?.issued_at??null)
-      if(view.governance)setPolicy(view.governance)
-      else if(structure.authority)setPolicy({community_id:structure.community.id,revision:0,everyone:15,roles:[],assignments:[],overrides:[],sanctions:[],limits:[],rules:'',screening:false,owner:structure.authority.owner,signature:''})
+      if(view.governance)setPolicy(withMediaPermissions(view.governance,structure.channels.filter(channel=>channel.kind==='stage').map(channel=>channel.id)))
+      else if(structure.authority)setPolicy(withMediaPermissions({community_id:structure.community.id,revision:0,everyone:15,roles:[],assignments:[],overrides:[],sanctions:[],limits:[],rules:'',screening:false,owner:structure.authority.owner,signature:''},structure.channels.filter(channel=>channel.kind==='stage').map(channel=>channel.id)))
     }).catch(error=>{if(!controller.signal.aborted)setError(error instanceof Error?error.message:'Could not load community permissions.')})
     return ()=>controller.abort()
   },[url,session.token,structure.community.id,structure.authority,onLoad])

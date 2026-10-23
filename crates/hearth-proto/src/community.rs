@@ -163,6 +163,13 @@ pub enum ChannelKind {
     Text,
     Announcement,
     Forum,
+    Voice,
+    Stage,
+}
+impl ChannelKind {
+    pub fn is_media(self) -> bool {
+        matches!(self, Self::Voice | Self::Stage)
+    }
 }
 
 #[derive(Clone, Serialize, Deserialize)]

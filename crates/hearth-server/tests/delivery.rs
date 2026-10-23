@@ -101,6 +101,132 @@ async fn receive(
 }
 #[sqlx::test(migrations = "./migrations")]
 #[ignore = "requires isolated PostgreSQL"]
+async fn media_admission_checks_exact_current_devices_and_blocks_between_other_peers(db: PgPool) {
+    let directory = tempfile::tempdir().unwrap();
+    let signing = keys::load_or_create(&directory.path().join("server.key")).unwrap();
+    let server = signing.public().to_hex();
+    let ids = [random_id(), random_id(), random_id()];
+    let tokens = [random_id(), random_id(), random_id()];
+    let identities = [
+        LocalIdentity::new(),
+        LocalIdentity::new(),
+        LocalIdentity::new(),
+    ];
+    let mut members = Vec::new();
+    for index in 0..3 {
+        account(
+            &db,
+            &ids[index],
+            &format!("admission_{index}"),
+            &tokens[index],
+            &identities[index],
+            &server,
+        )
+        .await;
+        let mut engine = Messaging::new(&identities[index], &ids[index], &server).unwrap();
+        members.push(engine.key_package().unwrap().member);
+    }
+    let id = random_id();
+    sqlx::query("INSERT INTO conversations(id,epoch,members) VALUES($1,1,$2)")
+        .bind(&id)
+        .bind(serde_json::to_value(&members).unwrap())
+        .execute(&db)
+        .await
+        .unwrap();
+    for account in &ids {
+        sqlx::query("INSERT INTO conversation_accounts(conversation_id,account_id) VALUES($1,$2)")
+            .bind(&id)
+            .bind(account)
+            .execute(&db)
+            .await
+            .unwrap();
+    }
+    let app = router(Arc::new(AppState {
+        config: Config {
+            media: Default::default(),
+            storage: None,
+            server_name: "media-admission-test".into(),
+            bind: "127.0.0.1:0".parse().unwrap(),
+            database_url: "unused".into(),
+            db_max_connections: 5,
+            server_key_path: directory.path().join("server.key"),
+            federation_enabled: false,
+            client_origins: vec!["https://client.example.org".into()],
+        },
+        db: db.clone(),
+        server_key: signing,
+        auth: AuthState::load(directory.path()).unwrap(),
+    }));
+    for index in 0..3 {
+        assert_eq!(
+            call(
+                &app,
+                "GET",
+                &format!(
+                    "media/{}?group=true&format=5",
+                    members[index].enrollment.device_key
+                ),
+                Some(&tokens[index]),
+                None
+            )
+            .await
+            .0,
+            StatusCode::OK
+        );
+    }
+    let path = format!(
+        "call-ready/{id}/{}?group=true&format=5",
+        members[0].enrollment.device_key
+    );
+    assert_eq!(
+        call(&app, "GET", &path, Some(&tokens[0]), None).await.0,
+        StatusCode::NO_CONTENT
+    );
+    sqlx::query("INSERT INTO user_blocks(account_id,blocked_id) VALUES($1,$2)")
+        .bind(&ids[1])
+        .bind(&ids[2])
+        .execute(&db)
+        .await
+        .unwrap();
+    assert_eq!(
+        call(&app, "GET", &path, Some(&tokens[0]), None).await.0,
+        StatusCode::FORBIDDEN
+    );
+    sqlx::query("DELETE FROM user_blocks WHERE account_id=$1")
+        .bind(&ids[1])
+        .execute(&db)
+        .await
+        .unwrap();
+    let mut tampered = members.clone();
+    tampered[1].enrollment.device_signature = "00".repeat(64);
+    sqlx::query("UPDATE conversations SET members=$2 WHERE id=$1")
+        .bind(&id)
+        .bind(serde_json::to_value(&tampered).unwrap())
+        .execute(&db)
+        .await
+        .unwrap();
+    assert_eq!(
+        call(&app, "GET", &path, Some(&tokens[0]), None).await.0,
+        StatusCode::FORBIDDEN
+    );
+    sqlx::query("UPDATE conversations SET members=$2 WHERE id=$1")
+        .bind(&id)
+        .bind(serde_json::to_value(&members).unwrap())
+        .execute(&db)
+        .await
+        .unwrap();
+    sqlx::query("DELETE FROM account_devices WHERE device_key=$1")
+        .bind(&members[2].enrollment.device_key)
+        .execute(&db)
+        .await
+        .unwrap();
+    assert_eq!(
+        call(&app, "GET", &path, Some(&tokens[0]), None).await.0,
+        StatusCode::FORBIDDEN
+    );
+}
+#[sqlx::test(migrations = "./migrations")]
+#[ignore = "requires isolated PostgreSQL"]
 async fn ordered_ciphertext_delivery_is_atomic_idempotent_and_authorized(db: PgPool) {
     let directory = tempfile::tempdir().unwrap();
     let signing = keys::load_or_create(&directory.path().join("server.key")).unwrap();
@@ -135,6 +261,7 @@ async fn ordered_ciphertext_delivery_is_atomic_idempotent_and_authorized(db: PgP
     .await;
     let app = router(Arc::new(AppState {
         config: Config {
+            media: Default::default(),
             storage: None,
             server_name: "delivery-test".into(),
             bind: "127.0.0.1:0".parse().unwrap(),

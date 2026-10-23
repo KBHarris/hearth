@@ -390,7 +390,15 @@ fn verify_governance_depth(
         value.community_id == authority.community_id
             && value.revision > 0
             && value.revision < 9_007_199_254_740_991
-            && value.everyone & !ALL == 0
+            && value.media_version.is_none_or(|version| version == 1)
+            && (value.media_version.is_some()
+                || value.everyone & !ALL == 0
+                    && value.roles.iter().all(|r| r.permissions & !ALL == 0)
+                    && value
+                        .overrides
+                        .iter()
+                        .all(|o| (o.allow | o.deny) & !ALL == 0))
+            && value.everyone & !ALL_WITH_MEDIA == 0
             && value.roles.len() <= 64
             && value.assignments.len() <= 128
             && value.overrides.len() <= 512
@@ -411,7 +419,7 @@ fn verify_governance_depth(
                 && !r.name.trim().is_empty()
                 && r.name.len() <= 80
                 && !r.name.chars().any(char::is_control)
-                && r.permissions & !ALL == 0,
+                && r.permissions & !ALL_WITH_MEDIA == 0,
         )?;
     }
     let mut accounts = std::collections::HashSet::new();
@@ -429,8 +437,8 @@ fn verify_governance_depth(
     for o in &value.overrides {
         require(
             valid_id(&o.channel_id)
-                && o.allow & !ALL == 0
-                && o.deny & !ALL == 0
+                && o.allow & !ALL_WITH_MEDIA == 0
+                && o.deny & !ALL_WITH_MEDIA == 0
                 && o.allow & o.deny == 0
                 && match o.kind {
                     OverrideKind::Everyone => o.target_id.is_empty(),

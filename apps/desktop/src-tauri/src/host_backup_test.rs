@@ -193,6 +193,18 @@ fn managed_host_lifecycle_and_failed_update_restore() {
     .unwrap();
     assert_eq!(String::from_utf8_lossy(&identity).trim().len(), 64);
     let original = fs::read(root.join("deploy/compose.yaml")).unwrap();
+    let media_dir = root.join("deploy/media/data");
+    fs::create_dir_all(&media_dir).unwrap();
+    let media_canary = "backup-private-media-credential-fixture";
+    fs::write(media_dir.join(".env"),format!("HEARTH_SFU_CONFIG_PATH=/old/livekit.yaml\nHEARTH_TURN_CONFIG_PATH=/old/turnserver.conf\nHEARTH_SFU_API_SECRET={media_canary}\n")).unwrap();
+    for (file, content) in [
+        ("livekit.yaml", "keys: {}\n"),
+        ("turnserver.conf", "no-tls\n"),
+        ("settings.json", "{\"turnTls\":false}"),
+        ("enabled.json", "false"),
+    ] {
+        fs::write(media_dir.join(file), content).unwrap();
+    }
     fs::write(root.join("deploy/compose.yaml"), b"tampered").unwrap();
     assert!(hosting::control(&selection, "start").is_err());
     fs::write(root.join("deploy/compose.yaml"), original).unwrap();
@@ -225,6 +237,7 @@ fn managed_host_lifecycle_and_failed_update_restore() {
         signature: "invalid-test-only-signature".into(),
     };
     let release = ServerRelease {
+        host_archive_sha256: None,
         schema: 1,
         version: "0.0.0".into(),
         min_client_version: "0.0.0".into(),
@@ -318,6 +331,17 @@ fn managed_host_lifecycle_and_failed_update_restore() {
         identity
     );
     assert!(!root.join("deploy/host-update.json").exists());
+    assert!(
+        fs::read_to_string(media_dir.join(".env"))
+            .unwrap()
+            .contains(media_canary)
+    );
+    assert!(
+        !fs::read_to_string(media_dir.join(".env"))
+            .unwrap()
+            .contains("/old/")
+    );
+    assert!(!crate::host_media::enabled(&root).unwrap());
     let directory: PathBuf =
         serde_json::from_slice(&fs::read(data.join("last-host-backup.json")).unwrap()).unwrap();
     let backup: Backup =

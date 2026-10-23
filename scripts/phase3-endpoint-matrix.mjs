@@ -17,6 +17,8 @@ export const endpoints=[
   "GET /api/v1/chat/conversations",
   "GET /api/v1/chat/conversations/{id}/history",
   "GET /api/v1/chat/events/{id}",
+  "GET /api/v1/chat/media/{id}",
+  "GET /api/v1/chat/call-ready/{id}/{id}",
   "GET /api/v1/chat/packages/{id}",
   "GET /api/v1/chat/people/{username}",
   "GET /api/v1/communities",

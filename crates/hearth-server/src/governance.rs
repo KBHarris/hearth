@@ -67,7 +67,7 @@ pub(crate) async fn bits(
     let mut value = permissions_with_invite(policy, owner, account, channel, now(), issued);
     if !rules_accepted(tx, community, owner, account, policy).await? {
         // Screening permits read-only onboarding and does not change the MLS audience.
-        value &= !(SEND | REACT | ATTACH | PIN);
+        value &= !(SEND | REACT | ATTACH | PIN | CONNECT | SPEAK | LISTEN | CAMERA | SCREEN);
     }
     Ok(value)
 }

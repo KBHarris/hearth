@@ -1,0 +1,366 @@
+{
+  "measuredAt": "2026-10-22T16:06:10.458Z",
+  "outcome": "pass",
+  "checkpoint": "Three-person private-call admission and pair-key foundation",
+  "sourceBaseRevision": "16c4cabfe0bfb25a40e21cfd34f126b8c79dcaf7",
+  "sourceIncludesUncommittedChanges": true,
+  "groupCallsEnabled": false,
+  "groupMediaValidated": false,
+  "internetValidated": false,
+  "physicalDevicePermissionsValidated": false,
+  "railwayValidated": false,
+  "implemented": [
+    "Encrypted optional room/roster controls; existing 1:1 wire representation preserved",
+    "Rust verifies exactly three distinct accounts and one selected MLS device per account",
+    "Pure explicit-consent admission, direct authenticated pinned public contributions and bounded lifetime",
+    "Fresh nonextractable P-256 ECDH plus MLS exporter salt and transcript-hashed HKDF-SHA-256 per selected pair",
+    "Pair agreement, SFrame authentication and third participant own-key decryption rejection",
+    "Late result cancellation, invalid-point rejection and temporary secret buffer clearing",
+    "Multiple call observers with a publication pause barrier and failure-isolated notifications",
+    "Explicit 1:1 controller exclusion of group controls and pair envelopes"
+  ],
+  "groupValidationScope": {
+    "browserOrNativeGroupMedia": false,
+    "rust": "Real three-account/four-device MLS state, membership/exporter binding, encrypted delivery and history/snapshot exclusion",
+    "javascript": "Pure admission plus Node WebCrypto/SFrame tests; injected MLS base, no live group WebRTC/capture",
+    "newJavaScriptTests": 17,
+    "newRustTests": 3,
+    "focusedClientSuiteTests": 22,
+    "focusedRustCallCryptoTests": 4
+  },
+  "requiredChecks": {
+    "npmVerify": true,
+    "javascriptTests": 103,
+    "rustFormat": true,
+    "rustClippy": true,
+    "rustTestsPassed": 49,
+    "rustTestsIgnored": 5,
+    "wasmBuild": true,
+    "wasmTargetCheck": true,
+    "protocolGeneratedAndChecked": true,
+    "normalWindowsDesktopCheck": true,
+    "normalProductionBuildExcludesAcceptanceCanaries": true
+  },
+  "regressions": [
+    {
+      "path": "target/direct-calls-evidence/group-admission-2026-10-22/direct/result.json",
+      "sha256": "f26a1e0d728e82382dd47ed642cbfb38f4111401c9a8c43a848b3a50fb3ae5a2",
+      "measuredAt": "2026-10-22T16:01:56.883Z",
+      "runtime": "headless Chrome",
+      "audioPeak": 0.101165771484375,
+      "checks": {
+        "block_revokes_active_call_and_stops_both_captures": true,
+        "both_directions_use_sframe_without_matching_key_rejections": true,
+        "callee_can_restart_the_existing_encrypted_connection": true,
+        "caller_restart_changes_ice_credentials_and_preserves_muted_capture": true,
+        "camera_enable_decode_and_stop_use_same_encryption_worker": true,
+        "disconnect_state_event_automatically_restarts_without_new_capture": true,
+        "encryption_capability_required": true,
+        "hangup_stops_capture_and_notifies_peer": true,
+        "ice_configuration_requires_session_and_own_approved_device": true,
+        "incoming_call_does_not_capture_before_answer": true,
+        "microphone_mute_controls_track_enabled": true,
+        "product_call_decodes_encrypted_audio_over_peer_connection": true,
+        "real_accounts_approved_devices_and_mls_delivery": true,
+        "relay_only_without_turn_never_creates_direct_call": true,
+        "sdp_and_call_controls_never_appear_as_chat_messages": true,
+        "sdp_and_media_keys_absent_from_http_bodies_and_gateway": true,
+        "simultaneous_restarts_keep_workers_keys_camera_and_capture": true,
+        "synthetic_screen_share_decodes_and_stops": true
+      },
+      "internetValidated": false,
+      "metrics": [
+        {
+          "authenticationFailures": 0,
+          "completedRekeys": 0,
+          "completedRestarts": 4,
+          "connectivity": {
+            "connectionState": "connected",
+            "gatheringState": "complete",
+            "hostCandidates": 2,
+            "iceState": "connected",
+            "relayCandidates": 0,
+            "selectedRelay": false,
+            "stopReason": ""
+          },
+          "decodedVideoFrames": 0,
+          "decrypted": 537,
+          "emptyDropped": 0,
+          "encrypted": 624,
+          "malformed": 0,
+          "pausedDropped": 0,
+          "rejected": 0,
+          "replayed": 0,
+          "staleDropped": 0,
+          "unexpectedStream": 0
+        },
+        {
+          "authenticationFailures": 0,
+          "completedRekeys": 0,
+          "completedRestarts": 4,
+          "connectivity": {
+            "connectionState": "connected",
+            "gatheringState": "complete",
+            "hostCandidates": 2,
+            "iceState": "connected",
+            "relayCandidates": 0,
+            "selectedRelay": false,
+            "stopReason": ""
+          },
+          "decodedVideoFrames": 87,
+          "decrypted": 624,
+          "emptyDropped": 1,
+          "encrypted": 537,
+          "malformed": 0,
+          "pausedDropped": 0,
+          "rejected": 0,
+          "replayed": 0,
+          "staleDropped": 0,
+          "unexpectedStream": 0
+        }
+      ],
+      "outcome": "pass",
+      "physicalDevicePermissionsValidated": false,
+      "railwayValidated": false,
+      "scope": "Local product UI/WASM/accounts/MLS and two peer connections in Chromium; synthetic audio/video/screen only",
+      "turnValidated": false
+    },
+    {
+      "path": "target/direct-calls-evidence/group-admission-2026-10-22/rekey-turn-udp/result.json",
+      "sha256": "628e2d7e3903203ecf9ead32ef3c90803c51f12183e9a03c077467e4c6f7f8bd",
+      "measuredAt": "2026-10-22T16:03:14.410Z",
+      "runtime": "headless Chrome",
+      "audioPeak": 0.1009521484375,
+      "checks": {
+        "approved_device_join_rotates_media_keys_without_recapture": true,
+        "both_directions_use_sframe_without_matching_key_rejections": true,
+        "camera_enable_decode_and_stop_use_same_encryption_worker": true,
+        "encryption_capability_required": true,
+        "hangup_stops_capture_and_notifies_peer": true,
+        "ice_configuration_requires_session_and_own_approved_device": true,
+        "incoming_call_does_not_capture_before_answer": true,
+        "microphone_mute_controls_track_enabled": true,
+        "new_epoch_keys_match_only_on_clients_and_preserve_muted_camera": true,
+        "product_call_decodes_encrypted_audio_over_peer_connection": true,
+        "real_accounts_approved_devices_and_mls_delivery": true,
+        "relay_only_without_turn_never_creates_direct_call": true,
+        "sdp_and_call_controls_never_appear_as_chat_messages": true,
+        "sdp_and_media_keys_absent_from_http_bodies_and_gateway": true,
+        "selected_relay_candidates_verified_on_both_peers": true,
+        "synthetic_screen_share_decodes_and_stops": true
+      },
+      "internetValidated": false,
+      "metrics": [
+        {
+          "authenticationFailures": 0,
+          "completedRekeys": 1,
+          "completedRestarts": 0,
+          "connectivity": {
+            "connectionState": "connected",
+            "gatheringState": "complete",
+            "hostCandidates": 0,
+            "iceState": "connected",
+            "relayCandidates": 1,
+            "selectedRelay": true,
+            "stopReason": ""
+          },
+          "decodedVideoFrames": 0,
+          "decrypted": 341,
+          "emptyDropped": 0,
+          "encrypted": 404,
+          "malformed": 0,
+          "pausedDropped": 65,
+          "rejected": 0,
+          "replayed": 0,
+          "staleDropped": 0,
+          "unexpectedStream": 0
+        },
+        {
+          "authenticationFailures": 0,
+          "completedRekeys": 1,
+          "completedRestarts": 0,
+          "connectivity": {
+            "connectionState": "connected",
+            "gatheringState": "complete",
+            "hostCandidates": 0,
+            "iceState": "connected",
+            "relayCandidates": 1,
+            "selectedRelay": true,
+            "stopReason": ""
+          },
+          "decodedVideoFrames": 51,
+          "decrypted": 392,
+          "emptyDropped": 1,
+          "encrypted": 358,
+          "malformed": 0,
+          "pausedDropped": 45,
+          "rejected": 0,
+          "replayed": 0,
+          "staleDropped": 0,
+          "unexpectedStream": 0
+        }
+      ],
+      "outcome": "pass",
+      "physicalDevicePermissionsValidated": false,
+      "railwayValidated": false,
+      "scope": "Local product UI/WASM/accounts/MLS and two peer connections in Chromium; synthetic audio/video/screen only",
+      "turnValidated": true,
+      "turnImage": "coturn/coturn:4.18.0-r0@sha256:bbefd3e1fdfdc0d58770fe01b581fd8b00d9f3a5580d00acb77cf719a6bc78e3",
+      "turnTransport": "udp",
+      "turnScope": "Loopback Docker relay; not internet, TURN-TLS or NAT/firewall acceptance"
+    }
+  ],
+  "remaining": [
+    "Distinct group-format compatibility lease/readiness gate; existing backend remains two-account only",
+    "Group interface and mesh controller, deterministic pair binding, shared microphone cloning, worker readiness and mutual exclusion",
+    "Live whole-roster approval/block checks and pre-epoch capture teardown",
+    "All six directed group audio paths; relay selection per edge; leave/epoch/revocation/cancellation acceptance",
+    "Physical devices, internet/NAT/firewall routes, macOS/Linux, SFU and group rekey"
+  ],
+  "preserved": {
+    "installedPreview": "0.3.6",
+    "userHostConfigurationUnchanged": true,
+    "originalHearthContainersRunning": true,
+    "disposableTurnContainerRemoved": true,
+    "disposableTurnSecretFileRemoved": true,
+    "railwayPaused": true,
+    "hostedCiNotDispatched": true,
+    "earlierEvidencePreserved": true
+  },
+  "limitations": [
+    "No group interface, microphone capture or group peer connection is enabled by this checkpoint",
+    "Admission canPublish is only a consent barrier; future controller must also require live authorization, key derivation and ready encryption workers",
+    "Future controller must drive deadlines/heartbeats, stop all capture on leave/epoch/access loss and dispose ephemeral key references",
+    "JavaScript/WebCrypto private-key destruction is not guaranteed secure erasure; selected endpoints can record or disclose content",
+    "Native group media and native 1:1 media were not rerun; normal native compilation passed",
+    "Loopback relay regression is neither internet nor TURN-TLS acceptance"
+  ],
+  "initialAttempts": [
+    {
+      "scope": "Focused JavaScript suite",
+      "outcome": "2 failures out of 15 tests",
+      "reason": "Node WebCrypto caps HKDF info at 1024 bytes",
+      "resolution": "Hash the entire domain-separated canonical transcript into fixed-size HKDF info; focused and full suites pass"
+    },
+    {
+      "scope": "Restricted npm verify",
+      "outcome": "11 SDK local-HTTP failures; client safety tests passed",
+      "reason": "Restricted loopback connectivity",
+      "log": "target/group-call-foundation-evidence/npm-verify-restricted.log",
+      "resolution": "Unchanged tests passed under local-network-enabled execution"
+    },
+    {
+      "scope": "Initial focused Rust filter",
+      "outcome": "Zero selected tests; excluded from acceptance counts",
+      "resolution": "Reran with messaging feature and actual messaging::calls::tests module; four tests passed"
+    }
+  ],
+  "sourceFiles": [
+    {
+      "path": "apps/client/src/media/group-admission.ts",
+      "sha256": "00deb577689022a7a0bac969fbe918dbfe84eda6f14c593c8f63d03349f0e05f"
+    },
+    {
+      "path": "apps/client/src/media/call-observers.ts",
+      "sha256": "7f612aba6b649644e7c62dc8a097840adf9001b378a51fefa5dd568f947dd99f"
+    },
+    {
+      "path": "apps/client/src/media/direct-call.ts",
+      "sha256": "6db5e9d9efe7797a6225b5eb91bc41cb9cdd914d79ee761a1a05a00603cc3879"
+    },
+    {
+      "path": "apps/client/src/crypto/messaging-session.ts",
+      "sha256": "c0ea695bd695cf1c47b8b073e21bf9def0ecd614e41b16a3a6e5d3b85b390f12"
+    },
+    {
+      "path": "apps/client/test/group-admission.test.mjs",
+      "sha256": "ff36146dcf0e42bb00c2af2be41d63ef3a3b77e1a4fa8aaee05c96a5228f3b62"
+    },
+    {
+      "path": "apps/client/test/call-observers.test.mjs",
+      "sha256": "d91beacf2b9c26fe08bc3e5e84ed66b3a8ab3302e08acd7559a495b29141f55f"
+    },
+    {
+      "path": "apps/client/test/call-recovery-lifecycle.test.mjs",
+      "sha256": "5696417882e03936b69fb2df2e33a061aed5be5e18a6f7ea697a268182c1de6e"
+    },
+    {
+      "path": "crates/hearth-crypto/src/messaging_calls.rs",
+      "sha256": "98d9aec39c1c66bbad945c5c9c25f3718f67a3e7f3dc5c7f55770fef3db8c1b1"
+    },
+    {
+      "path": "crates/hearth-proto/src/messaging.rs",
+      "sha256": "6e2c7f8e80e7fdb1a841c6f87bc0bb54292dc49f0705cdecf0e3cabf0c6507a0"
+    },
+    {
+      "path": "packages/sdk/src/protocol.ts",
+      "sha256": "cb1147b15c731b89c177d45dc623a5b401b8069ae47542f64bc52dec8e89c4ca"
+    },
+    {
+      "path": "crates/hearth-server/src/delivery.rs",
+      "sha256": "14e01bd27fff7ab0b9fa6625bd05d587ed277cae7fee2cd719434719d4fd58db"
+    },
+    {
+      "path": "scripts/verify-direct-calls.mjs",
+      "sha256": "02ad17c2e7451e15ea490571f2d11b0abb1f06c47858c6c0b37d54061acd2161"
+    }
+  ],
+  "localLogs": [
+    {
+      "path": "target/group-call-foundation-evidence/client-focused.log",
+      "sha256": "95adfe81f233953871a763af7f3ba122ec6dc38a6a2b40273c20cb9b7cf905db"
+    },
+    {
+      "path": "target/group-call-foundation-evidence/crypto-focused.log",
+      "sha256": "44e025825f8e269adc5d08b4106b382945f59bde78073cff18128aca4ba2c261"
+    },
+    {
+      "path": "target/group-call-foundation-evidence/desktop-check.log",
+      "sha256": "15f3e4699da413ede9b61376f912ffc1eda2e92a4cb0ea4ccb48accdad0b694a"
+    },
+    {
+      "path": "target/group-call-foundation-evidence/direct-regression.log",
+      "sha256": "4ff5df3e1748f1598773d10839afc3d40eb44e41beb61625edd00f2f94a6c727"
+    },
+    {
+      "path": "target/group-call-foundation-evidence/npm-verify-restricted.log",
+      "sha256": "063459cb975479f448fb2e8d4c42502d650bb3569e80b2a544f6c8a80855be96"
+    },
+    {
+      "path": "target/group-call-foundation-evidence/npm-verify.log",
+      "sha256": "5d40eb53308d3818d57ebbe7a3642f7b4cff80f37fce0c0b026ba95240cfb5e2"
+    },
+    {
+      "path": "target/group-call-foundation-evidence/protocol-check.log",
+      "sha256": "92f712d5002b781ba5ff64613c3693b5ae892699833866c91a940bd7aeed85f3"
+    },
+    {
+      "path": "target/group-call-foundation-evidence/protocol-generate.log",
+      "sha256": "6215d565f8a59d379db0328bde0603f6e39bbf0a1d76180d4e670f734b187786"
+    },
+    {
+      "path": "target/group-call-foundation-evidence/relay-rekey-regression.log",
+      "sha256": "e9b4b62fd89f692a45e27dbe0b095c11a154f5b21e4ab6fe9aefeaa90fd97b69"
+    },
+    {
+      "path": "target/group-call-foundation-evidence/rust-clippy.log",
+      "sha256": "739b5736d8df71b4d4fe0be6c975b642d1c06461a504b50b856359536f2fe024"
+    },
+    {
+      "path": "target/group-call-foundation-evidence/rust-fmt.log",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "target/group-call-foundation-evidence/rust-test.log",
+      "sha256": "7792992a76b5f3b96520b39ed53aa949d270d0e21a1a760c1f8d8c6375558747"
+    },
+    {
+      "path": "target/group-call-foundation-evidence/wasm-build.log",
+      "sha256": "3bdffcfe8bd59e76ef8e96de7a88f1a0fb98ad7f1da685fa62b7f65b14016d82"
+    },
+    {
+      "path": "target/group-call-foundation-evidence/wasm-check.log",
+      "sha256": "0c2817808796c160337452d03568f5fe4278b1cc614b158bd839b3469a5624bc"
+    }
+  ]
+}

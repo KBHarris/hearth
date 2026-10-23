@@ -19,6 +19,8 @@ fn decode_kind(value: &str) -> Result<ChannelKind> {
         "text" => Ok(ChannelKind::Text),
         "announcement" => Ok(ChannelKind::Announcement),
         "forum" => Ok(ChannelKind::Forum),
+        "voice" => Ok(ChannelKind::Voice),
+        "stage" => Ok(ChannelKind::Stage),
         _ => Err(StatusCode::SERVICE_UNAVAILABLE),
     }
 }
@@ -520,7 +522,7 @@ async fn structure(
     let categories = sqlx::query("SELECT id,community_id,name FROM community_categories WHERE community_id=$1 ORDER BY created_at,id").bind(&community_id).fetch_all(&mut *tx).await.map_err(unavailable)?
         .iter().map(|r| Category { id:r.get("id"), community_id:r.get("community_id"), name:r.get("name") }).collect();
     let channels = sqlx::query("SELECT id,community_id,category_id,name,kind FROM community_channels WHERE community_id=$1 ORDER BY created_at,id").bind(&community_id).fetch_all(&mut *tx).await.map_err(unavailable)?
-        .iter().map(|r| Ok(Channel { id:r.get("id"), community_id:r.get("community_id"), name:r.get("name"), category_id:r.get("category_id"), kind: match r.get::<&str,_>("kind") { "text"=>ChannelKind::Text,"announcement"=>ChannelKind::Announcement,"forum"=>ChannelKind::Forum,_=>return Err(StatusCode::SERVICE_UNAVAILABLE) } })).collect::<Result<Vec<_>>>()?;
+        .iter().map(|r| Ok(Channel { id:r.get("id"), community_id:r.get("community_id"), name:r.get("name"), category_id:r.get("category_id"), kind: match r.get::<&str,_>("kind") { "text"=>ChannelKind::Text,"announcement"=>ChannelKind::Announcement,"forum"=>ChannelKind::Forum,"voice"=>ChannelKind::Voice,"stage"=>ChannelKind::Stage,_=>return Err(StatusCode::SERVICE_UNAVAILABLE) } })).collect::<Result<Vec<_>>>()?;
     let governance = crate::governance::decode(row.get("governance"))?;
     let mut permitted = Vec::new();
     for channel in channels {
@@ -624,7 +626,7 @@ async fn create_channel(
         category_id: request.category_id,
         kind: request.kind,
     };
-    sqlx::query("INSERT INTO community_channels(id,community_id,category_id,name,kind) VALUES($1,$2,$3,$4,$5)").bind(&result.id).bind(&result.community_id).bind(&result.category_id).bind(&result.name).bind(match result.kind {ChannelKind::Text=>"text",ChannelKind::Announcement=>"announcement",ChannelKind::Forum=>"forum"}).execute(&mut *tx).await.map_err(unavailable)?;
+    sqlx::query("INSERT INTO community_channels(id,community_id,category_id,name,kind) VALUES($1,$2,$3,$4,$5)").bind(&result.id).bind(&result.community_id).bind(&result.category_id).bind(&result.name).bind(match result.kind {ChannelKind::Text=>"text",ChannelKind::Announcement=>"announcement",ChannelKind::Forum=>"forum",ChannelKind::Voice=>"voice",ChannelKind::Stage=>"stage"}).execute(&mut *tx).await.map_err(unavailable)?;
     tx.commit().await.map_err(unavailable)?;
     Ok(Json(result))
 }

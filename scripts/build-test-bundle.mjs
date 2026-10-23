@@ -24,7 +24,9 @@ assert.equal(dirname(directory),resolve(outputRoot));assert.ok(!existsSync(direc
 const info=JSON.parse(run('docker',['image','inspect',imageName]))[0]
 assert.match(info.Id,/^sha256:[a-f0-9]{64}$/);assert.equal(info.Os,'linux');assert.equal(info.Architecture,'amd64')
 mkdirSync(join(directory,'deploy'),{recursive:true});mkdirSync(join(directory,'client'))
+const mediaFiles=['deploy/compose.media.yaml', 'deploy/compose.turn.yaml', 'deploy/compose.turn-tls.yaml', 'deploy/media/setup.mjs', 'deploy/media/turn-entrypoint.sh']
 const deploy=join(directory,'deploy')
+for(const file of mediaFiles){mkdirSync(dirname(join(directory,file)),{recursive:true});copyFileSync(join(root,file),join(directory,file))}
 for(const file of ['setup.mjs','compose.https.yaml','Caddyfile','storage-entrypoint.sh'])copyFileSync(join(root,'deploy',file),join(deploy,file))
 let compose=readFileSync(join(root,'deploy/compose.yaml'),'utf8').replace('name: hearth','name: hearth-guided-test')
 const build='    build:\n      context: ..\n      dockerfile: crates/hearth-server/Dockerfile'
@@ -63,7 +65,7 @@ Follow [the two-PC guide](TWO_PC_LATEST_TEST.md). The fresh server uses backend 
 Install and start Docker Desktop, then open Hosting & updates in the desktop app and choose this extracted folder. Configure your public IPv4 or DNS name and start the server. Connect to the local server and choose Use this computer’s host on the owner form; manual setup codes remain available for advanced hosts. Configure port forwarding and verify access from another network, then create a readable account/community invite in the owner client. You can stay connected to localhost while preparing a code for the public HTTPS address. Keep operator files on the host and share only the pretty code and separate server address privately. App and hosted-server updates verify signed releases; server updates retain a verified rollback backup.
 `)
 const files={}
-for(const f of [zipName,archiveName,'client/'+installerName,'deploy/compose.yaml','deploy/compose.https.yaml','deploy/setup.mjs','deploy/Caddyfile','deploy/storage-entrypoint.sh','deploy/.env.example','client/START_HERE.txt','client/SHA256SUMS.txt','START_HOST_HERE.md','TWO_PC_LATEST_TEST.md'])files[f]=digest(join(directory,f))
+for(const f of [...mediaFiles,zipName,archiveName,'client/'+installerName,'deploy/compose.yaml','deploy/compose.https.yaml','deploy/setup.mjs','deploy/Caddyfile','deploy/storage-entrypoint.sh','deploy/.env.example','client/START_HERE.txt','client/SHA256SUMS.txt','START_HOST_HERE.md','TWO_PC_LATEST_TEST.md'])files[f]=digest(join(directory,f))
 writeFileSync(join(directory,'manifest.json'),JSON.stringify({builtAt:new Date().toISOString(),sourceCommit:commit,packagingCommit,client:{version,productName,identifier,unsigned:true,profile:'independent',installer:installerName},server:{image:imageName,imageId:info.Id,architecture:info.Architecture,composeProject:'hearth-guided-test',backendPort:8080,s3LoopbackPort:18335},files},null,2)+'\n')
 const signingKey=process.env.TAURI_SIGNING_PRIVATE_KEY_PATH??join(root,'.release-keys/updater.key')
 const signed=spawnSync(process.execPath,[join(root,'node_modules/@tauri-apps/cli/tauri.js'),'signer','sign','--private-key-path',signingKey,'--app-version',version,join(directory,'manifest.json')],{cwd:root,stdio:'ignore',windowsHide:true});assert.equal(signed.status,0,'Sign the host manifest before distributing it')

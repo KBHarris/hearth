@@ -1,6 +1,10 @@
 {
 	# IP-address clients commonly omit SNI; select this site's certificate behind NAT.
 	default_sni {$HEARTH_PUBLIC_ADDRESS}
+	# SFU query tokens must stay out of reverse-proxy failure records.
+	log default {
+		exclude http.log.error
+	}
 }
 
 https://{$HEARTH_PUBLIC_ADDRESS} {
@@ -10,6 +14,9 @@ https://{$HEARTH_PUBLIC_ADDRESS} {
 		}
 	}
 	# No access/body logging. WebSocket upgrades are forwarded by reverse_proxy.
+	handle_path /hearth-media/* {
+		reverse_proxy media:{$HEARTH_SFU_SIGNAL_PORT:7880}
+	}
 	handle /hearth-blobs/* {
 		reverse_proxy storage:8333
 	}

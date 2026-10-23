@@ -33,7 +33,8 @@ function command(name, args, quiet = false, env = process.env) {
 }
 // Isolated CI can reuse its normal Cargo cache; local Phase 3 keeps preview builds separate.
 const serverTarget=process.env.HEARTH_TEST_TARGET_DIR ?? (process.argv.includes('--phase3')?'target/phase3-build':'target')
-command('cargo', ['build', '--locked', '-p', 'hearth-server', '--target-dir', serverTarget])
+const releaseServer=process.argv.includes('--release-server')
+command('cargo', ['build', '--locked', ...(releaseServer?['--release']:[]), '-p', 'hearth-server', '--target-dir', serverTarget])
 let wasm
 let legacyWasm
 if(!process.argv.includes('--desktop') && !process.argv.includes('--serve')) {
@@ -50,7 +51,7 @@ await new Promise((resolve) => lease.listen(0, '127.0.0.1', resolve))
 const port = lease.address().port
 await new Promise((resolve) => lease.close(resolve))
 const origin = `http://127.0.0.1:${port}`
-const compiledBinary = join(root, serverTarget, 'debug', process.platform === 'win32' ? 'hearth-server.exe' : 'hearth-server')
+const compiledBinary = join(root, serverTarget, releaseServer?'release':'debug', process.platform === 'win32' ? 'hearth-server.exe' : 'hearth-server')
 const binary = join(directory, process.platform === 'win32' ? 'hearth-server.exe' : 'hearth-server')
 copyFileSync(compiledBinary,binary)
 let child

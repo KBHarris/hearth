@@ -1,0 +1,15 @@
+# Add after compose.https.yaml, compose.media.yaml and compose.turn.yaml.
+# Caddy owns/renews the existing host certificate; the relay reads it privately.
+services:
+  relay:
+    entrypoint: ["/bin/sh", "/etc/hearth/turn-entrypoint.sh"]
+    command: []
+    environment:
+      HEARTH_TURN_CERT_HOST: ${HEARTH_TURN_CERT_HOST:?configure the TLS relay hostname}
+    ports:
+      - "${HEARTH_MEDIA_BIND:-127.0.0.1}:${HEARTH_TURN_TLS_PORT:-5349}:${HEARTH_TURN_TLS_PORT:-5349}/tcp"
+    volumes:
+      - caddy-data:/var/lib/hearth-certificates:ro
+      - ./media/turn-entrypoint.sh:/etc/hearth/turn-entrypoint.sh:ro
+volumes:
+  caddy-data:

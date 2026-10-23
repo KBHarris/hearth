@@ -4,6 +4,41 @@
 
 export const PROTOCOL_VERSION = 1 as const
 
+export type ScheduledEvent = { title: string, description: string, starts_at: number, ends_at: number, location: string, };
+
+export type Rsvp = "going" | "interested" | "declined";
+
+export type PlaybackProvider = "youtube" | "spotify" | "soundcloud";
+
+export type PlaybackPosition = { revision: number, playing: boolean, position_ms: number, sent_at: number, };
+
+export type SharedPlayback = { title: string, provider: PlaybackProvider, url: string, position: PlaybackPosition, };
+
+export type Activity = { "type": "event", event: ScheduledEvent, } | { "type": "event_cancel", id: string, } | { "type": "rsvp", id: string, response: Rsvp, } | { "type": "playback", playback: SharedPlayback, } | { "type": "playback_update", id: string, position: PlaybackPosition, };
+
+export type LocalEvent = { event: ScheduledEvent, cancelled: boolean, rsvps: { [key in string]: Rsvp }, };
+
+export type VoicePresence = { channel_id: string, room_id: string, epoch: number, device_key: string, incarnation: string,
+/**
+ * Public P-256 contribution, never an exporter, shared secret or frame key.
+ */
+public_key: string, relay_only: boolean,
+/**
+ * True binds the SFU topology. Absent retains the original mesh transcript.
+ */
+sfu?: boolean, active: boolean, issued_at: number, expires_at: number, signature: string, };
+
+export type VoiceRoom = { channel_id: string, room_id: string, epoch: number, revision: number, relay_only: boolean, sfu?: boolean, capacity: number, participants: Array<VoicePresence>, };
+
+export type SfuAccess = {
+/**
+ * Optional same-machine signaling endpoint. Clients use it only when their
+ * authenticated Hearth API itself is on loopback, never for remote servers.
+ */
+local_url?: string, channel_id: string, room_id: string, revision: number, url: string, room: string, identity: string, token: string, expires_at: number, };
+
+export type WrappedMediaKey = { recipient: string, nonce: string, ciphertext: string, };
+
 export type InviteEnvelope = { nonce: string, ciphertext: string, };
 
 export type StoreInviteEnvelope = { id: string, envelope: InviteEnvelope, };
@@ -42,7 +77,11 @@ kick_after?: number, };
 
 export type ChannelLimits = { channel_id: string, slowmode_seconds: number, retention_days: number | null, };
 
-export type Governance = { community_id: string, revision: number, everyone: number, roles: Array<Role>, assignments: Array<RoleAssignment>, overrides: Array<PermissionOverride>, sanctions: Array<Sanction>, limits: Array<ChannelLimits>, rules: string, screening: boolean, owner: GroupMember, signature: string,
+export type Governance = {
+/**
+ * Explicit media bits. Absence preserves the signed pre-media policy.
+ */
+media_version?: number, community_id: string, revision: number, everyone: number, roles: Array<Role>, assignments: Array<RoleAssignment>, overrides: Array<PermissionOverride>, sanctions: Array<Sanction>, limits: Array<ChannelLimits>, rules: string, screening: boolean, owner: GroupMember, signature: string,
 /**
  * A delegated moderator signs a restricted successor of this verified policy.
  */
@@ -60,7 +99,7 @@ export type Community = { id: string, name: string, owner_id: string, };
 
 export type Category = { id: string, community_id: string, name: string, };
 
-export type ChannelKind = "text" | "announcement" | "forum";
+export type ChannelKind = "text" | "announcement" | "forum" | "voice" | "stage";
 
 export type CreateChannel = { name: string, category_id: string | null, kind: ChannelKind, };
 
@@ -160,9 +199,29 @@ export type DeliveryData = { "kind": "commit", upload: CommitUpload, } | { "kind
 
 export type DeliveryEvent = { seq: number, conversation_id: string, data: DeliveryData, };
 
-export type MessageContent = { "kind": "forum_post", title: string, text: string, } | { "kind": "poll", question: string, options: Array<string>, multiple: boolean, parent: string | null, } | { "kind": "poll_vote", id: string, choices: Array<number>, } | { "kind": "poll_close", id: string, } | { "kind": "attachment", text: string, files: Array<EncryptedAttachment>, } | { "kind": "emoji", alias: string, asset: EncryptedAttachment, } | { "kind": "history_request", request_id: string, device_key: string, public_key: string, } | { "kind": "history_share", request_id: string, device_key: string, public_key: string, ciphertext: string, } | { "kind": "text", text: string, reply_to: string | null, } | { "kind": "edit", id: string, text: string, } | { "kind": "delete", id: string, } | { "kind": "typing", active: boolean, } | { "kind": "thread", text: string, parent: string, } | { "kind": "reaction", id: string, emoji: string, active: boolean, } | { "kind": "pin", id: string, active: boolean, } | { "kind": "read", id: string, } | { "kind": "profile", display_name: string, bio: string, } | { "kind": "presence", state: string, until: number, } | { "kind": "rich_text", text: string, reply_to: string | null, embed: LinkEmbed, };
+export type MessageContent = { "kind": "activity", activity: Activity, } | { "kind": "call", signal: CallSignal, } | { "kind": "forum_post", title: string, text: string, } | { "kind": "poll", question: string, options: Array<string>, multiple: boolean, parent: string | null, } | { "kind": "poll_vote", id: string, choices: Array<number>, } | { "kind": "poll_close", id: string, } | { "kind": "attachment", text: string, files: Array<EncryptedAttachment>, } | { "kind": "emoji", alias: string, asset: EncryptedAttachment, } | { "kind": "history_request", request_id: string, device_key: string, public_key: string, } | { "kind": "history_share", request_id: string, device_key: string, public_key: string, ciphertext: string, } | { "kind": "text", text: string, reply_to: string | null, } | { "kind": "edit", id: string, text: string, } | { "kind": "delete", id: string, } | { "kind": "typing", active: boolean, } | { "kind": "thread", text: string, parent: string, } | { "kind": "reaction", id: string, emoji: string, active: boolean, } | { "kind": "pin", id: string, active: boolean, } | { "kind": "read", id: string, } | { "kind": "profile", display_name: string, bio: string, } | { "kind": "presence", state: string, until: number, } | { "kind": "rich_text", text: string, reply_to: string | null, embed: LinkEmbed, };
 
-export type LocalMessage = { id: string, conversation_id: string, author_id: string, text: string, reply_to: string | null, edited: boolean, deleted: boolean, thread: string | null, reactions: { [key in string]: Array<string> }, pinned: boolean, embed: LinkEmbed | null, attachments: Array<LocalAttachment>, topic: string | null, poll: LocalPoll | null, };
+export type CallSignal = { call_id: string, epoch: number, from_device: string, to_device: string, expires_at: number, kind: string, description: string | null, relay_only: boolean,
+/**
+ * Private three-account admission context; absent for the existing 1:1 format.
+ */
+group_id?: string,
+/**
+ * Exactly three sorted device keys, one per account. Client-only MLS content.
+ */
+participants?: Array<string>,
+/**
+ * Persistent community voice room generation; absent for private calls.
+ */
+voice_room?: string, };
+
+export type LocalCallSignal = { conversation_id: string, account_id: string, signal: CallSignal, };
+
+export type IceServer = { urls: Array<string>, username: string | null, credential: string | null, };
+
+export type IceConfiguration = { ice_servers: Array<IceServer>, expires_at: number, };
+
+export type LocalMessage = { event?: LocalEvent, playback?: SharedPlayback, id: string, conversation_id: string, author_id: string, text: string, reply_to: string | null, edited: boolean, deleted: boolean, thread: string | null, reactions: { [key in string]: Array<string> }, pinned: boolean, embed: LinkEmbed | null, attachments: Array<LocalAttachment>, topic: string | null, poll: LocalPoll | null, };
 
 export type LocalPoll = { options: Array<string>, multiple: boolean, closed: boolean, votes: { [key in string]: Array<number> }, };
 

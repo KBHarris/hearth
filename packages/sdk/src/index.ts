@@ -1,4 +1,6 @@
 import type {AccountExport} from "./protocol.ts"
+import {isIceConfiguration} from './calls.ts'
+import type {IceConfiguration} from './protocol.ts'
 import {isReportKeys,isReportQueue} from './reports.ts'
 import type {ReportKey,ReportEnvelope,QueuedReport} from './protocol.ts'
 import { PROTOCOL_VERSION, type Health, type SetupStatus, type WellKnown } from './protocol.ts'
@@ -16,8 +18,9 @@ import type {BlobReservation,BlobUrl} from './protocol.ts'
 import type { InviteEnvelope, StoreInviteEnvelope } from './protocol.ts'
 import { isInviteEnvelope } from './short-invite.ts'
 
+
 export * from './protocol.ts'
-export {Permission,permissions} from './governance.ts'
+export {Permission,permissions,mediaPermissions,withMediaPermissions,MEDIA_PERMISSIONS} from './governance.ts'
 import {isGovernance,isGovernanceView,isAudit} from './governance.ts'
 import type {Governance,GovernanceView,AuditEntry} from './protocol.ts'
 
@@ -26,6 +29,8 @@ export type ErrorKind = 'invalid_url' | 'http' | 'network' | 'timeout' | 'invali
 export { createHearthInvite, parseHearthInvite, setupTarget, addressScope, type HearthInvite } from './setup.ts'
 export { createReachabilityRequest, parseReachabilityRequest, checkReachabilityRequest, verifyReachabilityReceipt, type ReachabilityRequest, type ReachabilityReceipt } from './reachability.ts'
 export { createShortInvite, resolveSetupTarget, resolveInviteCode, formatInviteCode, normalizeInviteCode } from './short-invite.ts'
+import {isVoiceRoom,isSfuAccess} from './voice.ts'
+import type {VoiceRoom,VoicePresence,SfuAccess} from './protocol.ts'
 
 export class HearthError extends Error {
   readonly status: number
@@ -77,6 +82,37 @@ export interface ServerInfo {
 
 /** Public discovery and owner authentication. Gateway delivery is a later milestone. */
 export class HearthClient {
+  async callReady(token:string,id:string,device:string,options?:RequestOptions):Promise<void>{
+    checkedId(id);checkedId(device)
+    await this.get(`/api/v1/chat/call-ready/${id}/${device}?format=5`,(value):value is null=>value===null,options,{headers:{Authorization:`Bearer ${token}`}})
+  }
+  callConfiguration(token:string,device:string,options?:RequestOptions):Promise<IceConfiguration>{
+    if(!/^[a-f0-9]{64}$/.test(device))throw new HearthError(0,'Invalid call device.','invalid_response')
+    return this.get('/api/v1/chat/media/'+device,isIceConfiguration,options,{headers:{Authorization:`Bearer ${token}`}})
+  }
+  async groupCallReady(token:string,id:string,device:string,options?:RequestOptions):Promise<void>{
+    checkedId(id);checkedId(device)
+    await this.get(`/api/v1/chat/call-ready/${id}/${device}?group=true&format=5`,(value):value is null=>value===null,options,{headers:{Authorization:`Bearer ${token}`}})
+  }
+  voiceRoom(token:string,id:string,device:string,options?:RequestOptions):Promise<VoiceRoom>{
+    return this.get(`/api/v1/chat/voice/${id}/${device}`,isVoiceRoom,options,{headers:{Authorization:`Bearer ${token}`}})
+  }
+  voicePresence(token:string,value:VoicePresence,options?:RequestOptions):Promise<VoiceRoom>{
+    return this.get(`/api/v1/chat/voice/${value.channel_id}/${value.device_key}`,isVoiceRoom,options,{method:'POST',headers:{Authorization:`Bearer ${token}`,'Content-Type':'application/json'},body:JSON.stringify(value)})
+  }
+  sfuAccess(token:string,id:string,device:string,revision:number,options?:RequestOptions):Promise<SfuAccess>{
+    checkedId(id);checkedId(device)
+    if(!Number.isSafeInteger(revision)||revision<1)throw new HearthError(0,'Invalid room revision.','invalid_response')
+    return this.get(`/api/v1/chat/voice/${id}/${device}/sfu?revision=${revision}`,isSfuAccess,options,{headers:{Authorization:`Bearer ${token}`}}).then(value=>{
+      const backend=new URL(this.baseUrl),local=['localhost','127.0.0.1','[::1]'].includes(backend.hostname)
+      if(!local&&new URL(value.url).protocol!=='wss:')throw new HearthError(0,'This remote server needs a public encrypted media endpoint.','invalid_response')
+      return local&&value.local_url?{...value,url:value.local_url}:value
+    })
+  }
+  groupCallConfiguration(token:string,device:string,options?:RequestOptions):Promise<IceConfiguration>{
+    checkedId(device)
+    return this.get('/api/v1/chat/media/'+device+'?group=true&format=5',isIceConfiguration,options,{headers:{Authorization:`Bearer ${token}`}})
+  }
   readonly baseUrl: string
 
   constructor(baseUrl: string) {

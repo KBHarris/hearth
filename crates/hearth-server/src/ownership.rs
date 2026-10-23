@@ -301,6 +301,7 @@ pub(crate) async fn accept(
     }
     member(&mut tx, &id, &account).await?;
     let mut expected = governance.unwrap_or_else(|| Governance {
+        media_version: None,
         delegation: None,
         moderator_admission: None,
         community_id: id.clone(),

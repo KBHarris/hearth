@@ -279,6 +279,17 @@ Phase 3 preview. The new outside-check flow and all-OS clean-machine installatio
 still need actual independent-network/installation acceptance.
 
 - [x] Host/Join client entry and explicit confirmation after checking an address.
+- [x] Close the reopened saved-host sidebar report locally (2026-10-21). Retry/timeout,
+  focus/visibility refresh, hosting-change updates and package-recovery entries
+  are implemented; four lifecycle and six production-UI checks pass. Actual
+  Windows shortcut reopening now preserves the user's server in the sidebar.
+  The real Explorer shortcut reproduced an empty Windows profile despite the
+  earlier passing test launches. Reselecting the original host through the normal
+  client restored its binding; Gold Team now survives that same shortcut's
+  close/reopen. [Normal-launch evidence](evidence/host-sidebar-start-menu-2026-10-21.json)
+  supersedes the earlier assumption that direct-launch checks covered this case.
+  The original failure was not reproduced during diagnosis. See
+  [saved-host recovery](HOST_SIDEBAR_RECOVERY.md).
 - [x] Pretty invite code carries server identity, account and community admission,
   with a separate server address at the user's request; capabilities stay in
   memory, with existing device approval preserved. Old links remain compatible.
@@ -305,53 +316,166 @@ tools, manual commands or secrets in diagnostic exports. See
 **Goal:** a reproducible hosted Hearth deployment with an optional browser client,
 plus E2EE real-time media with direct peer-to-peer calls and relay options. It
 depends on P3 permissions, the Host/Join checkpoint and the Spike B decision.
-Scope expanded 2026-10-16; the items below are planned, not deployed or validated.
+Scope expanded 2026-10-16. Implementation started 2026-10-20 with configurable
+S3 storage, native IaC/deployment tooling and production browser/server images
+with local acceptance. The first encrypted 1:1 voice/camera/screen-video slice is
+implemented and locally tested; real Railway deployment and full media acceptance
+remain open. Work resumed with local call-route and native Windows acceptance. The separate
+clean-machine Host/Join checkpoint retains its acceptance gates.
 See [the Phase 4 hosting and media plan](PHASE4_HOSTING_AND_MEDIA.md) for work order,
 provider boundaries, bootstrap behavior and acceptance requirements.
+
+Completion work resumed 2026-10-23 under explicit authorization to finish local
+implementation/automation, publish a new release and upgrade the existing host
+and Windows client after the checks pass. Railway and hosted CI remain on hold.
+The local three-person stage and trusted fixture TURN-TLS transport checks pass.
+Private-group camera/screen/computer audio, microphone switching and a real MLS
+epoch update now pass together. Disposable media-aware backup/fresh restore and
+rollback, native provider isolation, packaged WSS and browser TURN-TLS route
+selection also pass. The 25-person load run and final release checks remain in
+progress. Spotify is disabled for this release by the user's decision.
+[The release checklist](PHASE4_RELEASE_CHECKLIST.md) distinguishes
+these gates from the user's physical-device/network/platform acceptance.
 
 ### Hosted deployment and browser client
 
 - [ ] Add Railway native IaC for the backend, PostgreSQL, private attachment bucket
   and persistent server-key volume, with an optional browser-client service.
+  Implemented and locally typechecked; live application remains unverified.
 - [ ] Add a guided deployment command for project selection, plan/apply, build/deploy,
   generated HTTPS addresses, configuration wiring, readiness checks and owner setup.
   Retry preserves resources, accounts and keys; credentials stay out of source/logs.
 - [ ] Make S3 bucket name, region, URL style and existing-bucket behavior configurable;
   verify Railway buckets alongside the bundled SeaweedFS store, private presigned
   transfers, browser CORS, 50 MB uploads, retention and owner-authorized deletion.
+  Configuration is implemented; see [storage settings and local checks](STORAGE_CONFIGURATION.md).
+  This combined item remains open for real Railway/browser acceptance.
 - [ ] Package the production web client with crypto/WASM, correct backend and gateway
   addresses, exact allowed origins, HTTPS, SPA navigation and safe asset updates.
   Desktop-only hosting must work without deploying the website.
-- [ ] Add hosted backup/restore and update/recovery procedures that preserve PostgreSQL,
-  encrypted objects and matching server authentication keys. Verify on a fresh host.
+  Images and the Chromium owner/device/proxy flow pass locally. See
+  [cloud development and acceptance boundaries](CLOUD_DEPLOYMENT.md).
+- [x] Document hosted backup/restore and update/recovery procedures preserving
+  PostgreSQL, encrypted objects and matching authentication keys; see
+  [hosted recovery](CLOUD_RECOVERY.md). Local image restore covers database/keys;
+  native host backup rehearsal includes encrypted object volumes and media settings.
+- [ ] Verify the full hosted recovery procedure on fresh provider resources.
+  Scheduled Railway backups and live provisioning remain explicitly held.
 - [ ] Verify a fresh real Railway deployment, independent-network browser/desktop
   messaging and files, idempotent retry and redeploy persistence. Keep hosted execution
   explicitly requested and budgeted under [the Actions standard](CI_STANDARD.md).
 
 ### Media and events
 
+- [x] Implement the first two-account call slice: MLS-encrypted signaling, approved
+  peer-device binding, client-only MLS exporter/SFrame keys, encryption readiness,
+  answer/decline, mute, camera, screen video and capture cleanup. Local Chromium
+  acceptance passes 14 synthetic-media outcomes; this is not installed-client or
+  physical-device acceptance. See [the call guide](DIRECT_CALLS.md) and
+  [checkpoint evidence](evidence/phase4-direct-calls-local-2026-10-20.json).
+- [x] Implement authenticated STUN/TURN configuration, short-lived coturn credentials
+  and relay-only policy with selected-relay verification. End calls on membership
+  epoch changes and failed permission/device/heartbeat checks.
+- [x] Finish the frozen local direct/UDP/TCP matrix: the sequential 2026-10-21
+  run passes 14/15/15 checks with selected relay verification and zero host
+  candidates in relay-only mode. See [local evidence](evidence/phase4-direct-calls-local-2026-10-21.json).
+- [x] Exercise the product call slice in an opt-in native Windows WebView2 fixture:
+  direct/TURN-UDP/TURN-TCP pass 15/16/16 checks, including native storage cleanup.
+  Tracks are synthetic and playback uses a test autoplay override. See
+  [native evidence](evidence/phase4-native-direct-calls-local-2026-10-21.json).
+- [x] Add bounded same-epoch ICE recovery without reacquiring capture or resetting
+  SFrame workers/counters. Reauthorize offers/answers, resolve simultaneous offers,
+  recheck relay-only routes and stop on stalled recovery. Local synthetic direct,
+  UDP/TCP relay and native Windows checks are recorded in
+  [the recovery checkpoint](evidence/phase4-call-recovery-local-2026-10-22.json).
+  The automatic trigger uses an injected disconnect event; real outages remain open.
+- [ ] Validate physical capture, installed product media, independent networks,
+  TURN-TLS and relay-only privacy before release. Local TCP acceptance is TURN
+  client transport, not proof of TURN-TLS or all-TCP media routing.
+- [x] Add a bounded active-call key update for verified 1:1 MLS device changes:
+  pause old-key media, reauthorize the selected pair, derive fresh client-only keys,
+  require worker/peer confirmation and advancing media, and preserve capture/mute.
+  See [the transition and acceptance boundaries](CALL_KEY_UPDATES.md).
+  Rapid/overlapping changes end capture; general group-call rekey remains open.
 - [ ] Add authenticated WebRTC signaling for direct P2P voice/video/screen sharing
   in small calls, STUN/TURN fallback and a relay-only privacy option. Direct media
   bypasses Railway; direct participants can learn each other's network addresses.
+  The 1:1 implementation above is complete; bounded group calls and full route/
+  platform acceptance keep this combined requirement open.
+- [x] Build and locally test the fixed three-person group admission/key foundation:
+  one selected device per account, explicit consent, direct ephemeral contributions,
+  pair-specific MLS/ECDH keys and multi-consumer publication barriers. See
+  [the implemented foundation and remaining integration](GROUP_CALLS.md).
+  That historical checkpoint was disabled; the product behavior below supersedes
+  its original all-answer/end-on-leave policy.
+- [x] Integrate the three-person private voice mesh and interface, distinct
+  group-format support, shared capture cleanup and whole-roster access checks.
+  Two people can start, a third can join later and survivors continue after the
+  caller leaves. Participation changes refresh keys without recapturing continuing
+  microphones or losing mute state. Local direct/UDP/TCP and native Windows
+  acceptance cover all six audio paths, caller departure, relay-only selection,
+  permission revocation and cleanup. See [group voice](GROUP_VOICE.md) and
+  [the checkpoint](evidence/phase4-group-voice-local-2026-10-22.json).
+- [x] Allow explicit rejoining of the same ongoing private call, with fresh ECDH
+  contributions, bounded participation rounds and replay-safe departures. Retain
+  only public call state after leaving; recheck authorization before rejoining.
+  The option lasts only in the current client session while a selected peer is
+  live. Group control format 2 requires current clients on all MLS devices.
+  See [the rejoin checkpoint](evidence/phase4-group-rejoin-local-2026-10-22.json).
+- [x] Add the first persistent community voice-room slice: voice channels with
+  explicit join/leave, no ringing, up to four simultaneous accounts, signed public
+  occupancy, one device per account and fresh client-only pair keys. Rooms survive
+  everyone leaving and work without the owner's session. Read/send permissions,
+  approved devices, rules screening and control-format 3 gate participation.
+  See [community voice](COMMUNITY_VOICE.md); this is local development, not an
+  installed-client release or real-network acceptance.
+- [x] Implement optional SFU community rooms with a 25-account admission bound,
+  per-publisher client-only keys, explicit join/leave, encrypted camera/screen
+  and separate computer audio. Six-person local product acceptance verifies
+  decoded media and membership rotation preserving continuing capture/mute.
+  See [SFU rooms](SFU_ROOMS.md); physical, internet and full-platform gates remain.
+- [x] Add separate connect/speak/listen permissions, device changes and bounded
+  MLS chat membership rekey preserving authorized source selection/mute.
+  Private-group and stage consent/revocation fixtures pass locally.
+- [ ] Complete the live 25-person media/load target and measure practical limits.
+- [x] Add the first community-room camera and screen-video slice, with explicit
+  per-source consent, independent camera/screen slots, simultaneous shares,
+  one local source per publication and authenticated tile state. Recheck room
+  access around capture prompts and on every encrypted sender edge. Stop originals
+  and clones on membership changes; require fresh video consent for the new
+  audience. Format 4 gates upgraded clients before capture. See [room video](ROOM_VIDEO.md).
+- [x] Add separate camera/screen publication permissions and opt-in computer audio,
+  with independent encrypted sources in direct, private-group and community rooms.
+  Preserve authorized capture through rekey; stop obsolete clones and restricted
+  sources. Real per-window/system audio and full-platform acceptance remain manual.
+  See [computer audio](COMPUTER_AUDIO.md).
 - [ ] Keep LiveKit as the optional SFU for larger rooms/streams; define measured mesh
   limits and safe transitions without weakening permissions or encryption.
-- [ ] Add LiveKit and coturn to the self-hosted Compose option. Evaluate LiveKit's
-  embedded TURN before requiring duplicate relay infrastructure. Railway deployment
-  must support a separately hosted SFU/TURN or managed media endpoint; do not assume
-  its public HTTPS/TCP networking provides the required public UDP reachability.
-- [ ] The server authorizes signaling and mints bounded room/device-scoped media tokens
+- [x] Add optional pinned LiveKit/coturn Compose overlays, private idempotent
+  configuration generation and local-only defaults. A disposable package check
+  verifies both services, custom port consistency and secret cleanup. Reuse the
+  common coturn REST relay for direct/SFU clients; embedded TURN remains optional.
+  Public addressing, WSS/TURN-TLS and outside routing remain deployment gates.
+  Railway still needs a separately reachable SFU/TURN or managed media endpoint.
+- [x] The server authorizes signaling and mints bounded room/device-scoped media tokens
   and short-lived TURN credentials; provider API secrets remain server-side.
-- [ ] Media keys come from the MLS exporter and rotate on every join and leave.
+  SFU tokens require current signed occupancy and the exact room revision, expire
+  after 60 seconds and grant no media keys, data publication or metadata mutation.
+- [x] Media keys come from the MLS exporter and rotate on every join and leave.
   Authenticate peer identity, reject stale/unauthorized participants and block
   publication when encryption is unavailable. SFrame interoperability is still a
   validation gate under [ADR 0004](adr/0004-media-feasibility.md).
-- Voice channels, 1:1 and group calls, video, and screen share with audio.
-- Go-live streaming and stage channels (speaker and audience roles).
-- Scheduled events with RSVP.
-- Simultaneous screen sharing, per-app audio where supported, mid-call device switching,
-  and clear microphone/speaker controls, verified separately on each platform.
-- Watch parties and synchronized listening; opt-in Spotify, YouTube and SoundCloud
-  integrations need explicit playback and identity designs.
+  The 1:1 slice now has same-epoch ICE restart and bounded in-call key updates;
+  bounded group/room recovery is implemented. Independent SFrame interoperability
+  and real-network recovery remain acceptance gates.
+- [x] Voice channels, 1:1/private-group calls, video and screen share with audio.
+- [x] Stage speaker/audience roles and explicit speaking consent; audience can
+  watch permitted camera/screen publications without opening a microphone.
+- [x] MLS-encrypted scheduled events, creator cancellation and authenticated RSVP.
+- [x] Simultaneous sharing, explicit audio where supported, device switching and
+  microphone/speaker/deafen controls. Verify actual devices on each platform.
+- [x] Opt-in YouTube/SoundCloud synchronized playback, encrypted host controls,
+  opaque player isolation and stale-host bounds. Spotify is disabled this release.
 - [ ] Test actual direct, TURN and SFU paths, cross-house/NAT/firewall conditions,
   relay-only IP privacy, reconnects, permission revocation and topology changes.
 - [ ] Canary tests: signaling, TURN/SFU captures, logs and storage contain no media

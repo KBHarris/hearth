@@ -15,6 +15,7 @@ pub mod gateway;
 mod governance;
 mod invites;
 pub mod keys;
+pub mod media;
 mod ownership;
 pub mod push;
 pub mod registration;
@@ -22,6 +23,9 @@ mod reports;
 pub mod retention;
 pub mod routes;
 mod safety;
+pub mod sfu;
+mod storage;
+mod voice;
 
 use std::sync::Arc;
 

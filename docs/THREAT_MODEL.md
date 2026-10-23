@@ -5,6 +5,36 @@
 
 ## Invite addresses and transport
 
+### Phase 4 additions (2026-10-23)
+
+The metadata inventory also includes signed `governance.media_version` (optional
+legacy-compatible version 1), connect/listen/speak/camera/screen bits, and the
+public `stage` channel kind. The server stores `voice_rooms.policy_signature`
+and a SHA-256 `roster_digest` of sorted, length-framed device/incarnation/public
+contribution values. These contain no private key; changes advance the media
+revision, including a revoked device removed through a database cascade.
+
+An authenticated SFU admission may contain `local_url`, a loopback-only WS
+endpoint. Only a client authenticated against a loopback backend may use it;
+remote clients use the public WSS endpoint. SFU/TURN transport credentials and
+media networking preferences live in the host's private media directory and are
+included in protected server backups. They authorize routing, never decrypt
+participant media. The optional TLS relay reads the existing host certificate
+volume without Docker control; it waits for issuance and reloads after renewal.
+No TLS validation bypass is configured in the product.
+
+Event details, RSVP identity and shared playback controls remain MLS-encrypted
+application content and encrypted local history. Explicitly opted-in providers
+receive only a public media identifier and position/control data inside an opaque
+sandboxed frame. They can observe the user's IP, public application/site identifier
+and provider browser/account. Hearth supplies no account identity or OAuth token.
+Spotify playback is disabled for this release; its SDK origin is not authorized.
+Root frame policy excludes the application origin, preventing isolated code from
+navigating back and regaining application storage/native access. Browser escape
+and native storage/IPC probes pass locally. See [stages and activities](STAGES_AND_ACTIVITIES.md)
+for the player isolation and stale-host bounds. Device/output choices stay in
+client session memory; device identifiers are not persisted or signaled.
+
 Invite sharing may use a recipient-facing public HTTPS origin while the owner
 stays on its existing authenticated loopback connection. Only the selected local
 host may supply an automatic public-address hint, and the local identity must
@@ -88,8 +118,79 @@ and still refuses regeneration over persistent volumes missing their original fi
 | Optional HTTPS proxy: transient request headers/bodies, paths, peer addresses and operational errors | Route REST and gateway traffic to Hearth without decrypting MLS; control requests can contain bearer/invite/bootstrap secrets, so access/body logging is not enabled | Connection memory and Docker operational logs; operator controls log retention |
 | OPAQUE spike setup, password file, and pending login state | Opt-in, fixed-user feasibility test only; no product auth endpoint | Test process lifetime; memory only |
 | Media spike API secret, scoped JWTs, room/participant IDs, signaling, and RTP metadata | Loopback synthetic fixture only; no product media API | Fixture lifetime; generated secret configuration removed on normal shutdown |
+| Product call control ciphertext and ordinary DM routing/action metadata | Signed MLS offers/answers/heartbeats/hangups, group contributions/departures and key-update controls reuse encrypted delivery. SDP, ICE addresses, call IDs, selected rosters, public contributions and restart/key markers remain inside MLS; frame keys remain client-only | Existing encrypted delivery/outbox retention; expired controls cannot create a live call |
+| Current-call-format device capability leases | Prevent new private call content from stalling legacy clients. Approved own devices announce support; DM readiness checks require all MLS devices. No public capability directory | In memory for 90 seconds, bounded to 4096 device entries; backend restart clears it |
+| Group/room format support (`group_media_capabilities.device_key`, `format`) | Record that an approved device can parse the requested private-group or community-room control format, separately from online presence. The group-mode/version query is visible to the host; no room ID, active roster, contribution or media key is stored here. A 1:1-only announcement removes support; an older group client downgrades its public version | Database and host backups; downgraded on old-group-format announcement, removed on 1:1-only announcement or device-certificate deletion. Existing public certificate retention and account-deletion limits still apply |
+| Community voice room (`voice_rooms`: channel ID, room generation, MLS epoch, revision, relay-only choice) | Persistent channel occupancy coordination and replay-safe mesh generations. Room activity and privacy mode are visible to the host; no media key, SDP or media content | Until channel deletion, plus existing database/backup retention. A new MLS epoch replaces the generation |
+| Signed voice occupancy (`voice_presence`: channel, device/account IDs and public signed presence) | Four-person capacity, one-device-per-account enforcement and live approved participant discovery. Presence exposes an ephemeral **public** P-256 contribution, incarnation, privacy and issue/expiry times. Private ECDH keys, shared secrets, exporter bases and frame keys never cross this API | Active leases expire within 30 seconds. Expired/revoked active entries are pruned on room access; departed public entries are pruned on access after expiry plus two minutes. Device/account/channel deletion cascades; backups retain their ordinary limits |
+| Operator STUN/TURN endpoints, backend TURN shared secret and temporary relay credentials | Authorize relay allocations independently of media encryption. Approved account devices obtain one-hour credentials with random scope; endpoints/credentials reveal relay choice and timing to the relay | Static secret stays in private backend configuration; temporary credentials expire after one hour and are never diagnostic fields |
+| Optional `voice_rooms.sfu` mode and signed occupancy `sfu: true` | Bind topology into public room generation, participant signatures and client key context; selects four-person mesh or up to 25 joined SFU accounts | Room lifetime and ordinary database backup retention; mode changes replace leases/generation |
+| SFU access response: channel/room IDs, revision, public endpoint, revision-specific LiveKit room name, device-incarnation identity, short-lived JWT and expiry | Authenticate one currently joined approved device and authorize publication/subscription; token grants no media key, provider API secret, data publication or metadata mutation | No-store authenticated response; JWT valid for 60 seconds, connection metadata retained according to media operator settings |
+| Optional SFU API key/secret and generated private LiveKit configuration | Backend mints bounded admission tokens; SFU verifies tokens. These credentials can authorize routing but cannot decrypt client-encrypted frames | Private operator files/backend environment until explicitly rotated; excluded from source and build contexts |
+| Operator request-capacity profile (`HEARTH_REQUEST_PROFILE`) | `standard` retains 600 authorized requests/minute and 16 concurrent requests; opt-in `sfu25` supports 3,600 and 64. Per-account 120/minute, login bounds and gateway capacity stay unchanged; profiles remain bounded | Operator configuration and process memory until changed/restarted; no content keys or extra account data |
+| SFU connection metadata: device-incarnation identity, revision-specific room, track/source identifiers, SDP/DTLS fingerprints, ICE transport credentials, timing, addresses and encrypted RTP traffic | Route encrypted microphone/camera/screen/computer audio without frame-decryption keys; traffic volume reveals activity. SFU transport signaling is visible to the SFU, while Hearth's room-key controls remain MLS ciphertext | Live connection memory and media operator retention; generated production configuration uses error-level logs; no application recording or data publication is enabled |
 
 All routing information above is metadata. MLS private content is never decoded by the server.
+
+### Direct call recovery
+
+Same-epoch media recovery reuses the approved device pair, call ID, relay policy
+and client-only SFrame workers. ICE restarts change transport credentials without
+resetting media encryption counters or acquiring capture again. Random transaction
+markers inside authenticated encrypted SDP bind answers to one outstanding offer.
+Per-call replay tracking, deterministic glare resolution and six transactions per
+minute bound negotiation work. Only an already-consented, established call accepts
+restart negotiation. A late restart cannot ring a new call or reopen stopped capture.
+
+Clients reauthorize new descriptions and positively recheck relay-only selection
+before returning to connected. Authenticated media must advance during recovery.
+An independent 20-second deadline stops capture if negotiations or authorization
+stall; ordinary authorization/heartbeat watchdogs still apply. Hangup, session
+lock and device/DM access loss remain capture-ending events. Epoch changes during
+network recovery end capture; stable established 1:1 calls use the bounded
+[key-update handshake](CALL_KEY_UPDATES.md). Old key references are discarded,
+in-flight crypto outputs are invalidated, and media resumes only with peer/worker
+confirmation and advancing new-key frames. Overlapping epochs and update timeout
+end capture. Approved MLS devices remain within the conversation trust boundary.
+General group rekey and full messaging/network reconnection remain open.
+The local automatic-trigger test injects a connection-state event and is not proof
+of real outage recovery, cross-network privacy or physical-device permissions.
+
+### Private group voice
+
+Private group controls carry room IDs, a fixed sorted selected-device
+roster, admission controls and ephemeral P-256 public contributions inside existing
+MLS control ciphertext. It adds no cleartext server field or stored server table.
+The group ID/roster is also bound into the client-only exporter context. Ordinary
+1:1 envelopes omit these extensions, and the 1:1 controller ignores group controls.
+Group readiness is now separately requested for three-account private chats;
+ordinary 1:1 readiness retains its two-account guard.
+
+The product admission state requires explicit local consent and a directly
+authenticated contribution from each active peer before permitting pair key
+agreement; unanswered invitees cannot derive those pair keys. Each selected
+pair adds a fresh nonextractable ECDH secret to its MLS base with a
+domain-separated HKDF transcript. Other chat devices know MLS state and public
+contributions but lack those ephemeral private keys. Pair-key tests include a
+third participant's failed decryption attempt. Compromised or colluding selected endpoints can disclose content.
+Key disposal is reference removal plus temporary byte-buffer zeroing, without a
+WebCrypto/JavaScript secure-erasure guarantee. See [the exact scope](GROUP_VOICE.md).
+
+The current [private group voice controller](GROUP_VOICE.md) permits independent
+joins and ordinary leaves. Each participation change replaces pair connections,
+workers and derived keys, while preserving source/mute for continuing callers.
+Public departure tombstones prevent restoring pre-join keys or resurrecting a
+departed device through delayed controls. Explicit same-session rejoin uses a
+fresh ECDH contribution and a higher bounded participation round; leave dominates
+join within a round. Old round controls cannot remove the rejoined participant.
+After leaving, only public membership state is retained locally while peers are
+live; no microphone, worker or ephemeral private key remains. Rejoin verifies
+current permissions again. Format 2 capability gates prevent sending these new
+controls to older parsers. The call has no original-caller lifetime
+dependency. The last participant releases capture while waiting. Group-format
+support is durable capability metadata rather than a presence lease; server
+readiness enforces blocks between every account pair. Real-network, physical-device,
+full-platform and independent security/interoperability acceptance remain open.
 
 ### Guided setup invitations
 
@@ -301,6 +402,18 @@ sensitive even though plaintext password bytes are absent. Product transport sti
 TLS, and product records require protected storage, rate limits, and reviewed sessions.
 The test session-comparison tag is not a product authentication mechanism. Test reports
 print outcomes rather than keys, password files, or protocol transcripts.
+
+## Community room camera and screen video
+
+Community room camera/screen development reuses the verified encrypted pair's
+prebound media slots. Camera/screen state and a mesh-scoped monotonic counter
+travel inside MLS room heartbeats, never in public occupancy metadata. Room
+access is rechecked before capture, after permission selection and at each edge
+before attaching a clone. Source and clone tracks stop immediately on local
+leave/lock, access or epoch failure and room roster changes. Camera/share need
+fresh explicit consent for a changed audience. Current read/send permissions
+apply to all room media; separate track permissions remain open. See
+[room video](ROOM_VIDEO.md) for scope and acceptance boundaries.
 
 ## Phase 0 media experiment
 

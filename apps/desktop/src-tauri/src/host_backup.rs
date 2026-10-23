@@ -349,6 +349,21 @@ fn snapshot(data: &Path, selection: &Selection) -> Result<(PathBuf, Backup), Str
         180,
     )?;
     hashes.insert("helper-image.tar".into(), hosting::sha256(&helper_archive)?);
+    if selection.root.join("deploy/media/data/.env").exists() {
+        crate::host_media::directory(&selection.root)?;
+        fs::create_dir_all(directory.join("media"))
+            .map_err(|_| "Cannot back up private media settings.")?;
+        for file in crate::host_media::PRIVATE_FILES {
+            let source = selection.root.join("deploy/media/data").join(file);
+            if source.exists() {
+                hosting::regular(&source)?;
+                let name = format!("media/{file}");
+                fs::copy(&source, directory.join(&name))
+                    .map_err(|_| "Cannot back up media credentials.")?;
+                hashes.insert(name.clone(), hosting::sha256(&directory.join(name))?);
+            }
+        }
+    }
     let package = directory.join("package");
     fs::create_dir_all(package.join("deploy")).map_err(|_| "Cannot prepare portable backup.")?;
     let bundle = hosting::validate(&selection.root)?;
@@ -361,8 +376,17 @@ fn snapshot(data: &Path, selection: &Selection) -> Result<(PathBuf, Backup), Str
         "deploy/.env.example",
         "deploy/Caddyfile",
         "deploy/storage-entrypoint.sh",
-    ] {
+    ]
+    .into_iter()
+    .chain(
+        crate::host_media::PUBLIC_FILES
+            .iter()
+            .copied()
+            .filter(|file| bundle.files.contains_key(*file)),
+    ) {
         hosting::regular(&selection.root.join(file))?;
+        fs::create_dir_all(package.join(file).parent().ok_or("Invalid package path.")?)
+            .map_err(|_| "Cannot prepare portable media backup.")?;
         fs::copy(selection.root.join(file), package.join(file))
             .map_err(|_| "Cannot back up the signed deployment package.")?;
         hashes.insert(
@@ -461,6 +485,15 @@ fn validate_backup(directory: &Path, backup: &Backup) -> Result<(), String> {
     Ok(())
 }
 fn portable_file(file: &str) -> bool {
+    if crate::host_media::PRIVATE_FILES
+        .iter()
+        .any(|name| file == format!("media/{name}"))
+        || crate::host_media::PUBLIC_FILES
+            .iter()
+            .any(|name| file == format!("package/{name}"))
+    {
+        return true;
+    }
     matches!(
         file,
         "package/manifest.json"
@@ -579,6 +612,21 @@ fn restore(selection: &Selection, directory: &Path, backup: &Backup) -> Result<(
         }
         fs::copy(directory.join(file), target).map_err(|_| "Cannot restore host configuration.")?;
     }
+    for file in backup
+        .hashes
+        .keys()
+        .filter_map(|file| file.strip_prefix("package/"))
+    {
+        let target = selection.root.join(file);
+        fs::create_dir_all(target.parent().ok_or("Invalid recovery path.")?)
+            .map_err(|_| "Cannot restore deployment files.")?;
+        if target.exists() {
+            hosting::regular(&target)?;
+        }
+        fs::copy(directory.join("package").join(file), target)
+            .map_err(|_| "Cannot restore the signed deployment package.")?;
+    }
+    crate::host_media::restore(&selection.root, directory, &backup.hashes)?;
     hosting::compose(
         selection,
         &["up", "-d", "--no-build", "--wait", "--wait-timeout", "120"],
@@ -604,6 +652,7 @@ pub(crate) fn apply_with_data(
     signed: &SignedRelease,
     release: &ServerRelease,
 ) -> Result<(), String> {
+    let candidate = crate::host_package::update_candidate(data, release)?;
     hosting::compose(
         selection,
         &["stop", "--timeout", "30"],
@@ -629,6 +678,9 @@ pub(crate) fn apply_with_data(
         }
     };
     let result = (|| {
+        if let Some(candidate) = candidate.as_deref() {
+            crate::host_package::install_candidate(candidate, selection)?;
+        }
         let value = serde_json::json!({"services":{"server":{"image":release.image_id}}});
         fs::write(
             selection.root.join("deploy/compose.runtime.json"),
@@ -843,6 +895,14 @@ fn fresh_restore(data: &Path, directory: &Path) -> Result<Selection, String> {
         .keys()
         .filter_map(|file| file.strip_prefix("package/"))
     {
+        fs::create_dir_all(
+            pending
+                .root
+                .join(file)
+                .parent()
+                .ok_or("Invalid recovery path.")?,
+        )
+        .map_err(|_| "Cannot prepare media recovery.")?;
         fs::copy(
             directory.join("package").join(file),
             pending.root.join(file),
@@ -861,6 +921,7 @@ fn fresh_restore(data: &Path, directory: &Path) -> Result<Selection, String> {
         &pending.root.join("deploy/host-update.json"),
         &backup.release,
     )?;
+    crate::host_media::restore(&pending.root, directory, &backup.hashes)?;
     hosting::validate(&pending.root)?;
     let selection = Selection {
         root: pending.root,

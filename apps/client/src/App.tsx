@@ -10,6 +10,7 @@ import { invoke, isTauri } from '@tauri-apps/api/core'
 import { getVersion } from '@tauri-apps/api/app'
 import { HostingPanel } from './HostingPanel'
 import './Setup.css'
+import { watchSavedHost, type SavedHost } from './saved-host'
 
 const defaultUrl = import.meta.env.VITE_HEARTH_SERVER_URL ??
   ('__TAURI_INTERNALS__' in window ? 'http://localhost:8080' : window.location.origin)
@@ -54,14 +55,31 @@ export default function App() {
   const [error, setError] = useState('')
   const [checking, setChecking] = useState(false)
   const [signedIn, setSignedIn] = useState(false)
-  const [hostedAddress, setHostedAddress] = useState<string | null>(null)
+  const [hosted, setHosted] = useState<SavedHost | null>(null)
+  const [hostLookupFailed, setHostLookupFailed] = useState(false)
   const candidate = useRef<AbortController | null>(null)
   useEffect(() => {
     if (!isTauri()) return
     let disposed = false
     void getVersion().then(version => { if (!disposed) setClientVersion(version) }).catch(() => { /* Keep the version hidden if the native runtime is unavailable. */ })
-    void invoke<{ local_url: string | null } | null>('host_saved').then(saved => { if (!disposed) setHostedAddress(saved?.local_url ?? null) }).catch(() => { /* Hosting panel exposes recovery details. */ })
     return () => { disposed = true }
+  }, [])
+  useEffect(() => {
+    if (!isTauri()) return
+    const watcher = watchSavedHost(() => invoke<SavedHost | null>('host_saved'), result => {
+      setHostLookupFailed(result.kind === 'unavailable')
+      if (result.kind !== 'unavailable') setHosted(result.kind === 'saved' ? result.host : null)
+    })
+    const visible = () => { if (document.visibilityState === 'visible') watcher.refresh() }
+    window.addEventListener('focus', watcher.refresh)
+    document.addEventListener('visibilitychange', visible)
+    window.addEventListener('hearth:host-changed', watcher.refresh)
+    return () => {
+      watcher.stop()
+      window.removeEventListener('focus', watcher.refresh)
+      document.removeEventListener('visibilitychange', visible)
+      window.removeEventListener('hearth:host-changed', watcher.refresh)
+    }
   }, [])
   function remember(nextUrl: string, name: string) {
     setServers(previous => {
@@ -141,7 +159,10 @@ export default function App() {
       {servers.map(server => <button key={server.url} className={`server-tile ${url === server.url ? 'selected' : ''}`}
         aria-label={`Open server ${server.name}`} aria-current={url === server.url ? 'page' : undefined} title={server.name}
         onClick={() => openConnection('connection', server.url)}>{server.name.slice(0, 2).toUpperCase()}</button>)}
-      {hostedAddress && !servers.some(server => server.url === hostedAddress) && <button className="server-tile" aria-label="Open your hosted server" title="Your hosted server" onClick={() => openConnection('connection', hostedAddress)}><Icon name="server" /></button>}
+      {(hosted || hostLookupFailed) && !servers.some(server => server.url === hosted?.local_url) && <button className="server-tile"
+        aria-label={hosted?.local_url ? 'Open your hosted server' : 'Your host needs attention'}
+        title={hosted?.local_url ? 'Your hosted server' : 'Your host needs attention'}
+        onClick={() => hosted?.local_url ? openConnection('connection', hosted.local_url) : setPanel('host')}><Icon name="server" /></button>}
       <button className="server-tile add-server" aria-label="Add server" title="Add server" onClick={() => openConnection('add')}><Icon name="plus" /></button>
       {isTauri() && <button className="server-tile" aria-label="Hosting and updates" title="Hosting & updates" onClick={() => setPanel('host')}><Icon name="server" /></button>}
       <span className="rail-bottom" title="Messages are encrypted"><Icon name="shield" /></span>

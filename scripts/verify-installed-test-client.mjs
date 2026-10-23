@@ -9,6 +9,16 @@ import { dirname, isAbsolute, join, relative, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 
 const root = fileURLToPath(new URL('../', import.meta.url))
+const signedDeployFiles=['compose.yaml','compose.https.yaml','setup.mjs','.env.example','Caddyfile','storage-entrypoint.sh','compose.media.yaml','compose.turn.yaml','compose.turn-tls.yaml','media/setup.mjs','media/turn-entrypoint.sh']
+function copySignedDeploy(bundle,hostRoot,manifest){
+  for(const file of signedDeployFiles){
+    const expected=manifest.files['deploy/'+file]
+    if(expected===undefined){assert.ok(file==='compose.media.yaml'||file==='compose.turn.yaml'||file==='compose.turn-tls.yaml'||file.startsWith('media/'),'Required signed deployment file missing');continue}
+    const source=join(bundle,'deploy',file),target=join(hostRoot,'deploy',file)
+    assert.equal(createHash('sha256').update(readFileSync(source)).digest('hex'),expected,'Deployment file must match the signed bundle')
+    mkdirSync(dirname(target),{recursive:true});copyFileSync(source,target)
+  }
+}
 const sleep = ms => new Promise(resolve => setTimeout(resolve, ms))
 async function eventually(test, label, ms = 20000) {
   const until = Date.now() + ms
@@ -73,10 +83,7 @@ export async function verifyInstalledTestClient({ bundle, origin, output, hostPr
     assert.match(hostProject,/^hearth-host-[a-f0-9]{24}$/)
     const hostRoot=join(directory,'native-host');mkdirSync(join(hostRoot,'deploy'),{recursive:true})
     const hostManifest=structuredClone(manifest);hostManifest.server.composeProject=hostProject;hostManifest.server.backendPort=Number(new URL(origin).port)
-    for(const file of ['compose.yaml','compose.https.yaml','setup.mjs','.env.example','Caddyfile','storage-entrypoint.sh']){
-      copyFileSync(join(bundle,'deploy',file),join(hostRoot,'deploy',file))
-      hostManifest.files['deploy/'+file]=createHash('sha256').update(readFileSync(join(hostRoot,'deploy',file))).digest('hex')
-    }
+    copySignedDeploy(bundle,hostRoot,hostManifest)
     for(const file of ['.env','s3.json'])copyFileSync(join(directory,file),join(hostRoot,'deploy',file))
     writeFileSync(join(hostRoot,'manifest.json'),JSON.stringify(hostManifest))
     const signingKey=process.env.TAURI_SIGNING_PRIVATE_KEY_PATH??join(root,'.release-keys/updater.key')
@@ -252,10 +259,7 @@ export async function verifyInstalledPreviewUpgrade({bundle,output,origin,hostPr
       assert.match(hostProject,/^hearth-host-[a-f0-9]{24}$/)
       const hostRoot=join(output,'native-owner-host');mkdirSync(join(hostRoot,'deploy'),{recursive:true})
       const hostManifest=structuredClone(manifest);hostManifest.server.composeProject=hostProject;hostManifest.server.backendPort=Number(new URL(origin).port)
-      for(const file of ['compose.yaml','compose.https.yaml','setup.mjs','.env.example','Caddyfile','storage-entrypoint.sh']){
-        copyFileSync(join(bundle,'deploy',file),join(hostRoot,'deploy',file))
-        hostManifest.files['deploy/'+file]=createHash('sha256').update(readFileSync(join(hostRoot,'deploy',file))).digest('hex')
-      }
+      copySignedDeploy(bundle,hostRoot,hostManifest)
       for(const file of ['.env','s3.json'])copyFileSync(join(output,file),join(hostRoot,'deploy',file))
       writeFileSync(join(hostRoot,'manifest.json'),JSON.stringify(hostManifest))
       const signingKey=process.env.TAURI_SIGNING_PRIVATE_KEY_PATH??join(root,'.release-keys/updater.key')

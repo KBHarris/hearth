@@ -22,10 +22,14 @@ use zeroize::Zeroizing;
 
 #[path = "messaging_attachments.rs"]
 mod attachments;
+#[path = "messaging_calls.rs"]
+mod calls;
 #[path = "messaging_history.rs"]
 mod history;
 #[path = "messaging_reports.rs"]
 pub mod reports;
+#[path = "messaging_voice.rs"]
+mod voice_rooms;
 
 const SUITE: Ciphersuite = Ciphersuite::MLS_128_DHKEMX25519_AES128GCM_SHA256_Ed25519;
 const ERROR: &str =
@@ -141,7 +145,14 @@ pub struct MessagingView {
     pub history_waiting: Vec<String>,
     pub emoji: BTreeMap<String, BTreeMap<String, LocalAttachment>>,
 }
+type VerifiedMembers = std::cell::RefCell<HashMap<(Vec<u8>, Vec<u8>), GroupMember>>;
 pub struct Messaging {
+    // Live notifications only: never restored from a local snapshot/history.
+    call_signals: Vec<LocalCallSignal>,
+    // Exact signed credentials only; never cache policy, revocation or admission.
+    // This is process-local and bounded, and is not restored from snapshots.
+    verified_members: VerifiedMembers,
+    verified_channels: HashMap<String, (Option<u64>, ChannelAuthorization)>,
     provider: OpenMlsRustCrypto,
     signer: SignatureKeyPair,
     device: IdentityKey,
@@ -151,6 +162,9 @@ pub struct Messaging {
     groups: HashMap<String, MlsGroup>,
     state: ClientState,
 }
+
+#[path = "messaging_activity.rs"]
+mod activities;
 
 pub fn valid_id(id: &str) -> bool {
     id.len() == 64
@@ -190,7 +204,8 @@ fn content_channel_allowed(auth: Option<&ChannelAuthorization>, content: &Messag
         return true;
     }
     match content {
-        MessageContent::Text { .. }
+        MessageContent::Activity { .. }
+        | MessageContent::Text { .. }
         | MessageContent::RichText { .. }
         | MessageContent::Attachment { .. } => false,
         MessageContent::Poll { parent, .. } => parent.is_some(),
@@ -449,6 +464,9 @@ impl Messaging {
         );
         fail(signer.store(provider.storage()))?;
         Ok(Self {
+            call_signals: Vec::new(),
+            verified_members: Default::default(),
+            verified_channels: Default::default(),
             provider,
             signer,
             device: IdentityKey::from_bytes(&secret),
@@ -557,7 +575,8 @@ impl Messaging {
         })
     }
     fn pin(&mut self, peer: &GroupMember) -> Result<(), String> {
-        verify_member(peer, &self.server)?;
+        let credential = BasicCredential::new(fail(serde_json::to_vec(peer))?).into();
+        self.verified_member(&credential, &decode(&peer.enrollment.device_key)?)?;
         let expected = if peer.account_id == self.own.account_id {
             Some(&self.own.enrollment.identity_key)
         } else {
@@ -570,11 +589,29 @@ impl Messaging {
         );
         Ok(())
     }
+    fn verified_member(
+        &self,
+        credential: &Credential,
+        signature: &[u8],
+    ) -> Result<GroupMember, String> {
+        require(credential.credential_type() == CredentialType::Basic)?;
+        let key = (credential.serialized_content().to_vec(), signature.to_vec());
+        if let Some(peer) = self.verified_members.borrow().get(&key) {
+            return Ok(peer.clone());
+        }
+        let peer = member(credential, signature, &self.server)?;
+        let mut cache = self.verified_members.borrow_mut();
+        if cache.len() >= MAX_MEMBERS {
+            cache.clear();
+        }
+        cache.insert(key, peer.clone());
+        Ok(peer)
+    }
     fn roster(&mut self, id: &str) -> Result<Vec<GroupMember>, String> {
         let group = self.groups.get(id).ok_or(ERROR)?;
         let mut peers = group
             .members()
-            .map(|leaf| member(&leaf.credential, &leaf.signature_key, &self.server))
+            .map(|leaf| self.verified_member(&leaf.credential, &leaf.signature_key))
             .collect::<Result<Vec<_>, _>>()?;
         require(!peers.is_empty() && peers.len() <= MAX_MEMBERS)?;
         peers.sort_by(|a, b| a.enrollment.device_key.cmp(&b.enrollment.device_key));
@@ -610,14 +647,31 @@ impl Messaging {
             Ok(record)
         })
     }
-    pub fn verify_peers(&mut self, peers: &[GroupMember]) -> Result<(), String> {
-        self.transaction(|this| {
-            require(peers.len() <= 160)?;
-            for peer in peers {
-                this.pin(peer)?;
-            }
-            Ok(())
-        })
+    pub fn verify_peers(&mut self, peers: &[GroupMember]) -> Result<bool, String> {
+        require(peers.len() <= 160)?;
+        // Validate the complete candidate before changing any persisted pin.
+        // Repeated authorization of identical credentials needs neither a full
+        // MLS transaction snapshot nor another encrypted-store write.
+        let mut pins = self.state.pins.clone();
+        for peer in peers {
+            let credential = BasicCredential::new(fail(serde_json::to_vec(peer))?).into();
+            self.verified_member(&credential, &decode(&peer.enrollment.device_key)?)?;
+            let expected = if peer.account_id == self.own.account_id {
+                Some(&self.own.enrollment.identity_key)
+            } else {
+                pins.get(&peer.account_id)
+            };
+            require(expected.is_none_or(|key| *key == peer.enrollment.identity_key))?;
+            pins.insert(
+                peer.account_id.clone(),
+                peer.enrollment.identity_key.clone(),
+            );
+        }
+        if pins == self.state.pins {
+            return Ok(false);
+        }
+        self.state.pins = pins;
+        Ok(true)
     }
     pub fn sign_authority(&mut self, community_id: &str) -> Result<CommunityAuthority, String> {
         require(valid_id(community_id))?;
@@ -1084,7 +1138,29 @@ impl Messaging {
         &mut self,
         id: &str,
         auth: &ChannelAuthorization,
-    ) -> Result<(), String> {
+    ) -> Result<bool, String> {
+        let epoch = self.groups.get(id).map(|group| group.epoch().as_u64());
+        let community = &auth.authority.community_id;
+        if self
+            .verified_channels
+            .get(id)
+            .is_some_and(|(old_epoch, old)| *old_epoch == epoch && old == auth)
+            && self.state.channels.get(id) == Some(auth)
+            && self.state.community_authorities.get(community) == Some(&auth.authority)
+            && self.state.governance.get(community) == auth.governance.as_ref()
+            && self
+                .state
+                .joined_invites
+                .get(community)
+                .is_none_or(|expected| {
+                    auth.admissions
+                        .iter()
+                        .find(|grant| grant.account_id == self.own.account_id)
+                        .is_none_or(|grant| grant.invitation.as_ref() == Some(expected))
+                })
+        {
+            return Ok(false);
+        }
         self.transaction(|this| {
             crate::community::verify_authorization(&this.server, id, auth, &[])
                 .map_err(|_| "commit_auth_proofs".to_string())?;
@@ -1151,7 +1227,13 @@ impl Messaging {
                 this.capture_history_key(id)?;
             }
             Ok(())
-        })
+        })?;
+        if self.verified_channels.len() >= 128 {
+            self.verified_channels.clear();
+        }
+        self.verified_channels
+            .insert(id.into(), (epoch, auth.clone()));
+        Ok(true)
     }
     // Ordered delivery can contain a valid earlier commit after a newer REST policy
     // was pinned. Verify it for its epoch without lowering current authority/policy pins.
@@ -1434,6 +1516,10 @@ impl Messaging {
                 if matches!(
                     content,
                     MessageContent::Text { .. }
+                        | MessageContent::Activity {
+                            activity: hearth_proto::activity::Activity::Event { .. }
+                                | hearth_proto::activity::Activity::Playback { .. }
+                        }
                         | MessageContent::RichText { .. }
                         | MessageContent::Thread { .. }
                         | MessageContent::ForumPost { .. }
@@ -1502,6 +1588,12 @@ impl Messaging {
     }
     pub fn send(&mut self, id: &str, content: MessageContent) -> Result<MessageUpload, String> {
         self.transaction(|this| {
+            if let MessageContent::Activity { activity } = &content {
+                this.check_activity(id, activity)?;
+            }
+            if let MessageContent::Call { signal } = &content {
+                this.verify_call(id, signal, &this.own.enrollment.device_key)?;
+            }
             require(!this.state.pending.iter().any(|p| p.conversation() == id))?;
             let (action, target_id) = content_metadata(&content);
             if let Some(auth) = this.state.channels.get(id) {
@@ -1628,6 +1720,31 @@ impl Messaging {
         content: MessageContent,
     ) -> Result<(), String> {
         match content {
+            MessageContent::Activity { activity } => {
+                self.apply_activity(group, operation, author, activity)?
+            }
+            MessageContent::Call { signal } => {
+                let own = &self.own.enrollment.device_key;
+                let group_control = (signal.kind.starts_with("group-")
+                    || signal.kind == "room-heartbeat"
+                    || signal.kind.starts_with("sfu-"))
+                    && signal.group_id.is_some()
+                    && signal
+                        .participants
+                        .as_ref()
+                        .is_some_and(|peers| peers.contains(own))
+                    && signal.from_device != *own;
+                if signal.to_device == *own || group_control {
+                    if self.call_signals.len() >= 32 {
+                        self.call_signals.remove(0);
+                    }
+                    self.call_signals.push(LocalCallSignal {
+                        conversation_id: group.into(),
+                        account_id: author.into(),
+                        signal,
+                    });
+                }
+            }
             MessageContent::Attachment { text, files } => {
                 let mut public = Vec::new();
                 for file in files {
@@ -1661,6 +1778,8 @@ impl Messaging {
             MessageContent::Text { text, reply_to } => {
                 require(!self.state.messages.iter().any(|m| m.id == operation))?;
                 self.state.messages.push(LocalMessage {
+                    event: None,
+                    playback: None,
                     id: operation.into(),
                     conversation_id: group.into(),
                     author_id: author.into(),
@@ -1848,6 +1967,8 @@ impl Messaging {
                     message.deleted = true;
                     message.topic = None;
                     message.poll = None;
+                    message.event = None;
+                    message.playback = None;
                     message.reactions.clear();
                     message.pinned = false;
                     message.embed = None;
@@ -2100,6 +2221,9 @@ impl Messaging {
                         };
                         let plaintext = Zeroizing::new(message.into_bytes());
                         let content = this.decode_content(id, upload, peer, &plaintext)?;
+                        if let MessageContent::Call { signal } = &content {
+                            this.verify_call_epoch(id, signal, &upload.device_key, upload.epoch)?;
+                        }
                         validate_content(&content)?;
                         require(content_channel_allowed(bound.as_ref(), &content))?;
                         if matches!(content, MessageContent::Attachment { .. })
@@ -2141,7 +2265,7 @@ impl Messaging {
             accounts.dedup();
             groups.push(Conversation {
                 id: id.clone(),
-                channel_id: None,
+                channel_id: self.state.channels.contains_key(&id).then(|| id.clone()),
                 accounts,
                 epoch: self.groups[&id].epoch().as_u64(),
                 members,
@@ -2221,6 +2345,7 @@ fn peer_device(credential: &Credential) -> Result<String, String> {
 }
 fn content_metadata(content: &MessageContent) -> (MessageAction, Option<String>) {
     match content {
+        MessageContent::Activity { activity } => activities::metadata(activity),
         MessageContent::ForumPost { .. } | MessageContent::Poll { .. } => {
             (MessageAction::Send, None)
         }
@@ -2237,7 +2362,8 @@ fn content_metadata(content: &MessageContent) -> (MessageAction, Option<String>)
         }
         MessageContent::Reaction { id, .. } => (MessageAction::Reaction, Some(id.clone())),
         MessageContent::Pin { id, .. } => (MessageAction::Pin, Some(id.clone())),
-        MessageContent::Read { .. }
+        MessageContent::Call { .. }
+        | MessageContent::Read { .. }
         | MessageContent::Profile { .. }
         | MessageContent::Presence { .. }
         | MessageContent::HistoryRequest { .. }
@@ -2246,6 +2372,8 @@ fn content_metadata(content: &MessageContent) -> (MessageAction, Option<String>)
 }
 fn validate_content(content: &MessageContent) -> Result<(), String> {
     match content {
+        MessageContent::Activity { activity } => activities::validate(activity),
+        MessageContent::Call { signal } => calls::validate(signal),
         MessageContent::ForumPost { title, text } => require(
             !title.trim().is_empty()
                 && title.len() <= 160
@@ -2377,6 +2505,24 @@ fn validate_content(content: &MessageContent) -> Result<(), String> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[test]
+    fn repeated_verified_peers_do_not_mutate_pins_and_failed_candidates_are_atomic() {
+        let server = random_id();
+        let mut alice = Messaging::new(&LocalIdentity::new(), &random_id(), &server).unwrap();
+        let bob_id = random_id();
+        let bob = Messaging::new(&LocalIdentity::new(), &bob_id, &server).unwrap();
+        assert!(alice.verify_peers(std::slice::from_ref(&bob.own)).unwrap());
+        assert!(!alice.verify_peers(std::slice::from_ref(&bob.own)).unwrap());
+        let pins = alice.state.pins.clone();
+        let another = Messaging::new(&LocalIdentity::new(), &random_id(), &server).unwrap();
+        let impostor = Messaging::new(&LocalIdentity::new(), &bob_id, &server).unwrap();
+        assert!(alice.verify_peers(&[another.own, impostor.own]).is_err());
+        assert_eq!(alice.state.pins, pins);
+        let mut tampered = bob.own;
+        tampered.enrollment.device_signature = "00".repeat(64);
+        assert!(alice.verify_peers(&[tampered]).is_err());
+        assert_eq!(alice.state.pins, pins);
+    }
     fn event(seq: u64, id: &str, data: DeliveryData) -> DeliveryEvent {
         DeliveryEvent {
             seq,
@@ -2693,6 +2839,7 @@ mod tests {
             .sign_governance(
                 &authority,
                 Governance {
+                    media_version: None,
                     delegation: None,
                     moderator_admission: None,
                     community_id: community.clone(),
@@ -3014,6 +3161,7 @@ mod tests {
             .sign_governance(
                 &authority,
                 Governance {
+                    media_version: None,
                     delegation: None,
                     moderator_admission: None,
                     community_id: community,
@@ -3249,6 +3397,7 @@ mod tests {
                     .sign_governance(
                         &authority,
                         hearth_proto::governance::Governance {
+                            media_version: None,
                             delegation: None,
                             moderator_admission: None,
                             community_id: community.clone(),

@@ -1,0 +1,9 @@
+{
+  "projectName": "hearth",
+  "environment": "production",
+  "web": true,
+  "region": "us-west2",
+  "bucketRegion": "iad",
+  "volumeSizeMB": 1024,
+  "extraClientOrigins": []
+}
