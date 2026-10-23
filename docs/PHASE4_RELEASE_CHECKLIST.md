@@ -20,7 +20,7 @@ outside-network, clean-machine, or cross-platform pass.
   settings and provider credentials in protected backup/restore/update handling.
 - [x] Guided host/release packaging, WSS routing, optional browser hosting and
   cloud recovery procedures. Keep live Railway application paused.
-- [ ] Normal production build excludes acceptance entries and private material.
+- [x] Normal production build excludes acceptance entries and private material.
   Run required npm, Rust, protocol, WASM and desktop checks on final source.
 - [ ] Freeze final sanitized evidence and update roadmap/progress accurately.
 - [ ] Prepare and sign the new client/server release, publish its complete
@@ -44,5 +44,8 @@ outside-network, clean-machine, or cross-platform pass.
 5. Exercise clean installation, reboot/sign-in hosting, fresh-host restore and
    the remaining macOS/Linux/browser platform matrix. The Windows upgrade does
    not establish those results. Linux's browser fallback remains explicit.
+6. Close and reopen Hearth using the normal Windows Start-menu shortcut and
+   confirm the saved server remains in the sidebar. Codex-launched diagnostics
+   and an isolated WebView profile do not establish normal Windows profile access.
 
 Live Railway provisioning and hosted CI stay on hold until separately requested.

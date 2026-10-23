@@ -5,6 +5,9 @@ import {MessagingSession,initialChat,type ChatState} from '../crypto/messaging-s
 import {VoiceRoomCall} from './voice-room'
 import {SfuKeys} from './sfu-keys'
 import {verifyIndependentLease} from './lease-acceptance'
+import {createElement} from 'react'
+import {createRoot} from 'react-dom/client'
+import {Playback} from '../CallPanel'
 if(!import.meta.env.DEV&&!__HEARTH_CALL_ACCEPTANCE__)throw new Error('Acceptance build required')
 const parentOrigin=new URL(document.referrer).origin
 if(parentOrigin!=='http://127.0.0.1:5176'||parent===window)throw new Error('Disposable coordinator required')
@@ -22,10 +25,16 @@ function own(track:MediaStreamTrack){tracks.push(track);const clone=track.clone.
 function tone(frequency:number){const oscillator=audio.createOscillator(),gain=audio.createGain(),output=audio.createMediaStreamDestination(),silent=audio.createGain();gain.gain.value=.1;silent.gain.value=0;oscillator.frequency.value=frequency;oscillator.connect(gain).connect(output);gain.connect(silent).connect(audio.destination);oscillator.start();output.stream.getTracks().forEach(own);return output.stream}
 function picture(screen:boolean,withAudio=false){if(screen)screens++;else cameras++;const canvas=document.createElement('canvas');canvas.width=320;canvas.height=180;const context=canvas.getContext('2d')!;let frame=0;const paint=()=>{context.fillStyle=screen?'#2040d0':'#d04020';context.fillRect(0,0,320,180);context.fillStyle='#fff';context.fillText(String(frame++),20,80)};paint();timers.push(setInterval(paint,100));const stream=canvas.captureStream(10);stream.getTracks().forEach(own);if(withAudio){system++;stream.addTrack(tone(1200).getAudioTracks()[0])}return stream}
 const meters=new Map<string,{read:()=>number;close:()=>void}>(),videos=new Map<string,HTMLVideoElement>()
+const playbackContainer=document.createElement('div');document.body.append(playbackContainer)
+const playbackRoot=createRoot(playbackContainer),originalPlay=HTMLMediaElement.prototype.play
+// Use the product playback path. A statistics-only MediaStreamAudioSourceNode
+// does not start Chromium's remote WebRTC audio decoder in these isolated sites.
+HTMLMediaElement.prototype.play=function(){this.volume=0;return originalPlay.call(this)}
 function peak(track:MediaStreamTrack){let meter=meters.get(track.id);if(!meter){const analyser=audio.createAnalyser(),silent=audio.createGain(),source=audio.createMediaStreamSource(new MediaStream([track]));silent.gain.value=0;source.connect(analyser);analyser.connect(silent).connect(audio.destination);const samples=new Float32Array(analyser.fftSize);meter={read:()=>{analyser.getFloatTimeDomainData(samples);return Math.max(...samples.map(Math.abs))},close:()=>{source.disconnect();analyser.disconnect();silent.disconnect()}};meters.set(track.id,meter)}return meter.read()}
 function render(){
   if(!call)return
   document.getElementById('status')!.textContent=call.state.phase+' · '+call.state.participants.length
+  playbackRoot.render(createElement('div',{},call.state.participants.flatMap(peer=>[...(peer.remote?[createElement(Playback,{key:peer.remote.getAudioTracks()[0]?.id,stream:peer.remote,kind:'audio'})]:[]),...(peer.systemAudioTrack?[createElement(Playback,{key:peer.systemAudioTrack.id,stream:new MediaStream([peer.systemAudioTrack]),kind:'audio'})]:[])])))
   const active=new Set<string>()
   const activeAudio=new Set(call.state.participants.flatMap(peer=>[...(peer.remote?.getAudioTracks().map(track=>track.id)??[]),...(peer.systemAudioTrack?[peer.systemAudioTrack.id]:[])]))
   for(const [id,meter] of meters)if(!activeAudio.has(id)){meter.close();meters.delete(id)}
@@ -79,7 +88,7 @@ async function operation(name:string,data:Record<string,unknown>){
     case 'metrics':return call.sfuDiagnostics()
     case 'snapshot':return {phase:call.state.phase,message:call.state.message,fault:call.failureDiagnostics(),participants:call.state.participants.map(peer=>({device:peer.device,remote:!!peer.remote,camera:peer.camera,screen:peer.sharing,system:peer.systemAudio,micPeak:peer.remote?.getAudioTracks()[0]?peak(peer.remote.getAudioTracks()[0]):null,systemPeak:peer.systemAudioTrack?peak(peer.systemAudioTrack):null})),muted:call.state.muted,camera:call.state.camera,screen:call.state.sharing,system:call.state.systemAudio,mics,cameras,screens,systemCaptures:system,joined:state.joined,epoch:state.conversations.find(group=>group.id===id)?.epoch,deliveryError:state.error,failures,ownedTracks:tracks.length,allStopped:tracks.every(track=>track.readyState==='ended'),keyContexts:contexts.size,wirePrivate:wire.length<=4096&&[...keys].every(key=>wire.every(body=>!body.includes(key))),historyEmpty:state.messages.length===0,timings}
     case 'leave':call.leave();return true
-    case 'close':call.close();service.close();cryptoClient.close();for(const timer of timers)clearInterval(timer);for(const video of videos.values()){video.srcObject=null;video.remove()}await audio.close();keys.clear();wire.length=0;contexts.clear();return true
+    case 'close':call.close();playbackRoot.unmount();playbackContainer.remove();service.close();cryptoClient.close();for(const timer of timers)clearInterval(timer);for(const video of videos.values()){video.srcObject=null;video.remove()}await audio.close();keys.clear();wire.length=0;contexts.clear();return true
     default:throw new Error('Unknown fixture operation')
   }
 }

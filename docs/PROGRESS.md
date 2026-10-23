@@ -102,6 +102,25 @@ Old-room controls are ignored while a fresh recovery owns admission. The 128
 client tests, complete npm verification and direct MLS-rekey/TCP fixture pass.
 Full Windows SFU and 25-person fixtures are being repeated before publication.
 
+The updated Windows SFU/TCP fixture passes twenty checks and all thirty directed
+audio paths; the direct rekey/TCP fixture passes seventeen. Frozen production
+images pass the eight browser/restart/restore checks, and all eleven production
+assets pass the acceptance-entry and fixture-canary scan. A subsequent large-room
+attempt lost a local connection during its final setup admission, before any
+voice join; that failure is retained. The isolated repeat has passed setup and
+is measuring media with passive numeric diagnostics. Publication and actual
+client/server upgrades still await that room's complete result.
+
+The isolated priority-scheduling run kept all twenty-five endpoints connected
+through the PCM deadline, with all 600 subscribed audio paths receiving encrypted
+RTP and no encryption-worker/missing-key errors. It still failed PCM: the
+distributed fixture had not mounted the product `Playback` component, unlike
+the actual room UI and the passing six-person native fixture. Its statistics-only
+Web Audio nodes did not start Chromium's remote audio decoders. The fixture now
+uses the actual product component with silent output and is being rerun. The
+earlier zero-PCM result remains a failure; it is not substituted with transport
+statistics. This change affects acceptance tooling, not production media code.
+
 **Phase 4 SFU and computer audio, 2026-10-22:** optional SFU community rooms
 are implemented with a 25-account admission bound, current signed device/room
 leases and 60-second revision-specific routing tokens. Each publisher derives
