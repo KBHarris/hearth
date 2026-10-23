@@ -90,6 +90,9 @@ export class VoiceRoomCall {
     this.transport=transport;this.server=server;this.changed=changed;this.capture=capture;this.available=available;this.displayCapture=displayCapture
     this.dispose=transport.onCall(event=>{
       if(!event.signal.voice_room||!this.active||event.conversation_id!==this.state.channel)return
+      // Recovery owns fresh admission. Old-room controls must not race its new
+      // contribution or trigger a second refresh against a replaced incarnation.
+      if(this.recovering)return
       if(event.signal.kind.startsWith('sfu-')){
         if(this.matches(event.signal)&&this.sfu&&this.sfuKeys)this.receiveSfu(event.signal,this.mesh)
         else if(event.signal.expires_at>Date.now()){
@@ -351,7 +354,10 @@ export class VoiceRoomCall {
       void renewal.catch(error=>{if(generation===this.generation){this.failed('renew',error);if((error as {status?:number}).status===409||transient(error))this.recover('Updating room participation…');else this.finish('Voice room permissions were lost.')}}).finally(()=>{if(generation===this.generation)this.renewing=false})
     }
     if(this.snapshot&&this.own&&!this.renewing&&now-this.lastPoll>=5000){this.lastPoll=now;void this.refresh().catch(error=>{if(generation===this.generation){this.failed('poll',error);if((error as {status?:number}).status===409||transient(error))this.recover('Updating room participation…');else this.finish('Voice room access was lost.')}})}
-    if((this.edges.size||this.sfu)&&this.admission&&now-this.lastHeartbeat>=10_000){
+    // SFU liveness already has independent signed leases and fresh-policy reads.
+    // State changes send immediately; periodic MLS state/key repeats need only
+    // run every thirty seconds. Mesh peers retain their ten-second heartbeat.
+    if((this.edges.size||this.sfu)&&this.admission&&now-this.lastHeartbeat>=(this.sfu?30_000:10_000)){
       this.lastHeartbeat=now;const context=this.admission.context,version=this.mesh
       const signal:CallSignal={call_id:context.id,group_id:context.id,voice_room:context.voiceRoom,participants:[...context.participants],epoch:context.epoch,from_device:this.transport.callDevice,to_device:context.participants.find(device=>device!==this.transport.callDevice)!,kind:context.sfu?'sfu-heartbeat':'room-heartbeat',description:roomMediaDescription(this.mediaRevision,this.state),relay_only:context.relayOnly,expires_at:now+60_000}
       if(this.sfuPublishedKeys&&this.sfuKeys&&now-this.lastSfuKeys>=30_000){try{this.lastSfuKeys=now;void this.transport.send(context.conversation,{kind:'call',signal:this.sfuKeys.repeat()}).catch(()=>{if(this.active&&version===this.mesh)this.finish('SFU key signaling was lost.')})}catch{this.recover('Refreshing encrypted room participation…');return}}

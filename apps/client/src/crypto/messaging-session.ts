@@ -1,5 +1,6 @@
 import {deliveryBatch} from './delivery-batch'
 import {verifiedVoiceSnapshot} from './voice-snapshot'
+import {MediaWork} from './media-work'
 import type {ReportKey,ReportEvidence,QueuedReport,ReportEnvelope} from '@hearth/sdk'
 export type ReportReview=QueuedReport&{evidence?:ReportEvidence;error?:string}
 import {permissions,mediaPermissions,withMediaPermissions,Permission,HearthClient,HearthError,PROTOCOL_VERSION,validateDeliveryEvent,type Session,type DeviceEnrollment,type Conversation,type LocalMessage,type KeyPackageRecord,type CommitUpload,type MessageUpload,type MessageContent,type Person,type DeliveryEvent,type ChannelRoster} from '@hearth/sdk'
@@ -41,7 +42,7 @@ export class MessagingSession {
     const config=await this.client.groupCallConfiguration(this.session.token,this.device.device_key,this.options)
     return config.ice_servers.map(server=>({urls:server.urls,...(server.username&&server.credential?{username:server.username,credential:server.credential}:{})}))
   }
-  callKey(id:string,signal:CallSignal):Promise<string>{return this.enqueue(()=>this.operation<string>('call_key',{id,signal}))}
+  callKey(id:string,signal:CallSignal):Promise<string>{return this.enqueueMedia(()=>this.operation<string>('call_key',{id,signal}))}
   authorizeCall(id:string,signal?:CallSignal):Promise<Conversation>{return this.authorizeMedia(id,signal,false)}
   authorizeGroupCall(id:string,signal?:CallSignal):Promise<Conversation>{return this.authorizeMedia(id,signal,true)}
   private async voiceAccess(id:string){
@@ -65,8 +66,8 @@ export class MessagingSession {
     if(room.epoch!==view.conversation.epoch)throw Object.assign(new Error('Room encryption is updating.'),{status:409})
     return {room,...view}
   }
-  voiceRoom(id:string):Promise<{room:VoiceRoom;conversation:Conversation;permissions:Record<string,number>;stage:boolean}>{return this.enqueue(()=>verifiedVoiceSnapshot(()=>this.readVoiceRoom(id),(value,now)=>this.operation('verify_voice_room',{room:value.room,now})))}
-  voicePresence(value:VoicePresence):Promise<{room:VoiceRoom;conversation:Conversation;permissions:Record<string,number>;stage:boolean}>{return this.enqueue(async()=>{
+  voiceRoom(id:string):Promise<{room:VoiceRoom;conversation:Conversation;permissions:Record<string,number>;stage:boolean}>{return this.enqueueMedia(()=>verifiedVoiceSnapshot(()=>this.readVoiceRoom(id),(value,now)=>this.operation('verify_voice_room',{room:value.room,now})))}
+  voicePresence(value:VoicePresence):Promise<{room:VoiceRoom;conversation:Conversation;permissions:Record<string,number>;stage:boolean}>{return this.enqueueMedia(async()=>{
     const view=await this.voiceAccess(value.channel_id)
     if(value.epoch!==view.conversation.epoch)throw Object.assign(new Error('Room encryption is updating.'),{status:409})
     const signed=await this.operation<VoicePresence>('sign_voice_presence',value)
@@ -88,7 +89,7 @@ export class MessagingSession {
     if(room.channel_id!==signed.channel_id||room.room_id!==signed.room_id||room.epoch!==signed.epoch||!own||!Object.entries(signed).every(([key,value])=>own[key as keyof VoicePresence]===value))throw Object.assign(new Error('Room participation is updating.'),{status:409})
     return signed.expires_at
   }
-  sfuAccess(id:string,revision:number):Promise<SfuAccess>{return this.enqueue(async()=>{
+  sfuAccess(id:string,revision:number):Promise<SfuAccess>{return this.enqueueMedia(async()=>{
     await this.voiceAccess(id)
     return this.client.sfuAccess(this.session.token,id,this.device.device_key,revision,this.options)
   })}
@@ -124,6 +125,7 @@ export class MessagingSession {
   private view:EngineView=initialView
   private state:ChatState=initialChat
   private tail:Promise<unknown>=Promise.resolve()
+  private mediaWork=new MediaWork()
   private socket:WebSocket|null=null
   private heartbeat:ReturnType<typeof setInterval>|undefined
   private maintenance:ReturnType<typeof setInterval>|undefined
@@ -143,8 +145,15 @@ export class MessagingSession {
   private server:string
   private get options(){return {signal:this.controller.signal}}
   private enqueue<T>(action:()=>Promise<T>):Promise<T> {
-    const result=this.tail.then(()=>{if(this.closed)throw new Error('Messaging is locked. Sign in again.');return action()})
+    const result=this.tail.then(async()=>{await this.mediaWork.drain();if(this.closed)throw new Error('Messaging is locked. Sign in again.');return action()})
     this.tail=result.catch(()=>{})
+    return result
+  }
+  private enqueueMedia<T>(action:()=>Promise<T>):Promise<T>{
+    const result=this.mediaWork.add(async()=>{if(this.closed)throw new Error('Messaging is locked. Sign in again.');return action()})
+    // A normal marker guarantees service even when there is no durable inbox.
+    // Existing tasks also drain at their next saved batch boundary.
+    void this.enqueue(async()=>{}).catch(()=>{})
     return result
   }
   private publish(patch:Partial<ChatState>={}) {
@@ -221,7 +230,7 @@ export class MessagingSession {
     return rejected
   }
   private async receiveBatch(events:readonly DeliveryEvent[]){
-    for(let offset=0;offset<events.length;offset+=16)await deliveryBatch(events.slice(offset,offset+16),this.view.last_seq,{
+    for(let offset=0;offset<events.length;offset+=16){await deliveryBatch(events.slice(offset,offset+16),this.view.last_seq,{
       before:async event=>{if(event.data.kind==='commit'&&event.data.upload.expected_epoch>=(this.view.groups.find(group=>group.id===event.conversation_id)?.epoch??0))await this.changeCallEpoch(event.conversation_id)},
       receive:async event=>{const typing=await this.operation<[string,boolean]|null>('receive',event),calls=await this.operation<LocalCallSignal[]>('take_calls');return {typing,calls}},
       persist:()=>this.persist(),
@@ -229,7 +238,7 @@ export class MessagingSession {
         for(const call of calls)if(call.signal.epoch===this.view.groups.find(group=>group.id===call.conversation_id)?.epoch)this.callObservers.emit(call)
         if(typing){const peers=this.state.typing[event.conversation_id]?.filter(peer=>peer.account!==typing[0])??[];if(typing[1])peers.push({account:typing[0],until:Date.now()+8000});this.state={...this.state,typing:{...this.state.typing,[event.conversation_id]:peers}}}
       }this.publish()},
-    })
+    });await this.mediaWork.drain()}
   }
   private drainDelivery(socket:WebSocket){
     if(this.deliveryScheduled||this.socket!==socket||this.closed)return

@@ -91,6 +91,17 @@ The signed 0.4.0 installer/package remain unpublished candidates. A read-only,
 protected baseline of the selected existing host has been taken for eventual
 before/after preservation verification; its services and data are unchanged.
 
+The diagnostic repeat confirmed a fresh-policy read delayed by about 21 seconds
+behind durable work; its endpoint then correctly stopped at the unchanged
+25-second authorization deadline while its independently renewed lease was still
+valid. Fresh room reads/key exports/admission now receive service only between
+serialized operations or durably saved delivery batches. They do not run against
+an uncommitted batch or bypass verification. SFU status repeats use thirty seconds
+because signed liveness remains independent; media changes still send at once.
+Old-room controls are ignored while a fresh recovery owns admission. The 128
+client tests, complete npm verification and direct MLS-rekey/TCP fixture pass.
+Full Windows SFU and 25-person fixtures are being repeated before publication.
+
 **Phase 4 SFU and computer audio, 2026-10-22:** optional SFU community rooms
 are implemented with a 25-account admission bound, current signed device/room
 leases and 60-second revision-specific routing tokens. Each publisher derives

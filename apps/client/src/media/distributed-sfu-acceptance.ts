@@ -27,7 +27,7 @@ export async function runDistributedSfu(config:{origin:string;setupCode:string;s
   async function snapshots(){return Promise.all(endpoints.map(endpoint=>endpoint.request<Snapshot>('snapshot',{id:channel})))}
   async function until(test:()=>Promise<boolean>|boolean,label:string,timeout=120000){const deadline=Date.now()+timeout;while(Date.now()<deadline){if(await test())return;await pause(500)}throw new Error(label)}
   async function connected(number:number){await until(async()=>{latest=await snapshots();return latest.slice(0,number).every(view=>view.phase==='connected'&&view.participants.length===number)},'Distributed participants connect')}
-  async function decoded(number:number,muted=-1){await until(async()=>{latest=await snapshots();return latest.slice(0,number).every(view=>view.participants.filter(peer=>peer.remote).length===number-1&&view.participants.filter(peer=>peer.remote).every(peer=>people[muted]?.device.device_key===peer.device?peer.micPeak!==null&&peer.micPeak<.005:peer.micPeak!==null&&peer.micPeak>.03))},'Distributed directed PCM paths');return number*(number-1)}
+  async function decoded(number:number,muted=-1){await until(async()=>{latest=await snapshots();if(latest.slice(0,number).some(view=>view.phase==='ended'))throw new Error('Distributed audio endpoint ended');return latest.slice(0,number).every(view=>view.participants.filter(peer=>peer.remote).length===number-1&&view.participants.filter(peer=>peer.remote).every(peer=>people[muted]?.device.device_key===peer.device?peer.micPeak!==null&&peer.micPeak<.005:peer.micPeak!==null&&peer.micPeak>.03))},'Distributed directed PCM paths');return number*(number-1)}
   try{
     const client=new HearthClient(config.origin)
     for(let index=0;index<=count;index++){

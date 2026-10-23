@@ -85,6 +85,25 @@ test('a successful independent presence keepalive never extends the fresh-author
   }finally{f.call.close()}
 })
 
+test('old SFU controls cannot refresh against a replacement contribution during recovery',async()=>{
+  const f=fixture();await seedAudio(f);await f.call.microphone();let reads=0
+  f.transport.voiceRoom=()=>{reads++;return new Promise(()=>{})}
+  try{f.epoch();assert.equal(reads,1);f.receive({voice_room:roomId,kind:'sfu-key',expires_at:Date.now()+60000});await tick();assert.equal(reads,1);assert.equal(f.call.state.phase,'connecting');assert.equal(f.call.source.getTracks()[0].enabled,false)}finally{f.call.close()}
+})
+
+test('SFU periodic state is bounded to thirty seconds while changed state sends immediately and policy checks retain their deadline',async t=>{
+  t.mock.timers.enable({apis:['Date'],now:1000});const f=fixture();await seedAudio(f);await f.call.microphone();const source=f.call.source.getTracks()[0],sent=[]
+  f.call.admission.context.sfu=true
+  f.call.sfu={close(){},mute(){},publish:async()=>{}};f.transport.send=async(_,content)=>{sent.push(content.signal);return 'sent'};f.call.lastHeartbeat=Date.now();f.call.lastPoll=Date.now()
+  try{
+    t.mock.timers.tick(10000);f.call.checkedAt=f.call.renewedAt=Date.now();f.call.own.expires_at=Date.now()+30000;f.call.watch();await tick();assert.equal(sent.length,0)
+    f.call.mediaChanged();await tick();assert.equal(sent.length,1);assert.equal(sent[0].kind,'sfu-heartbeat')
+    t.mock.timers.tick(20000);f.call.checkedAt=f.call.renewedAt=Date.now();f.call.own.expires_at=Date.now()+30000;f.call.watch();await tick();assert.equal(sent.length,1)
+    t.mock.timers.tick(10000);f.call.checkedAt=f.call.renewedAt=Date.now();f.call.own.expires_at=Date.now()+30000;f.call.watch();await tick();assert.equal(sent.length,2)
+    t.mock.timers.tick(26000);f.call.watch();assert.equal(source.readyState,'ended');assert.equal(f.call.source,null);assert.equal(f.call.state.phase,'ended')
+  }finally{f.call.close()}
+})
+
 test('transient signaling pauses capture for bounded recovery, while denied access still stops it',async t=>{
   t.mock.timers.enable({apis:['Date'],now:1000})
   for(const denied of [false,true]){
