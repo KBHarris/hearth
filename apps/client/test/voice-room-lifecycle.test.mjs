@@ -94,6 +94,17 @@ test('cancelled initial authorization cannot publish presence or reacquire captu
   try{const pending=f.call.join(channel);await tick();f.call.leave();release({room:f.snapshot,conversation});await assert.rejects(pending);assert.equal(f.sent.length,0);assert.equal(f.captures(),0);assert.equal(f.call.contribution,null)}finally{f.call.close()}
 })
 
+test('a key-exchange authorization timeout enters bounded recovery; a forbidden key exchange stops capture',async()=>{
+  for(const denied of [false,true]){
+    const f=fixture();await seedAudio(f);await f.call.microphone();const track=f.call.source.getTracks()[0]
+    f.call.sfu={close(){},publish:async()=>{}};f.call.sfuKeys={close(){},receive:async()=>{throw new Error('Unverified key must not be installed')}}
+    f.call.matches=()=>true;f.call.refresh=async()=>{throw Object.assign(new Error('fixture'),denied?{status:403}:{kind:'timeout'})};f.transport.voiceRoom=()=>new Promise(()=>{})
+    try{f.call.receiveSfu({kind:'sfu-key',expires_at:Date.now()+60000},f.call.mesh);await f.call.sfuSerial
+      assert.equal(track.readyState,denied?'ended':'live');assert.equal(f.call.state.phase,denied?'ended':'connecting');if(!denied)assert.equal(track.enabled,false)
+    }finally{f.call.close()}
+  }
+})
+
 test('one authenticated room heartbeat advances only its sender edge and rejects another room context',async()=>{
   const f=fixture();await seedAudio(f);const received=[]
   const context=f.call.admission.context

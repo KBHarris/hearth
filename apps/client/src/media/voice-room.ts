@@ -216,7 +216,7 @@ export class VoiceRoomCall {
       if(!this.active||version!==this.mesh||session!==this.sfu||signal.expires_at<=Date.now())return
       const key=await keys.receive(signal)
       if(key)try{if(this.active&&version===this.mesh&&session===this.sfu)await session.install(signal.from_device,key)}finally{key.fill(0)}
-    }).catch(error=>{if(this.active&&version===this.mesh){this.failed('sfu-key',error);if(error instanceof Error&&error.name==='SfuLeaseExpired')this.recover('Refreshing encrypted room participation…');else this.finish('SFU participant encryption could not be verified.')}})
+    }).catch(error=>{if(this.active&&version===this.mesh){this.failed('sfu-key',error);if((error instanceof Error&&error.name==='SfuLeaseExpired')||transient(error))this.recover('Refreshing encrypted room participation…');else this.finish('SFU participant encryption could not be verified.')}})
   }
   private sfuTrack(device:string,source:SfuSource,track:MediaStreamTrack|null,version:number){
     if(!this.active||version!==this.mesh)return
