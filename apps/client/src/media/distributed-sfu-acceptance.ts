@@ -54,6 +54,7 @@ export async function runDistributedSfu(config:{origin:string;setupCode:string;s
       status('Distributed voice join '+index);await endpoints[index].request('join',{id:channel})
       if(index===0){latest=await snapshots();require(latest[0].phase==='waiting'&&latest.every(view=>view.mics===0));checks.solo_endpoint_holds_no_microphone=true}
       else await connected(index+1)
+      if(index===1){await owner.request('leaseIsolation');checks.presence_renewal_bypasses_durable_work_without_extending_authorization=true}
       if(index<count-1)await pause(10000)
     }
     status('Distributed PCM matrix');const audioPaths=await decoded(count);checks.all_600_directed_microphone_paths_decode=true

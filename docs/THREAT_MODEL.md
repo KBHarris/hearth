@@ -159,6 +159,12 @@ seconds per attempt. Revoked/denied access remains terminal. Gateway challenges,
 resume and liveness controls are processed independently of durable message work;
 the resume cursor still comes from the durably saved view. This does not increase
 server authentication deadlines or acknowledge an unpersisted delivery.
+Routine signed presence renewal also runs independently of durable message work.
+Its backend POST still enforces current approval/permissions, and its response
+must acknowledge the exact signed local contribution. It updates only the lease;
+it cannot refresh client policy, membership keys or the 25-second fresh-policy
+deadline. Occupancy that expires while queued or verified is never accepted:
+one bounded fresh read must pass the full signature/policy checks, or fail closed.
 The local automatic-trigger test injects a connection-state event and is not proof
 of real outage recovery, cross-network privacy or physical-device permissions.
 

@@ -3,8 +3,8 @@ import assert from 'node:assert/strict'
 import {createServer} from 'node:http'
 import {createHmac,randomBytes,randomUUID,timingSafeEqual} from 'node:crypto'
 
-export async function sfuObserverFixture(url,apiKey,secret){
-  const capability=randomBytes(32).toString('hex'),origins=new Set(['http://127.0.0.1:5176','http://tauri.localhost','https://tauri.localhost','tauri://localhost'])
+export async function sfuObserverFixture(url,apiKey,secret,frontendOrigin='http://127.0.0.1:5176'){
+  const capability=randomBytes(32).toString('hex'),origins=new Set([frontendOrigin,'http://tauri.localhost','https://tauri.localhost','tauri://localhost'])
   let issued=0
   const server=createServer(async(request,response)=>{
     try{

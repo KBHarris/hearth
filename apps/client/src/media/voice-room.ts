@@ -10,6 +10,7 @@ import type {SfuSession,SfuSource} from './sfu-session.ts'
 import {RemoteRoomMedia,roomMediaDescription,type RoomMediaKind} from './room-media.ts'
 type View={room:VoiceRoom;conversation:Conversation;permissions?:Record<string,number>;stage?:boolean}
 export interface VoiceTransport extends Pick<CallTransport,'callDevice'|'callAccount'|'callKey'|'send'|'onCall'> {
+  renewVoicePresence?:(value:VoicePresence)=>Promise<number>
   sfuAccess?:(id:string,revision:number)=>Promise<SfuAccess>
   voiceRoom:(id:string)=>Promise<View>
   voicePresence:(value:VoicePresence)=>Promise<View>
@@ -18,7 +19,7 @@ export type VoiceState={phase:'idle'|'joining'|'waiting'|'connecting'|'connected
 export const idleVoice:VoiceState={phase:'idle',channel:'',message:'',muted:false,camera:false,sharing:false,cameraPending:false,sharingPending:false,mediaNotice:'',relayOnly:false,capacity:4,sfu:false,systemAudio:false,participants:[]}
 const randomId=()=>Array.from(crypto.getRandomValues(new Uint8Array(32)),byte=>byte.toString(16).padStart(2,'0')).join('')
 const hex=(key:Uint8Array)=>Array.from(key,byte=>byte.toString(16).padStart(2,'0')).join('')
-const transient=(error:unknown)=>['network','timeout'].includes((error as {kind?:string})?.kind??'')||(error as {name?:string})?.name==='RoomSignalingPending'
+const transient=(error:unknown)=>['network','timeout'].includes((error as {kind?:string})?.kind??'')||(error as {name?:string})?.name==='RoomSignalingPending'||(error as {status?:number})?.status===409
 const signalingPending=()=>Object.assign(new Error('Room signaling is awaiting delivery.'),{name:'RoomSignalingPending'})
 type Edge={id:string;call:DirectCall;listener?:(event:LocalCallSignal)=>void;answering:boolean}
 
@@ -74,6 +75,7 @@ export class VoiceRoomCall {
   private failed(operation:string,error:unknown){
     this.fault={operation,name:error instanceof Error?error.name:'untyped',locations:error instanceof Error?error.stack?.split('\n').map(line=>line.match(/(?:voice-room|group-admission|direct-call|messaging-session)\.ts:\d+:\d+/)?.[0]).filter((line):line is string=>!!line).slice(0,5):[]}
     const status=(error as {status?:unknown})?.status;if(typeof status==='number')this.fault.status=status
+    const reason=['Your voice room participation is no longer active.','The voice room roster moved backwards.','Encrypted message or device verification failed. Existing data was preserved; sign in again to retry.','Group call ended during key agreement','Unknown SFU participant'].indexOf(error instanceof Error?error.message:'');if(reason>=0)this.fault.reason=reason
   }
   failureDiagnostics(){return this.fault}
   private transport:VoiceTransport
@@ -345,7 +347,8 @@ export class VoiceRoomCall {
     if(this.connectUntil&&now>this.connectUntil){this.fault={operation:'connect-timeout',stage:this.sfu?.stage??'key-wrap',leaseRemaining:Math.min(...(this.snapshot?.room.participants.map(peer=>peer.expires_at-now)??[0])),checkedAge:now-this.checkedAt};this.finish('Room audio connection timed out.');return}
     if(this.snapshot&&this.own&&now-this.renewedAt>=10_000&&!this.renewing){
       this.renewing=true;this.lastPoll=now
-      void this.transport.voicePresence(this.presence(true)).then(async view=>{this.current(generation);await this.apply(view,generation);this.current(generation);this.renewedAt=this.checkedAt=Date.now()}).catch(error=>{if(generation===this.generation){this.failed('renew',error);if((error as {status?:number}).status===409||transient(error))this.recover('Updating room participation…');else this.finish('Voice room permissions were lost.')}}).finally(()=>{if(generation===this.generation)this.renewing=false})
+      const renewal=this.transport.renewVoicePresence?this.transport.renewVoicePresence(this.presence(true)).then(expires=>{this.current(generation);if(this.own)this.own={...this.own,expires_at:expires};this.renewedAt=Date.now()}):this.transport.voicePresence(this.presence(true)).then(async view=>{this.current(generation);await this.apply(view,generation);this.current(generation);this.renewedAt=this.checkedAt=Date.now()})
+      void renewal.catch(error=>{if(generation===this.generation){this.failed('renew',error);if((error as {status?:number}).status===409||transient(error))this.recover('Updating room participation…');else this.finish('Voice room permissions were lost.')}}).finally(()=>{if(generation===this.generation)this.renewing=false})
     }
     if(this.snapshot&&this.own&&!this.renewing&&now-this.lastPoll>=5000){this.lastPoll=now;void this.refresh().catch(error=>{if(generation===this.generation){this.failed('poll',error);if((error as {status?:number}).status===409||transient(error))this.recover('Updating room participation…');else this.finish('Voice room access was lost.')}})}
     if((this.edges.size||this.sfu)&&this.admission&&now-this.lastHeartbeat>=10_000){

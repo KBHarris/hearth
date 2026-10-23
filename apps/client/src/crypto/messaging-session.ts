@@ -1,4 +1,5 @@
 import {deliveryBatch} from './delivery-batch'
+import {verifiedVoiceSnapshot} from './voice-snapshot'
 import type {ReportKey,ReportEvidence,QueuedReport,ReportEnvelope} from '@hearth/sdk'
 export type ReportReview=QueuedReport&{evidence?:ReportEvidence;error?:string}
 import {permissions,mediaPermissions,withMediaPermissions,Permission,HearthClient,HearthError,PROTOCOL_VERSION,validateDeliveryEvent,type Session,type DeviceEnrollment,type Conversation,type LocalMessage,type KeyPackageRecord,type CommitUpload,type MessageUpload,type MessageContent,type Person,type DeliveryEvent,type ChannelRoster} from '@hearth/sdk'
@@ -58,22 +59,35 @@ export class MessagingSession {
   private async verifyPeers(peers:Conversation['members']){
     if(await this.operation<boolean>('verify_peers',peers))await this.persist()
   }
-  voiceRoom(id:string):Promise<{room:VoiceRoom;conversation:Conversation;permissions:Record<string,number>;stage:boolean}>{return this.enqueue(async()=>{
+  private async readVoiceRoom(id:string){
     let view=await this.voiceAccess(id),room=await this.client.voiceRoom(this.session.token,id,this.device.device_key,this.options)
     if(room.epoch!==view.conversation.epoch){await this.synchronize();view=await this.voiceAccess(id);room=await this.client.voiceRoom(this.session.token,id,this.device.device_key,this.options)}
     if(room.epoch!==view.conversation.epoch)throw Object.assign(new Error('Room encryption is updating.'),{status:409})
-    await this.operation('verify_voice_room',{room,now:Date.now()})
     return {room,...view}
-  })}
+  }
+  voiceRoom(id:string):Promise<{room:VoiceRoom;conversation:Conversation;permissions:Record<string,number>;stage:boolean}>{return this.enqueue(()=>verifiedVoiceSnapshot(()=>this.readVoiceRoom(id),(value,now)=>this.operation('verify_voice_room',{room:value.room,now})))}
   voicePresence(value:VoicePresence):Promise<{room:VoiceRoom;conversation:Conversation;permissions:Record<string,number>;stage:boolean}>{return this.enqueue(async()=>{
     const view=await this.voiceAccess(value.channel_id)
     if(value.epoch!==view.conversation.epoch)throw Object.assign(new Error('Room encryption is updating.'),{status:409})
     const signed=await this.operation<VoicePresence>('sign_voice_presence',value)
     const room=await this.client.voicePresence(this.session.token,signed,this.options)
     if(room.epoch!==view.conversation.epoch)throw Object.assign(new Error('Room encryption is updating.'),{status:409})
-    await this.operation('verify_voice_room',{room,now:Date.now()})
-    return {room,...view}
+    let initial=true
+    return verifiedVoiceSnapshot(async()=>{if(initial){initial=false;return {room,...view}}return this.readVoiceRoom(value.channel_id)},(value,now)=>this.operation('verify_voice_room',{room:value.room,now}))
   })}
+  async renewVoicePresence(value:VoicePresence):Promise<number>{
+    // A keepalive only signs the existing contribution. It neither mutates MLS
+    // nor authorizes media, so durable message work must not delay it. The
+    // backend still checks current approval and signed permissions on this POST.
+    // Callers must retain their separate, fresh-policy authorization watchdog.
+    if(this.closed)throw new Error('Messaging is locked. Sign in again.')
+    const signed=await this.operation<VoicePresence>('sign_voice_presence',value)
+    if(this.closed)throw new Error('Messaging is locked. Sign in again.')
+    const room=await this.client.voicePresence(this.session.token,signed,this.options)
+    const own=room.participants.find(peer=>peer.device_key===this.device.device_key)
+    if(room.channel_id!==signed.channel_id||room.room_id!==signed.room_id||room.epoch!==signed.epoch||!own||!Object.entries(signed).every(([key,value])=>own[key as keyof VoicePresence]===value))throw Object.assign(new Error('Room participation is updating.'),{status:409})
+    return signed.expires_at
+  }
   sfuAccess(id:string,revision:number):Promise<SfuAccess>{return this.enqueue(async()=>{
     await this.voiceAccess(id)
     return this.client.sfuAccess(this.session.token,id,this.device.device_key,revision,this.options)

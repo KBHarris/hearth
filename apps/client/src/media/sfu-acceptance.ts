@@ -7,6 +7,7 @@ import {SfuKeys} from './sfu-keys'
 import {voiceContext} from './voice-membership'
 import {mountVoicePanels} from './acceptance-ui'
 import {verifySfuObserver} from './sfu-observer'
+import {verifyIndependentLease} from './lease-acceptance'
 type Install={crypto:AuthCrypto;session:Session;device:DeviceEnrollment;service:MessagingSession;state:ChatState}
 const pause=(ms:number)=>new Promise(resolve=>setTimeout(resolve,ms)),status=(text:string)=>{document.getElementById('status')!.textContent=text}
 const require=(value:unknown)=>{if(!value)throw new Error('SFU acceptance assertion failed')}
@@ -74,6 +75,7 @@ export async function runSfuAcceptance(config:{origin:string;setupCode:string;tu
       stage='voice join '+i;status(stage)
       if(i===0){await until(()=>calls[0].state.phase==='waiting','solo SFU room');require(micCaptures===0&&connections.length===0);checks.solo_room_captures_nothing_and_does_not_ring=true}
       else await until(()=>calls.slice(0,i+1).every(call=>call.state.phase==='connected'&&call.state.participants.length===i+1),'SFU participant join '+i,count===25?180000:90000)
+      if(i===1){await verifyIndependentLease(owner.service,calls[0]);checks.presence_renewal_bypasses_durable_work_without_extending_authorization=true}
     }
     if(config.stage){
       stage='Stage audience';status(stage)

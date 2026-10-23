@@ -76,6 +76,15 @@ test('a stalled authorization cannot keep capture open beyond the independent wa
   try{await f.call.microphone();const track=f.call.source.getTracks()[0];t.mock.timers.tick(26000);f.call.watch();assert.equal(track.readyState,'ended');assert.equal(f.call.busy,false)}finally{f.call.close()}
 })
 
+test('a successful independent presence keepalive never extends the fresh-authorization deadline',async t=>{
+  t.mock.timers.enable({apis:['Date'],now:1000});const f=fixture();await seedAudio(f);await f.call.microphone()
+  const track=f.call.source.getTracks()[0],verified=f.call.checkedAt;f.call.lastHeartbeat=Date.now()
+  f.transport.renewVoicePresence=async value=>value.expires_at
+  try{t.mock.timers.tick(11000);f.call.watch();await tick();assert.equal(f.call.checkedAt,verified);assert.equal(f.call.renewedAt,Date.now());assert.ok(f.call.own.expires_at>Date.now());assert.equal(track.readyState,'live')
+    t.mock.timers.tick(15000);f.call.watch();assert.equal(track.readyState,'ended');assert.equal(f.call.busy,false)
+  }finally{f.call.close()}
+})
+
 test('transient signaling pauses capture for bounded recovery, while denied access still stops it',async t=>{
   t.mock.timers.enable({apis:['Date'],now:1000})
   for(const denied of [false,true]){

@@ -83,7 +83,7 @@ try{
     assert.ok(ready,'Disposable SFU readiness timed out')
     }
     env.HEARTH_SFU_URL=`ws://127.0.0.1:${signalPort}`;env.HEARTH_SFU_API_KEY=apiKey;env.HEARTH_SFU_API_SECRET=secret
-    sfuObserver=await sfuObserverFixture(env.HEARTH_SFU_URL,apiKey,secret)
+    sfuObserver=await sfuObserverFixture(env.HEARTH_SFU_URL,apiKey,secret,frontendOrigin)
     if(!turnMode)console.log('Disposable loopback SFU started')
   }
   if(turnMode){

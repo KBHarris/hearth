@@ -4,6 +4,7 @@ import {AuthCrypto} from '../crypto/client'
 import {MessagingSession,initialChat,type ChatState} from '../crypto/messaging-session'
 import {VoiceRoomCall} from './voice-room'
 import {SfuKeys} from './sfu-keys'
+import {verifyIndependentLease} from './lease-acceptance'
 if(!import.meta.env.DEV&&!__HEARTH_CALL_ACCEPTANCE__)throw new Error('Acceptance build required')
 const parentOrigin=new URL(document.referrer).origin
 if(parentOrigin!=='http://127.0.0.1:5176'||parent===window)throw new Error('Disposable coordinator required')
@@ -68,6 +69,7 @@ async function operation(name:string,data:Record<string,unknown>){
     case 'approve':await service.approveMember(id,String(data.account),String(data.identity));return true
     case 'room':return service.voiceRoom(id)
     case 'join':await call.join(id);return true
+    case 'leaseIsolation':return verifyIndependentLease(service,call)
     case 'video':await call.video(data.kind==='camera'?'camera':'screen',data.audio===true);return true
     case 'mute':call.mute();return true
     case 'access':return service.sfuAccess(id,Number(data.revision))

@@ -61,6 +61,20 @@ new browser TURN-TLS route check are pending. Rust formatting, workspace Clippy
 and all default Rust tests pass with loopback networking available. The private
 S3/real HTTP/MLS regression and new exact-device/block admission tests pass.
 
+**Release candidate 0.4.0, later 2026-10-23:** the production images pass eight
+local browser/server/restart/fresh database/key-volume checks. The signed host
+package passes six integrity/preparation checks and thirteen native lifecycle,
+rollback and fresh-restore checks, including private media settings. The frozen
+direct MLS-rekey/TCP fixture passes 17 checks and mesh video join/leave/rejoin
+passes 27. Windows SFU/TCP acceptance passes 19, including native isolation.
+The 25-person run reaches all 25 connected endpoints but still fails its PCM
+matrix as leases expire; this is not accepted as a stable-room pass. Independent
+signed keepalives now avoid the durable message queue without refreshing the
+separate policy deadline. Bounded stale-snapshot and authorization-deadline
+regressions pass; the full room test is being repeated. No release or real-host
+upgrade has occurred. Windows reserves the default relay range on this machine;
+UDP 30000–30099 passed a bind-only preflight for its eventual private host setting.
+
 Remaining work and release gates are tracked in
 [the Phase 4 release checklist](PHASE4_RELEASE_CHECKLIST.md). Historical frozen
 checkpoints below retain their original scope and counts.

@@ -61,8 +61,10 @@ It creates credentials once and preserves them on retries. The directory is
 excluded from Git, Docker build context and Railway build inputs. Do not paste
 its files into diagnostics. No Docker services are started by this command.
 Keep this private directory with the operator's backups. Existing guided-host
-backups do not yet collect the optional media configuration automatically; media
-credentials authorize routing and do not replace user recovery kits.
+backups now collect these private media settings/credentials and restore their
+paths. A disposable 0.4.0 package passes native preparation, credential
+idempotency, tamper rejection, rollback and fresh restore. Media credentials
+authorize routing and do not replace user recovery kits.
 
 Use the generated environment file together with the existing host environment
 and `deploy/compose.yaml` plus `deploy/compose.media.yaml`. The overlay adds a
