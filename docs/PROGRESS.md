@@ -130,6 +130,17 @@ measured PCM in every context. Chromium's Windows audio manager declares a
 sinks and explicit fixture autoplay delegation; physical output remains manual.
 Its complete npm suite passes, and the full media test is running again.
 
+The clocked-output run passes all 600 directed microphone PCM paths and keeps
+the unjoined MLS device capture-free. It then fails at camera/screen startup
+when multiple fresh room reads/renewals time out and trigger recovery. This is
+not a full capacity pass. Each room read was repeating channel/member/rules
+queries for every occupied account while holding the room lock. Current peer
+membership, account deletion, invitation time and rules acceptance are now read
+in one batch under the same community/policy lock, with the same READ, CONNECT
+and LISTEN decisions. An isolated PostgreSQL regression passes deletion,
+departure, screening, read/listen denial and re-invitation checks. Limits and
+authorization deadlines are unchanged; real media acceptance is being repeated.
+
 **Phase 4 SFU and computer audio, 2026-10-22:** optional SFU community rooms
 are implemented with a 25-account admission bound, current signed device/room
 leases and 60-second revision-specific routing tokens. Each publisher derives
