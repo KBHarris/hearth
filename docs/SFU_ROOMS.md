@@ -130,3 +130,14 @@ also pass locally. Spotify is disabled for this release by the user's decision.
 The 25-person stable-media/load run remains a release gate; reaching the final
 join in a failed fixture is not a pass. See the release checklist and progress
 for the current evidence. Earlier checkpoints retain their original scope.
+
+The distributed one-PC capacity fixture uses a clocked silent `AudioContext`
+sink for generated sources and PCM measurement, plus the production `Playback`
+component. This avoids spending a hardware output for each synthetic client.
+Chromium's [Windows audio manager](https://raw.githubusercontent.com/chromium/chromium/main/media/audio/win/audio_manager_win.cc)
+declares a 50-output-stream ceiling (source checked 2026-10-23). A small local
+26-context/26-player diagnostic starts only 24 hardware players; silent context
+sinks allow all 26 players and all generated PCM. The full SFU assertions still
+require actual received/decrypted audio, video, separate computer audio and
+wrong-key rejection. These fixture sinks do not validate physical devices or
+change normal-client playback.

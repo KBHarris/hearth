@@ -121,6 +121,15 @@ uses the actual product component with silent output and is being rerun. The
 earlier zero-PCM result remains a failure; it is not substituted with transport
 statistics. This change affects acceptance tooling, not production media code.
 
+The playback repeat also retained all 25 endpoints but decoded audio on only
+eight endpoints, so it failed. A short independent fixture reproduced output
+exhaustion: 26 hardware AudioContexts plus 26 players started only 24 players;
+replacing context hardware outputs with clocked silent sinks started all 26 and
+measured PCM in every context. Chromium's Windows audio manager declares a
+50-output-stream ceiling. The full distributed fixture now uses silent context
+sinks and explicit fixture autoplay delegation; physical output remains manual.
+Its complete npm suite passes, and the full media test is running again.
+
 **Phase 4 SFU and computer audio, 2026-10-22:** optional SFU community rooms
 are implemented with a 25-account admission bound, current signed device/room
 leases and 60-second revision-specific routing tokens. Each publisher derives

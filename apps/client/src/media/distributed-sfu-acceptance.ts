@@ -12,7 +12,7 @@ class Endpoint {
   pending=new Map<number,{resolve:(value:unknown)=>void;reject:(error:unknown)=>void;timer:ReturnType<typeof setTimeout>}>()
   listener:(event:MessageEvent)=>void
   constructor(index:number){
-    this.origin='https://media'+index+'.localhost:5177';this.frame.src=this.origin+'/sfu-endpoint.html';this.frame.style.cssText='width:190px;height:140px;border:1px solid #555'
+    this.origin='https://media'+index+'.localhost:5177';this.frame.src=this.origin+'/sfu-endpoint.html';this.frame.allow='autoplay';this.frame.style.cssText='width:190px;height:140px;border:1px solid #555'
     this.listener=event=>{if(event.origin!==this.origin||event.source!==this.frame.contentWindow||event.data?.type!=='hearth-sfu-fixture-reply'||event.data.nonce!==this.nonce)return;const request=this.pending.get(event.data.request);if(!request)return;clearTimeout(request.timer);this.pending.delete(event.data.request);if(event.data.error)request.reject(Object.assign(new Error('Isolated endpoint operation failed'),event.data.error));else request.resolve(event.data.value)}
     addEventListener('message',this.listener)
   }
@@ -66,7 +66,7 @@ export async function runDistributedSfu(config:{origin:string;setupCode:string;s
     status('SFU video ready');const before=await Promise.all(endpoints.slice(0,count).map(endpoint=>endpoint.request<Metric>('metrics'))),start=performance.now();await pause(32000)
     const activeMetrics=await Promise.all(endpoints.slice(0,count).map(endpoint=>endpoint.request<Metric>('metrics'))),loadSeconds=(performance.now()-start)/1000,uploadBitsPerSecond=activeMetrics.map((metric,index)=>Math.max(0,metric.outboundBytes-before[index].outboundBytes)*8/loadSeconds),received=(metric:Metric)=>metric.inbound.reduce((sum,track)=>sum+track.bytes,0),recipientBitsPerSecond=activeMetrics.map((metric,index)=>Math.max(0,received(metric)-received(before[index]))*8/loadSeconds),sfuEgressBitsPerSecond=recipientBitsPerSecond.reduce((sum,rate)=>sum+rate,0)
     require(activeMetrics.every(metric=>metric.encryptionEnabled&&metric.workerErrors===0));checks.every_publisher_has_encryption_and_no_worker_errors=true
-    status('SFU wrong-key subscriber');audio=new AudioContext();await audio.resume();require(config.sfuObserver)
+    status('SFU wrong-key subscriber');audio=new AudioContext({sinkId:{type:'none'}} as AudioContextOptions);await audio.resume();require(config.sfuObserver)
     const room=await owner.request<{room:{revision:number}}>('room',{id:channel}),access=await owner.request<{room:string}>('access',{id:channel,revision:room.room.revision})
     const observer=await verifySfuObserver(config.sfuObserver!,access.room,audio,count+3,await owner.request<RTCIceServer[]>('configuration'),false);checks.routing_authorized_observer_has_no_media_keys_or_decoded_frames=true
     const beforeKeys=latest.slice(0,count-1).map(view=>view.keyContexts);await endpoints[1].request('mute');await endpoints[count-1].request('leave');status('Distributed membership rotation');await connected(count-1);await decoded(count-1,1)

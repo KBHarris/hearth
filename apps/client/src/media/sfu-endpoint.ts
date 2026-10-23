@@ -56,7 +56,9 @@ async function operation(name:string,data:Record<string,unknown>){
       const identity=JSON.parse(await cryptoClient.request('prepareIdentity','',undefined,session.account.id,server)) as {enrollment:DeviceEnrollment};device=identity.enrollment;await client.enrollFirstDevice(session.token,device);await cryptoClient.request('commitIdentity','')
       service=new MessagingSession(cryptoClient,session,device,server,String(data.origin),value=>{state=value})
       for(const name of ['voiceRoom','voicePresence','renewVoicePresence','send'] as const){const original=service[name].bind(service) as (...args:never[])=>Promise<unknown>;Object.assign(service,{[name]:(...args:never[])=>{const started=performance.now();return original(...args).finally(()=>measured('session_'+name,started))}})}
-      audio=new AudioContext();await audio.resume()
+      // Clock actual generated/decoded PCM without consuming a hardware output
+      // for each synthetic client in this one-browser capacity fixture.
+      audio=new AudioContext({sinkId:{type:'none'}} as AudioContextOptions);await audio.resume()
       call=new VoiceRoomCall(service,server,render,async constraints=>{if(constraints.video)return picture(false);mics++;return tone(300+Number(data.index)*40)},()=>true,async withAudio=>picture(true,!!withAudio))
       return {token:session.token,account:session.account,device,server}
     }
