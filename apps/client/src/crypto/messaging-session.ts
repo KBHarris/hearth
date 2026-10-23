@@ -176,6 +176,10 @@ export class MessagingSession {
       if(this.closed)throw new Error('Messaging is locked.')
       this.revision=saved.revision
       await this.inspect()
+      // A durable checkpoint can service urgent authorization without waiting
+      // for the rest of a long outbox/maintenance operation. Delivery batches
+      // hold this drain until their saved prefix has also been exposed in order.
+      await this.mediaWork.drain()
     }catch(error){
       // A normal sign-out/close can cancel a pending native write. The native
       // fixture/store barrier drains it; the closed view must not become a failure.
@@ -230,7 +234,7 @@ export class MessagingSession {
     return rejected
   }
   private async receiveBatch(events:readonly DeliveryEvent[]){
-    for(let offset=0;offset<events.length;offset+=16){await deliveryBatch(events.slice(offset,offset+16),this.view.last_seq,{
+    for(let offset=0;offset<events.length;offset+=16){await this.mediaWork.batch(()=>deliveryBatch(events.slice(offset,offset+16),this.view.last_seq,{
       before:async event=>{if(event.data.kind==='commit'&&event.data.upload.expected_epoch>=(this.view.groups.find(group=>group.id===event.conversation_id)?.epoch??0))await this.changeCallEpoch(event.conversation_id)},
       receive:async event=>{const typing=await this.operation<[string,boolean]|null>('receive',event),calls=await this.operation<LocalCallSignal[]>('take_calls');return {typing,calls}},
       persist:()=>this.persist(),
@@ -238,7 +242,7 @@ export class MessagingSession {
         for(const call of calls)if(call.signal.epoch===this.view.groups.find(group=>group.id===call.conversation_id)?.epoch)this.callObservers.emit(call)
         if(typing){const peers=this.state.typing[event.conversation_id]?.filter(peer=>peer.account!==typing[0])??[];if(typing[1])peers.push({account:typing[0],until:Date.now()+8000});this.state={...this.state,typing:{...this.state.typing,[event.conversation_id]:peers}}}
       }this.publish()},
-    });await this.mediaWork.drain()}
+    }));await this.mediaWork.drain()}
   }
   private drainDelivery(socket:WebSocket){
     if(this.deliveryScheduled||this.socket!==socket||this.closed)return
@@ -264,12 +268,14 @@ export class MessagingSession {
     // application secrets for messages still waiting in the ordered backlog.
     await this.synchronize()
     const conversations=await this.client.conversations(this.session.token,this.options)
+    await this.mediaWork.drain()
     const ids=new Set(conversations.filter(conversation=>!conversation.channel_id).flatMap(conversation=>conversation.accounts))
     const people={...this.state.people}
-    for(const id of ids)people[id]=await this.client.personById(this.session.token,id,this.options)
+    for(const id of ids){people[id]=await this.client.personById(this.session.token,id,this.options);await this.mediaWork.drain()}
     const channels:Record<string,ChannelRoster>={}
     for(const conversation of conversations.filter(c=>c.channel_id)) {
       const roster=await this.prepareChannel(conversation.id)
+      await this.mediaWork.drain()
       if(roster.channel.id!==conversation.id || !roster.people.some(p=>p.account.id===this.session.account.id))throw new Error('The channel roster could not be verified.')
       channels[conversation.id]=roster
       for(const person of roster.people)people[person.account.id]=person
@@ -277,8 +283,10 @@ export class MessagingSession {
     const peers=Object.values(people).flatMap(person=>person.devices.map(enrollment=>({account_id:person.account.id,enrollment})))
     try {for(let offset=0;offset<peers.length;offset+=128)await this.verifyPeers(peers.slice(offset,offset+128))}
     catch {throw new Error('A participant’s identity changed or could not be verified. Saved fingerprints were preserved. Compare identities using a trusted channel before adding devices.')}
-    this.publish({conversations,people,channels,blocked:(await this.client.blocks(this.session.token,this.options)).map(person=>person.id)})
+    const blocked=(await this.client.blocks(this.session.token,this.options)).map(person=>person.id);await this.mediaWork.drain()
+    this.publish({conversations,people,channels,blocked})
     const count=await this.client.packageCount(this.session.token,this.device.device_key,this.options)
+    await this.mediaWork.drain()
     if(count.available<4 && this.view.pending_packages.length===0){
       for(let available=count.available;available<4;available++){await this.operation('package');await this.persist();await this.flush()}
     }

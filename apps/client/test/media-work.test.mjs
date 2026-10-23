@@ -18,3 +18,11 @@ test('work arriving during a drain waits for the next boundary and reentrant dra
   const first=queue.add(async()=>{order.push('start');later=queue.add(async()=>order.push('later'));await queue.drain();order.push('finish')})
   await queue.drain();await first;assert.deepEqual(order,['start','finish']);await queue.drain();await later;assert.deepEqual(order,['start','finish','later'])
 })
+
+test('a saved delivery prefix remains unexposed to urgent work until its ordered publication completes',async()=>{
+  const queue=new MediaWork(),order=[];const pending=queue.add(async()=>order.push('authorization'))
+  await queue.batch(async()=>{order.push('saved');await queue.drain();order.push('published');assert.deepEqual(order,['saved','published'])})
+  assert.deepEqual(order,['saved','published']);await queue.drain();await pending;assert.deepEqual(order,['saved','published','authorization'])
+  const next=queue.add(async()=>order.push('later'));await assert.rejects(queue.batch(async()=>{await queue.drain();throw new Error('storage failure')}),/storage failure/)
+  assert.equal(order.includes('later'),false);await queue.drain();await next;assert.equal(order.at(-1),'later')
+})

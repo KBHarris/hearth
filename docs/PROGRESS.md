@@ -152,6 +152,15 @@ second authorization deadline. A regression proves a denial stops capture before
 a pending renewal can return. All npm checks pass, including 129 client tests.
 The complete capacity fixture is running with this final scheduling correction.
 
+The final Windows SFU repeat passes twenty checks. Capacity still exposes a
+fresh-authorization gap on a few endpoints during long normal outbox/maintenance
+work. Urgent checks now receive service after each durable save and between
+read-only maintenance requests; delivery batches explicitly defer that service
+until their saved prefix has been published in order. A regression covers the
+save/publication barrier and failure path. The complete npm suite passes with
+130 client tests. Windows media and private-group MLS/device/media recovery are
+being rechecked alongside the next capacity setup. Publication remains pending.
+
 **Phase 4 SFU and computer audio, 2026-10-22:** optional SFU community rooms
 are implemented with a 25-account admission bound, current signed device/room
 leases and 60-second revision-specific routing tokens. Each publisher derives
