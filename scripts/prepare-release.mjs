@@ -43,7 +43,7 @@ files.push(hostTar,'host-package.json','host-package.json.sig')
 writeFileSync(join(assets,'SHA256SUMS.txt'),files.map(file=>`${digest(join(assets,file))}  ${file}`).join('\n')+'\n')
 writeFileSync(join(assets,'RELEASE_NOTES.md'),`# Hearth Preview ${version}
 
-Encrypted voice, camera, screen sharing and optional computer audio in direct calls, three-person private calls and community voice rooms. Optional locally hosted SFU rooms support larger communities, with independent media permissions and stage speaker consent. Adds microphone/camera switching, speaker controls, scheduled events and encrypted RSVPs, and opt-in synchronized provider playback.
+Encrypted voice, camera, screen sharing and optional computer audio in direct calls, three-person private calls and community voice rooms. Optional locally hosted SFU rooms support larger communities, with independent media permissions and stage speaker consent. Adds microphone/camera switching, speaker controls, scheduled events and encrypted RSVPs, and opt-in synchronized YouTube/SoundCloud playback. Spotify playback is disabled in this release.
 
 Update the Windows app first, then the hosted server. Server updates verify signed deployment assets, rehearse the database backup and preserve the existing host configuration, server keys and encrypted history. Enable voice/video hosting in Hosting & updates; internet media still requires correct router/firewall configuration and outside-network acceptance. Railway remains paused.
 

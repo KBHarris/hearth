@@ -75,6 +75,19 @@ test('a stalled authorization cannot keep capture open beyond the independent wa
   t.mock.timers.enable({apis:['Date'],now:1000});const f=fixture();await seedAudio(f)
   try{await f.call.microphone();const track=f.call.source.getTracks()[0];t.mock.timers.tick(26000);f.call.watch();assert.equal(track.readyState,'ended');assert.equal(f.call.busy,false)}finally{f.call.close()}
 })
+
+test('transient signaling pauses capture for bounded recovery, while denied access still stops it',async t=>{
+  t.mock.timers.enable({apis:['Date'],now:1000})
+  for(const denied of [false,true]){
+    const f=fixture();await seedAudio(f);await f.call.microphone();const track=f.call.source.getTracks()[0]
+    f.call.edges.set(peer,{call:{state:{phase:'connecting'},setRoomVideo:async()=>{},close(){}}});f.call.lastHeartbeat=Date.now();f.call.renewedAt=Date.now()
+    f.call.refresh=async()=>{throw Object.assign(new Error('fixture'),denied?{status:403}:{kind:'timeout'})};f.transport.voiceRoom=()=>new Promise(()=>{})
+    try{t.mock.timers.tick(6000);f.call.watch();await tick()
+      if(denied){assert.equal(track.readyState,'ended');assert.equal(f.call.busy,false)}
+      else{assert.equal(track.enabled,false);assert.equal(track.readyState,'live');assert.equal(f.call.state.phase,'connecting');t.mock.timers.tick(31000);f.call.watch();assert.equal(track.readyState,'ended');assert.equal(f.call.busy,false)}
+    }finally{f.call.close()}
+  }
+})
 test('cancelled initial authorization cannot publish presence or reacquire capture',async()=>{
   const f=fixture();let release
   f.transport.voiceRoom=()=>new Promise(resolve=>{release=resolve})

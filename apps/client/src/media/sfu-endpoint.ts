@@ -9,11 +9,13 @@ const parentOrigin=new URL(document.referrer).origin
 if(parentOrigin!=='http://127.0.0.1:5176'||parent===window)throw new Error('Disposable coordinator required')
 let nonce='',cryptoClient:AuthCrypto,session:Session,device:DeviceEnrollment,service:MessagingSession,client:HearthClient,server='',call:VoiceRoomCall,audio:AudioContext,state:ChatState=initialChat,mics=0,cameras=0,screens=0,system=0
 const keys=new Set<string>(),wire:string[]=[],tracks:MediaStreamTrack[]=[],timers:ReturnType<typeof setInterval>[]=[],failures:Record<string,number>={},contexts=new Map<string,string>()
+const timings:Record<string,{count:number;maxMs:number}>={}
+function measured(name:string,started:number){const previous=timings[name]??{count:0,maxMs:0};timings[name]={count:previous.count+1,maxMs:Math.max(previous.maxMs,Math.round(performance.now()-started))}}
 const hex=(key:Uint8Array)=>Array.from(key,byte=>byte.toString(16).padStart(2,'0')).join('')
 const originalCreate=SfuKeys.prototype.create
 SfuKeys.prototype.create=async function(){const result=await originalCreate.call(this);keys.add(hex(result.key));contexts.set(result.signal.group_id!,hex(result.key));return result}
 const originalFetch=fetch.bind(window),OriginalSocket=WebSocket
-window.fetch=(input,init)=>{if(typeof init?.body==='string')wire.push(init.body);return originalFetch(input,init).then(response=>{if(response.status>=400)failures[String(response.status)]=(failures[String(response.status)]??0)+1;return response})}
+window.fetch=(input,init)=>{const started=performance.now();if(typeof init?.body==='string')wire.push(init.body);return originalFetch(input,init).then(response=>{if(response.status>=400)failures[String(response.status)]=(failures[String(response.status)]??0)+1;return response}).finally(()=>measured('http',started))}
 window.WebSocket=class extends OriginalSocket {constructor(url:string|URL,protocols?:string|string[]){super(url,protocols);this.addEventListener('message',event=>wire.push(String(event.data)))}}
 function own(track:MediaStreamTrack){tracks.push(track);const clone=track.clone.bind(track);track.clone=()=>{const child=clone();tracks.push(child);return child}}
 function tone(frequency:number){const oscillator=audio.createOscillator(),gain=audio.createGain(),output=audio.createMediaStreamDestination(),silent=audio.createGain();gain.gain.value=.1;silent.gain.value=0;oscillator.frequency.value=frequency;oscillator.connect(gain).connect(output);gain.connect(silent).connect(audio.destination);oscillator.start();output.stream.getTracks().forEach(own);return output.stream}
@@ -36,7 +38,9 @@ async function operation(name:string,data:Record<string,unknown>){
       if(nonce)throw new Error('Already initialized');nonce=String(data.nonce);if(!/^[a-f0-9]{64}$/.test(nonce))throw new Error('Invalid coordinator')
       client=new HearthClient(String(data.origin));server=(await client.wellKnown()).server_key
       const username=String(data.username),owner=data.owner===true,password='HEARTH_DISTRIBUTED_SFU_SYNTHETIC_PASSWORD',setup=String(data.setupCode??'')
-      cryptoClient=new AuthCrypto();const registration=await cryptoClient.request('registrationStart',password),start=owner?await client.ownerStart({username,message:registration,setup_code:setup}):await client.registerStart({username,message:registration,invite_code:null}),upload=await cryptoClient.request('registrationFinish',password,start.message,username,server)
+      cryptoClient=new AuthCrypto()
+      const message=cryptoClient.message.bind(cryptoClient);cryptoClient.message=(...args)=>{const started=performance.now();return message(...args).finally(()=>measured(args[0],started))}
+      const registration=await cryptoClient.request('registrationStart',password),start=owner?await client.ownerStart({username,message:registration,setup_code:setup}):await client.registerStart({username,message:registration,invite_code:null}),upload=await cryptoClient.request('registrationFinish',password,start.message,username,server)
       if(owner)await client.ownerFinish({username,message:upload,setup_code:setup});else await client.registerFinish({username,message:upload,invite_code:null})
       const auth=await client.loginStart({username,message:await cryptoClient.request('loginStart',password)});session=await client.loginFinish({exchange_id:auth.exchange_id,message:await cryptoClient.request('loginFinish',password,auth.message,username,server)})
       const identity=JSON.parse(await cryptoClient.request('prepareIdentity','',undefined,session.account.id,server)) as {enrollment:DeviceEnrollment};device=identity.enrollment;await client.enrollFirstDevice(session.token,device);await cryptoClient.request('commitIdentity','')
@@ -46,6 +50,17 @@ async function operation(name:string,data:Record<string,unknown>){
       return {token:session.token,account:session.account,device,server}
     }
     case 'start':await service.start();return true
+    case 'gatewayIsolation':{
+      // Hold actual durable work, then require a fresh authenticated gateway to
+      // resume before releasing it. This probes the production control handler.
+      const internal=service as unknown as {tail:Promise<unknown>;socket:WebSocket|null;reconnect:ReturnType<typeof setTimeout>|undefined;openGateway:()=>void}
+      await internal.tail
+      const old=internal.socket;if(old){old.close();await new Promise(resolve=>old.addEventListener('close',resolve,{once:true}))}
+      clearTimeout(internal.reconnect)
+      let release!:()=>void;internal.tail=new Promise<void>(resolve=>{release=resolve})
+      const started=performance.now()
+      try{internal.openGateway();while(state.connection!=='Connected'&&performance.now()-started<4000)await new Promise(resolve=>setTimeout(resolve,20));if(state.connection!=='Connected')throw new Error('Gateway control waited for durable work');return {authenticatedWhileDurableQueueHeld:true,durationMs:Math.round(performance.now()-started)}}finally{release();await internal.tail}
+    }
     case 'secureCommunity':await service.secureCommunity(id);return true
     case 'secureChannel':await service.secureChannel(id);await service.openChannel(id);return true
     case 'invite':return service.createInvite(id,3600,26)
@@ -59,7 +74,7 @@ async function operation(name:string,data:Record<string,unknown>){
     case 'configuration':return service.callConfiguration()
     case 'revoke':{const view=await service.loadGovernance(id),roster=await client.channelRoster(session.token,String(data.channel));const policy=view.governance??{community_id:id,revision:0,everyone:15,roles:[],assignments:[],overrides:[],sanctions:[],limits:[],rules:'',screening:false,owner:roster.authority!.owner,signature:''};await service.saveGovernance(id,{...policy,revision:policy.revision+1,overrides:[...policy.overrides,{channel_id:String(data.channel),kind:'member',target_id:String(data.account),allow:0,deny:2}]});return true}
     case 'metrics':return call.sfuDiagnostics()
-    case 'snapshot':return {phase:call.state.phase,message:call.state.message,fault:call.failureDiagnostics(),participants:call.state.participants.map(peer=>({device:peer.device,remote:!!peer.remote,camera:peer.camera,screen:peer.sharing,system:peer.systemAudio,micPeak:peer.remote?.getAudioTracks()[0]?peak(peer.remote.getAudioTracks()[0]):null,systemPeak:peer.systemAudioTrack?peak(peer.systemAudioTrack):null})),muted:call.state.muted,camera:call.state.camera,screen:call.state.sharing,system:call.state.systemAudio,mics,cameras,screens,systemCaptures:system,joined:state.joined,epoch:state.conversations.find(group=>group.id===id)?.epoch,deliveryError:state.error,failures,ownedTracks:tracks.length,allStopped:tracks.every(track=>track.readyState==='ended'),keyContexts:contexts.size,wirePrivate:wire.length<=4096&&[...keys].every(key=>wire.every(body=>!body.includes(key))),historyEmpty:state.messages.length===0}
+    case 'snapshot':return {phase:call.state.phase,message:call.state.message,fault:call.failureDiagnostics(),participants:call.state.participants.map(peer=>({device:peer.device,remote:!!peer.remote,camera:peer.camera,screen:peer.sharing,system:peer.systemAudio,micPeak:peer.remote?.getAudioTracks()[0]?peak(peer.remote.getAudioTracks()[0]):null,systemPeak:peer.systemAudioTrack?peak(peer.systemAudioTrack):null})),muted:call.state.muted,camera:call.state.camera,screen:call.state.sharing,system:call.state.systemAudio,mics,cameras,screens,systemCaptures:system,joined:state.joined,epoch:state.conversations.find(group=>group.id===id)?.epoch,deliveryError:state.error,failures,ownedTracks:tracks.length,allStopped:tracks.every(track=>track.readyState==='ended'),keyContexts:contexts.size,wirePrivate:wire.length<=4096&&[...keys].every(key=>wire.every(body=>!body.includes(key))),historyEmpty:state.messages.length===0,timings}
     case 'leave':call.leave();return true
     case 'close':call.close();service.close();cryptoClient.close();for(const timer of timers)clearInterval(timer);for(const video of videos.values()){video.srcObject=null;video.remove()}await audio.close();keys.clear();wire.length=0;contexts.clear();return true
     default:throw new Error('Unknown fixture operation')

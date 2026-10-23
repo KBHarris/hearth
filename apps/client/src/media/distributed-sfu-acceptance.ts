@@ -5,7 +5,7 @@ import type {VoiceRoomCall} from './voice-room'
 import {verifySfuObserver} from './sfu-observer'
 type Info={token:string;account:Account;device:DeviceEnrollment;server:string}
 type Metric=NonNullable<Awaited<ReturnType<VoiceRoomCall['sfuDiagnostics']>>>
-type Snapshot={phase:string;message:string;fault:unknown;participants:{device:string;remote:boolean;camera:boolean;screen:boolean;system:boolean;micPeak:number|null;systemPeak:number|null}[];muted:boolean;camera:boolean;screen:boolean;system:boolean;mics:number;cameras:number;screens:number;systemCaptures:number;joined:string[];epoch:number;deliveryError:string;failures:Record<string,number>;ownedTracks:number;allStopped:boolean;keyContexts:number;wirePrivate:boolean;historyEmpty:boolean}
+type Snapshot={phase:string;message:string;fault:unknown;participants:{device:string;remote:boolean;camera:boolean;screen:boolean;system:boolean;micPeak:number|null;systemPeak:number|null}[];muted:boolean;camera:boolean;screen:boolean;system:boolean;mics:number;cameras:number;screens:number;systemCaptures:number;joined:string[];epoch:number;deliveryError:string;failures:Record<string,number>;ownedTracks:number;allStopped:boolean;keyContexts:number;wirePrivate:boolean;historyEmpty:boolean;timings:Record<string,{count:number;maxMs:number}>}
 const pause=(ms:number)=>new Promise(resolve=>setTimeout(resolve,ms))
 class Endpoint {
   frame=document.createElement('iframe');origin:string;nonce=Array.from(crypto.getRandomValues(new Uint8Array(32)),byte=>byte.toString(16).padStart(2,'0')).join('');counter=0
@@ -36,6 +36,7 @@ export async function runDistributedSfu(config:{origin:string;setupCode:string;s
       const info=await endpoint.request<Info>('init',{origin:endpoint.origin,index,username:'distributed_sfu_'+index,owner:index===0,setupCode:index===0?config.setupCode:''});people.push(info)
       if(index===0)await client.configureServer(info.token,{server_name:'Disposable isolated-renderer SFU acceptance',registration_mode:'open'})
       await endpoint.request('start');await pause(1000)
+      if(index===0){await endpoint.request('gatewayIsolation');checks.gateway_authentication_does_not_wait_for_durable_message_work=true}
     }
     const owner=endpoints[0],community=await client.createCommunity(people[0].token,'Distributed SFU community');await owner.request('secureCommunity',{id:community.id})
     const roomChannel=await client.createChannel(people[0].token,community.id,{name:'room',category_id:null,kind:'voice'});channel=roomChannel.id;await owner.request('secureChannel',{id:channel})
@@ -55,7 +56,7 @@ export async function runDistributedSfu(config:{origin:string;setupCode:string;s
       else await connected(index+1)
       if(index<count-1)await pause(10000)
     }
-    const audioPaths=await decoded(count);checks.all_600_directed_microphone_paths_decode=true
+    status('Distributed PCM matrix');const audioPaths=await decoded(count);checks.all_600_directed_microphone_paths_decode=true
     latest=await snapshots();require(latest.slice(0,count).every(view=>view.mics===1)&&latest[count].phase==='idle'&&latest[count].mics===0);checks.unjoined_mls_device_holds_no_media_capture=true
     status('Distributed camera and screen');await owner.request('video',{kind:'camera'});await owner.request('video',{kind:'screen',audio:true})
     await until(async()=>{latest=await snapshots();return latest.slice(1,count).every(view=>{const peer=view.participants.find(peer=>peer.device===people[0].device.device_key);return peer?.camera&&peer.screen&&peer.system&&peer.systemPeak!==null&&peer.systemPeak>.03})},'Distributed encrypted video and system audio')
@@ -76,6 +77,6 @@ export async function runDistributedSfu(config:{origin:string;setupCode:string;s
     const failures=latest.reduce<Record<string,number>>((all,view)=>{for(const [status,count] of Object.entries(view.failures))all[status]=(all[status]??0)+count;return all},{})
     require(!failures['429']);checks.unchanged_per_account_and_login_limits_pass=true
     return {outcome:'pass',scope:'26 isolated localhost browser sites/renderers with real accounts/WASM/MLS; 25 joined SFU endpoints and one unjoined device; synthetic microphone/camera/screen/computer audio',checks,participants:count,audioPaths,loadSeconds,uploadBitsPerSecond,recipientBitsPerSecond,sfuEgressBitsPerSecond,sfuEgressDecimalGigabytesPerHour:sfuEgressBitsPerSecond*3600/8/1e9,activeMetrics,observer,failures,requestProfile:'sfu25',physicalDevicePermissionsValidated:false,internetValidated:false,railwayValidated:false}
-  }catch(error){latest=await snapshots().catch(()=>latest);return {outcome:'fail',stage,failureClass:error instanceof Error?error.name:'untyped',requestFailureKind:(error as {kind?:string})?.kind,httpStatus:(error as {status?:number})?.status,checks,endpoints:latest.map(view=>({phase:view.phase,message:view.message,fault:view.fault,failures:view.failures,mics:view.mics,participants:view.participants.length,deliveryError:view.deliveryError}))}}
+  }catch(error){latest=await snapshots().catch(()=>latest);return {outcome:'fail',stage,failureClass:error instanceof Error?error.name:'untyped',requestFailureKind:(error as {kind?:string})?.kind,httpStatus:(error as {status?:number})?.status,checks,endpoints:latest.map(view=>({phase:view.phase,message:view.message,fault:view.fault,failures:view.failures,mics:view.mics,participants:view.participants.length,deliveryError:view.deliveryError,timings:view.timings}))}}
   finally{await Promise.all(endpoints.map(endpoint=>endpoint.request('close').catch(()=>{})));for(const endpoint of endpoints)endpoint.dispose();await audio?.close().catch(()=>{});grid.remove();people.length=0}
 }

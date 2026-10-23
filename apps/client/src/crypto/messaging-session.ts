@@ -568,7 +568,12 @@ export class MessagingSession {
         if(!validateDeliveryEvent(delivery)||input.d?.seq!==delivery.seq||this.deliveryInbox.length>=128){this.report(new Error('Invalid or overloaded encrypted gateway delivery.'));socket.close();return}
         this.deliveryInbox.push(delivery);this.drainDelivery(socket);return
       }
-      void this.enqueue(async()=>{
+      // Gateway control never mutates MLS state. Do not queue its challenge,
+      // resume or liveness acknowledgements behind durable delivery/network
+      // work: the server's short authentication deadline still applies.
+      // The signing RPC is read-only and the resume cursor is the last view
+      // published after a successful durable save, not an in-flight engine cursor.
+      void (async()=>{
       if(this.socket!==socket)return
       const frame=input
       if(frame.op==='hello'){
@@ -576,6 +581,7 @@ export class MessagingSession {
       }else if(frame.op==='challenge'){
         if(typeof frame.d?.challenge!=='string')throw new Error('Invalid gateway challenge.')
         const signature=await this.operation<string>('gateway',{token:this.session.token,challenge:frame.d.challenge})
+        if(this.closed||this.socket!==socket)return
         socket.send(JSON.stringify({op:'identify',d:{protocol:PROTOCOL_VERSION,token:this.session.token,device_key:this.device.device_key,signature}}))
       }else if(frame.op==='ready'){
         if(typeof frame.d?.session_id!=='string')throw new Error('Invalid gateway session.')
@@ -584,7 +590,7 @@ export class MessagingSession {
         this.heartbeat=setInterval(()=>{if(this.socket!==socket || this.closed)return;if(Date.now()-this.heartbeatAt>65000){socket.close();return}socket.send(JSON.stringify({op:'heartbeat',d:{last_seq:this.view.last_seq}}));this.publish()},30000)
       }else if(frame.op==='heartbeat_ack')this.heartbeatAt=Date.now()
       else if(frame.op==='invalid_session')throw new Error('The gateway session was rejected. Sign in again if reconnecting does not help.')
-    }).catch(error=>{this.report(error);socket.close()})}
+    })().catch(error=>{if(this.socket===socket)this.report(error);socket.close()})}
     socket.onclose=()=>{
       if(this.socket!==socket)return
       this.socket=null;this.deliveryInbox=[];clearInterval(this.heartbeat)

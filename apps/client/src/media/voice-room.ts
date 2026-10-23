@@ -18,6 +18,8 @@ export type VoiceState={phase:'idle'|'joining'|'waiting'|'connecting'|'connected
 export const idleVoice:VoiceState={phase:'idle',channel:'',message:'',muted:false,camera:false,sharing:false,cameraPending:false,sharingPending:false,mediaNotice:'',relayOnly:false,capacity:4,sfu:false,systemAudio:false,participants:[]}
 const randomId=()=>Array.from(crypto.getRandomValues(new Uint8Array(32)),byte=>byte.toString(16).padStart(2,'0')).join('')
 const hex=(key:Uint8Array)=>Array.from(key,byte=>byte.toString(16).padStart(2,'0')).join('')
+const transient=(error:unknown)=>['network','timeout'].includes((error as {kind?:string})?.kind??'')||(error as {name?:string})?.name==='RoomSignalingPending'
+const signalingPending=()=>Object.assign(new Error('Room signaling is awaiting delivery.'),{name:'RoomSignalingPending'})
 type Edge={id:string;call:DirectCall;listener?:(event:LocalCallSignal)=>void;answering:boolean}
 
 /** Persistent channel, explicit local participation, bounded four-person mesh.
@@ -91,7 +93,7 @@ export class VoiceRoomCall {
         else if(event.signal.expires_at>Date.now()){
           if(this.pending.length<128)this.pending.push(event)
           const generation=this.generation
-          void this.refresh().catch(error=>{if(generation===this.generation){this.failed('sfu-refresh',error);this.finish('SFU room access was lost.')}})
+          void this.refresh().catch(error=>{if(generation===this.generation){this.failed('sfu-refresh',error);if(transient(error))this.recover('Reconnecting encrypted room signaling…');else this.finish('SFU room access was lost.')}})
         }
         return
       }
@@ -181,7 +183,7 @@ export class VoiceRoomCall {
     const admission=new VoiceMembership(context,this.transport.callDevice,room);this.admission=admission
     this.agreement=this.contribution!.forkForRoom(context)
     this.connectUntil=Date.now()+(room.sfu?90_000:45_000);this.publish({phase:'connecting',message:room.sfu?'Connecting encrypted SFU room…':'Connecting encrypted room audio…'})
-    if(room.sfu){void this.startSfu(room,admission,version).catch(error=>{if(this.active&&version===this.mesh){this.failed('sfu-start',error);this.finish('The encrypted SFU room could not connect.')}});return}
+    if(room.sfu){void this.startSfu(room,admission,version).catch(error=>{if(this.active&&version===this.mesh){this.failed('sfu-start',error);if(transient(error))this.recover('Reconnecting encrypted room signaling…');else this.finish('The encrypted SFU room could not connect.')}});return}
     const ids=await Promise.all(context.participants.filter(peer=>peer!==this.transport.callDevice).map(async peer=>[peer,await groupEdgeId(context,this.transport.callDevice,peer,admission.transcript())] as const));this.checkMesh(version)
     for(const [peer,id] of ids){
       const edge={} as Edge
@@ -230,7 +232,7 @@ export class VoiceRoomCall {
     const bundle=await keys.create()
     try{
       this.checkMesh(version)
-      if(await this.transport.send(this.state.channel,{kind:'call',signal:bundle.signal})!=='sent')throw new Error('SFU key signaling is offline')
+      if(await this.transport.send(this.state.channel,{kind:'call',signal:bundle.signal})!=='sent')throw signalingPending()
       this.checkMesh(version);this.sfuPublishedKeys=true;this.lastSfuKeys=Date.now()
       if(!this.transport.sfuAccess)throw new Error('SFU admission is unavailable')
       let access:SfuAccess
@@ -343,14 +345,14 @@ export class VoiceRoomCall {
     if(this.connectUntil&&now>this.connectUntil){this.fault={operation:'connect-timeout',stage:this.sfu?.stage??'key-wrap',leaseRemaining:Math.min(...(this.snapshot?.room.participants.map(peer=>peer.expires_at-now)??[0])),checkedAge:now-this.checkedAt};this.finish('Room audio connection timed out.');return}
     if(this.snapshot&&this.own&&now-this.renewedAt>=10_000&&!this.renewing){
       this.renewing=true;this.lastPoll=now
-      void this.transport.voicePresence(this.presence(true)).then(async view=>{this.current(generation);await this.apply(view,generation);this.current(generation);this.renewedAt=this.checkedAt=Date.now()}).catch(error=>{if(generation===this.generation){this.failed('renew',error);if((error as {status?:number}).status===409)this.recover('Updating room participation…');else this.finish('Voice room permissions were lost.')}}).finally(()=>{if(generation===this.generation)this.renewing=false})
+      void this.transport.voicePresence(this.presence(true)).then(async view=>{this.current(generation);await this.apply(view,generation);this.current(generation);this.renewedAt=this.checkedAt=Date.now()}).catch(error=>{if(generation===this.generation){this.failed('renew',error);if((error as {status?:number}).status===409||transient(error))this.recover('Updating room participation…');else this.finish('Voice room permissions were lost.')}}).finally(()=>{if(generation===this.generation)this.renewing=false})
     }
-    if(this.snapshot&&this.own&&!this.renewing&&now-this.lastPoll>=5000){this.lastPoll=now;void this.refresh().catch(error=>{if(generation===this.generation){this.failed('poll',error);if((error as {status?:number}).status===409)this.recover('Updating room participation…');else this.finish('Voice room access was lost.')}})}
+    if(this.snapshot&&this.own&&!this.renewing&&now-this.lastPoll>=5000){this.lastPoll=now;void this.refresh().catch(error=>{if(generation===this.generation){this.failed('poll',error);if((error as {status?:number}).status===409||transient(error))this.recover('Updating room participation…');else this.finish('Voice room access was lost.')}})}
     if((this.edges.size||this.sfu)&&this.admission&&now-this.lastHeartbeat>=10_000){
       this.lastHeartbeat=now;const context=this.admission.context,version=this.mesh
       const signal:CallSignal={call_id:context.id,group_id:context.id,voice_room:context.voiceRoom,participants:[...context.participants],epoch:context.epoch,from_device:this.transport.callDevice,to_device:context.participants.find(device=>device!==this.transport.callDevice)!,kind:context.sfu?'sfu-heartbeat':'room-heartbeat',description:roomMediaDescription(this.mediaRevision,this.state),relay_only:context.relayOnly,expires_at:now+60_000}
       if(this.sfuPublishedKeys&&this.sfuKeys&&now-this.lastSfuKeys>=30_000){try{this.lastSfuKeys=now;void this.transport.send(context.conversation,{kind:'call',signal:this.sfuKeys.repeat()}).catch(()=>{if(this.active&&version===this.mesh)this.finish('SFU key signaling was lost.')})}catch{this.recover('Refreshing encrypted room participation…');return}}
-      void this.transport.send(context.conversation,{kind:'call',signal}).then(result=>{if(result!=='sent')throw new Error('Room signaling is offline')}).catch(error=>{if(this.active&&version===this.mesh){this.failed('heartbeat',error);this.finish('Voice room signaling was lost.')}})
+      void this.transport.send(context.conversation,{kind:'call',signal}).then(result=>{if(result!=='sent')throw signalingPending()}).catch(error=>{if(this.active&&version===this.mesh){this.failed('heartbeat',error);if(transient(error))this.recover('Reconnecting encrypted room signaling…');else this.finish('Voice room signaling was lost.')}})
     }
     if(this.edges.size&&[...this.edges.values()].every(edge=>edge.call.state.phase==='connected')){
       const version=this.mesh

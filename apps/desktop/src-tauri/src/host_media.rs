@@ -189,7 +189,7 @@ fn mount(path: &Path, target: &str, readonly: bool) -> Result<String, String> {
         if readonly { ",readonly" } else { "" }
     ))
 }
-fn configure(selection: &Selection) -> Result<(), String> {
+pub(crate) fn configure(selection: &Selection) -> Result<(), String> {
     let bundle = hosting::validate(&selection.root)?;
     if PUBLIC_FILES
         .iter()

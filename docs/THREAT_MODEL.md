@@ -152,7 +152,13 @@ network recovery end capture; stable established 1:1 calls use the bounded
 in-flight crypto outputs are invalidated, and media resumes only with peer/worker
 confirmation and advancing new-key frames. Overlapping epochs and update timeout
 end capture. Approved MLS devices remain within the conversation trust boundary.
-General group rekey and full messaging/network reconnection remain open.
+Private-group and community media now have bounded MLS recovery. A room's
+transient network timeout or queued signaling pauses capture and enters the same
+fresh-admission recovery path, capped at three recoveries per minute and thirty
+seconds per attempt. Revoked/denied access remains terminal. Gateway challenges,
+resume and liveness controls are processed independently of durable message work;
+the resume cursor still comes from the durably saved view. This does not increase
+server authentication deadlines or acknowledge an unpersisted delivery.
 The local automatic-trigger test injects a connection-state event and is not proof
 of real outage recovery, cross-network privacy or physical-device permissions.
 
@@ -409,10 +415,11 @@ Community room camera/screen development reuses the verified encrypted pair's
 prebound media slots. Camera/screen state and a mesh-scoped monotonic counter
 travel inside MLS room heartbeats, never in public occupancy metadata. Room
 access is rechecked before capture, after permission selection and at each edge
-before attaching a clone. Source and clone tracks stop immediately on local
-leave/lock, access or epoch failure and room roster changes. Camera/share need
-fresh explicit consent for a changed audience. Current read/send permissions
-apply to all room media; separate track permissions remain open. See
+before attaching a clone. Source and clone tracks stop on local leave/lock,
+denied access or failed recovery. A verified membership transition replaces all
+old sender clones/keys while retaining authorized local capture and mute. New
+captures and departed participants still require explicit consent. Independent
+connect/listen/speak/camera/screen grants gate publication and reception. See
 [room video](ROOM_VIDEO.md) for scope and acceptance boundaries.
 
 ## Phase 0 media experiment

@@ -51,6 +51,15 @@ fn managed_host_package_integrity() {
     for name in bundle
         .files
         .keys()
+        .filter(|name| crate::host_media::PUBLIC_FILES.contains(&name.as_str()))
+    {
+        builder
+            .append_path_with_name(root.join(name), name)
+            .unwrap();
+    }
+    for name in bundle
+        .files
+        .keys()
         .filter(|name| name.starts_with("Hearth_Server_Test_") && name.ends_with(".tar"))
     {
         builder
@@ -80,7 +89,41 @@ fn managed_host_package_integrity() {
     fs::remove_file(&signature).unwrap();
     assert!(hosting::validate(&root).is_err());
     fs::write(signature, original).unwrap();
-    fs::write(root.join("native-report.json"),serde_json::json!({"outcome":"pass","checks":{"signed_host_package_validates":true,"signed_host_tar_extracts_without_operator_configuration":true,"modified_manifest_and_script_are_rejected":true,"unsigned_host_package_is_rejected":true}}).to_string()).unwrap();
+    let mut report = serde_json::json!({"outcome":"pass","checks":{"signed_host_package_validates":true,"signed_host_tar_extracts_without_operator_configuration":true,"modified_manifest_and_script_are_rejected":true,"unsigned_host_package_is_rejected":true}});
+    if bundle
+        .files
+        .contains_key(crate::host_media::PUBLIC_FILES[0])
+    {
+        for file in crate::host_media::PUBLIC_FILES {
+            assert_eq!(
+                fs::read(extracted.join(file)).unwrap(),
+                fs::read(root.join(file)).unwrap()
+            );
+            let path = root.join(file);
+            let original = fs::read(&path).unwrap();
+            fs::write(&path, b"tampered media deployment").unwrap();
+            assert!(hosting::validate(&root).is_err());
+            fs::write(path, original).unwrap();
+        }
+        let selection = Selection {
+            root: root.clone(),
+            https: false,
+            project: bundle.server.compose_project.clone(),
+            public_address: None,
+        };
+        crate::host_media::configure(&selection).unwrap();
+        let private = root.join("deploy/media/data");
+        let before = fs::read(private.join(".env")).unwrap();
+        crate::host_media::configure(&selection).unwrap();
+        assert_eq!(before, fs::read(private.join(".env")).unwrap());
+        let environment = String::from_utf8(before).unwrap();
+        assert!(!environment.contains("/opt/data") && !environment.contains("\\\\?\\"));
+        assert!(!crate::host_media::enabled(&root).unwrap());
+        report["checks"]["signed_media_files_extract_and_tampering_is_rejected"] = true.into();
+        report["checks"]["native_media_preparation_preserves_credentials_and_rebases_mounts"] =
+            true.into();
+    }
+    fs::write(root.join("native-report.json"), report.to_string()).unwrap();
 }
 struct Cleanup<'a> {
     selection: &'a Selection,
@@ -429,6 +472,6 @@ fn managed_host_lifecycle_and_failed_update_restore() {
     // Retry the same recovery journal without generating new credentials or identity.
     let retried = fresh_restore(&fresh_data, &directory).unwrap();
     assert_eq!(retried.root, fresh.root);
-    let report = serde_json::json!({"outcome":"pass","checks":{"native_start_stop_status_and_setup_code":true,"missing_configuration_never_regenerates_credentials_over_existing_volumes":true,"wrong_database_credentials_are_rejected_without_changing_data_or_configuration":true,"original_configuration_retries_successfully":true,"modified_bundle_rejected":true,"backup_database_restore_rehearsal_and_identity_check":true,"failed_new_server_restores_database_and_original_identity":true,"interrupted_override_can_be_recovered":true,"fresh_restore_rejects_existing_host_data":true,"fresh_restore_preserves_identity_credentials_and_database":true,"fresh_restore_retry_reuses_recovery_journal":true,"only_disposable_project_resources_used":true}});
+    let report = serde_json::json!({"outcome":"pass","checks":{"native_start_stop_status_and_setup_code":true,"missing_configuration_never_regenerates_credentials_over_existing_volumes":true,"wrong_database_credentials_are_rejected_without_changing_data_or_configuration":true,"original_configuration_retries_successfully":true,"modified_bundle_rejected":true,"backup_database_restore_rehearsal_and_identity_check":true,"failed_new_server_restores_database_and_original_identity":true,"interrupted_override_can_be_recovered":true,"fresh_restore_rejects_existing_host_data":true,"fresh_restore_preserves_identity_credentials_and_database":true,"fresh_restore_retry_reuses_recovery_journal":true,"private_media_credentials_restore_and_mount_paths_are_rebased":true,"only_disposable_project_resources_used":true}});
     fs::write(root.join("native-report.json"), report.to_string()).unwrap();
 }
