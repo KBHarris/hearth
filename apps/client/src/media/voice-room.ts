@@ -284,7 +284,7 @@ export class VoiceRoomCall {
     if(this.recovering){this.recoveryEpoch=Math.max(this.recoveryEpoch,minimumEpoch);return}
     this.recoveryEpoch=minimumEpoch
     this.recoveries=this.recoveries.filter(time=>Date.now()-time<60_000)
-    if(this.recoveries.length>=3){this.finish('Room recovery could not stabilize. Join again when the connection is ready.');return}
+    if(this.recoveries.length>=3){this.fault??={operation:'recovery-budget',reason:['Updating room encryption…','Reconnecting encrypted room signaling…','Reconnecting the encrypted room…','Updating room participation…','Refreshing encrypted room participation…'].indexOf(message)};this.finish('Room recovery could not stabilize. Join again when the connection is ready.');return}
     this.recoveries.push(Date.now())
     this.recovering=true;this.retainedCapture=true;this.renewing=false;this.recoveryUntil=Date.now()+30_000
     const generation=++this.generation;this.mesh++;this.refreshPromise=null
@@ -343,7 +343,7 @@ export class VoiceRoomCall {
     if(!this.active)return
     const now=Date.now(),generation=this.generation
     if(this.recovering){if(now>=this.recoveryUntil)this.finish('Encrypted room recovery timed out.');return}
-    if(now-this.checkedAt>25_000||now-this.created>=50*60_000||this.own&&this.own.expires_at>0&&this.own.expires_at<=now){this.finish('Voice room access verification expired.');return}
+    if(now-this.checkedAt>25_000||now-this.created>=50*60_000||this.own&&this.own.expires_at>0&&this.own.expires_at<=now){this.fault={operation:'authorization-expired',checkedAge:now-this.checkedAt,leaseRemaining:(this.own?.expires_at??now)-now};this.finish('Voice room access verification expired.');return}
     if(this.connectUntil&&now>this.connectUntil){this.fault={operation:'connect-timeout',stage:this.sfu?.stage??'key-wrap',leaseRemaining:Math.min(...(this.snapshot?.room.participants.map(peer=>peer.expires_at-now)??[0])),checkedAge:now-this.checkedAt};this.finish('Room audio connection timed out.');return}
     if(this.snapshot&&this.own&&now-this.renewedAt>=10_000&&!this.renewing){
       this.renewing=true;this.lastPoll=now

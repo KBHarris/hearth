@@ -79,6 +79,18 @@ Remaining work and release gates are tracked in
 [the Phase 4 release checklist](PHASE4_RELEASE_CHECKLIST.md). Historical frozen
 checkpoints below retain their original scope and counts.
 
+**Release-gate investigation, 2026-10-23:** the independent-lease 25-person run
+reached all joins but failed the sustained PCM matrix: five endpoints lost
+authorization or participation, leaving twenty connected. It is retained as a
+failure and does not establish room capacity. Additional diagnostics now record
+only authorization age, lease time remaining and bounded operation timings.
+The concurrent Windows SFU/TCP run failed during joining; its isolated rerun
+passes all twenty checks, including the held-durable-queue lease probe, decoded
+media, relay-only routes, rekey, permission revocation and native cleanup.
+The signed 0.4.0 installer/package remain unpublished candidates. A read-only,
+protected baseline of the selected existing host has been taken for eventual
+before/after preservation verification; its services and data are unchanged.
+
 **Phase 4 SFU and computer audio, 2026-10-22:** optional SFU community rooms
 are implemented with a 25-account admission bound, current signed device/room
 leases and 60-second revision-specific routing tokens. Each publisher derives

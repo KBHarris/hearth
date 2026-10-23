@@ -7,18 +7,18 @@ outside-network, clean-machine, or cross-platform pass.
 
 - [ ] Stable 25-person SFU voice plus screen/computer audio; record upload,
   recipient traffic, fixture CPU and actual encrypted packet/privacy evidence.
-- [ ] Independent media permission enforcement in Rust, server, client, SFU
+- [x] Independent media permission enforcement in Rust, server, client, SFU
   tokens and encrypted receive/publication paths; stage speaker/audience consent.
-- [ ] Device switching and microphone/speaker controls, including late grants,
+- [x] Device switching and microphone/speaker controls, including late grants,
   cancellation, changed permissions, mute preservation and capture cleanup.
-- [ ] Community and private-group MLS recovery and bounded network reconnect,
+- [x] Community and private-group MLS recovery and bounded network reconnect,
   preserving selected devices and stopping every unauthorized/obsolete sender.
-- [ ] Complete private-call media features and automated regressions.
-- [ ] Events, authenticated RSVP, synchronized playback, provider opt-in and
+- [x] Complete private-call media features and automated regressions.
+- [x] Events, authenticated RSVP, synchronized playback, provider opt-in and
   isolated provider execution; verify native IPC cannot be reached by frames.
-- [ ] TURN-TLS acceptance and packaged media/TLS configuration; include media
+- [x] TURN-TLS acceptance and packaged media/TLS configuration; include media
   settings and provider credentials in protected backup/restore/update handling.
-- [ ] Guided host/release packaging, WSS routing, optional browser hosting and
+- [x] Guided host/release packaging, WSS routing, optional browser hosting and
   cloud recovery procedures. Keep live Railway application paused.
 - [ ] Normal production build excludes acceptance entries and private material.
   Run required npm, Rust, protocol, WASM and desktop checks on final source.

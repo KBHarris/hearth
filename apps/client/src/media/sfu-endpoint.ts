@@ -46,6 +46,7 @@ async function operation(name:string,data:Record<string,unknown>){
       const auth=await client.loginStart({username,message:await cryptoClient.request('loginStart',password)});session=await client.loginFinish({exchange_id:auth.exchange_id,message:await cryptoClient.request('loginFinish',password,auth.message,username,server)})
       const identity=JSON.parse(await cryptoClient.request('prepareIdentity','',undefined,session.account.id,server)) as {enrollment:DeviceEnrollment};device=identity.enrollment;await client.enrollFirstDevice(session.token,device);await cryptoClient.request('commitIdentity','')
       service=new MessagingSession(cryptoClient,session,device,server,String(data.origin),value=>{state=value})
+      for(const name of ['voiceRoom','voicePresence','renewVoicePresence','send'] as const){const original=service[name].bind(service) as (...args:never[])=>Promise<unknown>;Object.assign(service,{[name]:(...args:never[])=>{const started=performance.now();return original(...args).finally(()=>measured('session_'+name,started))}})}
       audio=new AudioContext();await audio.resume()
       call=new VoiceRoomCall(service,server,render,async constraints=>{if(constraints.video)return picture(false);mics++;return tone(300+Number(data.index)*40)},()=>true,async withAudio=>picture(true,!!withAudio))
       return {token:session.token,account:session.account,device,server}
