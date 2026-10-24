@@ -25,6 +25,16 @@ are now retained until their matching authenticated transcript arrives;
 duplicates, expired/old-epoch controls and the existing eight-entry bound are
 covered by lifecycle tests. No recovery or authorization deadline was extended.
 
+The first offer-retention repeat still times out for one participant at the linked
+device epoch transition; the regression fix is retained, but is not claimed to
+have closed that end-to-end gate. The next fixture records bounded, content-free
+mesh/edge timing traces to diagnose the remaining ordering failure. Queued room
+signaling now uses the same current-context preflight as key exports, after its
+outbox flush and before Rust serialization. Queue-level tests prove stale requests
+never reach crypto and valid requests still do. All required npm checks pass,
+including 143 client tests. The incomplete 25-person setup was superseded through
+normal cleanup before media joins, so it cannot become release evidence.
+
 **Latest completed capacity checkpoint, 2026-10-23 (source `dae3fb2`):** implementation is
 present, but the complete 25-person SFU release gate has not passed. The latest
 distributed run decoded all 600 directed microphone paths among 25 participants,

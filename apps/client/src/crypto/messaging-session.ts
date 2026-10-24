@@ -512,6 +512,7 @@ export class MessagingSession {
   async send(id:string,content:MessageContent):Promise<'sent'|'queued'> {
     return this.enqueue(async()=>{
       await this.flush()
+      if(content.kind==='call')currentRoomKeyContext(content.signal,this.view.groups.find(group=>group.id===id),this.mediaRosters.get(id),this.device.device_key)
       await this.operation('send',{id,content});await this.persist()
       try {
         if(await this.flush())throw new Error('The message was rejected after an encryption or permission update. Retry after updates arrive.')

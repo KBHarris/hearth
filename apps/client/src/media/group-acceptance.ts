@@ -13,6 +13,7 @@ const require=(value:unknown)=>{if(!value)throw new Error('Group call acceptance
 async function until(test:()=>boolean|Promise<boolean>,label:string){for(let i=0;i<600;i++){if(await test())return;await pause(100)}throw new Error(label)}
 export async function runGroupAcceptance(config:{origin:string;setupCode:string;turn?:boolean;groupRevoke?:boolean;groupRejoin?:boolean;groupVideo?:boolean}){
   const checks:Record<string,boolean>={},installs:Install[]=[],calls:GroupCall[]=[],originals:MediaStreamTrack[]=[],wire:string[]=[],secrets:string[]=[],connections:RTCPeerConnection[]=[]
+  const transitions:Record<string,unknown>[][]=[]
   let stage='group capabilities',captures=0,panels:ReturnType<typeof mountGroupPanels>|undefined,audio:AudioContext|undefined,replay:CallSignal|undefined
   const videoTimers:ReturnType<typeof setInterval>[]=[]
   const originalFetch=window.fetch.bind(window),OriginalSocket=window.WebSocket,OriginalConnection=window.RTCPeerConnection,originalDerive=GroupKeyAgreement.prototype.derive,originalPlay=HTMLMediaElement.prototype.play
@@ -88,6 +89,19 @@ export async function runGroupAcceptance(config:{origin:string;setupCode:string;
       const stream=canvas.captureStream(10);if(withAudio){const oscillator=audio!.createOscillator(),gain=audio!.createGain(),output=audio!.createMediaStreamDestination();oscillator.frequency.value=1200;gain.gain.value=.1;oscillator.connect(gain).connect(output);oscillator.start();stream.addTrack(output.stream.getAudioTracks()[0])}originals.push(...stream.getTracks());return stream
     }
     for(const person of installs)calls.push(new GroupCall(person.service,server,()=>panels?.render(),async constraints=>{if(constraints.video)return picture();const stream=await synthetic();sources.set(person.device.device_key,stream.getAudioTracks()[0]);return stream},()=>true,async withAudio=>picture(true,!!withAudio)))
+    for(const [index,call] of calls.entries()){
+      const trace:Record<string,unknown>[]=[];transitions[index]=trace
+      const raw=call as unknown as Record<string,unknown>
+      const internal=call as unknown as {room:{context:{epoch:number;participants:string[]};generation:number;readyPeers:string[]}|null;meshVersion:number;membershipAt:number;pending:{signal:CallSignal}[];edges:Map<string,{id:string;call:{state:{phase:string};connectivity:{connectionState:string;iceState:string;stopReason:string}}}>}
+      for(const name of ['epochChanged','membershipChanged','beginMesh','deliverPending','edgeSignal','edgeChanged','finish']){
+        const original=raw[name] as (...args:unknown[])=>unknown
+        raw[name]=(...args:unknown[])=>{
+          const room=internal.room,signal=(args[1] as {signal?:CallSignal}|undefined)?.signal
+          if(name!=='membershipChanged'||room?.generation!==internal.membershipAt){trace.push({at:Math.round(performance.now()),operation:name,epoch:room?.context.epoch,mesh:internal.meshVersion,generation:room?.generation,ready:room?.readyPeers.map(device=>room.context.participants.indexOf(device)),pending:internal.pending.length,kind:signal?.kind,matched:signal?internal.edges.get(signal.from_device)?.id===signal.call_id:undefined,edgePhase:name==='edgeChanged'?(args[2] as {phase:string})?.phase:undefined,edges:[...internal.edges].map(([device,edge])=>({peer:room?.context.participants.indexOf(device),phase:edge.call.state.phase,connection:edge.call.connectivity?.connectionState,ice:edge.call.connectivity?.iceState,stop:edge.call.connectivity?.stopReason}))});if(trace.length>80)trace.shift()}
+          return original.apply(call,args)
+        }
+      }
+    }
     const conversation=await alice.service.authorizeGroupCall(id)
     panels=mountGroupPanels(calls,installs.slice(),conversation)
     checks.real_three_account_group_and_approved_devices=true
@@ -238,7 +252,7 @@ export async function runGroupAcceptance(config:{origin:string;setupCode:string;
     require(wire.length>0&&['HEARTH_PRIVATE_GROUP_SDP_CANARY',...secrets].every(secret=>wire.every(body=>!body.includes(secret))))
     checks.media_keys_and_plaintext_sdp_absent_from_http_and_gateway=true
     return {outcome:'pass',scope:'Three real product accounts/MLS and group UI in one local runtime; six encrypted peer links with synthetic audio only',checks,metrics,audioPeaks:peaks,physicalDevicePermissionsValidated:false,internetValidated:false,turnValidated:!!config.turn,railwayValidated:false}
-  }catch(error){return {outcome:'fail',stage,failureClass:error instanceof Error?error.name:'untyped',httpStatus:typeof(error as {status?:unknown})?.status==='number'?(error as {status:number}).status:undefined,checks,failures,deliveryErrors:installs.map(person=>person.state.error),phases:calls.map(call=>call.state.phase),messages:calls.map(call=>call.state.message),faults:calls.map(call=>call.failureDiagnostics()),captures,connections:connections.length,metrics:await Promise.all(calls.map(call=>call.diagnostics().catch(()=>[])))}}
+  }catch(error){return {outcome:'fail',stage,failureClass:error instanceof Error?error.name:'untyped',httpStatus:typeof(error as {status?:unknown})?.status==='number'?(error as {status:number}).status:undefined,checks,failures,deliveryErrors:installs.map(person=>person.state.error),phases:calls.map(call=>call.state.phase),messages:calls.map(call=>call.state.message),faults:calls.map(call=>call.failureDiagnostics()),captures,connections:connections.length,transitions,metrics:await Promise.all(calls.map(call=>call.diagnostics().catch(()=>[])))}}
   finally{
     window.fetch=originalFetch;window.WebSocket=OriginalSocket;window.RTCPeerConnection=OriginalConnection;HTMLMediaElement.prototype.play=originalPlay;GroupKeyAgreement.prototype.derive=originalDerive
     for(const call of calls)call.close();for(const timer of videoTimers)clearInterval(timer);panels?.close();for(const person of installs){person.service.close();person.crypto.close()}await audio?.close().catch(()=>{});wire.length=0;secrets.length=0
