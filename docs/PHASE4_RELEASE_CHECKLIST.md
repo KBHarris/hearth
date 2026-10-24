@@ -15,7 +15,8 @@ combined private media/device/MLS recovery now passes 16 checks. The complete
 release gates remain pending. On 2026-10-24,
 the three-person permission-removal case passes all 10 checks after guarding
 fresh policy against its preceding MLS epoch; the full 25-person repeat remains
-required. All npm checks pass, including 146 client tests. Final binaries
+required. Full Windows/private media and stage gates pass 20/16/10 checks.
+All npm checks pass, including 146 client tests. Final binaries
 must be rebuilt from the accepted source before publication.
 
 - [ ] Stable 25-person SFU voice plus screen/computer audio; record upload,

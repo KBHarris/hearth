@@ -54,8 +54,11 @@ removal passes 8, including decoded survivor audio. The full stage runner had a
 six-minute controller allowance despite 255 seconds of mandatory budget waits;
 its test-only allowance now covers those waits and setup, while each owner
 policy action has a 30-second fixture watchdog. Product authorization/recovery
-deadlines and request limits are unchanged. Full sequence acceptance is pending
-before the final 25-person gate. Evidence:
+deadlines and request limits are unchanged. The complete stage sequence now passes all 10 checks with the corrected test
+controller budget, including repeated-promotion consent and targeted listening
+revocation. No further stage product change was needed. Evidence:
+`target/direct-calls-evidence/stage-final-bounded-2026-10-24/sfu-room-direct/result.json`.
+The final 25-person acceptance run is in progress. Evidence:
 `target/direct-calls-evidence/stage-cycle-isolated-2026-10-24/sfu-room-direct/result.json`
 and `target/direct-calls-evidence/stage-listen-isolated-2026-10-24/sfu-room-direct/result.json`.
 

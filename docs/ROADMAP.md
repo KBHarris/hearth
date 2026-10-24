@@ -317,8 +317,8 @@ Current local gate (2026-10-24): private-call linked-device recovery passes 15
 focused checks and 16 combined media/device checks after correcting signaling
 order. Focused SFU permission removal passes 10 checks after guarding signed
 policy against its preceding MLS epoch. The Windows SFU/TURN-TCP pair passes 10
-checks and complete native media acceptance passes 20. The final stage and
-25-person capacity repeats are pending. Release and installed client/server
+checks and complete native media acceptance passes 20. The complete stage sequence passes 10 checks; the final
+25-person capacity repeat is in progress. Release and installed client/server
 upgrades remain pending. Railway stays paused and Spotify disabled.
 
 **Goal:** a reproducible hosted Hearth deployment with an optional browser client,
