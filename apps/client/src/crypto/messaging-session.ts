@@ -1,6 +1,7 @@
 import {deliveryBatch} from './delivery-batch'
 import {verifiedVoiceSnapshot} from './voice-snapshot'
 import {MediaWork} from './media-work'
+import {currentRoomKeyContext} from './room-key-context'
 import type {ReportKey,ReportEvidence,QueuedReport,ReportEnvelope} from '@hearth/sdk'
 export type ReportReview=QueuedReport&{evidence?:ReportEvidence;error?:string}
 import {permissions,mediaPermissions,withMediaPermissions,Permission,HearthClient,HearthError,PROTOCOL_VERSION,validateDeliveryEvent,type Session,type DeviceEnrollment,type Conversation,type LocalMessage,type KeyPackageRecord,type CommitUpload,type MessageUpload,type MessageContent,type Person,type DeliveryEvent,type ChannelRoster} from '@hearth/sdk'
@@ -42,7 +43,7 @@ export class MessagingSession {
     const config=await this.client.groupCallConfiguration(this.session.token,this.device.device_key,this.options)
     return config.ice_servers.map(server=>({urls:server.urls,...(server.username&&server.credential?{username:server.username,credential:server.credential}:{})}))
   }
-  callKey(id:string,signal:CallSignal):Promise<string>{return this.enqueueMedia(()=>this.operation<string>('call_key',{id,signal}),false)}
+  callKey(id:string,signal:CallSignal):Promise<string>{return this.enqueueMedia(()=>{currentRoomKeyContext(signal,this.view.groups.find(group=>group.id===id),this.mediaRosters.get(id),this.device.device_key);return this.operation<string>('call_key',{id,signal})},false)}
   authorizeCall(id:string,signal?:CallSignal):Promise<Conversation>{return this.authorizeMedia(id,signal,false)}
   authorizeGroupCall(id:string,signal?:CallSignal):Promise<Conversation>{return this.authorizeMedia(id,signal,true)}
   private async voiceAccess(id:string){
@@ -126,6 +127,7 @@ export class MessagingSession {
   private state:ChatState=initialChat
   private tail:Promise<unknown>=Promise.resolve()
   private mediaWork=new MediaWork()
+  private mediaRosters=new Map<string,ChannelRoster>()
   private socket:WebSocket|null=null
   private heartbeat:ReturnType<typeof setInterval>|undefined
   private maintenance:ReturnType<typeof setInterval>|undefined
@@ -438,7 +440,10 @@ export class MessagingSession {
     }
     if(!roster.authority||!roster.policy)throw new Error('The channel encryption policy is incomplete.')
     const authorization:ChannelAuthorization={authority:roster.authority,policy:roster.policy,admissions:roster.admissions,governance:roster.governance,departures:roster.departures}
-    if(await this.operation<boolean>('authorize_channel',{id,authorization}))await this.persist()
+    const changed=await this.operation<boolean>('authorize_channel',{id,authorization})
+    if(!this.mediaRosters.has(id)&&this.mediaRosters.size>=128)this.mediaRosters.delete(this.mediaRosters.keys().next().value!)
+    this.mediaRosters.set(id,roster)
+    if(changed)await this.persist()
     return roster
   }
   approveMember(channel:string,account:string,expectedKey:string):Promise<void>{return this.enqueue(async()=>{

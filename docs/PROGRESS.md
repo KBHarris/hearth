@@ -1,5 +1,21 @@
 # Progress
 
+**Current release gate, source `5797e06`, 2026-10-23:** the two-browser 25-person
+run passes all 600 directed microphone paths, camera/screen decoding, separate
+computer audio and microphone mute, a 32-second measured load interval, wrong-key
+observer rejection, and 24-person leave/rekey with shared audio preserved. It
+then fails targeted permission revocation because two unaffected survivors stop
+during key rebuilding. The complete gate remains failed; no release or real
+client/server upgrade has occurred. Railway remains paused and Spotify disabled.
+
+Queued key exports are now checked against the already verified, current channel
+roster and local MLS epoch before the authoritative Rust export. An obsolete
+audience requests a fresh context; own access loss stays terminal. The check
+adds no network requests, grants no key/permission and retains Rust verification,
+all deadlines and the existing recovery budget. Four focused tests pass for
+stale epochs, revoked peers/devices/identities and receive-only stage listeners.
+End-to-end acceptance must be repeated before publication.
+
 **Latest completed capacity checkpoint, 2026-10-23 (source `dae3fb2`):** implementation is
 present, but the complete 25-person SFU release gate has not passed. The latest
 distributed run decoded all 600 directed microphone paths among 25 participants,
