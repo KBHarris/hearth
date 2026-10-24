@@ -332,8 +332,14 @@ The local three-person stage and trusted fixture TURN-TLS transport checks pass.
 Private-group camera/screen/computer audio, microphone switching and a real MLS
 epoch update now pass together. Disposable media-aware backup/fresh restore and
 rollback, native provider isolation, packaged WSS and browser TURN-TLS route
-selection also pass. The 25-person load run and final release checks remain in
-progress. Spotify is disabled for this release by the user's decision.
+selection also pass. At source `dae3fb2`, the latest 25-person fixture decodes all
+600 directed microphone paths but fails during camera/screen sharing. The full
+voice/video/screen/load gate remains open. Windows SFU passes 20 checks,
+private-group media/MLS recovery passes 16, and all 130 client tests pass. Final
+rebuilds, signed publication and the actual client/server upgrades are pending;
+the installed client and existing host remain unchanged. Work resumed after the
+usage reset with adaptive durable-prefix checkpoints. Spotify is
+disabled for this release by the user's decision.
 [The release checklist](PHASE4_RELEASE_CHECKLIST.md) distinguishes
 these gates from the user's physical-device/network/platform acceptance.
 

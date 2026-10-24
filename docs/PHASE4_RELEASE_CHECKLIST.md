@@ -5,6 +5,14 @@ upgrades of their existing client/server on 2026-10-23. Release and upgrade are
 pending. Railway remains paused. Local evidence must not be presented as an
 outside-network, clean-machine, or cross-platform pass.
 
+Latest checkpoint (`dae3fb2`, 2026-10-23): all 600 directed microphone paths
+decode across 25 synthetic participants, but the full run fails at camera/screen
+sharing. Windows SFU passes 20 checks; private-group media/MLS recovery passes 16;
+stage permissions/consent pass 9; the npm suite includes 130 passing client tests.
+The failure remains a release blocker. Existing candidate binaries predate this
+source; rebuild them after the full gate passes. Work resumed after the usage
+reset with adaptive durable-prefix checkpoints; the full gate is being repeated.
+
 - [ ] Stable 25-person SFU voice plus screen/computer audio; record upload,
   recipient traffic, fixture CPU and actual encrypted packet/privacy evidence.
 - [x] Independent media permission enforcement in Rust, server, client, SFU

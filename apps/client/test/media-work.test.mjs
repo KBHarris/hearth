@@ -26,3 +26,10 @@ test('a saved delivery prefix remains unexposed to urgent work until its ordered
   const next=queue.add(async()=>order.push('later'));await assert.rejects(queue.batch(async()=>{await queue.drain();throw new Error('storage failure')}),/storage failure/)
   assert.equal(order.includes('later'),false);await queue.drain();await next;assert.equal(order.at(-1),'later')
 })
+
+test('fresh authorization runs before queued key exports without reordering either class',async()=>{
+  const queue=new MediaWork(),order=[]
+  const work=[queue.add(async()=>order.push('key1')),queue.add(async()=>order.push('policy1'),true),queue.add(async()=>order.push('key2')),queue.add(async()=>order.push('policy2'),true)]
+  assert.equal(queue.waiting,true);await queue.drain();await Promise.all(work)
+  assert.deepEqual(order,['policy1','policy2','key1','key2']);assert.equal(queue.waiting,false)
+})

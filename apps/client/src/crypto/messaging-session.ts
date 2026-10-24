@@ -42,7 +42,7 @@ export class MessagingSession {
     const config=await this.client.groupCallConfiguration(this.session.token,this.device.device_key,this.options)
     return config.ice_servers.map(server=>({urls:server.urls,...(server.username&&server.credential?{username:server.username,credential:server.credential}:{})}))
   }
-  callKey(id:string,signal:CallSignal):Promise<string>{return this.enqueueMedia(()=>this.operation<string>('call_key',{id,signal}))}
+  callKey(id:string,signal:CallSignal):Promise<string>{return this.enqueueMedia(()=>this.operation<string>('call_key',{id,signal}),false)}
   authorizeCall(id:string,signal?:CallSignal):Promise<Conversation>{return this.authorizeMedia(id,signal,false)}
   authorizeGroupCall(id:string,signal?:CallSignal):Promise<Conversation>{return this.authorizeMedia(id,signal,true)}
   private async voiceAccess(id:string){
@@ -149,8 +149,8 @@ export class MessagingSession {
     this.tail=result.catch(()=>{})
     return result
   }
-  private enqueueMedia<T>(action:()=>Promise<T>):Promise<T>{
-    const result=this.mediaWork.add(async()=>{if(this.closed)throw new Error('Messaging is locked. Sign in again.');return action()})
+  private enqueueMedia<T>(action:()=>Promise<T>,authorization=true):Promise<T>{
+    const result=this.mediaWork.add(async()=>{if(this.closed)throw new Error('Messaging is locked. Sign in again.');return action()},authorization)
     // A normal marker guarantees service even when there is no durable inbox.
     // Existing tasks also drain at their next saved batch boundary.
     void this.enqueue(async()=>{}).catch(()=>{})
@@ -234,15 +234,18 @@ export class MessagingSession {
     return rejected
   }
   private async receiveBatch(events:readonly DeliveryEvent[]){
-    for(let offset=0;offset<events.length;offset+=16){await this.mediaWork.batch(()=>deliveryBatch(events.slice(offset,offset+16),this.view.last_seq,{
+    for(let offset=0;offset<events.length;){const started=performance.now();const consumed=await this.mediaWork.batch(()=>deliveryBatch(events.slice(offset,offset+16),this.view.last_seq,{
       before:async event=>{if(event.data.kind==='commit'&&event.data.upload.expected_epoch>=(this.view.groups.find(group=>group.id===event.conversation_id)?.epoch??0))await this.changeCallEpoch(event.conversation_id)},
       receive:async event=>{const typing=await this.operation<[string,boolean]|null>('receive',event),calls=await this.operation<LocalCallSignal[]>('take_calls');return {typing,calls}},
       persist:()=>this.persist(),
+      // Slow crypto must not hold sixteen envelopes ahead of an access check.
+      // Save and publish the accepted prefix before yielding the single owner.
+      yield:()=>this.mediaWork.waiting||performance.now()-started>=250,
       emit:items=>{for(const {event,value:{typing,calls}} of items){
         for(const call of calls)if(call.signal.epoch===this.view.groups.find(group=>group.id===call.conversation_id)?.epoch)this.callObservers.emit(call)
         if(typing){const peers=this.state.typing[event.conversation_id]?.filter(peer=>peer.account!==typing[0])??[];if(typing[1])peers.push({account:typing[0],until:Date.now()+8000});this.state={...this.state,typing:{...this.state.typing,[event.conversation_id]:peers}}}
       }this.publish()},
-    }));await this.mediaWork.drain()}
+    }));offset+=consumed;await this.mediaWork.drain()}
   }
   private drainDelivery(socket:WebSocket){
     if(this.deliveryScheduled||this.socket!==socket||this.closed)return

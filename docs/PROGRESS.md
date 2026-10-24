@@ -1,5 +1,35 @@
 # Progress
 
+**Latest completed capacity checkpoint, 2026-10-23 (source `dae3fb2`):** implementation is
+present, but the complete 25-person SFU release gate has not passed. The latest
+distributed run decoded all 600 directed microphone paths among 25 participants,
+then failed at **Distributed camera and screen**. This is a failed full run, not
+a stable voice/video/screen/load acceptance result. Its raw result is retained at
+`target/direct-calls-evidence/sfu25-durable-checkpoints-2026-10-23/sfu-room-direct/result.json`.
+The final Windows SFU repeat passes 20 checks, private-group media/device/MLS
+recovery passes 16, stage consent/permissions pass 9, and the complete npm suite
+passes with 130 client tests. Rust formatting, Clippy, default tests and the
+isolated database policy regression also pass.
+
+No new release has been published; the installed client and selected existing
+server remain unchanged. Current installers/images predate the latest source and
+must be rebuilt after the full gate passes. Next: diagnose the camera/screen
+failure, pass the complete room fixture, rebuild and freeze final evidence,
+publish signed assets, then perform and verify the authorized data-preserving
+client/server upgrades. Automatic approval review previously reached the account
+usage cap; work resumed after the reset. Railway remains paused and Spotify stays
+disabled. The investigation entries below are chronological history.
+
+**Resumed scheduling correction, 2026-10-23:** an overloaded delivery batch can
+otherwise keep all sixteen envelopes ahead of a fresh authorization request.
+Delivery now saves and publishes a shorter accepted prefix when urgent media work
+is waiting or processing has taken 250 ms, then services that work before the next
+prefix. Fresh authorization also takes priority over queued key exports, with one
+serialized MLS owner and the existing storage/publication barrier. Eight focused
+queue/prefix tests pass, including resumption without loss/replay and no exposure
+after a failed save. Request limits, leases and authorization deadlines remain
+unchanged. The full capacity gate is being repeated before release.
+
 **Phase 4 completion work in progress, 2026-10-23:** the user authorized finishing
 all remaining implementation and automated validation, followed by a new release
 and data-preserving upgrades of this computer's client and existing server. Human
@@ -158,8 +188,10 @@ work. Urgent checks now receive service after each durable save and between
 read-only maintenance requests; delivery batches explicitly defer that service
 until their saved prefix has been published in order. A regression covers the
 save/publication barrier and failure path. The complete npm suite passes with
-130 client tests. Windows media and private-group MLS/device/media recovery are
-being rechecked alongside the next capacity setup. Publication remains pending.
+130 client tests. The Windows repeat now passes 20 checks and private-group
+MLS/device/media recovery passes 16. The capacity repeat decodes all 600 directed
+microphone paths, then fails during camera/screen sharing; the complete gate and
+publication remain pending.
 
 **Phase 4 SFU and computer audio, 2026-10-22:** optional SFU community rooms
 are implemented with a 25-account admission bound, current signed device/room
