@@ -224,17 +224,27 @@ export class GroupCall {
       this.dispatchLater(room,controls)
       this.membershipChanged(room)
     }else if(['offer','answer','heartbeat','hangup'].includes(signal.kind)){
-      if(!this.meshReady){if(this.pending.length>=8){this.finish('Too many pending group descriptions.');return}this.pending.push(event)}
+      if(!this.meshReady)this.retainDescription(event)
       else this.edgeSignal(room,event)
     }
   }
-  private edgeSignal(room:GroupMembership,event:LocalCallSignal,retainUnknown=true){
+  private retainDescription(event:LocalCallSignal){
+    this.pending=this.pending.filter(value=>value.signal.expires_at>Date.now())
+    if(this.pending.some(value=>value.signal.from_device===event.signal.from_device&&value.signal.call_id===event.signal.call_id&&value.signal.kind===event.signal.kind&&value.signal.description===event.signal.description))return
+    if(this.pending.length>=8){this.finish('Too many pending group descriptions.');return}
+    this.pending.push(event)
+  }
+  private deliverPending(room:GroupMembership){
+    const pending=this.pending;this.pending=[]
+    // Another participant's authenticated contribution can lag behind an offer
+    // computed from it. Keep that offer for the matching transcript; never feed
+    // it into a different edge or discard it at an intermediate two-person mesh.
+    for(const event of pending)if(this.matches(room,event.signal)&&event.signal.expires_at>Date.now())this.edgeSignal(room,event)
+  }
+  private edgeSignal(room:GroupMembership,event:LocalCallSignal){
     const edge=this.edges.get(event.signal.from_device)
     if(!edge||event.signal.call_id!==edge.id){
-      if(retainUnknown&&event.signal.kind==='offer'){
-        if(this.pending.length>=8){this.finish('Too many pending group descriptions.');return}
-        this.pending.push(event)
-      }
+      if(event.signal.kind==='offer')this.retainDescription(event)
       return
     }
     // Existing per-edge heartbeats also prove liveness to group admission.
@@ -286,7 +296,7 @@ export class GroupCall {
       this.edges.set(peer,edge)
     })
     this.meshReady=true;this.publish({phase:'connecting',message:'Connecting encrypted group audio…'})
-    const pending=this.pending;this.pending=[];for(const event of pending)this.edgeSignal(room,event,false)
+    this.deliverPending(room)
     await Promise.all([...this.edges].filter(([peer])=>this.transport.callDevice<peer).map(([peer,edge])=>edge.call.start(room.context.conversation,peer,room.context.relayOnly,this.ice)))
   }
   private async microphone(room:GroupMembership){
@@ -360,7 +370,7 @@ export class GroupCall {
     if(!this.source){this.sourceVersion++;this.sourcePromise=null}
     for(const edge of this.edges.values())edge.call.close();this.edges.clear()
     this.keys?.close();this.keys=null
-    this.transition=previous;this.room=null;previous.end('Previous media epoch ended')
+    this.transition=previous;this.room=null;this.pending=[];previous.end('Previous media epoch ended')
     this.publish({phase:'reconnecting',message:'Updating private group encryption…',participants:this.state.participants.map(person=>({...person,remote:null}))})
     // Do not await messaging from its own epoch callback.
     void(async()=>{

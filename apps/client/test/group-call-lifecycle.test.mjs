@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict'
 import {test} from 'node:test'
-import {GroupCall,idleGroup} from '../src/media/group-call.ts'
+import {GroupCall,idleGroup,groupEdgeId} from '../src/media/group-call.ts'
 import {GroupMembership} from '../src/media/group-membership.ts'
 import {groupContext} from '../src/media/group-admission.ts'
 const id=char=>char.repeat(64),devices=[id('a'),id('b'),id('c')],accounts=[id('1'),id('2'),id('3')],fake='04'+'ab'.repeat(64)
@@ -33,6 +33,38 @@ test('one shared microphone source supplies independent clones and late capture 
   }finally{f.call.close()}
   let later;const g=fixture(undefined,()=>new Promise(resolve=>{later=resolve})),[pendingRoom]=g.seed()
   try{const pending=g.call.microphone(pendingRoom);await tick();g.call.hangup();const source=new Stream([new Track()]);later(source);await assert.rejects(pending);assert.equal(source.getTracks()[0].readyState,'ended')}finally{g.call.close()}
+})
+
+test('a future-transcript offer survives an intermediate mesh and is delivered only after its prerequisite member arrives',async()=>{
+  const f=fixture(),rooms=f.seed(),room=rooms[0],received=[]
+  const partial=await groupEdgeId(room.context,devices[0],devices[1],room.transcript())
+  const third=rooms[2].answer(fake)
+  // Use a fork of the real two-person transcript to calculate the final edge.
+  const completed=room.transcript().map(row=>row[0]===devices[2]?[devices[2],fake,'1']:row)
+  const full=await groupEdgeId(room.context,devices[0],devices[1],completed)
+  assert.notEqual(partial,full)
+  const offer={call_id:full,group_id:room.context.id,participants:devices,epoch:room.context.epoch,from_device:devices[1],to_device:devices[0],kind:'offer',description:'synthetic future offer',relay_only:false,expires_at:Date.now()+60000}
+  const edge={id:partial,listener:event=>received.push(event),call:{close(){}}}
+  f.call.edges.set(devices[1],edge);f.call.meshReady=true
+  try{
+    f.receive(offer);await tick();assert.equal(f.call.pending.length,1)
+    for(let index=0;index<5;index++)f.call.deliverPending(room)
+    assert.equal(f.call.pending.length,1);assert.equal(received.length,0)
+    f.receive(offer);await tick();assert.equal(f.call.pending.length,1)
+    for(const signal of third)room.receive(signal)
+    edge.id=await groupEdgeId(room.context,devices[0],devices[1],room.transcript());assert.equal(edge.id,full)
+    f.call.deliverPending(room);assert.equal(f.call.pending.length,0);assert.equal(received.length,1);assert.equal(f.captures(),0)
+  }finally{f.call.close()}
+})
+
+test('pending descriptions reject stale contexts and retain the unchanged eight-description bound',async()=>{
+  const f=fixture(),[room]=f.seed()
+  const event=patch=>({conversation_id:conversation.id,account_id:accounts[1],signal:{call_id:id('7'),group_id:room.context.id,participants:devices,epoch:1,from_device:devices[1],to_device:devices[0],kind:'offer',description:'synthetic offer',relay_only:false,expires_at:Date.now()+60000,...patch}})
+  try{
+    f.call.pending=[event({epoch:0}),event({expires_at:Date.now()-1})];f.call.deliverPending(room);assert.equal(f.call.pending.length,0)
+    for(let index=0;index<8;index++)f.call.retainDescription(event({description:String(index)}))
+    assert.equal(f.call.pending.length,8);f.call.retainDescription(event({description:'overflow'}));assert.equal(f.call.state.phase,'ended')
+  }finally{f.call.close()}
 })
 test('lock stops capture; an epoch pauses originals, destroys old senders and bounds recovery',async t=>{
   t.mock.timers.enable({apis:['Date'],now:1000})

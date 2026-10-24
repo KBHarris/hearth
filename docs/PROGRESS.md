@@ -16,6 +16,15 @@ all deadlines and the existing recovery budget. Four focused tests pass for
 stale epochs, revoked peers/devices/identities and receive-only stage listeners.
 End-to-end acceptance must be repeated before publication.
 
+The stage repeat passes all ten consent, permission and cleanup checks. The
+private-group repeat passes media/microphone switching but times out for one
+participant during a real linked-device MLS epoch change. A reproduced ordering
+regression shows that an offer for the final three-person transcript was dropped
+while an intermediate two-person mesh drained pending descriptions. Such offers
+are now retained until their matching authenticated transcript arrives;
+duplicates, expired/old-epoch controls and the existing eight-entry bound are
+covered by lifecycle tests. No recovery or authorization deadline was extended.
+
 **Latest completed capacity checkpoint, 2026-10-23 (source `dae3fb2`):** implementation is
 present, but the complete 25-person SFU release gate has not passed. The latest
 distributed run decoded all 600 directed microphone paths among 25 participants,
