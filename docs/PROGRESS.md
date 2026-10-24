@@ -2,10 +2,27 @@
 
 **Current release gate, 2026-10-24:** no release or installed client/server upgrade
 has occurred. Railway remains paused and Spotify disabled. The latest complete
-25-person run (`e282a54`) decoded 600 microphone paths and passed video, computer
-audio, load, wrong-key rejection and leave/rekey, but failed targeted permission
-revocation when two unaffected survivors stopped. Focused corrections pass; the
-final complete capacity gate, rebuild/publication and upgrades remain pending.
+25-person run (`eb8e7b2`) passed 600 decoded microphone paths, camera/screen and
+computer audio, load, wrong-key rejection and leave/rekey, then failed targeted
+permission removal when one unaffected survivor ended. Its trace shows HTTP 409
+and one rejected outbox control. That run remains failed; the rebuilt candidate
+and final capacity gate are pending.
+
+**Serialized upload conflict isolated, 2026-10-24:** a room control can lose the
+epoch race after local preflight and encryption. After Rust rejects and rolls
+back that exact upload, its HTTP 409 now requests fresh verified room admission.
+Forbidden/malformed controls and ordinary chat retain their previous terminal
+handling. Periodic publisher-key repeats also use the existing bounded recovery
+for transient signaling instead of ending capture. Regressions fail before the
+corrections and pass after, including forbidden-repeat capture cleanup. No grant,
+key validation, request limit or product watchdog was relaxed.
+The three-person forced-conflict fixture passes 11 checks with real MLS and
+decoded survivor audio, preserved capture/mute, fresh keys, cleanup and no
+throttling. Required npm checks pass, including 149 client tests. It injects
+exactly one simulated HTTP 409 after serialization:
+`target/direct-calls-evidence/sfu-conflict-isolated-2026-10-24/sfu-room-direct/result.json`.
+The `guided-eb8e7b2` candidate is marked superseded and has not been installed
+or published.
 
 **Private-call issue isolated and corrected:** call signaling now publishes its
 waiting state before asynchronous delivery/SDP work, so a fast authenticated

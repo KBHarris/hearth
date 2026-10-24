@@ -318,7 +318,11 @@ focused checks and 16 combined media/device checks after correcting signaling
 order. Focused SFU permission removal passes 10 checks after guarding signed
 policy against its preceding MLS epoch. The Windows SFU/TURN-TCP pair passes 10
 checks and complete native media acceptance passes 20. The complete stage sequence passes 10 checks; the final
-25-person capacity repeat is in progress. Release and installed client/server
+25-person repeat at `eb8e7b2` passed media/load/privacy and leave/rekey but failed
+one unaffected survivor at permission removal. Its serialized HTTP-409 outbox
+conflict is now isolated: the corrected rollback/re-admission path passes 11
+focused checks with real MLS/audio. The old candidate is superseded; final
+capacity acceptance and rebuilt publication artifacts remain pending. Release and installed client/server
 upgrades remain pending. Railway stays paused and Spotify disabled.
 
 **Goal:** a reproducible hosted Hearth deployment with an optional browser client,

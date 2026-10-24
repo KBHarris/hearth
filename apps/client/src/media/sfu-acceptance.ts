@@ -1,5 +1,5 @@
 // Explicit disposable SFU acceptance; excluded from production assets.
-import {HearthClient,Permission,withMediaPermissions,type DeviceEnrollment,type Session} from '@hearth/sdk'
+import {HearthClient,HearthError,Permission,withMediaPermissions,type DeviceEnrollment,type Session} from '@hearth/sdk'
 import {AuthCrypto} from '../crypto/client'
 import {MessagingSession,initialChat,type ChatState} from '../crypto/messaging-session'
 import {VoiceRoomCall} from './voice-room'
@@ -12,7 +12,7 @@ type Install={crypto:AuthCrypto;session:Session;device:DeviceEnrollment;service:
 const pause=(ms:number)=>new Promise(resolve=>setTimeout(resolve,ms)),status=(text:string)=>{document.getElementById('status')!.textContent=text}
 const require=(value:unknown)=>{if(!value)throw new Error('SFU acceptance assertion failed')}
 async function until(test:()=>boolean|Promise<boolean>,label:string,timeout=90000){for(let i=0;i<timeout/100;i++){if(await test())return;await pause(100)}throw new Error(label)}
-export async function runSfuAcceptance(config:{origin:string;setupCode:string;turn?:boolean;sfuCount?:number;sfuPolicy?:boolean;sfuConnect?:boolean;stageCycle?:boolean;stageRevoke?:boolean;sfuObserver?:{origin:string;token:string};sfuCapacityProfile?:boolean;stage?:boolean}){
+export async function runSfuAcceptance(config:{origin:string;setupCode:string;turn?:boolean;sfuCount?:number;sfuPolicy?:boolean;sfuConflict?:boolean;sfuConnect?:boolean;stageCycle?:boolean;stageRevoke?:boolean;sfuObserver?:{origin:string;token:string};sfuCapacityProfile?:boolean;stage?:boolean}){
   const count=config.sfuCount??6,installs:Install[]=[],calls:VoiceRoomCall[]=[],checks:Record<string,boolean>={},failures:Record<string,number>={},wire:string[]=[],secrets:{device:string;context:string;key:string}[]=[],tracks:MediaStreamTrack[]=[],connections:RTCPeerConnection[]=[],videoTimers:ReturnType<typeof setInterval>[]=[]
   let stage='SFU accounts',panels:ReturnType<typeof mountVoicePanels>|undefined,audio:AudioContext|undefined,micCaptures=0,cameraCaptures=0,screenCaptures=0,systemCaptures=0
   let pcmDiagnostics:{receiver:number;publisher:number;muted:boolean;peak:number}[]=[]
@@ -167,18 +167,28 @@ export async function runSfuAcceptance(config:{origin:string;setupCode:string;tu
       calls[0].mute()
       stage='SFU focused authorization revocation';status(stage)
       const governance=await owner.service.loadGovernance(community.id),authority=roster.authority!,policy=governance.governance??{community_id:community.id,revision:0,everyone:15,roles:[],assignments:[],overrides:[],sanctions:[],limits:[],rules:'',screening:false,owner:authority.owner,signature:''}
-      await owner.service.saveGovernance(community.id,{...policy,revision:policy.revision+1,overrides:[...policy.overrides,{channel_id:channel.id,kind:'member',target_id:installs[1].session.account.id,allow:0,deny:Permission.read}]})
+      let injectedConflicts=0
+      if(config.sfuConflict){
+        const internal=installs[2].service as unknown as {client:HearthClient;view:{governance_epochs:Record<string,number>}}
+        const upload=internal.client.uploadMessage.bind(internal.client)
+        internal.client.uploadMessage=(...args)=>{
+          if(!injectedConflicts&&(internal.view.governance_epochs[channel.id]??0)>=policy.revision+1){injectedConflicts++;return Promise.reject(new HearthError(409,'Synthetic room upload conflict'))}
+          return upload(...args)
+        }
+      }
+      await owner.service.saveGovernance(community.id,{...policy,revision:policy.revision+1,overrides:[...policy.overrides,{channel_id:channel.id,kind:'member',target_id:installs[1].session.account.id,allow:0,deny:config.sfuConflict?Permission.send:Permission.read}]})
       await until(()=>calls[1].state.phase==='ended'&&[calls[0],calls[2]].every(call=>call.state.phase==='connected'&&call.state.participants.length===2),'Focused SFU restriction and survivors')
       require(originalSources.get(installs[1].device.device_key)!.readyState==='ended'&&calls[0].state.muted&&micCaptures===captureCount)
       checks.revoked_participant_stops_and_survivors_retain_capture_and_mute=true
       calls[0].mute();await decoded([calls[0],calls[2]])
       checks.remaining_pair_decodes_audio_after_permission_rekey=true
+      if(config.sfuConflict){require(injectedConflicts===1);checks.serialized_room_upload_conflict_recovers_with_verified_admission=true}
       require(secrets.length>beforeKeys.length&&secrets.slice(beforeKeys.length).every(secret=>beforeKeys.every(old=>old.key!==secret.key)))
       checks.permission_rotation_uses_fresh_publisher_keys=true
       for(const call of calls)call.leave();require(tracks.every(track=>track.readyState==='ended'));checks.all_owned_tracks_stop=true
       require(secrets.every(secret=>wire.every(body=>!body.includes(secret.key))));checks.publisher_keys_absent_from_server_wire=true
       require(!failures['429']);checks.default_request_limits_remain_unchanged=true
-      return {outcome:'pass',scope:'Focused three-person local SFU read-permission removal, MLS rekey and survivor audio with real accounts and synthetic capture',checks,failures,physicalDevicePermissionsValidated:false,internetValidated:false}
+      return {outcome:'pass',scope:config.sfuConflict?'Three-person SFU permission removal and MLS recovery with one simulated HTTP 409 after room-control serialization; real crypto and decoded synthetic survivor audio':'Focused three-person local SFU read-permission removal, MLS rekey and survivor audio with real accounts and synthetic capture',checks,failures,physicalDevicePermissionsValidated:false,internetValidated:false}
     }
     const beforeRoom=(await owner.service.voiceRoom(channel.id)).room,beforeContext=await voiceContext(server,beforeRoom)
     require(calls.slice(0,count).every(call=>secrets.some(secret=>secret.device===installs[calls.indexOf(call)].device.device_key&&secret.context===beforeContext.id)))

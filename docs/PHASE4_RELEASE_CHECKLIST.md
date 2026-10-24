@@ -5,7 +5,7 @@ upgrades of their existing client/server on 2026-10-23. Release and upgrade are
 pending. Railway remains paused. Local evidence must not be presented as an
 outside-network, clean-machine, or cross-platform pass.
 
-Latest complete 25-person checkpoint (`e282a54`, 2026-10-23) fails targeted
+Latest complete 25-person checkpoint (`eb8e7b2`, 2026-10-24) fails targeted
 permission revocation despite passing voice/video/computer audio, measured load,
 wrong-key rejection and leave/rekey. The isolated native SFU/TURN-TCP pair and
 complete Windows media repeat now pass 10/20 checks. Private-call signaling
@@ -18,6 +18,12 @@ fresh policy against its preceding MLS epoch; the full 25-person repeat remains
 required. Full Windows/private media and stage gates pass 20/16/10 checks.
 All npm checks pass, including 146 client tests. Final binaries
 must be rebuilt from the accepted source before publication.
+The latest remaining survivor failure was isolated to an already-serialized room
+control rejected with HTTP 409. Exact-upload rollback now requests fresh verified
+admission; forbidden/malformed controls and ordinary chat remain terminal. The
+forced-conflict MLS/audio case passes 11 checks. The `eb8e7b2` bundle is superseded
+and has neither validation nor publication approval from a passing capacity run.
+
 
 - [ ] Stable 25-person SFU voice plus screen/computer audio; record upload,
   recipient traffic, fixture CPU and actual encrypted packet/privacy evidence.

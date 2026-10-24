@@ -1,5 +1,6 @@
 import assert from 'node:assert/strict'
 import {test} from 'node:test'
+import {HearthError} from '@hearth/sdk'
 import {registerHooks} from 'node:module'
 // This browser module uses bundler extension resolution; keep its actual queue
 // and public methods in the test while substituting only I/O and crypto effects.
@@ -40,4 +41,38 @@ test('a fresh signed policy cannot send room keys through an MLS epoch still bou
   assert.equal(await f.service.callKey(channel,f.signal),'synthetic export')
   assert.equal(await f.service.send(channel,{kind:'call',signal:f.signal}),'sent')
   assert.deepEqual(f.operations,['call_key','send'])
+})
+
+
+function rejectedUpload(status){
+  const f=fixture(),upload={operation_id:id('7')}
+  f.service.view={...f.service.view,pending:[],pending_packages:[]}
+  f.service.inspect=async()=>{}
+  f.service.flush=MessagingSession.prototype.flush.bind(f.service)
+  f.service.client.uploadMessage=async()=>{throw new HearthError(status,'Synthetic upload rejection')}
+  f.service.client.events=async()=>[]
+  f.service.operation=async(name)=>{
+    f.operations.push(name)
+    if(name==='send'){f.service.view.pending.push({kind:'message',conversation_id:channel,upload});return upload}
+    if(name==='reject'){f.service.view.pending=[];return null}
+    throw new Error('Unexpected crypto operation')
+  }
+  return f
+}
+
+test('an encrypted room control rejected with HTTP 409 rolls back and requests fresh context instead of terminating the room',async()=>{
+  const f=rejectedUpload(409)
+  await assert.rejects(f.service.send(channel,{kind:'call',signal:f.signal}),error=>error.status===409)
+  assert.deepEqual(f.operations,['send','reject']);assert.equal(f.service.view.pending.length,0)
+})
+
+test('malformed or forbidden room controls remain terminal and normal chat conflicts still require explicit retry',async()=>{
+  for(const status of [400,403]){
+    const f=rejectedUpload(status)
+    await assert.rejects(f.service.send(channel,{kind:'call',signal:f.signal}),error=>error.status!==409)
+    assert.deepEqual(f.operations,['send','reject'])
+  }
+  const f=rejectedUpload(409)
+  await assert.rejects(f.service.send(channel,{kind:'text',text:'synthetic'}),error=>error.status!==409)
+  assert.deepEqual(f.operations,['send','reject'])
 })

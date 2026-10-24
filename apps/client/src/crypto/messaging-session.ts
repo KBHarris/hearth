@@ -209,7 +209,7 @@ export class MessagingSession {
       this.maintenance=setInterval(()=>{if(this.closed || this.refreshing)return;this.refreshing=true;void this.enqueue(()=>this.refresh()).catch(error=>this.report(error)).finally(()=>{this.refreshing=false})},30000)
     }).catch(error=>{if(!this.closed){this.close();this.publish({fatal:true,error:error instanceof Error?error.message:'Could not open encrypted messaging.',connection:'Messaging could not start'})}throw error})
   }
-  private async flush() {
+  private async flush(onRejected?:(pending:Pending,status:number)=>void) {
     let rejected=false
     await this.inspect()
     for(const packageRecord of this.view.pending_packages) {
@@ -228,6 +228,7 @@ export class MessagingSession {
           for(;;){const backlog=await this.client.events(this.session.token,this.device.device_key,this.view.last_seq,this.options);await this.receiveBatch(backlog);if(backlog.length<128)break}
           if(!this.view.pending.some(p=>p.upload.operation_id===pending.upload.operation_id))continue
           await this.operation('reject',pending.upload.operation_id);await this.persist()
+          onRejected?.(pending,error.status)
           this.publish({error:'Encryption or permissions changed. The queued operation was rejected; retry after updates arrive.'})
           rejected=true
         }else throw error
@@ -513,9 +514,18 @@ export class MessagingSession {
     return this.enqueue(async()=>{
       await this.flush()
       if(content.kind==='call')currentRoomKeyContext(content.signal,this.view.groups.find(group=>group.id===id),this.mediaRosters.get(id),this.device.device_key,Date.now(),this.view.governance_epochs[id]??0)
-      await this.operation('send',{id,content});await this.persist()
+      const upload=await this.operation<MessageUpload>('send',{id,content});await this.persist()
       try {
-        if(await this.flush())throw new Error('The message was rejected after an encryption or permission update. Retry after updates arrive.')
+        let roomConflict=false
+        const rejected=await this.flush((pending,status)=>{if(content.kind==='call'&&content.signal.voice_room&&status===409&&pending.kind==='message'&&pending.conversation_id===id&&pending.upload.operation_id===upload.operation_id)roomConflict=true})
+        if(rejected){
+          const error=new Error('The message was rejected after an encryption or permission update. Retry after updates arrive.')
+          // A serialized room control can lose the epoch race after preflight.
+          // It has already been rejected/rolled back, so request fresh verified
+          // admission. Forbidden/malformed controls and ordinary chat stay terminal.
+          if(roomConflict)Object.assign(error,{status:409})
+          throw error
+        }
         this.publish({error:''});return 'sent' as const
       }catch(error){
         if(error instanceof HearthError && [0,429,503].includes(error.status) && !this.closed){this.publish({error:'Saved in your encrypted outbox. Delivery will retry when the connection returns.'});return 'queued' as const}

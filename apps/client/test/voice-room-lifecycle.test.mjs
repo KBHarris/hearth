@@ -156,3 +156,16 @@ test('one authenticated room heartbeat advances only its sender edge and rejects
     f.receive({...signal,group_id:id('9')});f.receive({...signal,voice_room:id('9')});f.receive({...signal,call_id:id('9')});f.receive({...signal,expires_at:Date.now()-1});f.receive({...signal,expires_at:Date.now()+66000});assert.equal(received.length,1)
   }finally{f.call.close()}
 })
+
+
+test('a periodic publisher-key upload conflict pauses for fresh admission; forbidden repeats still stop capture',async()=>{
+  for(const status of [409,403]){
+    const f=fixture();await seedAudio(f);await f.call.microphone();const source=f.call.source.getTracks()[0]
+    f.call.admission.context.sfu=true;f.call.sfu={close(){},publish:async()=>{}}
+    f.call.sfuKeys={repeat:()=>({kind:'sfu-key'}),close(){}};f.call.sfuPublishedKeys=true
+    f.call.lastHeartbeat=f.call.lastSfuKeys=Date.now()-31000;f.call.lastPoll=f.call.checkedAt=f.call.renewedAt=Date.now()
+    f.transport.send=async(_,content)=>{if(content.signal.kind==='sfu-key')throw Object.assign(new Error('Synthetic upload rejection'),{status});return 'sent'}
+    f.transport.voiceRoom=()=>new Promise(()=>{})
+    try{f.call.watch();await tick();assert.equal(source.readyState,status===409?'live':'ended');assert.equal(f.call.state.phase,status===409?'connecting':'ended');if(status===409)assert.equal(source.enabled,false)}finally{f.call.close()}
+  }
+})

@@ -170,3 +170,9 @@ Focused diagnosis uses immutable fixture assets:
   keeps its three 65-second policy intervals and 60-second setup interval, so
   its controller allows twelve minutes for setup and bounded assertions.
   This does not change product authorization, lease or recovery deadlines.
+- `--sfu-policy-conflict` adds exactly one simulated HTTP 409 at the SDK upload
+  boundary after a survivor has serialized its control under the new committed
+  policy. Real Rust outbox rejection, bounded room re-admission, fresh keys,
+  capture/mute preservation and decoded survivor PCM must still pass. HTTP 400
+  and 403 and ordinary chat retain their existing terminal handling. This is a
+  focused fault-injection result, not a replacement for the complete capacity gate.
