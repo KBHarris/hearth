@@ -17,8 +17,9 @@ const desktop=process.argv.includes('--desktop')
 const immutable=process.argv.includes('--immutable')
 const stage=process.argv.includes('--stage')
 const sfuPolicy=process.argv.includes('--sfu-policy')
-const sfu=process.argv.includes('--sfu')||process.argv.includes('--sfu-25')||stage||sfuPolicy
-const sfuCount=stage||sfuPolicy?3:process.argv.includes('--sfu-25')?25:6
+const sfuConnect=process.argv.includes('--sfu-connect')
+const sfu=process.argv.includes('--sfu')||process.argv.includes('--sfu-25')||stage||sfuPolicy||sfuConnect
+const sfuCount=sfuConnect?2:stage||sfuPolicy?3:process.argv.includes('--sfu-25')?25:6
 const sfuCapacityProfile=process.argv.includes('--sfu-capacity-profile')
 const distributedSfu=process.argv.includes('--sfu-distributed')
 const frontendPort=Number(process.argv.find(arg=>arg.startsWith('--frontend-port='))?.slice(16)??5176)
@@ -180,7 +181,7 @@ try{
   }
   if(distributedSfu)distributedBrowser=await distributedSfuBrowser(frontendOrigin)
   for(let i=0;i<120;i++){if(await driver.executeScript(()=>typeof window.runCallAcceptance==='function'))break;await pause(250)}
-  await driver.executeScript(config=>{window.runCallAcceptance(config).then(result=>{window.__callResult=result}).catch(error=>{window.__callResult={outcome:'fail',stage:'harness',failureClass:error instanceof Error?error.name:'untyped',locations:typeof error?.stack==='string'?error.stack.split('\n').slice(1).map(line=>line.match(/(?:acceptance|group-call|direct-call|frame-keys|messaging-session)\.tsx?:\d+:\d+/)?.[0]).filter(Boolean):[]}})},{origin:desktop?match[1]:frontendOrigin,setupCode:readFileSync(match[2],'utf8').trim(),turn:turnMode,rekey,group,groupRevoke,groupRejoin,groupVideo,groupEpoch,rooms,roomRevoke,roomVideo,sfu,sfuCount,stage,sfuPolicy,sfuObserver:sfuObserver?.config,sfuCapacityProfile,distributedSfu})
+  await driver.executeScript(config=>{window.runCallAcceptance(config).then(result=>{window.__callResult=result}).catch(error=>{window.__callResult={outcome:'fail',stage:'harness',failureClass:error instanceof Error?error.name:'untyped',locations:typeof error?.stack==='string'?error.stack.split('\n').slice(1).map(line=>line.match(/(?:acceptance|group-call|direct-call|frame-keys|messaging-session)\.tsx?:\d+:\d+/)?.[0]).filter(Boolean):[]}})},{origin:desktop?match[1]:frontendOrigin,setupCode:readFileSync(match[2],'utf8').trim(),turn:turnMode,rekey,group,groupRevoke,groupRejoin,groupVideo,groupEpoch,rooms,roomRevoke,roomVideo,sfu,sfuCount,stage,sfuPolicy,sfuConnect,sfuObserver:sfuObserver?.config,sfuCapacityProfile,distributedSfu})
   let result,lastStage='';const clicked=new Set()
   for(let attempt=0;attempt<(sfuCount===25&&sfu?(distributedSfu?24000:4800):rooms?720:420);attempt++){
     await distributedBrowser?.pump(driver)

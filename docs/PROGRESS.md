@@ -34,6 +34,14 @@ Required npm checks pass, including 146 client tests. This closes the focused
 case, not the full 25-person permission gate. Diagnostic errors record only the
 fixed operation name, never inputs, message content or keys.
 
+**Windows transport isolation, 2026-10-24:** the two-person native SFU/TURN-TCP
+fixture passes 10 checks, including real decoded audio, encryption before
+publication, selected relays with no host candidates, provider isolation and
+native storage cleanup. The earlier connection failure did not reproduce when
+run alone; no transport change is claimed. Evidence:
+`target/direct-calls-evidence/native-sfu-pair-2026-10-24/sfu-room-native-turn-tcp/result.json`.
+The complete native media and 25-person gates still need final acceptance.
+
 Remaining work is being diagnosed one issue at a time with small focused cases;
 the complete capacity matrix will run again only after those corrections pass.
 

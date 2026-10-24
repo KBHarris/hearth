@@ -159,3 +159,7 @@ Focused diagnosis uses immutable fixture assets:
   the surviving pair to rotate keys and decode audio without recapture/unmute.
   It retains the normal request limits and setup budget interval. It is not a
   capacity, video, physical-device or internet acceptance result.
+- `node scripts/verify-direct-calls.mjs --sfu-connect --desktop --turn-tcp --checkpoint=native-sfu-pair`
+  isolates two joined Windows WebView2 endpoints, both decoded audio directions,
+  relay-only routes, encryption before publication and capture/storage cleanup.
+  Disposable Docker TURN/SFU loopback does not establish public relay reachability.

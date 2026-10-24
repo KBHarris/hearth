@@ -12,7 +12,7 @@ type Install={crypto:AuthCrypto;session:Session;device:DeviceEnrollment;service:
 const pause=(ms:number)=>new Promise(resolve=>setTimeout(resolve,ms)),status=(text:string)=>{document.getElementById('status')!.textContent=text}
 const require=(value:unknown)=>{if(!value)throw new Error('SFU acceptance assertion failed')}
 async function until(test:()=>boolean|Promise<boolean>,label:string,timeout=90000){for(let i=0;i<timeout/100;i++){if(await test())return;await pause(100)}throw new Error(label)}
-export async function runSfuAcceptance(config:{origin:string;setupCode:string;turn?:boolean;sfuCount?:number;sfuPolicy?:boolean;sfuObserver?:{origin:string;token:string};sfuCapacityProfile?:boolean;stage?:boolean}){
+export async function runSfuAcceptance(config:{origin:string;setupCode:string;turn?:boolean;sfuCount?:number;sfuPolicy?:boolean;sfuConnect?:boolean;sfuObserver?:{origin:string;token:string};sfuCapacityProfile?:boolean;stage?:boolean}){
   const count=config.sfuCount??6,installs:Install[]=[],calls:VoiceRoomCall[]=[],checks:Record<string,boolean>={},failures:Record<string,number>={},wire:string[]=[],secrets:{device:string;context:string;key:string}[]=[],tracks:MediaStreamTrack[]=[],connections:RTCPeerConnection[]=[],videoTimers:ReturnType<typeof setInterval>[]=[]
   let stage='SFU accounts',panels:ReturnType<typeof mountVoicePanels>|undefined,audio:AudioContext|undefined,micCaptures=0,cameraCaptures=0,screenCaptures=0,systemCaptures=0
   let pcmDiagnostics:{receiver:number;publisher:number;muted:boolean;peak:number}[]=[]
@@ -76,7 +76,7 @@ export async function runSfuAcceptance(config:{origin:string;setupCode:string;tu
       stage='voice join '+i;status(stage)
       if(i===0){await until(()=>calls[0].state.phase==='waiting','solo SFU room');require(micCaptures===0&&connections.length===0);checks.solo_room_captures_nothing_and_does_not_ring=true}
       else await until(()=>calls.slice(0,i+1).every(call=>call.state.phase==='connected'&&call.state.participants.length===i+1),'SFU participant join '+i,count===25?180000:90000)
-      if(i===1&&!config.sfuPolicy){await verifyIndependentLease(owner.service,calls[0]);checks.presence_renewal_bypasses_durable_work_without_extending_authorization=true}
+      if(i===1&&!config.sfuPolicy&&!config.sfuConnect){await verifyIndependentLease(owner.service,calls[0]);checks.presence_renewal_bypasses_durable_work_without_extending_authorization=true}
     }
     if(config.stage){
       stage='Stage audience';status(stage)
@@ -116,6 +116,14 @@ export async function runSfuAcceptance(config:{origin:string;setupCode:string;tu
     async function decoded(selected:VoiceRoomCall[]){await until(()=>selected.every(call=>call.state.participants.filter(peer=>peer.remote?.getAudioTracks()[0]).length===selected.length-1),'SFU remote audio subscriptions');const meters=selected.flatMap(call=>call.state.participants.filter(peer=>peer.remote).map(peer=>{const publisher=installs.findIndex(person=>person.device.device_key===peer.device);return {receiver:calls.indexOf(call),publisher,read:analyser(peer.remote!.getAudioTracks()[0]),muted:calls[publisher].state.muted}}));await until(()=>{pcmDiagnostics=meters.map(({read,...meter})=>({...meter,peak:read()}));return pcmDiagnostics.every(({peak,muted})=>muted?peak<.005:peak>.03)},'SFU all directed PCM paths');return meters.length}
     const audioPaths=await decoded(calls.slice(0,count));require(audioPaths===count*(count-1)&&micCaptures===count&&calls[count].state.phase==='idle')
     require(connections.filter(pc=>pc.connectionState!=='closed').length<=2*count);if(count>4)checks.more_than_four_people_use_one_publisher_subscriber_pair_each=true;checks.all_joined_participants_decode_encrypted_audio=true;checks.unjoined_mls_member_receives_no_call_or_capture=true
+    if(config.sfuConnect){
+      const metrics=await Promise.all(calls.slice(0,count).map(call=>call.sfuDiagnostics()))
+      require(metrics.every(metric=>metric?.encryptionEnabled&&metric.workerErrors===0));checks.encryption_enabled_before_publication=true
+      if(config.turn){require(metrics.every(metric=>metric!.routes.every(side=>side.selectedRelay&&side.hostCandidates===0)));checks.every_connection_selects_relay_without_host_candidates=true}
+      for(const call of calls)call.leave();require(tracks.every(track=>track.readyState==='ended'));checks.all_owned_tracks_stop=true
+      require(secrets.every(secret=>wire.every(body=>!body.includes(secret.key))));checks.publisher_keys_absent_from_server_wire=true
+      return {outcome:'pass',scope:'Focused two-person SFU encrypted connection and decoded synthetic audio',checks,metrics,physicalDevicePermissionsValidated:false,internetValidated:false}
+    }
     if(config.sfuPolicy){
       const beforeKeys=secrets.slice(),captureCount=micCaptures
       calls[0].mute()

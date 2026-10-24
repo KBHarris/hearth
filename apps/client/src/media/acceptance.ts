@@ -14,7 +14,7 @@ const pause=(ms:number)=>new Promise(resolve=>setTimeout(resolve,ms))
 const status=(text:string)=>{document.getElementById('status')!.textContent=text}
 const require=(value:unknown)=>{if(!value)throw new Error('Call acceptance assertion failed')}
 async function until(test:()=>boolean|Promise<boolean>,label:string){for(let i=0;i<300;i++){if(await test())return;await pause(100)}throw new Error(label)}
-async function run(config:{origin:string;setupCode:string;turn?:boolean;rekey?:boolean;group?:boolean;groupRevoke?:boolean;groupRejoin?:boolean;groupVideo?:boolean;groupEpoch?:boolean;rooms?:boolean;roomRevoke?:boolean;roomVideo?:boolean;sfu?:boolean;sfuCount?:number;sfuPolicy?:boolean;sfuObserver?:{origin:string;token:string};sfuCapacityProfile?:boolean;distributedSfu?:boolean}){
+async function run(config:{origin:string;setupCode:string;turn?:boolean;rekey?:boolean;group?:boolean;groupRevoke?:boolean;groupRejoin?:boolean;groupVideo?:boolean;groupEpoch?:boolean;rooms?:boolean;roomRevoke?:boolean;roomVideo?:boolean;sfu?:boolean;sfuCount?:number;sfuPolicy?:boolean;sfuConnect?:boolean;sfuObserver?:{origin:string;token:string};sfuCapacityProfile?:boolean;distributedSfu?:boolean}){
   if(config.distributedSfu)return runDistributedSfu(config)
   if(config.sfu)return runSfuAcceptance(config)
   if(config.rooms)return runVoiceAcceptance(config)
