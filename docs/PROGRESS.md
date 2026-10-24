@@ -1,11 +1,11 @@
 # Progress
 
-**Current release gate, 2026-10-23:** no release or installed client/server upgrade
+**Current release gate, 2026-10-24:** no release or installed client/server upgrade
 has occurred. Railway remains paused and Spotify disabled. The latest complete
 25-person run (`e282a54`) decoded 600 microphone paths and passed video, computer
 audio, load, wrong-key rejection and leave/rekey, but failed targeted permission
-revocation when two unaffected survivors stopped. Native SFU/TURN-TCP also needs
-an isolated connection diagnosis. These remain release blockers.
+revocation when two unaffected survivors stopped. Focused corrections pass; the
+final complete capacity gate, rebuild/publication and upgrades remain pending.
 
 **Private-call issue isolated and corrected:** call signaling now publishes its
 waiting state before asynchronous delivery/SDP work, so a fast authenticated
@@ -40,12 +40,18 @@ publication, selected relays with no host candidates, provider isolation and
 native storage cleanup. The earlier connection failure did not reproduce when
 run alone; no transport change is claimed. Evidence:
 `target/direct-calls-evidence/native-sfu-pair-2026-10-24/sfu-room-native-turn-tcp/result.json`.
-The complete native media and 25-person gates still need final acceptance.
+The complete Windows media repeat now passes 20 checks, and combined private
+video/computer-audio/device/MLS recovery passes 16 at source `dd36a69`. Evidence:
+`target/direct-calls-evidence/native-sfu-final-policy-2026-10-24/sfu-room-native-turn-tcp/result.json`
+and `target/direct-calls-evidence/private-media-final-policy-2026-10-24/group-direct/result.json`.
+The stage repeat and final 25-person gate remain pending.
 
 Remaining work is being diagnosed one issue at a time with small focused cases;
 the complete capacity matrix will run again only after those corrections pass.
 
-**Latest completed capacity checkpoint, 2026-10-23 (source `dae3fb2`):** implementation is
+## Earlier checkpoints retained for provenance
+
+**Capacity checkpoint, 2026-10-23 (source `dae3fb2`):** implementation is
 present, but the complete 25-person SFU release gate has not passed. The latest
 distributed run decoded all 600 directed microphone paths among 25 participants,
 then failed at **Distributed camera and screen**. This is a failed full run, not

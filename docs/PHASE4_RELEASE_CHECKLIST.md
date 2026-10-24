@@ -7,10 +7,12 @@ outside-network, clean-machine, or cross-platform pass.
 
 Latest complete 25-person checkpoint (`e282a54`, 2026-10-23) fails targeted
 permission revocation despite passing voice/video/computer audio, measured load,
-wrong-key rejection and leave/rekey. Native SFU/TURN-TCP connection recovery also
-needs isolated diagnosis. Private-call signaling order is corrected: two timing
+wrong-key rejection and leave/rekey. The isolated native SFU/TURN-TCP pair and
+complete Windows media repeat now pass 10/20 checks. Private-call signaling
+order is corrected: two timing
 regressions and a focused 15-check real MLS/six-audio-path epoch test pass. The
-combined media recovery and complete release gates remain pending. On 2026-10-24,
+combined private media/device/MLS recovery now passes 16 checks. The complete
+release gates remain pending. On 2026-10-24,
 the three-person permission-removal case passes all 10 checks after guarding
 fresh policy against its preceding MLS epoch; the full 25-person repeat remains
 required. All npm checks pass, including 146 client tests. Final binaries

@@ -313,14 +313,13 @@ tools, manual commands or secrets in diagnostic exports. See
 
 ## Phase 4: Cloud hosting, voice, video, and events
 
-Current release blockers (2026-10-23): targeted SFU room permission revocation
-and native SFU/TURN-TCP connection acceptance. Private-call linked-device recovery
-now passes a focused 15-check MLS/audio test after correcting signaling timing;
-combined video recovery still awaits final acceptance. Release and installed
-client/server upgrades remain pending. Diagnose each issue with a small case
-before repeating the full capacity gate. The focused three-person SFU permission
-case passes 10 checks on 2026-10-24 after adding a policy/MLS-epoch transition
-guard; the complete 25-person permission gate is still open.
+Current local gate (2026-10-24): private-call linked-device recovery passes 15
+focused checks and 16 combined media/device checks after correcting signaling
+order. Focused SFU permission removal passes 10 checks after guarding signed
+policy against its preceding MLS epoch. The Windows SFU/TURN-TCP pair passes 10
+checks and complete native media acceptance passes 20. The final stage and
+25-person capacity repeats are pending. Release and installed client/server
+upgrades remain pending. Railway stays paused and Spotify disabled.
 
 **Goal:** a reproducible hosted Hearth deployment with an optional browser client,
 plus E2EE real-time media with direct peer-to-peer calls and relay options. It
@@ -341,13 +340,13 @@ The local three-person stage and trusted fixture TURN-TLS transport checks pass.
 Private-group camera/screen/computer audio, microphone switching and a real MLS
 epoch update now pass together. Disposable media-aware backup/fresh restore and
 rollback, native provider isolation, packaged WSS and browser TURN-TLS route
-selection also pass. At source `5797e06`, the latest 25-person fixture passes all
+selection also pass. At source `e282a54`, the last completed 25-person fixture passes all
 600 directed microphone paths, camera/screen/computer audio, measured load,
 wrong-key rejection and leave/rekey, then fails targeted permission revocation
 when two unaffected survivors stop. The full gate remains open. Queued key
 exports now reject obsolete verified contexts before the authoritative Rust
-export; repeated acceptance is pending. Previous Windows SFU/private-group
-fixtures pass 20/16 checks, and the playback suite passes 135 client tests. Final
+export. Small focused corrections pass, and required npm checks pass with 146
+client tests. Final capacity acceptance and
 rebuilds, signed publication and the actual client/server upgrades are pending;
 the installed client and existing host remain unchanged. Work resumed after the
 usage reset with adaptive durable-prefix checkpoints. Spotify is
