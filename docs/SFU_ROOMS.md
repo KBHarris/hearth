@@ -149,3 +149,13 @@ avoid coupling every simulated client's output resources to one browser. Its
 relay forwards only local fixture operations and validates endpoint index,
 origin, source and nonce. Accounts, MLS, signaling, keys, SFU transport and decoded
 media remain real product paths; all PCM and privacy assertions remain required.
+
+Focused diagnosis uses immutable fixture assets:
+
+- `node scripts/verify-direct-calls.mjs --group-epoch --immutable --checkpoint=private-epoch-focused`
+  checks only private-call linked-device MLS recovery and six decoded audio paths.
+- `node scripts/verify-direct-calls.mjs --sfu-policy --immutable --checkpoint=sfu-policy-focused`
+  checks three joined people, removes one person's read permission, and requires
+  the surviving pair to rotate keys and decode audio without recapture/unmute.
+  It retains the normal request limits and setup budget interval. It is not a
+  capacity, video, physical-device or internet acceptance result.

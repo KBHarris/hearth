@@ -20,6 +20,20 @@ still needs final acceptance. The new `--group-epoch` mode isolates this transit
 without unrelated device-switch waits. The earlier transient fixture lookup now
 waits for conversation metadata rather than throwing while it refreshes.
 
+**Focused room permission transition, 2026-10-24:** new signed governance can
+arrive before the MLS epoch has committed it. Rust already rejects sending in
+that state; room exports/signaling now detect the policy/epoch mismatch before
+crypto and return the existing retryable 409. Own permission loss remains a
+terminal 403. The queue regression fails before the correction and passes after;
+valid work still invokes Rust. The immutable three-person SFU permission-removal
+case passes all 10 checks: only the restricted participant stops, survivors keep
+capture/mute, rotate keys and decode both audio directions, and all tracks clean
+up without throttling. Evidence:
+`target/direct-calls-evidence/sfu-policy-bound-epoch-2026-10-24/sfu-room-direct/result.json`.
+Required npm checks pass, including 146 client tests. This closes the focused
+case, not the full 25-person permission gate. Diagnostic errors record only the
+fixed operation name, never inputs, message content or keys.
+
 Remaining work is being diagnosed one issue at a time with small focused cases;
 the complete capacity matrix will run again only after those corrections pass.
 

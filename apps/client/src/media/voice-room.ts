@@ -71,9 +71,10 @@ export class VoiceRoomCall {
   private remoteMedia=new RemoteRoomMedia()
   private ice:RTCIceServer[]=[]
   private dispose:()=>void
-  private fault:{operation:string;name?:string;status?:number;reason?:number;stage?:string;leaseRemaining?:number;checkedAge?:number;locations?:string[]}|null=null
+  private fault:{operation:string;cryptoOperation?:string;name?:string;status?:number;reason?:number;stage?:string;leaseRemaining?:number;checkedAge?:number;locations?:string[]}|null=null
   private failed(operation:string,error:unknown){
     this.fault={operation,name:error instanceof Error?error.name:'untyped',locations:error instanceof Error?error.stack?.split('\n').map(line=>line.match(/(?:voice-room|group-admission|direct-call|messaging-session)\.ts:\d+:\d+/)?.[0]).filter((line):line is string=>!!line).slice(0,5):[]}
+    const cryptoOperation=(error as {cryptoOperation?:unknown})?.cryptoOperation;if(typeof cryptoOperation==='string'&&/^[a-z_]{1,40}$/.test(cryptoOperation))this.fault.cryptoOperation=cryptoOperation
     const status=(error as {status?:unknown})?.status;if(typeof status==='number')this.fault.status=status
     const reason=['Your voice room participation is no longer active.','The voice room roster moved backwards.','Encrypted message or device verification failed. Existing data was preserved; sign in again to retry.','Group call ended during key agreement','Unknown SFU participant'].indexOf(error instanceof Error?error.message:'');if(reason>=0)this.fault.reason=reason
   }

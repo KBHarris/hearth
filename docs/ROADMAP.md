@@ -318,7 +318,9 @@ and native SFU/TURN-TCP connection acceptance. Private-call linked-device recove
 now passes a focused 15-check MLS/audio test after correcting signaling timing;
 combined video recovery still awaits final acceptance. Release and installed
 client/server upgrades remain pending. Diagnose each issue with a small case
-before repeating the full capacity gate.
+before repeating the full capacity gate. The focused three-person SFU permission
+case passes 10 checks on 2026-10-24 after adding a policy/MLS-epoch transition
+guard; the complete 25-person permission gate is still open.
 
 **Goal:** a reproducible hosted Hearth deployment with an optional browser client,
 plus E2EE real-time media with direct peer-to-peer calls and relay options. It

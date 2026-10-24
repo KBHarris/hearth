@@ -3,7 +3,7 @@ import {Permission,permissions,mediaPermissions,type CallSignal,type Conversatio
 /** A queued export can outlive the signed policy or MLS epoch that created it.
  * Reject that obsolete context before asking the authoritative Rust verifier.
  * No approval or key is produced here; Rust still verifies every allowed export. */
-export function currentRoomKeyContext(signal:CallSignal,conversation:Conversation|undefined,roster:ChannelRoster|undefined,own:string,now=Date.now()){
+export function currentRoomKeyContext(signal:CallSignal,conversation:Conversation|undefined,roster:ChannelRoster|undefined,own:string,now=Date.now(),epochGovernance=0){
   if(!signal.voice_room)return
   const changed=()=>Object.assign(new Error('The encrypted room context changed.'),{status:409})
   if(!conversation||conversation.epoch!==signal.epoch||!roster)throw changed()
@@ -21,4 +21,8 @@ export function currentRoomKeyContext(signal:CallSignal,conversation:Conversatio
     const access=mediaPermissions(roster.governance,permissions(roster.governance,roster.community.owner_id,account,roster.channel.id,now,grant?.invitation?.issued_at??null),roster.channel.kind==='stage',account===roster.community.owner_id)
     if(!approved||(!owner&&!grant)||departed||(access&required)!==required)throw device===own?Object.assign(new Error('Your room access was revoked.'),{status:403}):changed()
   }
+  // Rust also requires sends to use the policy committed into this MLS epoch.
+  // Fresh authorization can arrive first; pause obsolete work until the actual
+  // commit is accepted instead of treating that expected transition as fatal.
+  if((roster.governance?.revision??0)!==epochGovernance)throw changed()
 }

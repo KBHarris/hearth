@@ -43,7 +43,7 @@ export class MessagingSession {
     const config=await this.client.groupCallConfiguration(this.session.token,this.device.device_key,this.options)
     return config.ice_servers.map(server=>({urls:server.urls,...(server.username&&server.credential?{username:server.username,credential:server.credential}:{})}))
   }
-  callKey(id:string,signal:CallSignal):Promise<string>{return this.enqueueMedia(()=>{currentRoomKeyContext(signal,this.view.groups.find(group=>group.id===id),this.mediaRosters.get(id),this.device.device_key);return this.operation<string>('call_key',{id,signal})},false)}
+  callKey(id:string,signal:CallSignal):Promise<string>{return this.enqueueMedia(()=>{currentRoomKeyContext(signal,this.view.groups.find(group=>group.id===id),this.mediaRosters.get(id),this.device.device_key,Date.now(),this.view.governance_epochs[id]??0);return this.operation<string>('call_key',{id,signal})},false)}
   authorizeCall(id:string,signal?:CallSignal):Promise<Conversation>{return this.authorizeMedia(id,signal,false)}
   authorizeGroupCall(id:string,signal?:CallSignal):Promise<Conversation>{return this.authorizeMedia(id,signal,true)}
   private async voiceAccess(id:string){
@@ -192,7 +192,7 @@ export class MessagingSession {
   private async operation<T>(name:string,input:unknown=''):Promise<T> {try{
     if(name==='add'&&typeof input==='object'&&input!==null&&'id' in input)await this.changeCallEpoch(String(input.id))
     return JSON.parse(await this.crypto.message(name,input)) as T
-  }catch(error){if(import.meta.env.DEV)console.warn('Encrypted operation failed: '+name+(name==='receive'&&typeof input==='object'&&input!==null&&'data' in input?'/'+String((input as {data:{kind?:string}}).data.kind):''));throw error}}
+  }catch(error){if(error instanceof Error)Object.assign(error,{cryptoOperation:name});if(import.meta.env.DEV)console.warn('Encrypted operation failed: '+name+(name==='receive'&&typeof input==='object'&&input!==null&&'data' in input?'/'+String((input as {data:{kind?:string}}).data.kind):''));throw error}}
   async start() {
     return this.enqueue(async()=>{
       const saved=await storageDeadline(readMessages(this.scope),this.controller.signal)
@@ -512,7 +512,7 @@ export class MessagingSession {
   async send(id:string,content:MessageContent):Promise<'sent'|'queued'> {
     return this.enqueue(async()=>{
       await this.flush()
-      if(content.kind==='call')currentRoomKeyContext(content.signal,this.view.groups.find(group=>group.id===id),this.mediaRosters.get(id),this.device.device_key)
+      if(content.kind==='call')currentRoomKeyContext(content.signal,this.view.groups.find(group=>group.id===id),this.mediaRosters.get(id),this.device.device_key,Date.now(),this.view.governance_epochs[id]??0)
       await this.operation('send',{id,content});await this.persist()
       try {
         if(await this.flush())throw new Error('The message was rejected after an encryption or permission update. Retry after updates arrive.')

@@ -27,3 +27,17 @@ test('current signaling and key requests still invoke the authoritative crypto o
   const f=fixture();assert.equal(await f.service.callKey(channel,f.signal),'synthetic export');assert.equal(await f.service.send(channel,{kind:'call',signal:f.signal}),'sent')
   assert.deepEqual(f.operations,['call_key','send'])
 })
+
+
+test('a fresh signed policy cannot send room keys through an MLS epoch still bound to the preceding policy',async()=>{
+  const f=fixture()
+  f.roster.governance={revision:8,everyone:15,roles:[],assignments:[],overrides:[],sanctions:[]}
+  f.service.view.governance_epochs={[channel]:7}
+  await assert.rejects(f.service.callKey(channel,f.signal),error=>error.status===409)
+  await assert.rejects(f.service.send(channel,{kind:'call',signal:f.signal}),error=>error.status===409)
+  assert.deepEqual(f.operations,[])
+  f.service.view.governance_epochs[channel]=8
+  assert.equal(await f.service.callKey(channel,f.signal),'synthetic export')
+  assert.equal(await f.service.send(channel,{kind:'call',signal:f.signal}),'sent')
+  assert.deepEqual(f.operations,['call_key','send'])
+})

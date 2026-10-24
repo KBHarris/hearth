@@ -10,7 +10,10 @@ permission revocation despite passing voice/video/computer audio, measured load,
 wrong-key rejection and leave/rekey. Native SFU/TURN-TCP connection recovery also
 needs isolated diagnosis. Private-call signaling order is corrected: two timing
 regressions and a focused 15-check real MLS/six-audio-path epoch test pass. The
-combined media recovery and complete release gates remain pending. Final binaries
+combined media recovery and complete release gates remain pending. On 2026-10-24,
+the three-person permission-removal case passes all 10 checks after guarding
+fresh policy against its preceding MLS epoch; the full 25-person repeat remains
+required. All npm checks pass, including 146 client tests. Final binaries
 must be rebuilt from the accepted source before publication.
 
 - [ ] Stable 25-person SFU voice plus screen/computer audio; record upload,
