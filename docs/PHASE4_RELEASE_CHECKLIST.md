@@ -16,7 +16,7 @@ release gates remain pending. On 2026-10-24,
 the three-person permission-removal case passes all 10 checks after guarding
 fresh policy against its preceding MLS epoch; the full 25-person repeat remains
 required. Full Windows/private media and stage gates pass 20/16/10 checks.
-All npm checks pass, including 146 client tests. Final binaries
+All npm checks pass, including 149 client tests. Final binaries
 must be rebuilt from the accepted source before publication.
 The latest remaining survivor failure was isolated to an already-serialized room
 control rejected with HTTP 409. Exact-upload rollback now requests fresh verified

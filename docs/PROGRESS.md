@@ -6,7 +6,9 @@ has occurred. Railway remains paused and Spotify disabled. The latest complete
 computer audio, load, wrong-key rejection and leave/rekey, then failed targeted
 permission removal when one unaffected survivor ended. Its trace shows HTTP 409
 and one rejected outbox control. That run remains failed; the rebuilt candidate
-and final capacity gate are pending.
+has been superseded by source `df97a1e`. Its signed candidate and production
+image checks are ready; capacity acceptance, installed validation, publication
+and actual client/server upgrades remain pending.
 
 **Serialized upload conflict isolated, 2026-10-24:** a room control can lose the
 epoch race after local preflight and encryption. After Rust rejects and rolls
@@ -23,6 +25,13 @@ exactly one simulated HTTP 409 after serialization:
 `target/direct-calls-evidence/sfu-conflict-isolated-2026-10-24/sfu-room-direct/result.json`.
 The `guided-eb8e7b2` candidate is marked superseded and has not been installed
 or published.
+The `df97a1e` candidate has been rebuilt and assembled with passing production
+asset isolation and eight production-image recovery checks. The first capacity
+attempt on that source failed with a network error during admission 6, before
+voice joins, and remains failed. All builds and other fixtures completed before
+a fresh isolated attempt, `sfu25-isolated-final-2026-10-24`; it also records only
+sanitized network error codes. No installed client/server changes have occurred.
+
 
 **Private-call issue isolated and corrected:** call signaling now publishes its
 waiting state before asynchronous delivery/SDP work, so a fast authenticated
@@ -32,8 +41,8 @@ three-account linked-device MLS test passes all 15 checks, including six decoded
 audio directions after the epoch change, fresh keys, retained capture/mute,
 cleanup, and no plaintext keys/SDP on the wire. Evidence:
 `target/direct-calls-evidence/private-epoch-isolated-2026-10-23/group-direct/result.json`.
-This is local synthetic-audio evidence; the longer combined video recovery gate
-still needs final acceptance. The new `--group-epoch` mode isolates this transition
+The combined private camera/screen/computer-audio/device/MLS recovery gate also
+passes 16 checks. These remain local synthetic-media results. The new `--group-epoch` mode isolates this transition
 without unrelated device-switch waits. The earlier transient fixture lookup now
 waits for conversation metadata rather than throwing while it refreshes.
 

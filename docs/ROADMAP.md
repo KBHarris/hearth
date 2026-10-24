@@ -321,8 +321,9 @@ checks and complete native media acceptance passes 20. The complete stage sequen
 25-person repeat at `eb8e7b2` passed media/load/privacy and leave/rekey but failed
 one unaffected survivor at permission removal. Its serialized HTTP-409 outbox
 conflict is now isolated: the corrected rollback/re-admission path passes 11
-focused checks with real MLS/audio. The old candidate is superseded; final
-capacity acceptance and rebuilt publication artifacts remain pending. Release and installed client/server
+focused checks with real MLS/audio. The old candidate is superseded. Source `df97a1e` passes 149 client tests and
+its candidate artifacts and production-image checks are ready. Final capacity
+acceptance and installed bundle validation remain pending. Release and installed client/server
 upgrades remain pending. Railway stays paused and Spotify disabled.
 
 **Goal:** a reproducible hosted Hearth deployment with an optional browser client,
