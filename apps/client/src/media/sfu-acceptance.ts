@@ -1,5 +1,5 @@
 // Explicit disposable SFU acceptance; excluded from production assets.
-import {HearthClient,Permission,type DeviceEnrollment,type Session} from '@hearth/sdk'
+import {HearthClient,Permission,withMediaPermissions,type DeviceEnrollment,type Session} from '@hearth/sdk'
 import {AuthCrypto} from '../crypto/client'
 import {MessagingSession,initialChat,type ChatState} from '../crypto/messaging-session'
 import {VoiceRoomCall} from './voice-room'
@@ -12,10 +12,11 @@ type Install={crypto:AuthCrypto;session:Session;device:DeviceEnrollment;service:
 const pause=(ms:number)=>new Promise(resolve=>setTimeout(resolve,ms)),status=(text:string)=>{document.getElementById('status')!.textContent=text}
 const require=(value:unknown)=>{if(!value)throw new Error('SFU acceptance assertion failed')}
 async function until(test:()=>boolean|Promise<boolean>,label:string,timeout=90000){for(let i=0;i<timeout/100;i++){if(await test())return;await pause(100)}throw new Error(label)}
-export async function runSfuAcceptance(config:{origin:string;setupCode:string;turn?:boolean;sfuCount?:number;sfuPolicy?:boolean;sfuConnect?:boolean;sfuObserver?:{origin:string;token:string};sfuCapacityProfile?:boolean;stage?:boolean}){
+export async function runSfuAcceptance(config:{origin:string;setupCode:string;turn?:boolean;sfuCount?:number;sfuPolicy?:boolean;sfuConnect?:boolean;stageCycle?:boolean;stageRevoke?:boolean;sfuObserver?:{origin:string;token:string};sfuCapacityProfile?:boolean;stage?:boolean}){
   const count=config.sfuCount??6,installs:Install[]=[],calls:VoiceRoomCall[]=[],checks:Record<string,boolean>={},failures:Record<string,number>={},wire:string[]=[],secrets:{device:string;context:string;key:string}[]=[],tracks:MediaStreamTrack[]=[],connections:RTCPeerConnection[]=[],videoTimers:ReturnType<typeof setInterval>[]=[]
   let stage='SFU accounts',panels:ReturnType<typeof mountVoicePanels>|undefined,audio:AudioContext|undefined,micCaptures=0,cameraCaptures=0,screenCaptures=0,systemCaptures=0
   let pcmDiagnostics:{receiver:number;publisher:number;muted:boolean;peak:number}[]=[]
+  const workTraces:Record<string,unknown>[][]=[]
   const connectionTransitions:Record<string,unknown>[][]=[]
   const videoOriginals:MediaStreamTrack[]=[]
   const OriginalConnection=window.RTCPeerConnection,originalFetch=window.fetch.bind(window),OriginalSocket=window.WebSocket,originalCreate=SfuKeys.prototype.create,originalPlay=HTMLMediaElement.prototype.play
@@ -37,6 +38,18 @@ export async function runSfuAcceptance(config:{origin:string;setupCode:string;tu
       await client.enrollFirstDevice(session.token,identity.enrollment);await crypto.request('commitIdentity','')
       const install={} as Install
       Object.assign(install,{crypto,session,device:identity.enrollment,state:initialChat,service:new MessagingSession(crypto,session,identity.enrollment,server,config.origin,state=>{install.state=state})})
+      if(config.stage){
+        const trace:Record<string,unknown>[]=[];workTraces.push(trace)
+        const raw=install.service as unknown as Record<string,unknown>
+        for(const name of ['operation','prepareChannel','persist','flush','synchronize','refresh','voiceRoom']){
+          const original=raw[name] as (...args:unknown[])=>Promise<unknown>
+          raw[name]=async(...args:unknown[])=>{
+            const operation=name==='operation'?String(args[0]):name
+            const record=(event:string)=>{trace.push({at:Math.round(performance.now()),operation,event});if(trace.length>64)trace.shift()}
+            record('start');try{const value=await original.apply(install.service,args);record('done');return value}catch(error){record('error');throw error}
+          }
+        }
+      }
       installs.push(install);return install
     }
 
@@ -79,12 +92,30 @@ export async function runSfuAcceptance(config:{origin:string;setupCode:string;tu
       if(i===1&&!config.sfuPolicy&&!config.sfuConnect){await verifyIndependentLease(owner.service,calls[0]);checks.presence_renewal_bypasses_durable_work_without_extending_authorization=true}
     }
     if(config.stage){
+      async function policyChange(label:string,action:()=>Promise<unknown>){
+        stage=label;status(stage);let settled=false,failure:unknown
+        void action().then(()=>{settled=true},error=>{failure=error;settled=true})
+        await until(()=>settled,label+' operation did not settle',30000);if(failure)throw failure
+      }
       stage='Stage audience';status(stage)
       await until(()=>calls.slice(1,count).every(call=>call.state.participants.some(peer=>peer.device===owner.device.device_key&&peer.remote)),'Stage audience subscribes to owner')
       const meters=calls.slice(1,count).map(call=>analyser(call.state.participants.find(peer=>peer.device===owner.device.device_key)!.remote!.getAudioTracks()[0]))
       await until(()=>meters.every(read=>read()>.03),'Stage audience decodes the speaker')
       require(micCaptures===1&&calls.slice(1,count).every(call=>!call.canSpeak&&!call.speaking));checks.audience_listens_without_microphone_capture=true
-      await owner.service.stageSpeaker(channel.id,installs[1].session.account.id,true)
+      if(config.stageRevoke){
+        await policyChange('Focused stage listening revocation',async()=>{
+          const governance=await owner.service.loadGovernance(community.id),authority=roster.authority!,base=governance.governance??{community_id:community.id,revision:0,everyone:15,roles:[],assignments:[],overrides:[],sanctions:[],limits:[],rules:'',screening:false,owner:authority.owner,signature:''},policy=withMediaPermissions(base,[channel.id])
+          await owner.service.saveGovernance(community.id,{...policy,revision:policy.revision+1,overrides:[...policy.overrides,{channel_id:channel.id,kind:'member',target_id:installs[1].session.account.id,allow:0,deny:Permission.listen}]})
+        })
+        await until(()=>calls[1].state.phase==='ended'&&[calls[0],calls[2]].every(call=>call.state.phase==='connected'&&call.state.participants.length===2),'Focused stage listening removal and surviving pair')
+        require(micCaptures===1);checks.listening_revocation_removes_only_restricted_audience_member=true
+        await until(()=>calls[2].state.participants.some(peer=>peer.device===owner.device.device_key&&peer.remote),'Surviving listener subscribes after rekey')
+        const read=analyser(calls[2].state.participants.find(peer=>peer.device===owner.device.device_key)!.remote!.getAudioTracks()[0]);await until(()=>read()>.03,'Surviving listener decodes after listen revocation');checks.surviving_audience_decodes_after_listening_revocation=true
+        for(const call of calls)call.leave();require(tracks.every(track=>track.readyState==='ended'));checks.stage_leave_stops_all_owned_tracks=true
+        require(secrets.every(secret=>wire.every(body=>!body.includes(secret.key))));checks.stage_frame_keys_absent_from_server_wire=true
+        return {outcome:'pass',scope:'Focused three-person stage listening-permission removal with real MLS and decoded survivor audio',checks,failures,physicalDevicePermissionsValidated:false,internetValidated:false}
+      }
+      await policyChange('Stage promotion',()=>owner.service.stageSpeaker(channel.id,installs[1].session.account.id,true))
       await until(()=>calls.slice(0,count).every(call=>call.state.phase==='connected')&&calls[1].canSpeak,'Stage speaker grant and MLS recovery')
       require(micCaptures===1&&!calls[1].speaking);checks.promotion_requires_separate_speaking_consent=true
       stage='stage start speaking 1';status(stage)
@@ -93,18 +124,25 @@ export async function runSfuAcceptance(config:{origin:string;setupCode:string;tu
       // Exercise each owner operation across the unchanged request budget.
       // Repeated policy edits also consume the bounded MLS recovery budget.
       await pause(65000)
-      await owner.service.stageSpeaker(channel.id,installs[1].session.account.id,false)
+      await policyChange('Stage demotion',()=>owner.service.stageSpeaker(channel.id,installs[1].session.account.id,false))
       await until(()=>calls.slice(0,count).every(call=>call.state.phase==='connected')&&!calls[1].canSpeak,'Stage demotion and rekey')
       require(speakerSource.readyState==='ended'&&micCaptures===2&&!calls[1].speaking);checks.demotion_stops_publication_and_preserves_audience=true
+      if(config.stageCycle){
+        for(const call of calls)call.leave();require(tracks.every(track=>track.readyState==='ended'));checks.stage_leave_stops_all_owned_tracks=true
+        require(secrets.every(secret=>wire.every(body=>!body.includes(secret.key))));checks.stage_frame_keys_absent_from_server_wire=true
+        return {outcome:'pass',scope:'Focused three-person SFU stage promotion and demotion with explicit microphone consent',checks,failures,physicalDevicePermissionsValidated:false,internetValidated:false}
+      }
       await pause(65000)
-      await owner.service.stageSpeaker(channel.id,installs[1].session.account.id,true)
+      await policyChange('Stage repeat promotion',()=>owner.service.stageSpeaker(channel.id,installs[1].session.account.id,true))
       await until(()=>calls.slice(0,count).every(call=>call.state.phase==='connected')&&calls[1].canSpeak,'Stage repeat grant')
       require(!calls[1].speaking&&micCaptures===2);checks.repeated_promotion_cannot_reopen_microphone=true
       await pause(65000)
-      const governance=await owner.service.loadGovernance(community.id),policy=governance.governance!
-      const overrides=policy.overrides.filter(item=>!(item.channel_id===channel.id&&item.kind==='member'&&item.target_id===installs[1].session.account.id))
-      overrides.push({channel_id:channel.id,kind:'member',target_id:installs[1].session.account.id,allow:0,deny:Permission.listen})
-      await owner.service.saveGovernance(community.id,{...policy,revision:policy.revision+1,overrides})
+      await policyChange('Stage listening revocation',async()=>{
+        const governance=await owner.service.loadGovernance(community.id),policy=governance.governance!
+        const overrides=policy.overrides.filter(item=>!(item.channel_id===channel.id&&item.kind==='member'&&item.target_id===installs[1].session.account.id))
+        overrides.push({channel_id:channel.id,kind:'member',target_id:installs[1].session.account.id,allow:0,deny:Permission.listen})
+        await owner.service.saveGovernance(community.id,{...policy,revision:policy.revision+1,overrides})
+      })
       await until(()=>calls[1].state.phase==='ended'&&calls[0].state.phase==='connected'&&calls[2].state.phase==='connected','Stage listening permission enforcement')
       checks.listening_revocation_removes_only_restricted_participant=true
       for(const call of calls)call.leave();require(tracks.every(track=>track.readyState==='ended'));checks.stage_leave_stops_all_owned_tracks=true
@@ -191,6 +229,6 @@ export async function runSfuAcceptance(config:{origin:string;setupCode:string;tu
     require(wire.length>0&&secrets.every(secret=>wire.every(body=>!body.includes(secret.key))));require(installs.every(person=>person.state.messages.length===0));checks.publisher_keys_absent_from_server_wire_and_controls_absent_from_history=true
     require(!failures['429']);checks[config.sfuCapacityProfile?'explicit_larger_room_capacity_profile_completes_without_throttling':'default_request_limits_remain_unchanged']=true
     return {outcome:'pass',scope:'Real local accounts, approved MLS devices and signed occupancy through a disposable SFU with synthetic microphone/camera/screen/computer audio and production room controls',checks,failures,requestProfile:config.sfuCapacityProfile?'sfu25':'standard',participants:count,audioPaths,activeMetrics,observer,loadSeconds,uploadBitsPerSecond,recipientBitsPerSecond,sfuEgressBitsPerSecond,sfuEgressDecimalGigabytesPerHour,trafficEstimateScope:'Measured synthetic sources only; excludes protocol overhead, admission/rekey bursts and provider charges',activePeerConnections,ownedCaptureTracks:tracks.length,micCaptures,cameraCaptures,screenCaptures,systemCaptures,physicalDevicePermissionsValidated:false,internetValidated:false,railwayValidated:false}
-  }catch(error){return {outcome:'fail',stage,failureClass:error instanceof Error?error.name:'untyped',requestFailureKind:(error as {kind?:string})?.kind,observerDiagnostics:(error as {observerDiagnostics?:unknown})?.observerDiagnostics,httpStatus:(error as {status?:number})?.status,locations:error instanceof Error?error.stack?.split('\n').map(line=>line.match(/(?:sfu-acceptance|sfu-session|sfu-keys|voice-room|messaging-session)\.ts:\d+:\d+/)?.[0]).filter(Boolean):[],checks,failures,phases:calls.map(call=>call.state.phase),messages:calls.map(call=>call.state.message),faults:calls.map(call=>call.failureDiagnostics()),micCaptures,cameraCaptures,screenCaptures,systemCaptures,pcmDiagnostics,connectionTransitions,metrics:await Promise.all(calls.map(call=>call.sfuDiagnostics().catch(()=>null)))}}
+  }catch(error){return {outcome:'fail',stage,failureClass:error instanceof Error?error.name:'untyped',requestFailureKind:(error as {kind?:string})?.kind,observerDiagnostics:(error as {observerDiagnostics?:unknown})?.observerDiagnostics,httpStatus:(error as {status?:number})?.status,locations:error instanceof Error?error.stack?.split('\n').map(line=>line.match(/(?:sfu-acceptance|sfu-session|sfu-keys|voice-room|messaging-session)\.ts:\d+:\d+/)?.[0]).filter(Boolean):[],checks,failures,phases:calls.map(call=>call.state.phase),messages:calls.map(call=>call.state.message),faults:calls.map(call=>call.failureDiagnostics()),micCaptures,cameraCaptures,screenCaptures,systemCaptures,pcmDiagnostics,connectionTransitions,workTraces,metrics:await Promise.all(calls.map(call=>call.sfuDiagnostics().catch(()=>null)))}}
   finally{for(const call of calls)call.close();for(const timer of videoTimers)clearInterval(timer);panels?.close();for(const person of installs){person.service.close();person.crypto.close()}await audio?.close().catch(()=>{});window.RTCPeerConnection=OriginalConnection;window.fetch=originalFetch;window.WebSocket=OriginalSocket;SfuKeys.prototype.create=originalCreate;HTMLMediaElement.prototype.play=originalPlay;secrets.length=0;wire.length=0}
 }

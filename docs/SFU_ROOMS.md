@@ -163,3 +163,10 @@ Focused diagnosis uses immutable fixture assets:
   isolates two joined Windows WebView2 endpoints, both decoded audio directions,
   relay-only routes, encryption before publication and capture/storage cleanup.
   Disposable Docker TURN/SFU loopback does not establish public relay reachability.
+- `--stage-cycle` isolates promotion, explicit speaking consent and demotion.
+- `--stage-revoke` isolates listening-permission removal and survivor PCM.
+  Both modes use the same real stage/MLS paths and fixed operation-name traces;
+  owner policy operations have a 30-second fixture watchdog. Full `--stage`
+  keeps its three 65-second policy intervals and 60-second setup interval, so
+  its controller allows twelve minutes for setup and bounded assertions.
+  This does not change product authorization, lease or recovery deadlines.

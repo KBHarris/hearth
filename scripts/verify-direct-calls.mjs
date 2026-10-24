@@ -15,7 +15,9 @@ import {mediaEndpointProxy} from './media-endpoint-proxy.mjs'
 import {distributedSfuBrowser} from './distributed-sfu-browser.mjs'
 const desktop=process.argv.includes('--desktop')
 const immutable=process.argv.includes('--immutable')
-const stage=process.argv.includes('--stage')
+const stageCycle=process.argv.includes('--stage-cycle')
+const stageRevoke=process.argv.includes('--stage-revoke')
+const stage=process.argv.includes('--stage')||stageCycle||stageRevoke
 const sfuPolicy=process.argv.includes('--sfu-policy')
 const sfuConnect=process.argv.includes('--sfu-connect')
 const sfu=process.argv.includes('--sfu')||process.argv.includes('--sfu-25')||stage||sfuPolicy||sfuConnect
@@ -181,9 +183,14 @@ try{
   }
   if(distributedSfu)distributedBrowser=await distributedSfuBrowser(frontendOrigin)
   for(let i=0;i<120;i++){if(await driver.executeScript(()=>typeof window.runCallAcceptance==='function'))break;await pause(250)}
-  await driver.executeScript(config=>{window.runCallAcceptance(config).then(result=>{window.__callResult=result}).catch(error=>{window.__callResult={outcome:'fail',stage:'harness',failureClass:error instanceof Error?error.name:'untyped',locations:typeof error?.stack==='string'?error.stack.split('\n').slice(1).map(line=>line.match(/(?:acceptance|group-call|direct-call|frame-keys|messaging-session)\.tsx?:\d+:\d+/)?.[0]).filter(Boolean):[]}})},{origin:desktop?match[1]:frontendOrigin,setupCode:readFileSync(match[2],'utf8').trim(),turn:turnMode,rekey,group,groupRevoke,groupRejoin,groupVideo,groupEpoch,rooms,roomRevoke,roomVideo,sfu,sfuCount,stage,sfuPolicy,sfuConnect,sfuObserver:sfuObserver?.config,sfuCapacityProfile,distributedSfu})
+  await driver.executeScript(config=>{window.runCallAcceptance(config).then(result=>{window.__callResult=result}).catch(error=>{window.__callResult={outcome:'fail',stage:'harness',failureClass:error instanceof Error?error.name:'untyped',locations:typeof error?.stack==='string'?error.stack.split('\n').slice(1).map(line=>line.match(/(?:acceptance|group-call|direct-call|frame-keys|messaging-session)\.tsx?:\d+:\d+/)?.[0]).filter(Boolean):[]}})},{origin:desktop?match[1]:frontendOrigin,setupCode:readFileSync(match[2],'utf8').trim(),turn:turnMode,rekey,group,groupRevoke,groupRejoin,groupVideo,groupEpoch,rooms,roomRevoke,roomVideo,sfu,sfuCount,stage,stageCycle,stageRevoke,sfuPolicy,sfuConnect,sfuObserver:sfuObserver?.config,sfuCapacityProfile,distributedSfu})
   let result,lastStage='';const clicked=new Set()
-  for(let attempt=0;attempt<(sfuCount===25&&sfu?(distributedSfu?24000:4800):rooms?720:420);attempt++){
+  // Full stage acceptance includes 255 seconds of intentional request/recovery
+  // budget intervals before account setup, joins and four policy operations.
+  // Give the test controller room for those fixed waits; product watchdogs and
+  // each bounded policy operation remain unchanged.
+  const controllerAttempts=stage&&!stageCycle&&!stageRevoke?1440:sfuCount===25&&sfu?(distributedSfu?24000:4800):rooms?720:420
+  for(let attempt=0;attempt<controllerAttempts;attempt++){
     await distributedBrowser?.pump(driver)
     const progress=await driver.executeScript(()=>({stage:document.getElementById('status').textContent,result:window.__callResult}))
     if(progress.result){result=progress.result;break}

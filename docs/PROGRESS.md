@@ -44,7 +44,20 @@ The complete Windows media repeat now passes 20 checks, and combined private
 video/computer-audio/device/MLS recovery passes 16 at source `dd36a69`. Evidence:
 `target/direct-calls-evidence/native-sfu-final-policy-2026-10-24/sfu-room-native-turn-tcp/result.json`
 and `target/direct-calls-evidence/private-media-final-policy-2026-10-24/group-direct/result.json`.
-The stage repeat and final 25-person gate remain pending.
+The complete stage repeat hit the fixture runner timeout without returning a
+renderer result. It is retained as a failed/unfinished run in
+`target/phase4-sfu-evidence/stage-final-policy-2026-10-24.log`; it is not a pass.
+A shorter promotion/demotion cycle now has named policy steps, a 30-second
+fixture watchdog per owner operation and bounded operation-name-only traces.
+The isolated promotion/demotion cycle passes 8 checks, and isolated listening
+removal passes 8, including decoded survivor audio. The full stage runner had a
+six-minute controller allowance despite 255 seconds of mandatory budget waits;
+its test-only allowance now covers those waits and setup, while each owner
+policy action has a 30-second fixture watchdog. Product authorization/recovery
+deadlines and request limits are unchanged. Full sequence acceptance is pending
+before the final 25-person gate. Evidence:
+`target/direct-calls-evidence/stage-cycle-isolated-2026-10-24/sfu-room-direct/result.json`
+and `target/direct-calls-evidence/stage-listen-isolated-2026-10-24/sfu-room-direct/result.json`.
 
 Remaining work is being diagnosed one issue at a time with small focused cases;
 the complete capacity matrix will run again only after those corrections pass.
