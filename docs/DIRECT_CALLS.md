@@ -194,8 +194,11 @@ Real physical capture and permissions, installed desktop UI, supported-browser/O
 interoperability, real TURN/TURN-TLS routes,
 CGNAT/firewalls and independent-network
 calls remain distinct acceptance gates. Camera/screen toggles and synthetic frame
-decoding do not prove those properties. LiveKit/SFU, group calls, screen audio,
-device switching and automatic in-call rekey are later Phase 4 work.
+decoding do not prove those properties. Since this historical checkpoint,
+LiveKit/SFU, group calls, separate screen audio, device switching and bounded
+in-call rekey have been implemented and locally tested. See the
+[release checklist](PHASE4_RELEASE_CHECKLIST.md) for the remaining capacity,
+publication and manual acceptance gates.
 
 Primary implementation references rechecked 2026-10-20:
 [RFC 9605](https://www.rfc-editor.org/rfc/rfc9605.html),
