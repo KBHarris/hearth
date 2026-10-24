@@ -12,6 +12,7 @@ if(!import.meta.env.DEV&&!__HEARTH_CALL_ACCEPTANCE__)throw new Error('Acceptance
 const parentOrigin=new URL(document.referrer).origin
 if(parentOrigin!=='http://127.0.0.1:5176'||parent===window)throw new Error('Disposable coordinator required')
 let nonce='',cryptoClient:AuthCrypto,session:Session,device:DeviceEnrollment,service:MessagingSession,client:HearthClient,server='',call:VoiceRoomCall,audio:AudioContext,state:ChatState=initialChat,mics=0,cameras=0,screens=0,system=0
+let playbackSink:GainNode
 const keys=new Set<string>(),wire:string[]=[],tracks:MediaStreamTrack[]=[],timers:ReturnType<typeof setInterval>[]=[],failures:Record<string,number>={},contexts=new Map<string,string>()
 const timings:Record<string,{count:number;maxMs:number}>={}
 function measured(name:string,started:number){const previous=timings[name]??{count:0,maxMs:0};timings[name]={count:previous.count+1,maxMs:Math.max(previous.maxMs,Math.round(performance.now()-started))}}
@@ -26,11 +27,19 @@ function tone(frequency:number){const oscillator=audio.createOscillator(),gain=a
 function picture(screen:boolean,withAudio=false){if(screen)screens++;else cameras++;const canvas=document.createElement('canvas');canvas.width=320;canvas.height=180;const context=canvas.getContext('2d')!;let frame=0;const paint=()=>{context.fillStyle=screen?'#2040d0':'#d04020';context.fillRect(0,0,320,180);context.fillStyle='#fff';context.fillText(String(frame++),20,80)};paint();timers.push(setInterval(paint,100));const stream=canvas.captureStream(10);stream.getTracks().forEach(own);if(withAudio){system++;stream.addTrack(tone(1200).getAudioTracks()[0])}return stream}
 const meters=new Map<string,{read:()=>number;close:()=>void}>(),videos=new Map<string,HTMLVideoElement>()
 const playbackContainer=document.createElement('div');document.body.append(playbackContainer)
-const playbackRoot=createRoot(playbackContainer),originalPlay=HTMLMediaElement.prototype.play
+const playbackRoot=createRoot(playbackContainer),originalPlay=HTMLMediaElement.prototype.play,originalPause=HTMLMediaElement.prototype.pause
+const routedPlayers=new WeakMap<HTMLMediaElement,MediaElementAudioSourceNode>(),playbackErrors:Record<string,number>={}
 // Use the product playback path. A statistics-only MediaStreamAudioSourceNode
 // does not start Chromium's remote WebRTC audio decoder in these isolated sites.
-HTMLMediaElement.prototype.play=function(){this.volume=0;return originalPlay.call(this)}
-function peak(track:MediaStreamTrack){let meter=meters.get(track.id);if(!meter){const analyser=audio.createAnalyser(),silent=audio.createGain(),source=audio.createMediaStreamSource(new MediaStream([track]));silent.gain.value=0;source.connect(analyser);analyser.connect(silent).connect(audio.destination);const samples=new Float32Array(analyser.fftSize);meter={read:()=>{analyser.getFloatTimeDomainData(samples);return Math.max(...samples.map(Math.abs))},close:()=>{source.disconnect();analyser.disconnect();silent.disconnect()}};meters.set(track.id,meter)}return meter.read()}
+// Route fixture players through the clocked silent context as well: leaving
+// HTML playback on hardware still exhausts shared outputs during room churn.
+// https://webaudio.github.io/web-audio-api/#dom-audiocontext-createmediaelementsource
+HTMLMediaElement.prototype.play=function(){
+  if(this instanceof HTMLAudioElement&&this.srcObject instanceof MediaStream){let source=routedPlayers.get(this);if(!source){source=audio.createMediaElementSource(this);routedPlayers.set(this,source)}source.disconnect();source.connect(playbackSink)}
+  return originalPlay.call(this).catch(error=>{const name=error instanceof DOMException?error.name:'unknown';playbackErrors[name]=(playbackErrors[name]??0)+1;throw error})
+}
+HTMLMediaElement.prototype.pause=function(){routedPlayers.get(this)?.disconnect();return originalPause.call(this)}
+function peak(track:MediaStreamTrack){let meter=meters.get(track.id);if(!meter){const analyser=audio.createAnalyser(),silent=audio.createGain(),source=audio.createMediaStreamSource(new MediaStream([track]));analyser.fftSize=256;silent.gain.value=0;source.connect(analyser);analyser.connect(silent).connect(audio.destination);const samples=new Float32Array(analyser.fftSize);meter={read:()=>{analyser.getFloatTimeDomainData(samples);let peak=0;for(const sample of samples)peak=Math.max(peak,Math.abs(sample));return peak},close:()=>{source.disconnect();analyser.disconnect();silent.disconnect()}};meters.set(track.id,meter)}return meter.read()}
 function render(){
   if(!call)return
   document.getElementById('status')!.textContent=call.state.phase+' · '+call.state.participants.length
@@ -59,6 +68,7 @@ async function operation(name:string,data:Record<string,unknown>){
       // Clock actual generated/decoded PCM without consuming a hardware output
       // for each synthetic client in this one-browser capacity fixture.
       audio=new AudioContext({sinkId:{type:'none'}} as AudioContextOptions);await audio.resume()
+      playbackSink=audio.createGain();playbackSink.gain.value=0;playbackSink.connect(audio.destination)
       call=new VoiceRoomCall(service,server,render,async constraints=>{if(constraints.video)return picture(false);mics++;return tone(300+Number(data.index)*40)},()=>true,async withAudio=>picture(true,!!withAudio))
       return {token:session.token,account:session.account,device,server}
     }

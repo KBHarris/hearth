@@ -30,6 +30,17 @@ queue/prefix tests pass, including resumption without loss/replay and no exposur
 after a failed save. Request limits, leases and authorization deadlines remain
 unchanged. The full capacity gate is being repeated before release.
 
+The adaptive-prefix repeat keeps all 25 endpoints connected with fresh access
+checks (maximum recorded policy-read time about 2.4 seconds), but fails the PCM
+matrix: two receiver sites have tracks but no decoded samples. This remains a
+failed capacity run. A separate short 26-site/24-player-per-site WebRTC diagnostic
+decodes received tracks on every site when HTML playback is routed into each
+site's clocked silent context. The capacity fixture now routes its production
+Playback elements through that context too, rather than keeping hardware outputs
+for the HTML players. PCM assertions remain on actual received WebRTC tracks;
+neither encryption nor decoding assertions are bypassed. This fixture routing
+does not establish physical speaker behavior. The full gate must be repeated.
+
 **Phase 4 completion work in progress, 2026-10-23:** the user authorized finishing
 all remaining implementation and automated validation, followed by a new release
 and data-preserving upgrades of this computer's client and existing server. Human

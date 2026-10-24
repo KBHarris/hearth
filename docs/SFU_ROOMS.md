@@ -140,4 +140,10 @@ declares a 50-output-stream ceiling (source checked 2026-10-23). A small local
 sinks allow all 26 players and all generated PCM. The full SFU assertions still
 require actual received/decrypted audio, video, separate computer audio and
 wrong-key rejection. These fixture sinks do not validate physical devices or
-change normal-client playback.
+change normal-client playback. HTML playback is also routed into the fixture's
+silent context using the standard
+[media-element source API](https://webaudio.github.io/web-audio-api/#dom-audiocontext-createmediaelementsource),
+so room churn does not retain separate hardware outputs for those players.
+A short 26-site/24-player-per-site WebRTC diagnostic decodes received audio on
+every site through this routing. Full capacity acceptance still requires the
+complete room fixture to pass; this diagnostic alone is not that result.
