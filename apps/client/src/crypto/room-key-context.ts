@@ -8,7 +8,9 @@ export function currentRoomKeyContext(signal:CallSignal,conversation:Conversatio
   const changed=()=>Object.assign(new Error('The encrypted room context changed.'),{status:409})
   if(!conversation||conversation.epoch!==signal.epoch||!roster)throw changed()
   const required=Permission.connect|Permission.listen
-  for(const device of signal.participants??[]){
+  const selected=signal.participants??[]
+  // Own denial wins even when another restricted peer sorts before this device.
+  for(const device of [...selected.filter(device=>device===own),...selected.filter(device=>device!==own)]){
     const member=conversation.members.find(peer=>peer.enrollment.device_key===device)
     if(!member)throw changed()
     const account=member.account_id,identity=member.enrollment.identity_key

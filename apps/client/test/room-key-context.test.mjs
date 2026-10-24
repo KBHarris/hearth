@@ -19,6 +19,8 @@ test('queued keys for a newly restricted peer request fresh context; own access 
   assert.throws(()=>currentRoomKeyContext(f.signal,f.conversation,f.roster,devices[0]),status(409))
   assert.throws(()=>currentRoomKeyContext(f.signal,f.conversation,f.roster,devices[1]),status(403))
   assert.doesNotThrow(()=>currentRoomKeyContext({...f.signal,participants:[devices[0],devices[2]]},f.conversation,f.roster,devices[0]))
+  f.roster.governance.overrides.push({channel_id:channel,kind:'member',target_id:accounts[2],allow:0,deny:Permission.send})
+  assert.throws(()=>currentRoomKeyContext(f.signal,f.conversation,f.roster,devices[2]),status(403))
 })
 test('revoked devices, departed identities and changed admission cannot export under an obsolete audience',()=>{
   for(const change of [f=>{f.roster.people[1].devices=[]},f=>{f.roster.departures=[{member:f.conversation.members[1]}]},f=>{f.roster.admissions[0].identity_key=id('0')}]){
