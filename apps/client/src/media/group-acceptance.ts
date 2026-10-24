@@ -11,7 +11,7 @@ const pause=(ms:number)=>new Promise(resolve=>setTimeout(resolve,ms))
 const status=(text:string)=>{document.getElementById('status')!.textContent=text}
 const require=(value:unknown)=>{if(!value)throw new Error('Group call acceptance assertion failed')}
 async function until(test:()=>boolean|Promise<boolean>,label:string){for(let i=0;i<600;i++){if(await test())return;await pause(100)}throw new Error(label)}
-export async function runGroupAcceptance(config:{origin:string;setupCode:string;turn?:boolean;groupRevoke?:boolean;groupRejoin?:boolean;groupVideo?:boolean}){
+export async function runGroupAcceptance(config:{origin:string;setupCode:string;turn?:boolean;groupRevoke?:boolean;groupRejoin?:boolean;groupVideo?:boolean;groupEpoch?:boolean}){
   const checks:Record<string,boolean>={},installs:Install[]=[],calls:GroupCall[]=[],originals:MediaStreamTrack[]=[],wire:string[]=[],secrets:string[]=[],connections:RTCPeerConnection[]=[]
   const transitions:Record<string,unknown>[][]=[]
   let stage='group capabilities',captures=0,panels:ReturnType<typeof mountGroupPanels>|undefined,audio:AudioContext|undefined,replay:CallSignal|undefined
@@ -92,12 +92,12 @@ export async function runGroupAcceptance(config:{origin:string;setupCode:string;
     for(const [index,call] of calls.entries()){
       const trace:Record<string,unknown>[]=[];transitions[index]=trace
       const raw=call as unknown as Record<string,unknown>
-      const internal=call as unknown as {room:{context:{epoch:number;participants:string[]};generation:number;readyPeers:string[]}|null;meshVersion:number;membershipAt:number;pending:{signal:CallSignal}[];edges:Map<string,{id:string;call:{state:{phase:string};connectivity:{connectionState:string;iceState:string;stopReason:string}}}>}
+      const internal=call as unknown as {room:{context:{epoch:number;participants:string[]};generation:number;readyPeers:string[]}|null;meshVersion:number;membershipAt:number;pending:{signal:CallSignal}[];edges:Map<string,{id:string;call:{state:{phase:string};pc:RTCPeerConnection|null;connectivity:{connectionState:string;iceState:string;stopReason:string}}}>}
       for(const name of ['epochChanged','membershipChanged','beginMesh','deliverPending','edgeSignal','edgeChanged','finish']){
         const original=raw[name] as (...args:unknown[])=>unknown
         raw[name]=(...args:unknown[])=>{
           const room=internal.room,signal=(args[1] as {signal?:CallSignal}|undefined)?.signal
-          if(name!=='membershipChanged'||room?.generation!==internal.membershipAt){trace.push({at:Math.round(performance.now()),operation:name,epoch:room?.context.epoch,mesh:internal.meshVersion,generation:room?.generation,ready:room?.readyPeers.map(device=>room.context.participants.indexOf(device)),pending:internal.pending.length,kind:signal?.kind,matched:signal?internal.edges.get(signal.from_device)?.id===signal.call_id:undefined,edgePhase:name==='edgeChanged'?(args[2] as {phase:string})?.phase:undefined,edges:[...internal.edges].map(([device,edge])=>({peer:room?.context.participants.indexOf(device),phase:edge.call.state.phase,connection:edge.call.connectivity?.connectionState,ice:edge.call.connectivity?.iceState,stop:edge.call.connectivity?.stopReason}))});if(trace.length>80)trace.shift()}
+          if(name!=='membershipChanged'||room?.generation!==internal.membershipAt){trace.push({at:Math.round(performance.now()),operation:name,epoch:room?.context.epoch,mesh:internal.meshVersion,generation:room?.generation,ready:room?.readyPeers.map(device=>room.context.participants.indexOf(device)),pending:internal.pending.length,kind:signal?.kind,matched:signal?internal.edges.get(signal.from_device)?.id===signal.call_id:undefined,edgePhase:name==='edgeChanged'?(args[2] as {phase:string})?.phase:undefined,edges:[...internal.edges].map(([device,edge])=>({peer:room?.context.participants.indexOf(device),phase:edge.call.state.phase,connection:edge.call.pc?.connectionState??edge.call.connectivity?.connectionState,ice:edge.call.pc?.iceConnectionState??edge.call.connectivity?.iceState,signaling:edge.call.pc?.signalingState,stop:edge.call.connectivity?.stopReason}))});if(trace.length>80)trace.shift()}
           return original.apply(call,args)
         }
       }
@@ -137,6 +137,40 @@ export async function runGroupAcceptance(config:{origin:string;setupCode:string;
     require(secrets.length===16&&new Set(secrets).size===8&&secrets.slice(4).every(secret=>!initialSecrets.includes(secret)))
     checks.pair_keys_match_at_two_endpoints_and_differ_across_pairs=true
     if(config.turn){require(calls.every(call=>call.state.relayOnly)&&metrics.flat().every(metric=>metric.connectivity.selectedRelay&&metric.connectivity.hostCandidates===0));checks.every_edge_selects_relay_with_no_host_candidates=true}
+    async function linkDevice(){
+      const link=JSON.parse(await alice.crypto.request('linkOffer','',undefined,alice.session.account.id,server)) as {id:string;device_key:string;envelope:string;signature:string;code:string}
+      await client.offerDeviceLink(alice.session.token,{id:link.id,device_key:link.device_key,envelope:link.envelope,signature:link.signature})
+      const linkedCrypto=new AuthCrypto(),auth=await client.loginStart({username:'group_alice',message:await linkedCrypto.request('loginStart',password)})
+      const session=await client.loginFinish({exchange_id:auth.exchange_id,message:await linkedCrypto.request('loginFinish',password,auth.message,'group_alice',server)})
+      const identity=JSON.parse(await linkedCrypto.request('restoreIdentity',link.code,link.envelope,alice.session.account.id,server)) as {enrollment:DeviceEnrollment}
+      await client.restoreDevice(session.token,{enrollment:identity.enrollment,link_id:link.id});await linkedCrypto.request('commitIdentity','')
+      const linked={} as Install;Object.assign(linked,{crypto:linkedCrypto,session,device:identity.enrollment,state:initialChat,service:new MessagingSession(linkedCrypto,session,identity.enrollment,server,config.origin,state=>{linked.state=state})});installs.push(linked);await linked.service.start();await linked.service.callConfiguration()
+      const maintenance=alice.service as unknown as {enqueue:<T>(action:()=>Promise<T>)=>Promise<T>;refresh:()=>Promise<void>};await maintenance.enqueue(()=>maintenance.refresh())
+    }
+    if(config.groupEpoch){
+      calls[0].mute()
+      const beforeEpoch=alice.state.conversations.find(group=>group.id===id)!.epoch,beforeKeys=secrets.slice(),beforeCaptures=captures,retained=originals.filter(track=>track.readyState==='live')
+      stage='private group linked-device epoch';status(stage)
+      await linkDevice()
+      await until(()=>installs.slice(0,3).every(person=>(person.state.conversations.find(group=>group.id===id)?.epoch??-1)>beforeEpoch)&&calls.every(call=>call.state.phase==='connected'),'Private group MLS recovery')
+      stage='Focused recovery capture retained';require(captures===beforeCaptures)
+      stage='Focused recovery mute retained';require(calls[0].state.muted)
+      stage='Focused recovery source tracks live';require(retained.every(track=>track.readyState==='live'))
+      stage='Focused recovery keys changed';require(secrets.length>beforeKeys.length&&secrets.slice(beforeKeys.length).every(key=>!beforeKeys.includes(key)))
+      checks.private_epoch_preserves_capture_and_mute_with_fresh_keys=true
+      calls[0].mute()
+      const recovered=calls.flatMap(call=>call.state.participants.filter(person=>person.remote).map(person=>{
+        const analyser=audio!.createAnalyser(),silent=audio!.createGain();silent.gain.value=0;audio!.createMediaStreamSource(person.remote!).connect(analyser);analyser.connect(silent).connect(audio!.destination)
+        return {analyser,samples:new Float32Array(analyser.fftSize)}
+      }))
+      require(recovered.length===6)
+      await until(async()=>recovered.every(({analyser,samples})=>{analyser.getFloatTimeDomainData(samples);return Math.max(...samples.map(Math.abs))>.03})&&(await Promise.all(calls.map(call=>call.diagnostics()))).flat().every(metric=>metric.decrypted>10),'All six recovered audio paths')
+      checks.all_six_paths_decode_after_linked_device_epoch=true
+      for(const call of calls)call.hangup()
+      require(originals.every(track=>track.readyState==='ended'));checks.private_group_leave_stops_all_originals=true
+      require(['HEARTH_PRIVATE_GROUP_SDP_CANARY',...secrets].every(secret=>wire.every(body=>!body.includes(secret))));checks.media_keys_and_plaintext_sdp_absent_from_http_and_gateway=true
+      return {outcome:'pass',scope:'Focused three-account private-call linked-device MLS recovery with six decoded synthetic audio paths',checks,physicalDevicePermissionsValidated:false,internetValidated:false}
+    }
     if(config.groupVideo){
       stage='group camera';status(stage);await until(()=>calls[0].state.camera,'Private group camera consent')
       stage='group include audio';status(stage);await pause(700)
@@ -151,15 +185,8 @@ export async function runGroupAcceptance(config:{origin:string;setupCode:string;
       await pause(65000)
       const beforeEpoch=installs[0].state.conversations.find(group=>group.id===id)!.epoch,beforeKeys=secrets.slice(),beforeCaptures=captures,retained=originals.filter(track=>track.readyState==='live')
       stage='private group linked-device epoch';status(stage)
-      const link=JSON.parse(await alice.crypto.request('linkOffer','',undefined,alice.session.account.id,server)) as {id:string;device_key:string;envelope:string;signature:string;code:string}
-      await client.offerDeviceLink(alice.session.token,{id:link.id,device_key:link.device_key,envelope:link.envelope,signature:link.signature})
-      const linkedCrypto=new AuthCrypto(),auth=await client.loginStart({username:'group_alice',message:await linkedCrypto.request('loginStart',password)})
-      const session=await client.loginFinish({exchange_id:auth.exchange_id,message:await linkedCrypto.request('loginFinish',password,auth.message,'group_alice',server)})
-      const identity=JSON.parse(await linkedCrypto.request('restoreIdentity',link.code,link.envelope,alice.session.account.id,server)) as {enrollment:DeviceEnrollment}
-      await client.restoreDevice(session.token,{enrollment:identity.enrollment,link_id:link.id});await linkedCrypto.request('commitIdentity','')
-      const linked={} as Install;Object.assign(linked,{crypto:linkedCrypto,session,device:identity.enrollment,state:initialChat,service:new MessagingSession(linkedCrypto,session,identity.enrollment,server,config.origin,state=>{linked.state=state})});installs.push(linked);await linked.service.start();await linked.service.callConfiguration()
-      const maintenance=alice.service as unknown as {enqueue:<T>(action:()=>Promise<T>)=>Promise<T>;refresh:()=>Promise<void>};await maintenance.enqueue(()=>maintenance.refresh())
-      await until(()=>installs.slice(0,3).every(person=>person.state.conversations.find(group=>group.id===id)!.epoch>beforeEpoch)&&calls.every(call=>call.state.phase==='connected'),'Private group MLS recovery')
+      await linkDevice()
+      await until(()=>installs.slice(0,3).every(person=>(person.state.conversations.find(group=>group.id===id)?.epoch??-1)>beforeEpoch)&&calls.every(call=>call.state.phase==='connected'),'Private group MLS recovery')
       require(captures===beforeCaptures&&calls[0].state.muted&&retained.every(track=>track.readyState==='live')&&secrets.slice(beforeKeys.length).every(key=>!beforeKeys.includes(key)))
       await until(async()=>calls.slice(1).every(call=>call.state.participants.find(peer=>peer.device===sender)?.systemAudioTrack)&&(await Promise.all(calls.slice(1).map(call=>call.diagnostics()))).every(edges=>edges.some(edge=>edge.decodedVideoFrames>20)),'Private group restored video and audio')
       const restored=calls.slice(1).map(call=>meter(call.state.participants.find(peer=>peer.device===sender)!.systemAudioTrack!));await until(()=>restored.every(read=>read()>.03),'Private group computer audio after MLS recovery');checks.private_group_epoch_uses_fresh_keys_preserves_consent_mute_and_media=true
@@ -252,7 +279,7 @@ export async function runGroupAcceptance(config:{origin:string;setupCode:string;
     require(wire.length>0&&['HEARTH_PRIVATE_GROUP_SDP_CANARY',...secrets].every(secret=>wire.every(body=>!body.includes(secret))))
     checks.media_keys_and_plaintext_sdp_absent_from_http_and_gateway=true
     return {outcome:'pass',scope:'Three real product accounts/MLS and group UI in one local runtime; six encrypted peer links with synthetic audio only',checks,metrics,audioPeaks:peaks,physicalDevicePermissionsValidated:false,internetValidated:false,turnValidated:!!config.turn,railwayValidated:false}
-  }catch(error){return {outcome:'fail',stage,failureClass:error instanceof Error?error.name:'untyped',httpStatus:typeof(error as {status?:unknown})?.status==='number'?(error as {status:number}).status:undefined,checks,failures,deliveryErrors:installs.map(person=>person.state.error),phases:calls.map(call=>call.state.phase),messages:calls.map(call=>call.state.message),faults:calls.map(call=>call.failureDiagnostics()),captures,connections:connections.length,transitions,metrics:await Promise.all(calls.map(call=>call.diagnostics().catch(()=>[])))}}
+  }catch(error){return {outcome:'fail',stage,failureClass:error instanceof Error?error.name:'untyped',locations:error instanceof Error?error.stack?.split('\n').map(line=>line.match(/(?:group-acceptance|messaging-session)\.ts:\d+:\d+/)?.[0]).filter(Boolean):[],httpStatus:typeof(error as {status?:unknown})?.status==='number'?(error as {status:number}).status:undefined,checks,failures,deliveryErrors:installs.map(person=>person.state.error),phases:calls.map(call=>call.state.phase),messages:calls.map(call=>call.state.message),faults:calls.map(call=>call.failureDiagnostics()),captures,connections:connections.length,transitions,metrics:await Promise.all(calls.map(call=>call.diagnostics().catch(()=>[])))}}
   finally{
     window.fetch=originalFetch;window.WebSocket=OriginalSocket;window.RTCPeerConnection=OriginalConnection;HTMLMediaElement.prototype.play=originalPlay;GroupKeyAgreement.prototype.derive=originalDerive
     for(const call of calls)call.close();for(const timer of videoTimers)clearInterval(timer);panels?.close();for(const person of installs){person.service.close();person.crypto.close()}await audio?.close().catch(()=>{});wire.length=0;secrets.length=0

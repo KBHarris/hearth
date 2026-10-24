@@ -313,6 +313,13 @@ tools, manual commands or secrets in diagnostic exports. See
 
 ## Phase 4: Cloud hosting, voice, video, and events
 
+Current release blockers (2026-10-23): targeted SFU room permission revocation
+and native SFU/TURN-TCP connection acceptance. Private-call linked-device recovery
+now passes a focused 15-check MLS/audio test after correcting signaling timing;
+combined video recovery still awaits final acceptance. Release and installed
+client/server upgrades remain pending. Diagnose each issue with a small case
+before repeating the full capacity gate.
+
 **Goal:** a reproducible hosted Hearth deployment with an optional browser client,
 plus E2EE real-time media with direct peer-to-peer calls and relay options. It
 depends on P3 permissions, the Host/Join checkpoint and the Spike B decision.

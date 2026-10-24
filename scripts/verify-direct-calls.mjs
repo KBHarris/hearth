@@ -30,7 +30,8 @@ const rooms=process.argv.includes('--rooms')||process.argv.includes('--room-revo
 const roomRevoke=process.argv.includes('--room-revoke')
 const rekey=process.argv.includes('--rekey')
 const groupVideo=process.argv.includes('--group-video')
-const group=process.argv.includes('--group')||process.argv.includes('--group-revoke')||process.argv.includes('--group-rejoin')||groupVideo
+const groupEpoch=process.argv.includes('--group-epoch')
+const group=process.argv.includes('--group')||process.argv.includes('--group-revoke')||process.argv.includes('--group-rejoin')||groupVideo||groupEpoch
 const groupRejoin=process.argv.includes('--group-rejoin')
 const groupRevoke=process.argv.includes('--group-revoke')
 const turnTls=process.argv.includes('--turn-tls')
@@ -178,7 +179,7 @@ try{
   }
   if(distributedSfu)distributedBrowser=await distributedSfuBrowser(frontendOrigin)
   for(let i=0;i<120;i++){if(await driver.executeScript(()=>typeof window.runCallAcceptance==='function'))break;await pause(250)}
-  await driver.executeScript(config=>{window.runCallAcceptance(config).then(result=>{window.__callResult=result}).catch(error=>{window.__callResult={outcome:'fail',stage:'harness',failureClass:error instanceof Error?error.name:'untyped',locations:typeof error?.stack==='string'?error.stack.split('\n').slice(1).map(line=>line.match(/(?:acceptance|group-call|direct-call|frame-keys|messaging-session)\.tsx?:\d+:\d+/)?.[0]).filter(Boolean):[]}})},{origin:desktop?match[1]:frontendOrigin,setupCode:readFileSync(match[2],'utf8').trim(),turn:turnMode,rekey,group,groupRevoke,groupRejoin,groupVideo,rooms,roomRevoke,roomVideo,sfu,sfuCount,stage,sfuObserver:sfuObserver?.config,sfuCapacityProfile,distributedSfu})
+  await driver.executeScript(config=>{window.runCallAcceptance(config).then(result=>{window.__callResult=result}).catch(error=>{window.__callResult={outcome:'fail',stage:'harness',failureClass:error instanceof Error?error.name:'untyped',locations:typeof error?.stack==='string'?error.stack.split('\n').slice(1).map(line=>line.match(/(?:acceptance|group-call|direct-call|frame-keys|messaging-session)\.tsx?:\d+:\d+/)?.[0]).filter(Boolean):[]}})},{origin:desktop?match[1]:frontendOrigin,setupCode:readFileSync(match[2],'utf8').trim(),turn:turnMode,rekey,group,groupRevoke,groupRejoin,groupVideo,groupEpoch,rooms,roomRevoke,roomVideo,sfu,sfuCount,stage,sfuObserver:sfuObserver?.config,sfuCapacityProfile,distributedSfu})
   let result,lastStage='';const clicked=new Set()
   for(let attempt=0;attempt<(sfuCount===25&&sfu?(distributedSfu?24000:4800):rooms?720:420);attempt++){
     await distributedBrowser?.pump(driver)

@@ -1,39 +1,27 @@
 # Progress
 
-**Current release gate, source `5797e06`, 2026-10-23:** the two-browser 25-person
-run passes all 600 directed microphone paths, camera/screen decoding, separate
-computer audio and microphone mute, a 32-second measured load interval, wrong-key
-observer rejection, and 24-person leave/rekey with shared audio preserved. It
-then fails targeted permission revocation because two unaffected survivors stop
-during key rebuilding. The complete gate remains failed; no release or real
-client/server upgrade has occurred. Railway remains paused and Spotify disabled.
+**Current release gate, 2026-10-23:** no release or installed client/server upgrade
+has occurred. Railway remains paused and Spotify disabled. The latest complete
+25-person run (`e282a54`) decoded 600 microphone paths and passed video, computer
+audio, load, wrong-key rejection and leave/rekey, but failed targeted permission
+revocation when two unaffected survivors stopped. Native SFU/TURN-TCP also needs
+an isolated connection diagnosis. These remain release blockers.
 
-Queued key exports are now checked against the already verified, current channel
-roster and local MLS epoch before the authoritative Rust export. An obsolete
-audience requests a fresh context; own access loss stays terminal. The check
-adds no network requests, grants no key/permission and retains Rust verification,
-all deadlines and the existing recovery budget. Four focused tests pass for
-stale epochs, revoked peers/devices/identities and receive-only stage listeners.
-End-to-end acceptance must be repeated before publication.
+**Private-call issue isolated and corrected:** call signaling now publishes its
+waiting state before asynchronous delivery/SDP work, so a fast authenticated
+answer is accepted and a connected event cannot be overwritten by a late send
+acknowledgement. Both deterministic timing regressions pass. A focused immutable
+three-account linked-device MLS test passes all 15 checks, including six decoded
+audio directions after the epoch change, fresh keys, retained capture/mute,
+cleanup, and no plaintext keys/SDP on the wire. Evidence:
+`target/direct-calls-evidence/private-epoch-isolated-2026-10-23/group-direct/result.json`.
+This is local synthetic-audio evidence; the longer combined video recovery gate
+still needs final acceptance. The new `--group-epoch` mode isolates this transition
+without unrelated device-switch waits. The earlier transient fixture lookup now
+waits for conversation metadata rather than throwing while it refreshes.
 
-The stage repeat passes all ten consent, permission and cleanup checks. The
-private-group repeat passes media/microphone switching but times out for one
-participant during a real linked-device MLS epoch change. A reproduced ordering
-regression shows that an offer for the final three-person transcript was dropped
-while an intermediate two-person mesh drained pending descriptions. Such offers
-are now retained until their matching authenticated transcript arrives;
-duplicates, expired/old-epoch controls and the existing eight-entry bound are
-covered by lifecycle tests. No recovery or authorization deadline was extended.
-
-The first offer-retention repeat still times out for one participant at the linked
-device epoch transition; the regression fix is retained, but is not claimed to
-have closed that end-to-end gate. The next fixture records bounded, content-free
-mesh/edge timing traces to diagnose the remaining ordering failure. Queued room
-signaling now uses the same current-context preflight as key exports, after its
-outbox flush and before Rust serialization. Queue-level tests prove stale requests
-never reach crypto and valid requests still do. All required npm checks pass,
-including 143 client tests. The incomplete 25-person setup was superseded through
-normal cleanup before media joins, so it cannot become release evidence.
+Remaining work is being diagnosed one issue at a time with small focused cases;
+the complete capacity matrix will run again only after those corrections pass.
 
 **Latest completed capacity checkpoint, 2026-10-23 (source `dae3fb2`):** implementation is
 present, but the complete 25-person SFU release gate has not passed. The latest

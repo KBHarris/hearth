@@ -5,15 +5,13 @@ upgrades of their existing client/server on 2026-10-23. Release and upgrade are
 pending. Railway remains paused. Local evidence must not be presented as an
 outside-network, clean-machine, or cross-platform pass.
 
-Latest completed checkpoint (`5797e06`, 2026-10-23): 25-person voice, camera/screen,
-separate computer audio/mute, measured load, wrong-key rejection and leave/rekey
-pass, but the full run fails at targeted permission revocation: two unaffected
-survivors stop during key rebuilding. That failure remains a release blocker.
-The current correction rejects obsolete queued export contexts before Rust
-verification; own access loss stays terminal. End-to-end checks are being repeated.
-The previous Windows SFU/private-group/stage fixtures passed 20/16/9 checks, and
-the playback source suite passed 135 client tests. Final candidate binaries must
-be rebuilt after the full gate passes.
+Latest complete 25-person checkpoint (`e282a54`, 2026-10-23) fails targeted
+permission revocation despite passing voice/video/computer audio, measured load,
+wrong-key rejection and leave/rekey. Native SFU/TURN-TCP connection recovery also
+needs isolated diagnosis. Private-call signaling order is corrected: two timing
+regressions and a focused 15-check real MLS/six-audio-path epoch test pass. The
+combined media recovery and complete release gates remain pending. Final binaries
+must be rebuilt from the accepted source before publication.
 
 - [ ] Stable 25-person SFU voice plus screen/computer audio; record upload,
   recipient traffic, fixture CPU and actual encrypted packet/privacy evidence.

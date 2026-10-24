@@ -91,8 +91,8 @@ export class DirectCall {
       await this.prepare(offer,0,iceServers)
       this.check(offer)
       const description=await this.pc!.createOffer();await this.pc!.setLocalDescription(description);await this.gather(offer)
-      this.check(offer);await this.signal('offer',this.pc!.localDescription!.sdp)
       this.check(offer);this.publish({phase:'outgoing',message:'Calling…'});this.watch(offer)
+      await this.signal('offer',this.pc!.localDescription!.sdp);this.check(offer)
     }catch(error){if(generation===this.generation)this.finish(error instanceof Error?error.message:'The call could not start.');throw error}
   }
   private async prepare(offer:CallSignal,role:number,iceServers:RTCIceServer[]){
@@ -284,7 +284,8 @@ export class DirectCall {
     }
     if(signal.kind==='answer'&&this.state.phase==='outgoing'&&this.transport.callDevice===offer.from_device){
       await this.transport.authorizeCall(conversation_id,signal);this.check(offer)
-      await this.pc!.setRemoteDescription({type:'answer',sdp:signal.description!});this.publish({phase:'connecting',message:'Connecting securely…'})
+      if(!this.established)this.publish({phase:'connecting',message:'Connecting securely…'})
+      await this.pc!.setRemoteDescription({type:'answer',sdp:signal.description!});this.check(offer)
     }
   }
   async answer(iceServers:RTCIceServer[]=[]){
@@ -294,9 +295,9 @@ export class DirectCall {
       this.publish({phase:'preparing',message:'Preparing encrypted media…'})
       await this.transport.authorizeCall(this.state.conversation,offer);this.check(offer)
       await this.prepare(offer,1,iceServers);this.check(offer)
+      if(!this.established)this.publish({phase:'connecting',message:'Connecting securely…'})
       await this.pc!.setLocalDescription(await this.pc!.createAnswer());await this.gather(offer)
       await this.signal('answer',this.pc!.localDescription!.sdp);this.check(offer)
-      this.publish({phase:'connecting',message:'Connecting securely…'})
     }catch(error){if(this.offer===offer)await this.hangup(error instanceof Error?error.message:'The call could not be answered.');throw error}
   }
   private epochChanged(conversation:string,epoch?:number){
