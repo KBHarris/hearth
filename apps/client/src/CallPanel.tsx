@@ -1,4 +1,5 @@
 import {registerOutput} from './media/playback-output'
+import {startPlayback} from './media/playback'
 import {CallDevices} from './CallDevices'
 import {useEffect,useRef,useState} from 'react'
 import type {Conversation} from '@hearth/sdk'
@@ -9,16 +10,15 @@ import './CallPanel.css'
 
 export function Playback({stream,kind}:{stream:MediaStream;kind:'audio'|'video'}){
   const element=useRef<HTMLMediaElement|null>(null)
+  const playback=useRef<ReturnType<typeof startPlayback>|null>(null)
   const [blocked,setBlocked]=useState(false)
   useEffect(()=>{
     const player=element.current;if(!player)return
-    player.srcObject=stream
     const unregister=kind==='audio'?registerOutput(player):()=>{}
-    const play=()=>{void player.play().then(()=>setBlocked(false)).catch(()=>setBlocked(true))}
-    play();stream.addEventListener('addtrack',play)
-    return()=>{unregister();stream.removeEventListener('addtrack',play);player.pause();player.srcObject=null}
+    const running=startPlayback(player,stream,setBlocked);playback.current=running
+    return()=>{playback.current=null;running.close();unregister()}
   },[stream,kind])
-  return <>{kind==='video'?<video ref={value=>{element.current=value}} autoPlay playsInline muted className="call-video"/>:<audio ref={value=>{element.current=value}} autoPlay/>}{blocked&&<button onClick={()=>void element.current?.play().then(()=>setBlocked(false))}>Play call {kind}</button>}</>
+  return <>{kind==='video'?<video ref={value=>{element.current=value}} autoPlay playsInline muted className="call-video"/>:<audio ref={value=>{element.current=value}} autoPlay/>}{blocked&&<button onClick={()=>playback.current?.retry()}>Play call {kind}</button>}</>
 }
 export function AudioTrack({track}:{track:MediaStreamTrack}){const [stream]=useState(()=>new MediaStream([track]));return <Playback stream={stream} kind="audio"/>}
 export function CallPanel({call,state,service,conversation,account,name,unavailable=false}:{call:DirectCall|null;state:CallState;service:MessagingSession|null;conversation:Conversation|undefined;account:string;name:(id:string)=>string;unavailable?:boolean}){

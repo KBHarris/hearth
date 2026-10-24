@@ -20,3 +20,9 @@ test('unsupported output selection fails visibly while ordinary volume and deafe
   const player={volume:1,muted:false},remove=registerOutput(player)
   try{await assert.rejects(setOutput({device:'headset',volume:1,deafened:false}),/system sound settings/);await setOutput({device:'',volume:.3,deafened:true});assert.equal(player.volume,.3);assert.equal(player.muted,true)}finally{remove();await setOutput({device:'',volume:1,deafened:false})}
 })
+
+test('a new player inherits deafen and volume before asynchronous speaker selection can finish',async()=>{
+  await setOutput({device:'',volume:.2,deafened:true})
+  let changes=0;const player={volume:1,muted:false,sinkId:'',async setSinkId(){changes++}},remove=registerOutput(player)
+  try{assert.equal(player.volume,.2);assert.equal(player.muted,true);await setOutput({device:'',volume:.2,deafened:true});assert.equal(changes,0)}finally{remove();await setOutput({device:'',volume:1,deafened:false})}
+})

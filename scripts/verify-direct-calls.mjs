@@ -12,6 +12,7 @@ import {devtools} from './verify-installed-test-client.mjs'
 import {sfuObserverFixture} from './sfu-observer-fixture.mjs'
 import {cpuSnapshot,cpuDelta} from './media-cpu-fixture.mjs'
 import {mediaEndpointProxy} from './media-endpoint-proxy.mjs'
+import {distributedSfuBrowser} from './distributed-sfu-browser.mjs'
 const desktop=process.argv.includes('--desktop')
 const immutable=process.argv.includes('--immutable')
 const stage=process.argv.includes('--stage')
@@ -46,7 +47,7 @@ const pause=ms=>new Promise(resolve=>setTimeout(resolve,ms))
 let sfuProcess,sfuConfiguration,sfuObserver,sfuContainer,sfuPorts
 let fixture,vite,driver,native,cdp,nativeConfiguration,nativeOutput='',nativeFinished=false,turnContainer,turnConfiguration,stdout='',stderr=''
 let browserPid,cpuBefore,cpuMeasurement
-let endpointProxy
+let endpointProxy,distributedBrowser
 const turnCertificateFiles=[]
 async function freePort(){const server=createServer();await new Promise(resolve=>server.listen(0,'127.0.0.1',resolve));const port=server.address().port;await new Promise(resolve=>server.close(resolve));return port}
 async function finishNative(result){
@@ -175,16 +176,18 @@ try{
     browserPid=(await driver.getCapabilities()).get('goog:processID')
     await driver.manage().setTimeouts({script:180000});await driver.get(frontendOrigin+'/media-test.html')
   }
+  if(distributedSfu)distributedBrowser=await distributedSfuBrowser(frontendOrigin)
   for(let i=0;i<120;i++){if(await driver.executeScript(()=>typeof window.runCallAcceptance==='function'))break;await pause(250)}
   await driver.executeScript(config=>{window.runCallAcceptance(config).then(result=>{window.__callResult=result}).catch(error=>{window.__callResult={outcome:'fail',stage:'harness',failureClass:error instanceof Error?error.name:'untyped',locations:typeof error?.stack==='string'?error.stack.split('\n').slice(1).map(line=>line.match(/(?:acceptance|group-call|direct-call|frame-keys|messaging-session)\.tsx?:\d+:\d+/)?.[0]).filter(Boolean):[]}})},{origin:desktop?match[1]:frontendOrigin,setupCode:readFileSync(match[2],'utf8').trim(),turn:turnMode,rekey,group,groupRevoke,groupRejoin,groupVideo,rooms,roomRevoke,roomVideo,sfu,sfuCount,stage,sfuObserver:sfuObserver?.config,sfuCapacityProfile,distributedSfu})
   let result,lastStage='';const clicked=new Set()
-  for(let attempt=0;attempt<(sfuCount===25&&sfu?4800:rooms?720:420);attempt++){
+  for(let attempt=0;attempt<(sfuCount===25&&sfu?(distributedSfu?24000:4800):rooms?720:420);attempt++){
+    await distributedBrowser?.pump(driver)
     const progress=await driver.executeScript(()=>({stage:document.getElementById('status').textContent,result:window.__callResult}))
     if(progress.result){result=progress.result;break}
     if(progress.stage==='Ready'&&lastStage&&lastStage!=='Ready')throw new Error('Call fixture source changed during acceptance; restart from a fresh fixture')
     if(progress.stage!==lastStage){lastStage=progress.stage;console.log('Call acceptance: '+lastStage)}
-    if(progress.stage==='SFU video ready'&&!cpuBefore)cpuBefore=cpuSnapshot([browserPid,native?.pid,sfuProcess?.pid,fixture?.pid],[sfuContainer,turnContainer])
-    if(progress.stage==='SFU wrong-key subscriber'&&cpuBefore&&!cpuMeasurement)cpuMeasurement=cpuDelta(cpuBefore,cpuSnapshot([browserPid,native?.pid,sfuProcess?.pid,fixture?.pid],[sfuContainer,turnContainer]))
+    if(progress.stage==='SFU video ready'&&!cpuBefore)cpuBefore=cpuSnapshot([browserPid,distributedBrowser?.pid,native?.pid,sfuProcess?.pid,fixture?.pid],[sfuContainer,turnContainer])
+    if(progress.stage==='SFU wrong-key subscriber'&&cpuBefore&&!cpuMeasurement)cpuMeasurement=cpuDelta(cpuBefore,cpuSnapshot([browserPid,distributedBrowser?.pid,native?.pid,sfuProcess?.pid,fixture?.pid],[sfuContainer,turnContainer]))
     const roomAction=/^voice (join|rejoin|leave) (\d+)$/.exec(progress.stage)
     if(roomAction&&!clicked.has(progress.stage)){
       const [,action,index]=roomAction,selector='#voice-fixture-'+index
@@ -235,7 +238,7 @@ try{
     }
     if(progress.stage==='screen share'&&clicked.has('screen share'))writeFileSync(join(output,'connected-call.png'),Buffer.from(await driver.takeScreenshot(),'base64'))
     if(progress.stage==='group mute'&&!clicked.has('group screenshot')){writeFileSync(join(output,'connected-group.png'),Buffer.from(await driver.takeScreenshot(),'base64'));clicked.add('group screenshot')}
-    await pause(500)
+    await pause(distributedSfu?100:500)
   }
   assert.ok(result,'Call acceptance timed out')
   if(cpuMeasurement)result.cpuMeasurement=cpuMeasurement
@@ -275,6 +278,7 @@ try{
 }finally{
   if(native&&!nativeFinished&&native.exitCode===null&&driver)await finishNative({outcome:'fail',checks:{native_call_fixture_completed:false}}).catch(()=>{})
   await driver?.quit().catch(()=>{})
+  await distributedBrowser?.quit().catch(()=>{})
   await endpointProxy?.close()
   if(native&&native.exitCode===null)native.kill()
   if(nativeConfiguration)rmSync(nativeConfiguration,{force:true})

@@ -41,6 +41,17 @@ for the HTML players. PCM assertions remain on actual received WebRTC tracks;
 neither encryption nor decoding assertions are bypassed. This fixture routing
 does not establish physical speaker behavior. The full gate must be repeated.
 
+The HTML-output routing repeat also fails the PCM matrix. DOM capture confirms
+late decoder/output errors on several live receiver tracks; a diagnostic reset
+clears the element errors but does not make the full test pass. That run is
+explicitly marked as diagnostically modified and excluded from release evidence.
+The next fixture splits its 26 isolated sites between two independent browsers,
+with the same real accounts, MLS, E2EE and media assertions. Production playback
+now surfaces late element errors, bounds automatic decoder-output recovery to
+three retries, keeps gesture failures explicit and cancels stale work on cleanup.
+New players inherit volume/deafen before asynchronous output selection; selecting
+an unchanged sink avoids reopening it. Five focused playback/output tests pass.
+
 **Phase 4 completion work in progress, 2026-10-23:** the user authorized finishing
 all remaining implementation and automated validation, followed by a new release
 and data-preserving upgrades of this computer's client and existing server. Human

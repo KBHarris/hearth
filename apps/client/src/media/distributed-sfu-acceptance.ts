@@ -7,21 +7,29 @@ type Info={token:string;account:Account;device:DeviceEnrollment;server:string}
 type Metric=NonNullable<Awaited<ReturnType<VoiceRoomCall['sfuDiagnostics']>>>
 type Snapshot={phase:string;message:string;fault:unknown;participants:{device:string;remote:boolean;camera:boolean;screen:boolean;system:boolean;micPeak:number|null;systemPeak:number|null}[];muted:boolean;camera:boolean;screen:boolean;system:boolean;mics:number;cameras:number;screens:number;systemCaptures:number;joined:string[];epoch:number;deliveryError:string;failures:Record<string,number>;ownedTracks:number;allStopped:boolean;keyContexts:number;wirePrivate:boolean;historyEmpty:boolean;timings:Record<string,{count:number;maxMs:number}>}
 const pause=(ms:number)=>new Promise(resolve=>setTimeout(resolve,ms))
+type BridgeReply={index:number;nonce:string;request:number;value?:unknown;error?:{name?:string;status?:number;kind?:string}}
+type BrowserBridge={jobs:{index:number;nonce:string;request:number;name:string;data:Record<string,unknown>}[];receive:(replies:BridgeReply[])=>void}
 class Endpoint {
   frame=document.createElement('iframe');origin:string;nonce=Array.from(crypto.getRandomValues(new Uint8Array(32)),byte=>byte.toString(16).padStart(2,'0')).join('');counter=0
   pending=new Map<number,{resolve:(value:unknown)=>void;reject:(error:unknown)=>void;timer:ReturnType<typeof setTimeout>}>()
   listener:(event:MessageEvent)=>void
-  constructor(index:number){
+  readonly index:number
+  private bridge:BrowserBridge
+  constructor(index:number,bridge:BrowserBridge){
+    this.index=index;this.bridge=bridge
     this.origin='https://media'+index+'.localhost:5177';this.frame.src=this.origin+'/sfu-endpoint.html';this.frame.allow='autoplay';this.frame.style.cssText='width:190px;height:140px;border:1px solid #555'
-    this.listener=event=>{if(event.origin!==this.origin||event.source!==this.frame.contentWindow||event.data?.type!=='hearth-sfu-fixture-reply'||event.data.nonce!==this.nonce)return;const request=this.pending.get(event.data.request);if(!request)return;clearTimeout(request.timer);this.pending.delete(event.data.request);if(event.data.error)request.reject(Object.assign(new Error('Isolated endpoint operation failed'),event.data.error));else request.resolve(event.data.value)}
+    this.listener=event=>{if(event.origin!==this.origin||event.source!==this.frame.contentWindow||event.data?.type!=='hearth-sfu-fixture-reply')return;this.reply(event.data)}
     addEventListener('message',this.listener)
   }
-  async open(){await new Promise<void>((resolve,reject)=>{const timer=setTimeout(()=>reject(new Error('Isolated endpoint did not load')),15000);this.frame.onload=()=>{clearTimeout(timer);resolve()};document.getElementById('endpoint-grid')!.append(this.frame)})}
-  request<T>(name:string,data:Record<string,unknown>={}):Promise<T>{const request=++this.counter;return new Promise((resolve,reject)=>{const timer=setTimeout(()=>{this.pending.delete(request);reject(new Error('Isolated endpoint request timed out: '+name))},60000);this.pending.set(request,{resolve:value=>resolve(value as T),reject,timer});this.frame.contentWindow!.postMessage({type:'hearth-sfu-fixture',nonce:this.nonce,request,name,data:{...data,...(name==='init'?{nonce:this.nonce}:{})}},this.origin)})}
+  reply(value:BridgeReply){if(value.nonce!==this.nonce)return;const request=this.pending.get(value.request);if(!request)return;clearTimeout(request.timer);this.pending.delete(value.request);if(value.error)request.reject(Object.assign(new Error('Isolated endpoint operation failed'),value.error));else request.resolve(value.value)}
+  async open(){if(this.index>=13){await this.request('__open');return}await new Promise<void>((resolve,reject)=>{const timer=setTimeout(()=>reject(new Error('Isolated endpoint did not load')),15000);this.frame.onload=()=>{clearTimeout(timer);resolve()};document.getElementById('endpoint-grid')!.append(this.frame)})}
+  request<T>(name:string,data:Record<string,unknown>={}):Promise<T>{const request=++this.counter;return new Promise((resolve,reject)=>{const timer=setTimeout(()=>{this.pending.delete(request);reject(new Error('Isolated endpoint request timed out: '+name))},60000);this.pending.set(request,{resolve:value=>resolve(value as T),reject,timer});const payload={...data,...(name==='init'?{nonce:this.nonce}:{})};if(this.index>=13)this.bridge.jobs.push({index:this.index,nonce:this.nonce,request,name,data:payload});else this.frame.contentWindow!.postMessage({type:'hearth-sfu-fixture',nonce:this.nonce,request,name,data:payload},this.origin)})}
   dispose(){removeEventListener('message',this.listener);for(const item of this.pending.values()){clearTimeout(item.timer);item.reject(new Error('Fixture closed'))}this.pending.clear();this.frame.remove()}
 }
 export async function runDistributedSfu(config:{origin:string;setupCode:string;sfuObserver?:{origin:string;token:string}}){
   const count=25,endpoints:Endpoint[]=[],people:Info[]=[],checks:Record<string,boolean>={};let stage='Distributed SFU accounts',latest:Snapshot[]=[],channel='',audio:AudioContext|undefined
+  const bridge:BrowserBridge={jobs:[],receive:replies=>{for(const reply of replies)endpoints[reply.index]?.reply(reply)}}
+  const host=window as unknown as {__hearthSfuBrowserBridge?:BrowserBridge};host.__hearthSfuBrowserBridge=bridge
   const status=(value:string)=>{stage=value;document.getElementById('status')!.textContent=value},require=(value:unknown)=>{if(!value)throw new Error('Distributed SFU assertion failed')}
   const grid=document.createElement('div');grid.id='endpoint-grid';grid.style.cssText='display:grid;grid-template-columns:repeat(5,190px);gap:2px';document.body.append(grid)
   async function snapshots(){return Promise.all(endpoints.map(endpoint=>endpoint.request<Snapshot>('snapshot',{id:channel})))}
@@ -32,7 +40,7 @@ export async function runDistributedSfu(config:{origin:string;setupCode:string;s
     const client=new HearthClient(config.origin)
     for(let index=0;index<=count;index++){
       if(index&&index%16===0){status('Distributed account budget boundary');await pause(60000)}
-      status('Distributed SFU account '+index);const endpoint=new Endpoint(index);endpoints.push(endpoint);await endpoint.open()
+      status('Distributed SFU account '+index);const endpoint=new Endpoint(index,bridge);endpoints.push(endpoint);await endpoint.open()
       const info=await endpoint.request<Info>('init',{origin:endpoint.origin,index,username:'distributed_sfu_'+index,owner:index===0,setupCode:index===0?config.setupCode:''});people.push(info)
       if(index===0)await client.configureServer(info.token,{server_name:'Disposable isolated-renderer SFU acceptance',registration_mode:'open'})
       await endpoint.request('start');await pause(1000)
@@ -78,7 +86,7 @@ export async function runDistributedSfu(config:{origin:string;setupCode:string;s
     await Promise.all(endpoints.map(endpoint=>endpoint.request('leave')));latest=await snapshots();require(latest.every(view=>view.allStopped&&view.wirePrivate&&view.historyEmpty));checks.all_owned_tracks_stop_and_actual_media_keys_are_absent_from_wire=true
     const failures=latest.reduce<Record<string,number>>((all,view)=>{for(const [status,count] of Object.entries(view.failures))all[status]=(all[status]??0)+count;return all},{})
     require(!failures['429']);checks.unchanged_per_account_and_login_limits_pass=true
-    return {outcome:'pass',scope:'26 isolated localhost browser sites/renderers with real accounts/WASM/MLS; 25 joined SFU endpoints and one unjoined device; synthetic microphone/camera/screen/computer audio',checks,participants:count,audioPaths,loadSeconds,uploadBitsPerSecond,recipientBitsPerSecond,sfuEgressBitsPerSecond,sfuEgressDecimalGigabytesPerHour:sfuEgressBitsPerSecond*3600/8/1e9,activeMetrics,observer,failures,requestProfile:'sfu25',physicalDevicePermissionsValidated:false,internetValidated:false,railwayValidated:false}
+    return {outcome:'pass',scope:'26 isolated localhost sites/renderers split across two disposable browsers with real accounts/WASM/MLS; 25 joined SFU endpoints and one unjoined device; synthetic microphone/camera/screen/computer audio',checks,participants:count,audioPaths,loadSeconds,uploadBitsPerSecond,recipientBitsPerSecond,sfuEgressBitsPerSecond,sfuEgressDecimalGigabytesPerHour:sfuEgressBitsPerSecond*3600/8/1e9,activeMetrics,observer,failures,requestProfile:'sfu25',physicalDevicePermissionsValidated:false,internetValidated:false,railwayValidated:false}
   }catch(error){latest=await snapshots().catch(()=>latest);return {outcome:'fail',stage,failureClass:error instanceof Error?error.name:'untyped',requestFailureKind:(error as {kind?:string})?.kind,httpStatus:(error as {status?:number})?.status,checks,endpoints:latest.map(view=>({phase:view.phase,message:view.message,fault:view.fault,failures:view.failures,mics:view.mics,camera:view.camera,screen:view.screen,system:view.system,remoteCameras:view.participants.filter(peer=>peer.remote&&peer.camera).length,remoteScreens:view.participants.filter(peer=>peer.remote&&peer.screen).length,decodedSystemAudio:view.participants.filter(peer=>peer.remote&&peer.systemPeak!==null&&peer.systemPeak>.03).length,participants:view.participants.length,deliveryError:view.deliveryError,timings:view.timings}))}}
-  finally{await Promise.all(endpoints.map(endpoint=>endpoint.request('close').catch(()=>{})));for(const endpoint of endpoints)endpoint.dispose();await audio?.close().catch(()=>{});grid.remove();people.length=0}
+  finally{await Promise.all(endpoints.map(endpoint=>endpoint.request('close').catch(()=>{})));for(const endpoint of endpoints)endpoint.dispose();delete host.__hearthSfuBrowserBridge;await audio?.close().catch(()=>{});grid.remove();people.length=0}
 }
