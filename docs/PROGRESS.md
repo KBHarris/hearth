@@ -1,5 +1,19 @@
 # Progress
 
+**Accepted local release gate, 2026-10-25:** the complete isolated 25-person SFU
+run passes all 16 checks at acceptance commit `eeb4b2a`, using production media
+source `df97a1e`. All 600 directed audio paths, video/screen/computer audio, load,
+wrong-key rejection, membership rotation, targeted permission removal, track
+cleanup and request limits pass. The final audit inspects up to 4,521 captured
+frames per endpoint; the prior arbitrary 4,096-frame ceiling was a test defect.
+The never-joined device correctly owns no publisher keys. All npm verification
+passes (151 client tests), and production assets exclude acceptance code.
+[Sanitized evidence](evidence/phase4-release-local-2026-10-25.json) freezes 23
+passing reports. The installed Windows client is now 0.4.0 and all 19 bundle/upgrade
+checks pass; publication and actual server/media upgrade are next. Railway remains paused and Spotify disabled.
+
+Earlier checkpoints below retain the original failed results and investigations.
+
 **Isolation update, 2026-10-25:** the final isolated `df97a1e` result actually
 records successful targeted permission removal. Its stage label was stale when
 the subsequent combined cleanup/privacy assertion failed. The new four-person

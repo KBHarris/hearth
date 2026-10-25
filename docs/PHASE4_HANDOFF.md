@@ -1,103 +1,49 @@
-# Phase 4 release checkpoint - 2026-10-24
+# Phase 4 release checkpoint - 2026-10-25
 
-**Isolation update, 2026-10-25:** the final isolated `df97a1e` result actually
-records successful targeted permission removal. Its stage label was stale when
-the subsequent combined cleanup/privacy assertion failed. The new four-person
-isolated-renderer lifecycle check passes all 16 checks, including track cleanup,
-key privacy, history filtering and permission removal. The wire audit contained
-an unrelated 4,096-frame ceiling that reported failure solely from traffic volume.
-The corrected acceptance audit scans every captured frame, requires actual traffic
-and checks every owned key, including a leak in frame 5,000. A never-joined
-device correctly owns no publisher keys and is covered by regression evidence. No production
-media, permissions, request limits or watchdogs changed. A fresh complete 25-person
-run is still required before publication; old failed evidence remains unchanged.
+Application source: `df97a1e`. Acceptance source: `eeb4b2a`.
+The final complete capacity run `sfu25-audit-complete-2026-10-25` passes all
+16 checks with 25 participants and 600 decoded microphone paths. Cleanup,
+permission removal, wire privacy (up to 4,521 frames), history filtering and
+unchanged request limits pass. Frozen evidence is
+`docs/evidence/phase4-release-local-2026-10-25.json` (23 passing reports).
+Required npm verification passes, including 151 client tests. Windows/private
+media, stage, TURN-TLS, image recovery and packaging evidence is retained there.
 
-**Checkpoint confirmed, 2026-10-25:** the final isolated run at `df97a1e`
-(`sfu25-isolated-final-2026-10-24`) finished with `outcome: fail` during
-`Distributed permission revocation`. Its recorded media/privacy checks are true,
-but that does not override the failed overall result. The remaining blocker is
-to isolate and resolve this final permission-removal failure, then obtain a passing
-complete capacity result. No new release or installed client/server upgrade has
-occurred. No additional test run was started for this status check.
+The earlier final result had already passed permission removal, but its stage
+label stayed stale for a combined cleanup/privacy failure. The acceptance wire
+audit arbitrarily failed above 4,096 frames. That ceiling is removed; every
+captured frame is checked against every owned key. The new regression also
+covers a late-frame disclosure and the never-joined endpoint owning no keys.
+Prior failed raw reports remain unchanged. Production media/permission logic
+is unchanged from the signed application candidate.
 
-Frozen application source: `df97a1e` (full SHA in the candidate manifest).
-Latest documentation checkpoint: `ac5a063`. Railway remains paused; Spotify is disabled.
-Publication and the installed client/server upgrades are authorized, but neither
-has occurred. The installed client remains 0.3.6; the selected existing host is
-untouched apart from restarting Docker. Its protected identity/history baseline
-still matches. Never overwrite `target/phase4-private-state/before.json`.
+Installed Windows client **0.4.0** is upgraded. Bundle
+`target/manual-test/release/guided-df97a1e/VALIDATION.json` passes all 19 checks,
+including profile preservation and matching native version/source. Signed assets
+are assembled under its `release-assets` directory; their exact allowlist is
+`target/phase4-sfu-evidence/prepared-release.json`.
 
-## Passing evidence
+Remaining authorized steps:
 
-- Required npm checks: 149 client tests, SDK/deployment tests, types, lint and build.
-  Log: `target/phase4-sfu-evidence/npm-final-upload-conflict-utf8-2026-10-24.log`.
-- Windows SFU media/TURN-TCP: 20 checks (`native-sfu-final-policy-2026-10-24`).
-- Private camera/screen/computer audio/device/MLS recovery: 16 checks
-  (`private-media-final-policy-2026-10-24`).
-- Complete stage consent/promotion/demotion/revocation: 10 checks
-  (`stage-final-bounded-2026-10-24`). Its previous timeout was the test
-  controller budget; product watchdogs were not extended.
-- Serialized room upload conflict: 11 checks (`sfu-conflict-isolated-2026-10-24`).
-  One simulated HTTP 409 after encryption exercises actual Rust outbox rollback,
-  fresh verified admission and decoded survivor audio. Forbidden/malformed room
-  controls and ordinary chat remain terminal. Periodic key-repeat regression passes.
-- Corrected production images: 8 restore/isolation checks; normal assets: 11,
-  with test/private canaries absent. Rust source is unchanged since `cb74431`;
-  its retained Rust/SQL checks remain applicable.
-
-Raw media results are under `target/direct-calls-evidence/<checkpoint>/`.
-The latest complete media/load run at `eb8e7b2` failed permission revocation
-because one unaffected survivor treated a rejected HTTP-409 outbox control as
-fatal. The fix above is narrowly scoped to that exact rejected upload. That
-failed run and its old candidate remain failed/superseded.
-
-## Current final capacity run
-
-`sfu25-isolated-final-2026-10-24` is running alone, with no overlapping builds
-or other acceptance fixtures. Source is frozen and assets immutable. A prior
-attempt on `df97a1e` failed with a network error during admission 6, before voice;
-this fresh attempt has passed that point. Its log is
-`target/phase4-sfu-evidence/sfu25-isolated-final-2026-10-24.log`; result will be
-`target/direct-calls-evidence/sfu25-isolated-final-2026-10-24/sfu-room-direct/result.json`.
-The passive report includes only endpoint state and sanitized network failures.
-Do not start another broad rerun this session. If it fails, retain its result
-and stop at that clear checkpoint; do not publish or install an unaccepted candidate.
-
-## Ready candidate and remaining sequence
-
-`target/manual-test/release/guided-df97a1e` contains the signed 0.4.0 candidate.
-It has no `VALIDATION.json` yet. The `guided-eb8e7b2` candidate is superseded.
-Both server/browser images and the signed installer were rebuilt for `df97a1e`.
-No further rebuild is needed unless application source changes.
-
-Only after the final capacity result passes every check:
-
-1. Freeze sanitized evidence with
-   `node target/phase4-sfu-evidence/freeze-release-evidence.mjs sfu25-isolated-final-2026-10-24`.
-   Update/commit the progress, roadmap and checklist; preserve manual/network/platform gates.
-2. Notify the user before briefly closing Hearth, then validate and upgrade the
-   authorized installed client:
-   `node scripts/verify-test-bundle.mjs target/manual-test/release/guided-df97a1e --upgrade-installed --owner-enrollment`.
-   This creates the required passing `VALIDATION.json` and preserves real profiles.
-3. Prepare signed assets:
-   `node scripts/prepare-release.mjs target/manual-test/release/guided-df97a1e`.
-   Inspect the explicit allowlist. Push the branch, create regular latest `v0.4.0`
-   with the prepared assets and notes file, and verify public downloads using
+1. Commit/push this checkpoint and publish the prepared latest `v0.4.0` assets:
+   `node target/phase4-sfu-evidence/publish-validated-release.mjs`.
+2. Verify public downloads:
    `node target/phase4-sfu-evidence/verify-public-release.mjs target/manual-test/release/guided-df97a1e/release-assets`.
-   Check release existence before creating; do not overwrite someone else's release.
-4. `target/phase4-sfu-evidence/upgrade-selected-host.mjs check|update|media`
-   invokes the installed native operator commands. It checks client 0.4.0/source
-   `df97a1e`, the original protected host root/project, and uses its actual selected
-   managed host. Redirect its output to local evidence logs; inspect only sanitized
-   fields before publishing any proof. `update` performs backup/restore rehearsal.
-   `media` creates settings only if absent: signal 7880, relay 30000-30099, avoiding
-   Windows-reserved default ports. Do not change router/firewall settings.
-5. `node target/phase4-sfu-evidence/verify-existing-host.mjs after` must match the
-   original protected baseline. Verify actual server image/source/version, media
-   services and installed client; publish a separate sanitized upgrade proof.
-6. Update README/latest test guide and final roadmap/progress, commit and push.
+3. Notify the user before the brief server restart. Run
+   `node target/phase4-sfu-evidence/upgrade-selected-host.mjs check`, then `update`,
+   then `media`. Redirect each command's output to a local evidence log.
+   These invoke the installed native controls, perform the backup/restore
+   rehearsal, preserve the original selected host and enable SFU/relay hosting.
+4. Run `node target/phase4-sfu-evidence/verify-existing-host.mjs after`, redirecting
+   output. Never overwrite `target/phase4-private-state/before.json`.
+5. `node target/phase4-sfu-evidence/finalize-public-upgrade-proof.mjs` requires
+   passing publication/preservation, matching installed client/server, healthy
+   server and running SFU/relay; it writes sanitized publication/upgrade evidence.
+6. Update README, latest test guide, progress/roadmap/checklist and this handoff;
+   commit/push. No broad test rerun or application rebuild is needed.
 
-The user's remaining manual checklist is in `PHASE4_RELEASE_CHECKLIST.md`, including
-real devices/screen audio, outside-network relay/WSS reachability, reboot/clean
-installation/platform checks and normal Start-menu saved-sidebar recovery.
-Codex-launched diagnostics do not establish normal Start-menu profile access.
+Railway and hosted CI remain paused. Spotify remains disabled. Real devices,
+independent networks, normal Start-menu saved-sidebar recovery, reboot/clean
+installation/fresh-host restore and remaining platform checks are manual gates;
+see `docs/PHASE4_RELEASE_CHECKLIST.md`. Local service health proves no public
+WSS/TURN-TLS reachability. Do not merge or regenerate user profiles/keys.

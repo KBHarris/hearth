@@ -313,38 +313,16 @@ tools, manual commands or secrets in diagnostic exports. See
 
 ## Phase 4: Cloud hosting, voice, video, and events
 
-**Isolation update, 2026-10-25:** the final isolated `df97a1e` result actually
-records successful targeted permission removal. Its stage label was stale when
-the subsequent combined cleanup/privacy assertion failed. The new four-person
-isolated-renderer lifecycle check passes all 16 checks, including track cleanup,
-key privacy, history filtering and permission removal. The wire audit contained
-an unrelated 4,096-frame ceiling that reported failure solely from traffic volume.
-The corrected acceptance audit scans every captured frame, requires actual traffic
-and checks every owned key, including a leak in frame 5,000. A never-joined
-device correctly owns no publisher keys and is covered by regression evidence. No production
-media, permissions, request limits or watchdogs changed. A fresh complete 25-person
-run is still required before publication; old failed evidence remains unchanged.
-
-
-Checkpoint confirmed 2026-10-25: the final isolated capacity run at `df97a1e`
-(`sfu25-isolated-final-2026-10-24`) finished with overall failure during
-distributed permission revocation. Recorded passing media/privacy checks do not
-override that failure. Resolve this blocker and obtain a complete passing result
-before installed validation, publication and client/server upgrades. Railway
-remains paused; real-device/network/platform acceptance remains separate.
-
-Current local gate (2026-10-24): private-call linked-device recovery passes 15
-focused checks and 16 combined media/device checks after correcting signaling
-order. Focused SFU permission removal passes 10 checks after guarding signed
-policy against its preceding MLS epoch. The Windows SFU/TURN-TCP pair passes 10
-checks and complete native media acceptance passes 20. The complete stage sequence passes 10 checks; the final
-25-person repeat at `eb8e7b2` passed media/load/privacy and leave/rekey but failed
-one unaffected survivor at permission removal. Its serialized HTTP-409 outbox
-conflict is now isolated: the corrected rollback/re-admission path passes 11
-focused checks with real MLS/audio. The old candidate is superseded. Source `df97a1e` passes 149 client tests and
-its candidate artifacts and production-image checks are ready. Final capacity
-acceptance and installed bundle validation remain pending. Release and installed client/server
-upgrades remain pending. Railway stays paused and Spotify disabled.
+Current local gate (2026-10-25): **passed**. Acceptance source `eeb4b2a`
+validates frozen application source `df97a1e`: 25 participants, 600 directed
+microphone paths, camera/screen/computer audio, measured load, wrong-key observer,
+leave/rekey, targeted permission removal, track cleanup and unchanged request
+limits all pass. The acceptance-only wire audit checks every captured frame;
+traffic above 4,096 frames no longer invents a privacy failure. Required npm
+verification passes, including 151 client tests. [Frozen local evidence](evidence/phase4-release-local-2026-10-25.json)
+contains 23 passing reports. Installed Windows client 0.4.0 and all 19 bundle/upgrade checks pass.
+Release publication and the existing server/media upgrade are next. Physical-device, internet and remaining platform
+acceptance stay open. Railway is paused and Spotify disabled.
 
 **Goal:** a reproducible hosted Hearth deployment with an optional browser client,
 plus E2EE real-time media with direct peer-to-peer calls and relay options. It
@@ -479,7 +457,8 @@ these gates from the user's physical-device/network/platform acceptance.
 - [x] Add separate connect/speak/listen permissions, device changes and bounded
   MLS chat membership rekey preserving authorized source selection/mute.
   Private-group and stage consent/revocation fixtures pass locally.
-- [ ] Complete the live 25-person media/load target and measure practical limits.
+- [x] Complete the local automated 25-person media/load target and record its
+  synthetic-media limits; real-device/network/platform acceptance remains open.
 - [x] Add the first community-room camera and screen-video slice, with explicit
   per-source consent, independent camera/screen slots, simultaneous shares,
   one local source per publication and authenticated tile state. Recheck room
