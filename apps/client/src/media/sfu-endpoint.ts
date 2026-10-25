@@ -5,6 +5,7 @@ import {MessagingSession,initialChat,type ChatState} from '../crypto/messaging-s
 import {VoiceRoomCall} from './voice-room'
 import {SfuKeys} from './sfu-keys'
 import {verifyIndependentLease} from './lease-acceptance'
+import {mediaWirePrivate} from './media-wire-audit'
 import {createElement} from 'react'
 import {createRoot} from 'react-dom/client'
 import {Playback} from '../CallPanel'
@@ -88,7 +89,7 @@ async function operation(name:string,data:Record<string,unknown>){
     case 'configuration':return service.callConfiguration()
     case 'revoke':{const view=await service.loadGovernance(id),roster=await client.channelRoster(session.token,String(data.channel));const policy=view.governance??{community_id:id,revision:0,everyone:15,roles:[],assignments:[],overrides:[],sanctions:[],limits:[],rules:'',screening:false,owner:roster.authority!.owner,signature:''};await service.saveGovernance(id,{...policy,revision:policy.revision+1,overrides:[...policy.overrides,{channel_id:String(data.channel),kind:'member',target_id:String(data.account),allow:0,deny:2}]});return true}
     case 'metrics':return call.sfuDiagnostics()
-    case 'snapshot':return {phase:call.state.phase,message:call.state.message,fault:call.failureDiagnostics(),participants:call.state.participants.map(peer=>({device:peer.device,remote:!!peer.remote,camera:peer.camera,screen:peer.sharing,system:peer.systemAudio,micPeak:peer.remote?.getAudioTracks()[0]?peak(peer.remote.getAudioTracks()[0]):null,systemPeak:peer.systemAudioTrack?peak(peer.systemAudioTrack):null})),muted:call.state.muted,camera:call.state.camera,screen:call.state.sharing,system:call.state.systemAudio,mics,cameras,screens,systemCaptures:system,joined:state.joined,epoch:state.conversations.find(group=>group.id===id)?.epoch,deliveryError:state.error,failures,ownedTracks:tracks.length,allStopped:tracks.every(track=>track.readyState==='ended'),keyContexts:contexts.size,wirePrivate:wire.length<=4096&&[...keys].every(key=>wire.every(body=>!body.includes(key))),historyEmpty:state.messages.length===0,timings}
+    case 'snapshot':return {phase:call.state.phase,message:call.state.message,fault:call.failureDiagnostics(),participants:call.state.participants.map(peer=>({device:peer.device,remote:!!peer.remote,camera:peer.camera,screen:peer.sharing,system:peer.systemAudio,micPeak:peer.remote?.getAudioTracks()[0]?peak(peer.remote.getAudioTracks()[0]):null,systemPeak:peer.systemAudioTrack?peak(peer.systemAudioTrack):null})),muted:call.state.muted,camera:call.state.camera,screen:call.state.sharing,system:call.state.systemAudio,mics,cameras,screens,systemCaptures:system,joined:state.joined,epoch:state.conversations.find(group=>group.id===id)?.epoch,deliveryError:state.error,failures,ownedTracks:tracks.length,allStopped:tracks.every(track=>track.readyState==='ended'),keyContexts:contexts.size,wireFrames:wire.length,wirePrivate:mediaWirePrivate(wire,keys),historyEmpty:state.messages.length===0,timings}
     case 'leave':call.leave();return true
     case 'close':call.close();playbackRoot.unmount();playbackContainer.remove();service.close();cryptoClient.close();for(const timer of timers)clearInterval(timer);for(const video of videos.values()){video.srcObject=null;video.remove()}await audio.close();keys.clear();wire.length=0;contexts.clear();return true
     default:throw new Error('Unknown fixture operation')

@@ -5,7 +5,7 @@ import type {VoiceRoomCall} from './voice-room'
 import {verifySfuObserver} from './sfu-observer'
 type Info={token:string;account:Account;device:DeviceEnrollment;server:string}
 type Metric=NonNullable<Awaited<ReturnType<VoiceRoomCall['sfuDiagnostics']>>>
-type Snapshot={phase:string;message:string;fault:unknown;participants:{device:string;remote:boolean;camera:boolean;screen:boolean;system:boolean;micPeak:number|null;systemPeak:number|null}[];muted:boolean;camera:boolean;screen:boolean;system:boolean;mics:number;cameras:number;screens:number;systemCaptures:number;joined:string[];epoch:number;deliveryError:string;failures:Record<string,number>;ownedTracks:number;allStopped:boolean;keyContexts:number;wirePrivate:boolean;historyEmpty:boolean;timings:Record<string,{count:number;maxMs:number}>}
+type Snapshot={phase:string;message:string;fault:unknown;participants:{device:string;remote:boolean;camera:boolean;screen:boolean;system:boolean;micPeak:number|null;systemPeak:number|null}[];muted:boolean;camera:boolean;screen:boolean;system:boolean;mics:number;cameras:number;screens:number;systemCaptures:number;joined:string[];epoch:number;deliveryError:string;failures:Record<string,number>;ownedTracks:number;allStopped:boolean;keyContexts:number;wireFrames:number;wirePrivate:boolean;historyEmpty:boolean;timings:Record<string,{count:number;maxMs:number}>}
 const pause=(ms:number)=>new Promise(resolve=>setTimeout(resolve,ms))
 type BridgeReply={index:number;nonce:string;request:number;value?:unknown;error?:{name?:string;status?:number;kind?:string}}
 type BrowserBridge={jobs:{index:number;nonce:string;request:number;name:string;data:Record<string,unknown>}[];receive:(replies:BridgeReply[])=>void}
@@ -26,8 +26,8 @@ class Endpoint {
   request<T>(name:string,data:Record<string,unknown>={}):Promise<T>{const request=++this.counter;return new Promise((resolve,reject)=>{const timer=setTimeout(()=>{this.pending.delete(request);reject(new Error('Isolated endpoint request timed out: '+name))},60000);this.pending.set(request,{resolve:value=>resolve(value as T),reject,timer});const payload={...data,...(name==='init'?{nonce:this.nonce}:{})};if(this.index>=13)this.bridge.jobs.push({index:this.index,nonce:this.nonce,request,name,data:payload});else this.frame.contentWindow!.postMessage({type:'hearth-sfu-fixture',nonce:this.nonce,request,name,data:payload},this.origin)})}
   dispose(){removeEventListener('message',this.listener);for(const item of this.pending.values()){clearTimeout(item.timer);item.reject(new Error('Fixture closed'))}this.pending.clear();this.frame.remove()}
 }
-export async function runDistributedSfu(config:{origin:string;setupCode:string;sfuObserver?:{origin:string;token:string}}){
-  const count=25,endpoints:Endpoint[]=[],people:Info[]=[],checks:Record<string,boolean>={};let stage='Distributed SFU accounts',latest:Snapshot[]=[],channel='',audio:AudioContext|undefined
+export async function runDistributedSfu(config:{origin:string;setupCode:string;sfuCount?:number;sfuObserver?:{origin:string;token:string}}){
+  const count=config.sfuCount??25,endpoints:Endpoint[]=[],people:Info[]=[],checks:Record<string,boolean>={};let stage='Distributed SFU accounts',latest:Snapshot[]=[],channel='',audio:AudioContext|undefined
   const bridge:BrowserBridge={jobs:[],receive:replies=>{for(const reply of replies)endpoints[reply.index]?.reply(reply)}}
   const host=window as unknown as {__hearthSfuBrowserBridge?:BrowserBridge};host.__hearthSfuBrowserBridge=bridge
   const status=(value:string)=>{stage=value;document.getElementById('status')!.textContent=value},require=(value:unknown)=>{if(!value)throw new Error('Distributed SFU assertion failed')}
@@ -57,7 +57,7 @@ export async function runDistributedSfu(config:{origin:string;setupCode:string;s
       if(index%6===0&&index<count)await pause(60000)
     }
     await until(async()=>{latest=await snapshots();return latest.every(view=>view.joined.includes(channel))&&new Set(latest.map(view=>view.epoch)).size===1},'Distributed stable MLS audience')
-    status('Distributed setup budget boundary');await pause(60000)
+    if(count===25){status('Distributed setup budget boundary');await pause(60000)}
     for(let index=0;index<count;index++){
       status('Distributed voice join '+index);await endpoints[index].request('join',{id:channel})
       if(index===0){latest=await snapshots();require(latest[0].phase==='waiting'&&latest.every(view=>view.mics===0));checks.solo_endpoint_holds_no_microphone=true}
@@ -65,7 +65,7 @@ export async function runDistributedSfu(config:{origin:string;setupCode:string;s
       if(index===1){await owner.request('leaseIsolation');checks.presence_renewal_bypasses_durable_work_without_extending_authorization=true}
       if(index<count-1)await pause(10000)
     }
-    status('Distributed PCM matrix');const audioPaths=await decoded(count);checks.all_600_directed_microphone_paths_decode=true
+    status('Distributed PCM matrix');const audioPaths=await decoded(count);checks['all_'+audioPaths+'_directed_microphone_paths_decode']=true
     latest=await snapshots();require(latest.slice(0,count).every(view=>view.mics===1)&&latest[count].phase==='idle'&&latest[count].mics===0);checks.unjoined_mls_device_holds_no_media_capture=true
     status('Distributed camera publication');await owner.request('video',{kind:'camera'});status('Distributed screen publication');await owner.request('video',{kind:'screen',audio:true})
     status('Distributed camera and screen')
@@ -83,10 +83,16 @@ export async function runDistributedSfu(config:{origin:string;setupCode:string;s
     await until(async()=>{latest=await snapshots();return latest.slice(1,count-1).every(view=>{const peer=view.participants.find(peer=>peer.device===people[0].device.device_key);return peer?.systemPeak!==null&&peer?.systemPeak!==undefined&&peer.systemPeak>.03})},'Distributed shared audio after rotation');checks.shared_audio_continues_after_rekey=true
     await owner.request('video',{kind:'screen'});await endpoints[1].request('mute');status('Distributed permission revocation');await owner.request('revoke',{id:community.id,channel,account:people[1].account.id})
     await until(async()=>{latest=await snapshots();return latest[1].phase==='ended'&&latest.slice(0,count-1).filter((_,index)=>index!==1).every(view=>view.phase==='connected'&&view.participants.length===count-2)},'Distributed permission enforcement');checks.revocation_removes_only_restricted_participant=true
-    await Promise.all(endpoints.map(endpoint=>endpoint.request('leave')));latest=await snapshots();require(latest.every(view=>view.allStopped&&view.wirePrivate&&view.historyEmpty));checks.all_owned_tracks_stop_and_actual_media_keys_are_absent_from_wire=true
+    status('Distributed explicit leave');await Promise.all(endpoints.map(endpoint=>endpoint.request('leave')))
+    status('Distributed owned track cleanup');latest=await snapshots();require(latest.every(view=>view.allStopped));checks.all_owned_tracks_stop=true
+    status('Distributed wire key privacy');require(latest.every(view=>view.wirePrivate));checks.actual_media_keys_are_absent_from_wire=true
+    status('Distributed history privacy');require(latest.every(view=>view.historyEmpty));checks.room_controls_are_absent_from_history=true
+    checks.all_owned_tracks_stop_and_actual_media_keys_are_absent_from_wire=true
+    const cleanup=latest.map(view=>({ownedTracks:view.ownedTracks,allStopped:view.allStopped,wireFrames:view.wireFrames,wirePrivate:view.wirePrivate,historyEmpty:view.historyEmpty}))
+    status('Distributed request limits')
     const failures=latest.reduce<Record<string,number>>((all,view)=>{for(const [status,count] of Object.entries(view.failures))all[status]=(all[status]??0)+count;return all},{})
     require(!failures['429']);checks.unchanged_per_account_and_login_limits_pass=true
-    return {outcome:'pass',scope:'26 isolated localhost sites/renderers split across two disposable browsers with real accounts/WASM/MLS; 25 joined SFU endpoints and one unjoined device; synthetic microphone/camera/screen/computer audio',checks,participants:count,audioPaths,loadSeconds,uploadBitsPerSecond,recipientBitsPerSecond,sfuEgressBitsPerSecond,sfuEgressDecimalGigabytesPerHour:sfuEgressBitsPerSecond*3600/8/1e9,activeMetrics,observer,failures,requestProfile:'sfu25',physicalDevicePermissionsValidated:false,internetValidated:false,railwayValidated:false}
-  }catch(error){latest=await snapshots().catch(()=>latest);return {outcome:'fail',stage,failureClass:error instanceof Error?error.name:'untyped',requestFailureKind:(error as {kind?:string})?.kind,httpStatus:(error as {status?:number})?.status,checks,endpoints:latest.map(view=>({phase:view.phase,message:view.message,fault:view.fault,failures:view.failures,mics:view.mics,camera:view.camera,screen:view.screen,system:view.system,remoteCameras:view.participants.filter(peer=>peer.remote&&peer.camera).length,remoteScreens:view.participants.filter(peer=>peer.remote&&peer.screen).length,decodedSystemAudio:view.participants.filter(peer=>peer.remote&&peer.systemPeak!==null&&peer.systemPeak>.03).length,participants:view.participants.length,deliveryError:view.deliveryError,timings:view.timings}))}}
+    return {outcome:'pass',scope:(count+1)+' isolated localhost sites/renderers with real accounts/WASM/MLS; '+count+' joined SFU endpoints and one unjoined device; synthetic microphone/camera/screen/computer audio',checks,cleanup,participants:count,audioPaths,loadSeconds,uploadBitsPerSecond,recipientBitsPerSecond,sfuEgressBitsPerSecond,sfuEgressDecimalGigabytesPerHour:sfuEgressBitsPerSecond*3600/8/1e9,activeMetrics,observer,failures,requestProfile:count===25?'sfu25':'default',physicalDevicePermissionsValidated:false,internetValidated:false,railwayValidated:false}
+  }catch(error){latest=await snapshots().catch(()=>latest);return {outcome:'fail',stage,failureClass:error instanceof Error?error.name:'untyped',requestFailureKind:(error as {kind?:string})?.kind,httpStatus:(error as {status?:number})?.status,checks,endpoints:latest.map(view=>({phase:view.phase,message:view.message,fault:view.fault,failures:view.failures,mics:view.mics,camera:view.camera,screen:view.screen,system:view.system,ownedTracks:view.ownedTracks,allStopped:view.allStopped,wireFrames:view.wireFrames,wirePrivate:view.wirePrivate,historyEmpty:view.historyEmpty,remoteCameras:view.participants.filter(peer=>peer.remote&&peer.camera).length,remoteScreens:view.participants.filter(peer=>peer.remote&&peer.screen).length,decodedSystemAudio:view.participants.filter(peer=>peer.remote&&peer.systemPeak!==null&&peer.systemPeak>.03).length,participants:view.participants.length,deliveryError:view.deliveryError,timings:view.timings}))}}
   finally{await Promise.all(endpoints.map(endpoint=>endpoint.request('close').catch(()=>{})));for(const endpoint of endpoints)endpoint.dispose();delete host.__hearthSfuBrowserBridge;await audio?.close().catch(()=>{});grid.remove();people.length=0}
 }

@@ -21,14 +21,15 @@ const stage=process.argv.includes('--stage')||stageCycle||stageRevoke
 const sfuConflict=process.argv.includes('--sfu-policy-conflict')
 const sfuPolicy=process.argv.includes('--sfu-policy')||sfuConflict
 const sfuConnect=process.argv.includes('--sfu-connect')
-const sfu=process.argv.includes('--sfu')||process.argv.includes('--sfu-25')||stage||sfuPolicy||sfuConnect
-const sfuCount=sfuConnect?2:stage||sfuPolicy?3:process.argv.includes('--sfu-25')?25:6
+const distributedCleanup=process.argv.includes('--sfu-distributed-cleanup')
+const sfu=process.argv.includes('--sfu')||process.argv.includes('--sfu-25')||stage||sfuPolicy||sfuConnect||distributedCleanup
+const sfuCount=sfuConnect?2:distributedCleanup?4:stage||sfuPolicy?3:process.argv.includes('--sfu-25')?25:6
 const sfuCapacityProfile=process.argv.includes('--sfu-capacity-profile')
-const distributedSfu=process.argv.includes('--sfu-distributed')
+const distributedSfu=process.argv.includes('--sfu-distributed')||distributedCleanup
 const frontendPort=Number(process.argv.find(arg=>arg.startsWith('--frontend-port='))?.slice(16)??5176)
 assert.ok(Number.isSafeInteger(frontendPort)&&frontendPort>=1024&&frontendPort<=65535&&(!distributedSfu||frontendPort===5176),'Use a valid fixture port; distributed endpoints require 5176')
 const frontendOrigin='http://127.0.0.1:'+frontendPort
-assert.ok(!distributedSfu||sfu&&sfuCount===25&&!desktop,'Distributed fixture requires the explicit Chromium 25-person milestone')
+assert.ok(!distributedSfu||sfu&&(sfuCount===25||distributedCleanup)&&!desktop,'Distributed fixture requires the explicit Chromium capacity or focused cleanup milestone')
 assert.ok(!sfuCapacityProfile||sfu&&sfuCount===25,'Capacity profile is only for the explicit 25-person milestone')
 const roomVideo=process.argv.includes('--room-video')
 const rooms=process.argv.includes('--rooms')||process.argv.includes('--room-revoke')||roomVideo||sfu
@@ -190,7 +191,7 @@ try{
   // budget intervals before account setup, joins and four policy operations.
   // Give the test controller room for those fixed waits; product watchdogs and
   // each bounded policy operation remain unchanged.
-  const controllerAttempts=stage&&!stageCycle&&!stageRevoke?1440:sfuCount===25&&sfu?(distributedSfu?24000:4800):rooms?720:420
+  const controllerAttempts=distributedCleanup?3600:stage&&!stageCycle&&!stageRevoke?1440:sfuCount===25&&sfu?(distributedSfu?24000:4800):rooms?720:420
   for(let attempt=0;attempt<controllerAttempts;attempt++){
     await distributedBrowser?.pump(driver)
     const progress=await driver.executeScript(()=>({stage:document.getElementById('status').textContent,result:window.__callResult}))

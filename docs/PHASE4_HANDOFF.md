@@ -1,5 +1,24 @@
 # Phase 4 release checkpoint - 2026-10-24
 
+**Isolation update, 2026-10-25:** the final isolated `df97a1e` result actually
+records successful targeted permission removal. Its stage label was stale when
+the subsequent combined cleanup/privacy assertion failed. The new four-person
+isolated-renderer lifecycle check passes all 16 checks, including track cleanup,
+key privacy, history filtering and permission removal. The wire audit contained
+an unrelated 4,096-frame ceiling that reported failure solely from traffic volume.
+The corrected acceptance audit scans every captured frame, requires actual frames
+and keys, and has two regressions including a leak in frame 5,000. No production
+media, permissions, request limits or watchdogs changed. A fresh complete 25-person
+run is still required before publication; old failed evidence remains unchanged.
+
+**Checkpoint confirmed, 2026-10-25:** the final isolated run at `df97a1e`
+(`sfu25-isolated-final-2026-10-24`) finished with `outcome: fail` during
+`Distributed permission revocation`. Its recorded media/privacy checks are true,
+but that does not override the failed overall result. The remaining blocker is
+to isolate and resolve this final permission-removal failure, then obtain a passing
+complete capacity result. No new release or installed client/server upgrade has
+occurred. No additional test run was started for this status check.
+
 Frozen application source: `df97a1e` (full SHA in the candidate manifest).
 Latest documentation checkpoint: `ac5a063`. Railway remains paused; Spotify is disabled.
 Publication and the installed client/server upgrades are authorized, but neither

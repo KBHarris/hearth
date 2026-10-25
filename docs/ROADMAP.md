@@ -313,6 +313,25 @@ tools, manual commands or secrets in diagnostic exports. See
 
 ## Phase 4: Cloud hosting, voice, video, and events
 
+**Isolation update, 2026-10-25:** the final isolated `df97a1e` result actually
+records successful targeted permission removal. Its stage label was stale when
+the subsequent combined cleanup/privacy assertion failed. The new four-person
+isolated-renderer lifecycle check passes all 16 checks, including track cleanup,
+key privacy, history filtering and permission removal. The wire audit contained
+an unrelated 4,096-frame ceiling that reported failure solely from traffic volume.
+The corrected acceptance audit scans every captured frame, requires actual frames
+and keys, and has two regressions including a leak in frame 5,000. No production
+media, permissions, request limits or watchdogs changed. A fresh complete 25-person
+run is still required before publication; old failed evidence remains unchanged.
+
+
+Checkpoint confirmed 2026-10-25: the final isolated capacity run at `df97a1e`
+(`sfu25-isolated-final-2026-10-24`) finished with overall failure during
+distributed permission revocation. Recorded passing media/privacy checks do not
+override that failure. Resolve this blocker and obtain a complete passing result
+before installed validation, publication and client/server upgrades. Railway
+remains paused; real-device/network/platform acceptance remains separate.
+
 Current local gate (2026-10-24): private-call linked-device recovery passes 15
 focused checks and 16 combined media/device checks after correcting signaling
 order. Focused SFU permission removal passes 10 checks after guarding signed
