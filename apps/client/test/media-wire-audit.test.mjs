@@ -13,6 +13,7 @@ test('the audit checks earlier frames against later captured keys and requires a
   const key='b2'.repeat(32)
   assert.equal(mediaWirePrivate([JSON.stringify({disclosed:key}),'opaque'],new Set([key])),false)
   assert.equal(mediaWirePrivate([],new Set([key])),false)
-  assert.equal(mediaWirePrivate(['opaque'],new Set()),false)
+  // A device that never joined owns no publisher keys; it still has traffic.
+  assert.equal(mediaWirePrivate(['opaque'],new Set()),true)
   assert.equal(mediaWirePrivate(['opaque'],new Set([''])),false)
 })

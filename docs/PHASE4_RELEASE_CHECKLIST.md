@@ -6,8 +6,9 @@ the subsequent combined cleanup/privacy assertion failed. The new four-person
 isolated-renderer lifecycle check passes all 16 checks, including track cleanup,
 key privacy, history filtering and permission removal. The wire audit contained
 an unrelated 4,096-frame ceiling that reported failure solely from traffic volume.
-The corrected acceptance audit scans every captured frame, requires actual frames
-and keys, and has two regressions including a leak in frame 5,000. No production
+The corrected acceptance audit scans every captured frame, requires actual traffic
+and checks every owned key, including a leak in frame 5,000. A never-joined
+device correctly owns no publisher keys and is covered by regression evidence. No production
 media, permissions, request limits or watchdogs changed. A fresh complete 25-person
 run is still required before publication; old failed evidence remains unchanged.
 
