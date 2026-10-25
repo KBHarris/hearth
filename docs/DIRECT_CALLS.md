@@ -12,7 +12,7 @@ running host. Railway remains paused. The separate
 [private group voice implementation](GROUP_VOICE.md) adds independent joins and
 survivor rekey; its evidence and limits are recorded there. LiveKit remains open.
 
-## Use in the current development client
+## Use in Preview 0.4.0
 
 1. Open an encrypted DM with one other account. Both participants need an approved
    device, a current backend and a runtime with `RTCRtpScriptTransform` support.

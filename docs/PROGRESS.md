@@ -1,5 +1,20 @@
 # Progress
 
+**Released and upgraded, 2026-10-25:** [Preview 0.4.0](https://github.com/KBHarris/hearth/releases/tag/v0.4.0)
+is published. All 14 public assets match the validated local checksums. The
+installed Windows client and original selected server are both 0.4.0 at source
+`df97a1e`; the server is healthy and its SFU/relay services are running. The
+actual signed update performed its backup/restore rehearsal. Original operator
+credentials, server/OPAQUE keys, accounts/devices, durable encrypted history and
+storage match the protected baseline. The installed client matches the frozen
+native binary apart from the verified Tauri NSIS bundle marker, and all 19
+bundle/upgrade checks pass. [Publication and preservation proof](evidence/preview-0.4.0-publication-upgrade-2026-10-25.json).
+The local automated Phase 4 release work is complete. Manual device/network,
+normal Start-menu sidebar, clean installation/reboot/fresh restore and remaining
+platform acceptance stay open; Railway/hosted CI remain paused and Spotify disabled.
+
+The following dated checkpoints retain the work and original failure history.
+
 **Accepted local release gate, 2026-10-25:** the complete isolated 25-person SFU
 run passes all 16 checks at acceptance commit `eeb4b2a`, using production media
 source `df97a1e`. All 600 directed audio paths, video/screen/computer audio, load,

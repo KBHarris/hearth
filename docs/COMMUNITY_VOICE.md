@@ -1,5 +1,11 @@
 # Community voice rooms
 
+Current release: included in published Preview 0.4.0. The installed Windows
+client and selected existing server are upgraded. See the
+[release checklist](PHASE4_RELEASE_CHECKLIST.md) for completed local evidence
+and the remaining manual device/network/platform checks. Dated checkpoints below
+retain their original scope and status.
+
 Subsequent development adds optional [SFU rooms](SFU_ROOMS.md) and
 [computer audio](COMPUTER_AUDIO.md). The historical four-person mesh checkpoint
 below retains its original evidence and limits.

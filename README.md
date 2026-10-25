@@ -3,42 +3,34 @@
 Hearth is a privacy-first, self-hostable community chat platform in early development.
 Messages and files are end-to-end encrypted. The application is licensed AGPLv3.
 
-The locally tested **Hearth Preview 0.3.5** includes guided Host/Join, encrypted DMs and
-communities, 50 MB files, member profiles, readable invites, desktop hosting controls,
-signed app/server updates, native invite opening, roles, reports, forums and polls.
-Download the Windows [client ZIP](https://github.com/KBHarris/hearth/releases/download/v0.3.5/Hearth_Test_b84c11f_Windows_x64.zip)
-or [host package](https://github.com/KBHarris/hearth/releases/download/v0.3.5/Hearth_Host_0.3.5_Windows_x64.zip)
-from the [Preview release](https://github.com/KBHarris/hearth/releases/tag/v0.3.5).
-The signed Preview app/server update feeds are live. Invitations share only pretty
-codes with a separate server address. Hosts can stay connected locally while
-creating codes for their public HTTPS address.
-The client header shows its installed version. New host packages use local port
-8080; existing hosts retain the port in their original `.env`. Missing or
-mismatched original host configuration stops startup with recovery instructions.
-Follow
-[the latest two-PC test guide](docs/TWO_PC_LATEST_TEST.md) for the prepared Windows
-installer and matching fresh server. Older test deployments and profiles have been retired.
-Desktop hosting uses Docker; Node.js is only needed for the advanced CLI.
-Preview 0.3.5 adds signed in-app host preparation, explicit runtime installation,
-opt-in sign-in startup, portable backup/fresh restore and outside-network checks.
-The saved local host stays discoverable when browser server storage is empty or
-Docker is unavailable. The [installed upgrade passes 16 checks](docs/evidence/windows-host-join-preview-0.3.5-2026-10-20.json),
-and [public release downloads are verified](docs/evidence/preview-0.3.5-publication-2026-10-20.json).
-Clean-machine, reboot and cross-platform installation acceptance remain open.
-The local 0.3.6 [saved-host sidebar patch](docs/HOST_SIDEBAR_RECOVERY.md) adds
-retry/recovery and refresh after hosting changes. It is installed and locally
-verified on this Windows host; public downloads above remain 0.3.5.
-The desktop app can start/stop a configured host and authorize local owner setup
-without copying the private owner code.
-Development source now includes [encrypted 1:1 calls](docs/DIRECT_CALLS.md),
-[private group voice](docs/GROUP_VOICE.md), [community rooms](docs/COMMUNITY_VOICE.md),
-optional [SFU rooms](docs/SFU_ROOMS.md) and explicit [computer audio](docs/COMPUTER_AUDIO.md),
-with local synthetic-media checks. These features are not included in the installed
-Preview. Physical devices, independent networks, the larger media/platform target,
-federation and the community trial retain their roadmap gates. Railway stays paused.
-Phase 3 preview acceptance is [complete](docs/evidence/phase3-final-hosted-2026-10-18.json):
-all 14 full CI jobs pass on the validated source, with the accepted buddy test and
-existing notification preview waiver. The full Host/Join installation checkpoint is next.
+**Hearth Preview 0.4.0** adds encrypted voice, camera, screen sharing and optional
+computer audio to direct calls, private groups and community rooms. Optional
+SFU/relay hosting supports larger rooms, with independent media permissions and
+stage speaker consent. It also includes device switching, scheduled events,
+encrypted RSVPs and opt-in synchronized YouTube/SoundCloud playback. Spotify is
+disabled. Guided Host/Join, encrypted communities/files and governance remain included.
+
+Download the Windows [client ZIP](https://github.com/KBHarris/hearth/releases/download/v0.4.0/Hearth_Test_df97a1e_Windows_x64.zip)
+or [host package](https://github.com/KBHarris/hearth/releases/download/v0.4.0/Hearth_Host_0.4.0_Windows_x64.zip)
+from the [0.4.0 release](https://github.com/KBHarris/hearth/releases/tag/v0.4.0).
+Update the client first, then use **Hosting & updates** to update the existing
+server and enable voice/video hosting. Keep the original host folder, credentials,
+server keys and Docker volumes together. Desktop hosting uses Docker; Node.js is
+only needed for the advanced CLI. The client header shows its installed version.
+
+[Local automated media acceptance](docs/evidence/phase4-release-local-2026-10-25.json)
+passes the complete 25-person SFU test, including video/computer audio, measured
+load, permission removal, encryption and cleanup. These are synthetic local
+measurements. Real devices, two-household restrictive networks, normal Start-menu
+saved-server recovery, clean installation, reboot/fresh restore and remaining
+platform acceptance are still open. Railway and hosted CI remain paused.
+[Public downloads and this Windows host upgrade](docs/evidence/preview-0.4.0-publication-upgrade-2026-10-25.json)
+are verified. Follow [the two-PC guide](docs/TWO_PC_LATEST_TEST.md) and
+[Phase 4 manual checklist](docs/PHASE4_RELEASE_CHECKLIST.md).
+
+Phase 3 preview acceptance is [complete](docs/evidence/phase3-final-hosted-2026-10-18.json).
+The [saved-host sidebar recovery](docs/HOST_SIDEBAR_RECOVERY.md) is included;
+normal Start-menu acceptance remains a separate manual check.
 
 - [Architecture and product plan](PLAN.md)
 - [Roadmap](docs/ROADMAP.md) and [current progress and validation](docs/PROGRESS.md)

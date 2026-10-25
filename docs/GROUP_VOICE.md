@@ -1,5 +1,11 @@
 # Private group voice
 
+Current release: included in published Preview 0.4.0. The installed Windows
+client and selected existing server are upgraded. See the
+[release checklist](PHASE4_RELEASE_CHECKLIST.md) for completed local evidence
+and the remaining manual device/network/platform checks. Dated checkpoints below
+retain their original scope and status.
+
 **Current development, 2026-10-23:** private groups now support camera, screen and
 separate opt-in computer audio with format-5 admission. Microphone switching,
 mute preservation and an actual linked-device MLS epoch change pass together

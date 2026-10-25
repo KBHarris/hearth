@@ -5,7 +5,7 @@ computer or tab audio when sharing** option. It is off by default and applies
 to the next screen-share picker. The operating system/browser still controls
 which sources and audio options are offered. A selected source may return video
 without audio; Hearth reports that result instead of silently opening another
-capture device. This feature has not been released in the installed Preview.
+capture device. This feature is included in Preview 0.4.0; actual per-device capture/output remains a manual acceptance gate.
 
 Microphone, camera, screen video and shared audio are independent encrypted
 sources. Muting the microphone leaves explicitly shared computer audio running.

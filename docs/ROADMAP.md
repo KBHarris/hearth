@@ -313,16 +313,22 @@ tools, manual commands or secrets in diagnostic exports. See
 
 ## Phase 4: Cloud hosting, voice, video, and events
 
-Current local gate (2026-10-25): **passed**. Acceptance source `eeb4b2a`
-validates frozen application source `df97a1e`: 25 participants, 600 directed
-microphone paths, camera/screen/computer audio, measured load, wrong-key observer,
-leave/rekey, targeted permission removal, track cleanup and unchanged request
-limits all pass. The acceptance-only wire audit checks every captured frame;
-traffic above 4,096 frames no longer invents a privacy failure. Required npm
-verification passes, including 151 client tests. [Frozen local evidence](evidence/phase4-release-local-2026-10-25.json)
-contains 23 passing reports. Installed Windows client 0.4.0 and all 19 bundle/upgrade checks pass.
-Release publication and the existing server/media upgrade are next. Physical-device, internet and remaining platform
-acceptance stay open. Railway is paused and Spotify disabled.
+**Local automated release work complete, 2026-10-25.** Preview 0.4.0 is published;
+all 14 public downloads match the validated signed bundle. The installed Windows
+client and original selected server are upgraded to 0.4.0, the server is healthy,
+and SFU/relay hosting is enabled and running. The signed server update rehearsed
+its backup/restore; original credentials, server identity, accounts/devices and
+durable encrypted history match the protected baseline. [Upgrade proof](evidence/preview-0.4.0-publication-upgrade-2026-10-25.json).
+
+Acceptance source `eeb4b2a` validates frozen application source `df97a1e`: all
+16 complete 25-person room checks pass, including media/load, permission removal,
+wire privacy, cleanup and unchanged request limits. Required npm verification
+passes, including 151 client tests; installed bundle validation passes 19 checks.
+[Frozen local evidence](evidence/phase4-release-local-2026-10-25.json) records 23
+passing reports. Physical devices, independent networks, normal Start-menu
+saved-server recovery, clean installation/reboot/fresh restore and remaining
+platform acceptance stay open. Railway and hosted CI remain paused; Spotify is
+disabled. These remaining gates prevent claiming the full hosted/platform exit.
 
 **Goal:** a reproducible hosted Hearth deployment with an optional browser client,
 plus E2EE real-time media with direct peer-to-peer calls and relay options. It
@@ -336,26 +342,12 @@ clean-machine Host/Join checkpoint retains its acceptance gates.
 See [the Phase 4 hosting and media plan](PHASE4_HOSTING_AND_MEDIA.md) for work order,
 provider boundaries, bootstrap behavior and acceptance requirements.
 
-Completion work resumed 2026-10-23 under explicit authorization to finish local
-implementation/automation, publish a new release and upgrade the existing host
-and Windows client after the checks pass. Railway and hosted CI remain on hold.
-The local three-person stage and trusted fixture TURN-TLS transport checks pass.
-Private-group camera/screen/computer audio, microphone switching and a real MLS
-epoch update now pass together. Disposable media-aware backup/fresh restore and
-rollback, native provider isolation, packaged WSS and browser TURN-TLS route
-selection also pass. At source `e282a54`, the last completed 25-person fixture passes all
-600 directed microphone paths, camera/screen/computer audio, measured load,
-wrong-key rejection and leave/rekey, then fails targeted permission revocation
-when two unaffected survivors stop. The full gate remains open. Queued key
-exports now reject obsolete verified contexts before the authoritative Rust
-export. Small focused corrections pass, and required npm checks pass with 146
-client tests. Final capacity acceptance and
-rebuilds, signed publication and the actual client/server upgrades are pending;
-the installed client and existing host remain unchanged. Work resumed after the
-usage reset with adaptive durable-prefix checkpoints. Spotify is
-disabled for this release by the user's decision.
-[The release checklist](PHASE4_RELEASE_CHECKLIST.md) distinguishes
-these gates from the user's physical-device/network/platform acceptance.
+Completion work was authorized on 2026-10-23. The earlier capacity failures,
+targeted production fixes and acceptance-audit corrections remain recorded in
+[progress](PROGRESS.md); their failed raw results were not relabeled. The new
+complete passing run, publication and actual client/server upgrades supersede
+those pending checkpoints. [The release checklist](PHASE4_RELEASE_CHECKLIST.md)
+separates completed local work from the remaining manual and deferred gates.
 
 ### Hosted deployment and browser client
 
@@ -417,11 +409,11 @@ these gates from the user's physical-device/network/platform acceptance.
   require worker/peer confirmation and advancing media, and preserve capture/mute.
   See [the transition and acceptance boundaries](CALL_KEY_UPDATES.md).
   Rapid/overlapping changes end capture; general group-call rekey remains open.
-- [ ] Add authenticated WebRTC signaling for direct P2P voice/video/screen sharing
+- [x] Add authenticated WebRTC signaling for direct P2P voice/video/screen sharing
   in small calls, STUN/TURN fallback and a relay-only privacy option. Direct media
   bypasses Railway; direct participants can learn each other's network addresses.
-  The 1:1 implementation above is complete; bounded group calls and full route/
-  platform acceptance keep this combined requirement open.
+  The 1:1 and bounded private-group implementations are released in 0.4.0;
+  real-network route and full-platform acceptance remain separate gates.
 - [x] Build and locally test the fixed three-person group admission/key foundation:
   one selected device per account, explicit consent, direct ephemeral contributions,
   pair-specific MLS/ECDH keys and multi-consumer publication barriers. See
@@ -470,8 +462,10 @@ these gates from the user's physical-device/network/platform acceptance.
   Preserve authorized capture through rekey; stop obsolete clones and restricted
   sources. Real per-window/system audio and full-platform acceptance remain manual.
   See [computer audio](COMPUTER_AUDIO.md).
-- [ ] Keep LiveKit as the optional SFU for larger rooms/streams; define measured mesh
-  limits and safe transitions without weakening permissions or encryption.
+- [x] Keep LiveKit as the optional SFU, with a four-person direct mesh fallback
+  and 25-account SFU admission bound. Bind mode and membership changes to fresh
+  verified room admission/keys. Local media/load limits are measured; real-network
+  topology-change acceptance remains in the manual route gate below.
 - [x] Add optional pinned LiveKit/coturn Compose overlays, private idempotent
   configuration generation and local-only defaults. A disposable package check
   verifies both services, custom port consistency and secret cleanup. Reuse the
@@ -499,8 +493,11 @@ these gates from the user's physical-device/network/platform acceptance.
   opaque player isolation and stale-host bounds. Spotify is disabled this release.
 - [ ] Test actual direct, TURN and SFU paths, cross-house/NAT/firewall conditions,
   relay-only IP privacy, reconnects, permission revocation and topology changes.
-- [ ] Canary tests: signaling, TURN/SFU captures, logs and storage contain no media
-  keys or decodable media. Record measured CPU, client upload and media egress costs.
+- [x] Local canary/privacy checks: no publisher keys in observed server traffic,
+  a routing-authorized wrong-key SFU observer decodes no media, and production
+  assets exclude private fixture material. Record fixture CPU, client upload and
+  recipient/egress traffic. Independent-network captures and real hosting bills
+  are not established by these local measurements.
 
 **Exit:** a fresh Railway deployment serves encrypted chat/files to desktop and optional
 browser clients; retry, update and restore preserve identity and data. Direct P2P,

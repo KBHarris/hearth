@@ -1,49 +1,46 @@
-# Phase 4 release checkpoint - 2026-10-25
+# Phase 4 closeout checkpoint - 2026-10-25
 
-Application source: `df97a1e`. Acceptance source: `eeb4b2a`.
-The final complete capacity run `sfu25-audit-complete-2026-10-25` passes all
-16 checks with 25 participants and 600 decoded microphone paths. Cleanup,
-permission removal, wire privacy (up to 4,521 frames), history filtering and
-unchanged request limits pass. Frozen evidence is
-`docs/evidence/phase4-release-local-2026-10-25.json` (23 passing reports).
-Required npm verification passes, including 151 client tests. Windows/private
-media, stage, TURN-TLS, image recovery and packaging evidence is retained there.
+**Local automated release work is complete.** Preview 0.4.0 is published:
+https://github.com/KBHarris/hearth/releases/tag/v0.4.0
 
-The earlier final result had already passed permission removal, but its stage
-label stayed stale for a combined cleanup/privacy failure. The acceptance wire
-audit arbitrarily failed above 4,096 frames. That ceiling is removed; every
-captured frame is checked against every owned key. The new regression also
-covers a late-frame disclosure and the never-joined endpoint owning no keys.
-Prior failed raw reports remain unchanged. Production media/permission logic
-is unchanged from the signed application candidate.
+- Frozen application source: `df97a1e`; acceptance source: `eeb4b2a`.
+- Complete 25-person SFU run: all 16 checks pass, including 600 directed decoded
+  audio paths, camera/screen/computer audio, load, wrong-key observer, membership
+  changes, targeted permission removal, track cleanup and unchanged request limits.
+- The acceptance audit now scans every captured frame (up to 4,521) rather than
+  treating traffic above 4,096 as a privacy failure. A never-joined device owning
+  no publisher keys is supported. Both regressions pass; prior failed reports
+  remain unchanged. No production permission/media watchdog was relaxed.
+- Required npm verification: 151 client tests plus SDK/deployment/type/lint/build
+  checks pass. Windows/private/stage/TURN-TLS/image/packaging evidence is retained.
+- Frozen sanitized local evidence: `docs/evidence/phase4-release-local-2026-10-25.json`
+  (23 passing reports). Actual bundle/Windows upgrade validation: 19 checks pass.
+- All 14 published assets download with matching checksums, including signed
+  catalogs and installer. Public latest server catalog reports 0.4.0/source df97a1e.
+- Actual installed Windows client and selected existing server: **0.4.0**.
+  Native source/version match. Client bytes match the frozen binary with only
+  Tauri's verified `UNK` to `NSS` installer-marker substitution.
+- The signed server update completed backup/restore rehearsal. Protected baseline
+  comparison passes for original operator credentials, signing/OPAQUE keys,
+  accounts/devices, durable encrypted history/objects and storage image.
+- The selected server is healthy; SFU and relay services are running. Local media
+  settings avoid Windows-reserved relay ports. No router/firewall rule was changed.
+- Sanitized actual publication/upgrade proof:
+  `docs/evidence/preview-0.4.0-publication-upgrade-2026-10-25.json`.
 
-Installed Windows client **0.4.0** is upgraded. Bundle
-`target/manual-test/release/guided-df97a1e/VALIDATION.json` passes all 19 checks,
-including profile preservation and matching native version/source. Signed assets
-are assembled under its `release-assets` directory; their exact allowlist is
-`target/phase4-sfu-evidence/prepared-release.json`.
+**No further broad acceptance run or rebuild is needed for this release.** The
+user's remaining device/network/platform/Start-menu checks are in
+`docs/PHASE4_RELEASE_CHECKLIST.md` and `docs/TWO_PC_LATEST_TEST.md`. Start Hearth
+normally from the Windows menu to test the real saved-server sidebar; isolated
+Codex/WebView diagnostics do not prove normal profile access. Never merge or
+regenerate user profiles/keys to make that test pass.
 
-Remaining authorized steps:
+Railway and hosted CI remain paused. Spotify is disabled. Real two-household
+WSS/TURN-TLS reachability, physical device capture/output, clean installation,
+reboot/fresh-host restore and remaining platform gates are not established by
+local automated checks. The full hosted/platform Phase 4 exit remains open.
 
-1. Commit/push this checkpoint and publish the prepared latest `v0.4.0` assets:
-   `node target/phase4-sfu-evidence/publish-validated-release.mjs`.
-2. Verify public downloads:
-   `node target/phase4-sfu-evidence/verify-public-release.mjs target/manual-test/release/guided-df97a1e/release-assets`.
-3. Notify the user before the brief server restart. Run
-   `node target/phase4-sfu-evidence/upgrade-selected-host.mjs check`, then `update`,
-   then `media`. Redirect each command's output to a local evidence log.
-   These invoke the installed native controls, perform the backup/restore
-   rehearsal, preserve the original selected host and enable SFU/relay hosting.
-4. Run `node target/phase4-sfu-evidence/verify-existing-host.mjs after`, redirecting
-   output. Never overwrite `target/phase4-private-state/before.json`.
-5. `node target/phase4-sfu-evidence/finalize-public-upgrade-proof.mjs` requires
-   passing publication/preservation, matching installed client/server, healthy
-   server and running SFU/relay; it writes sanitized publication/upgrade evidence.
-6. Update README, latest test guide, progress/roadmap/checklist and this handoff;
-   commit/push. No broad test rerun or application rebuild is needed.
-
-Railway and hosted CI remain paused. Spotify remains disabled. Real devices,
-independent networks, normal Start-menu saved-sidebar recovery, reboot/clean
-installation/fresh-host restore and remaining platform checks are manual gates;
-see `docs/PHASE4_RELEASE_CHECKLIST.md`. Local service health proves no public
-WSS/TURN-TLS reachability. Do not merge or regenerate user profiles/keys.
+Private raw operator results and the immutable original preservation baseline
+are under ignored `target/phase4-*`; never publish those private files or overwrite
+`target/phase4-private-state/before.json`. The signed release bundle remains
+`target/manual-test/release/guided-df97a1e`.

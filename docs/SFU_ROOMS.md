@@ -1,11 +1,17 @@
 # SFU community rooms
 
-The development client supports an optional LiveKit SFU for community Voice
+Current release acceptance: the complete local 25-person run passes all 16 checks,
+including media/load, permission removal and cleanup. The installed Windows client
+and selected server are 0.4.0, with SFU/relay running. See
+[local evidence](evidence/phase4-release-local-2026-10-25.json) and
+[publication/upgrade proof](evidence/preview-0.4.0-publication-upgrade-2026-10-25.json).
+Real devices, independent networks and remaining platform gates are still open.
+
+Preview 0.4.0 supports an optional LiveKit SFU for community Voice
 channels. Configuring an SFU on the Hearth backend selects this transport for
 those rooms, with a 25-account admission limit and one approved device per account.
 Without an SFU, rooms retain the four-person direct mesh. Private three-person
-calls and 1:1 calls retain their existing transports. This is not yet an installed
-Preview release.
+calls and 1:1 calls retain their existing transports. This is included in the published Windows Preview 0.4.0 release.
 
 Join/leave works as a persistent room, without ringing or requiring everyone to
 answer. A person alone waits without opening the microphone. Each active SFU

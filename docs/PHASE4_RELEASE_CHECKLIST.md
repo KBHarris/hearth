@@ -8,8 +8,12 @@ passing reports. Required npm verification passes with 151 client tests. Prior
 failed results remain failed; the arbitrary wire-frame ceiling and never-joined
 audit assertion were corrected in test code without changing production media.
 The Windows client is upgraded to 0.4.0; all 19 bundle/upgrade checks pass.
-Publication and the existing server/media upgrade are in progress. Railway and
-hosted CI stay on hold. Spotify remains disabled.
+Preview 0.4.0 is published; all 14 public downloads match the signed bundle.
+The original server is upgraded to 0.4.0 and healthy, with SFU/relay running.
+Its backup/restore rehearsal and protected identity/history comparison pass.
+[Publication and upgrade proof](evidence/preview-0.4.0-publication-upgrade-2026-10-25.json).
+The local automated release work is complete. Railway and hosted CI stay on hold;
+Spotify remains disabled. The manual gates below remain open.
 
 - [x] Stable 25-person SFU voice plus screen/computer audio; record upload,
   recipient traffic, fixture CPU and actual encrypted packet/privacy evidence.
@@ -29,11 +33,12 @@ hosted CI stay on hold. Spotify remains disabled.
 - [x] Normal production build excludes acceptance entries and private material.
   Run required npm, Rust, protocol, WASM and desktop checks on final source.
 - [x] Freeze final sanitized evidence and update roadmap/progress accurately.
-- [ ] Prepare and sign the new client/server release, publish its complete
+- [x] Prepare and sign the new client/server release, publish its complete
   catalogs/assets, verify downloads/signatures and source revision.
-- [ ] Back up and rehearse restoration of the selected existing host; upgrade
+- [x] Back up and rehearse restoration of the selected existing host; upgrade
   its server and installed Windows client; verify identity, accounts, encrypted
-  history/objects, saved sidebar entry and matching installed versions.
+  history/objects, protected host selection/profile files and matching installed
+  versions. Normal Start-menu sidebar recovery remains manual item 6 below.
 
 ## User's manual acceptance
 

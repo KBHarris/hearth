@@ -1,15 +1,16 @@
 # Test the latest Hearth build with two PCs
 
-The Preview 0.4.0 candidate adds encrypted calls, community voice/video, optional
+Preview 0.4.0 adds encrypted calls, community voice/video, optional
 computer audio/SFU hosting, stages, events and opt-in YouTube/SoundCloud playback
 to guided Host/Join, encrypted communities, 50 MB files and governance features.
 Both people must install the matching client from the supplied bundle or the
 [latest published release](https://github.com/KBHarris/hearth/releases/latest).
-The candidate is not published until its release checklist passes. Spotify is
-disabled. Use [the Phase 4 manual checklist](PHASE4_RELEASE_CHECKLIST.md) after
+Preview 0.4.0 is published and its local automated release gate passed. Spotify
+is disabled. Use [the Phase 4 manual checklist](PHASE4_RELEASE_CHECKLIST.md) after
 the basic Host/Join steps below; this guide does not claim those tests passed.
-The steps below assume a fresh test host. Existing hosts can update the client
-while keeping their original running server and configuration.
+The steps below assume a fresh test host. Existing hosts should update the client first, then use **Hosting & updates**
+to update their original server and enable voice/video hosting. Preserve the
+original host folder and configuration.
 Keep any existing host's database, operator configuration and signing keys together;
 never regenerate credentials for existing volumes. The local older
 test deployments and profiles were retired on 2026-10-15. Create new accounts for

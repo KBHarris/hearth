@@ -1,0 +1,38 @@
+{
+  "outcome": "pass",
+  "measuredAt": "2026-10-25T23:40:37.629Z",
+  "version": "0.4.0",
+  "sourceCommit": "df97a1e764fda9bbff6d822fde8cfb00a98d07f6",
+  "releaseUrl": "https://github.com/KBHarris/hearth/releases/tag/v0.4.0",
+  "installedClientSha256": "e622a8a32c442fe9db258ae4b7bcc9d77852f3d19dec3532d9db19ce7802b434",
+  "checks": {
+    "published_release_is_not_draft": true,
+    "all_asset_downloads_match_locally_validated_bundle": true,
+    "downloaded_signatures_match_local_signed_bytes": true,
+    "latest_server_catalog_matches_frozen_source": true,
+    "operator_credentials_unchanged": true,
+    "signing_and_opaque_keys_unchanged": true,
+    "accounts_devices_and_durable_ciphertext_unchanged": true,
+    "storage_image_unchanged": true,
+    "existing_encrypted_objects_retrieved_with_matching_length_and_digest": true,
+    "installed_client_matches_frozen_native_binary_with_nsis_bundle_marker": true,
+    "installed_client_reports_matching_version_and_source": true,
+    "selected_host_matches_original_preservation_baseline": true,
+    "installed_server_matches_signed_catalog_and_image": true,
+    "selected_server_is_healthy": true,
+    "sfu_and_relay_are_running": true
+  },
+  "services": {
+    "server": "healthy",
+    "media": "running",
+    "relay": "running"
+  },
+  "scope": "Published downloads and actual Windows client/selected existing host upgrade. Native binary equality includes the verified Tauri UNK to NSS bundle marker substitution. Local service health only.",
+  "normalStartMenuValidated": false,
+  "physicalDevicesValidated": false,
+  "internetMediaValidated": false,
+  "fullPlatformSuiteValidated": false,
+  "railwayProvisioned": false,
+  "spotifyEnabled": false,
+  "hostedCiDispatched": false
+}
