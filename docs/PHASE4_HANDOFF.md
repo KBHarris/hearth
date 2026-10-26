@@ -5,8 +5,17 @@ local checks pass. See `docs/COMMUNITY_MANAGEMENT.md`. Three isolated server
 deletion tests include an access/deletion concurrency regression; normal npm
 verification passes 159 client, 49 SDK and 15 deployment tests. Server unit tests
 pass 17, with clippy/format clean. All six real browser checks pass, including
-visible responsive confirmation. Preview 0.4.3 client/server packaging/upgrade
-are the remaining follow-up steps. Do not repeat
+visible responsive confirmation. The signed Preview 0.4.3 client/server bundle
+is built at `target/manual-test/release/guided-e462db9` from source `e462db9`.
+The user has been asked to close Hearth before installed package acceptance.
+Do not install until they reply closed. Next: take a fresh protected host baseline
+with `target/phase4-sfu-evidence/verify-deletion-host.mjs before`, then run
+`scripts/verify-test-bundle.mjs target/manual-test/release/guided-e462db9 --upgrade-installed`.
+Prepare/publish only after package validation passes; version-scoped publication,
+download, selected-host update and preservation helpers are under ignored
+`target/phase4-sfu-evidence/*deletion*`. Old baselines and failed evidence remain
+intact. Installed client remains 0.4.2; existing server/public release remain
+0.4.0. Do not repeat
 the unrelated 25-person media run. No installed user community has been deleted.
 
 **Latest real-use result:** the user confirms normal-profile recovery works in

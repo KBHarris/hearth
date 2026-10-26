@@ -14,7 +14,10 @@ Deleted communities also reject policy changes and no longer block a former
 owner's account erasure solely through retained ownership metadata; the three
 database checks pass again with that boundary covered.
 [Sanitized local evidence](evidence/community-deletion-local-2026-10-25.json).
-Preview 0.4.3 client/server packaging and installed upgrade are pending. See
+The signed Preview 0.4.3 installer and matching server bundle are built from
+`e462db9`; code and progress are pushed. Installed upgrade/package acceptance
+and publication are pending the user closing Hearth. Current local client remains
+0.4.2 and the existing server/public release remain 0.4.0. See
 [management instructions](COMMUNITY_MANAGEMENT.md).
 
 **Normal-profile recovery accepted, 2026-10-25:** the user confirms that local

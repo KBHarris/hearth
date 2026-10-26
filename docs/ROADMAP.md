@@ -317,7 +317,8 @@ tools, manual commands or secrets in diagnostic exports. See
   exact-name confirmation, retained drafts and server-enforced access removal.
   Category deletion keeps channels. Saved encrypted content and backups are
   retained; see [management instructions](COMMUNITY_MANAGEMENT.md). Focused local
-  checks pass; client/server packaging and installed upgrade are pending.
+  checks pass; the signed 0.4.3 installer/server bundle is built at `e462db9`.
+  Installed package acceptance, publication and upgrade await Hearth being closed.
 
 **Normal-profile recovery accepted, 2026-10-25:** the user confirms local 0.4.2
 recovery works. The reported saved-key/missing-history startup blocker is resolved
