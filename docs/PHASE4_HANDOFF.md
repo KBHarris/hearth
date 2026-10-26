@@ -1,12 +1,13 @@
 # Phase 4 closeout checkpoint - 2026-10-25
 
 **Latest real-use issue:** 0.4.1 confirms the existing Windows key has no matching
-history file in the normal profile. Local 0.4.2 adds a **Recover existing history**
+history file in the normal profile. Signed local 0.4.2 is installed with a **Recover existing history**
 action: authenticate an earlier encrypted snapshot with the existing key, preserve
 its source and atomically restore only a missing store. Never overwrite existing
 history, reset keys or merge profiles. See `docs/MESSAGING_STARTUP_RECOVERY.md`.
-Client checks pass 157 tests; native checks pass 17 plus clippy. The patch is being
-built. Actual recovery needs a normal Windows-menu launch, user sign-in and the
+Client checks pass 157 tests; native checks pass 17 plus clippy. All five installation/preservation checks pass; the original profile/store files
+are unchanged. See `docs/evidence/windows-history-recovery-0.4.2-2026-10-25.json`.
+Actual recovery needs a normal Windows-menu launch, user sign-in and the
 recovery click. No broad media rerun or server update is needed.
 
 **Local automated release work is complete.** Preview 0.4.0 is published:

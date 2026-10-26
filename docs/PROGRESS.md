@@ -2,11 +2,11 @@
 
 **Missing history identified, 2026-10-25:** the normal Windows client can access
 its saved encryption key but has no corresponding history file in that profile.
-Local 0.4.2 adds explicit recovery of one matching earlier encrypted store,
+Signed local 0.4.2 is installed and adds explicit recovery of one matching earlier encrypted store,
 authenticated with the existing OS key. It preserves the source, refuses overwrite,
 conflicting copies and active files, and never creates replacement keys. Client
-checks pass 157 tests; native checks pass 17 tests plus clippy. Actual normal-profile
-recovery remains pending. See [recovery details](MESSAGING_STARTUP_RECOVERY.md).
+checks pass 157 tests; native checks pass 17 tests plus clippy. All five installation/preservation checks pass. Actual normal-profile
+recovery remains pending the user's sign-in and recovery click. See [recovery details](MESSAGING_STARTUP_RECOVERY.md).
 
 **Real-use messaging gate reopened, 2026-10-25:** the user reports encrypted
 messaging failing immediately after normal sign-in to 0.4.0, despite the saved

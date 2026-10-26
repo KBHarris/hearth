@@ -63,7 +63,12 @@ conflicting copies, hot journals, busy sources, identical snapshots and refusal
 to overwrite. A restricted test runner initially denied hard-link publication;
 the same tests pass with normal Windows filesystem permissions.
 
-The local recovery patch is being built. Actual recovery is still pending the
-user's normal Windows-menu launch, sign-in and **Recover existing history** click.
+The signed local **0.4.2 recovery patch is installed** at source `b3a1101`.
+All five installation/preservation checks pass, including matching native binary/
+source/version and unchanged original profile/store files. The installer initially
+stopped while Hearth was running; after the user closed it, installation passed.
+[Installation evidence](evidence/windows-history-recovery-0.4.2-2026-10-25.json).
+Actual recovery is still pending the user's normal Windows-menu launch, sign-in
+and **Recover existing history** click.
 No original history has been reset or overwritten. Installed 0.4.1 profiles were
 backed up and verified unchanged. Railway remains paused and Spotify disabled.
