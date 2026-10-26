@@ -13,6 +13,8 @@ const MISSING_HISTORY: &str = "The saved encryption key exists, but encrypted hi
 const MISSING_KEY: &str = "Encrypted history exists, but its saved encryption key is unavailable in this Windows profile. Keep the original files and sign in from the original Windows profile.";
 const KEY_STORE_UNAVAILABLE: &str = "The system key store could not be opened. Unlock your Windows session and try again. Existing encrypted history was preserved.";
 const MAX_ENVELOPE: usize = (8 * 1024 * 1024 + 41) * 2;
+#[path = "message_store_recovery.rs"]
+mod recovery;
 #[derive(Clone, Serialize)]
 pub struct StoredState {
     pub revision: u64,
@@ -174,6 +176,23 @@ fn store(
     };
     tx.commit().map_err(|_| ERROR)?;
     Ok(result)
+}
+#[tauri::command]
+pub async fn message_store_recover(
+    window: tauri::WebviewWindow,
+    scope: String,
+) -> Result<(), String> {
+    crate::vault_store::allowed(&window)?;
+    let app_directory = window
+        .app_handle()
+        .path()
+        .app_local_data_dir()
+        .map_err(|_| ERROR)?;
+    let local_data = app_directory.parent().ok_or(ERROR)?.to_path_buf();
+    let directory = app_directory.join("messages-v1");
+    tauri::async_runtime::spawn_blocking(move || recovery::recover(&directory, &local_data, &scope))
+        .await
+        .map_err(|_| ERROR)?
 }
 #[tauri::command]
 pub async fn message_store_read(

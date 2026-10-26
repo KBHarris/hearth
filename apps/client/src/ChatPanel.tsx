@@ -23,6 +23,9 @@ import {localLinkPreview} from './local-link-preview'
 import {conversationMembers} from './members'
 import {MemberList,MemberModal} from './MemberList'
 import {Attachment,EncryptedImage,type FileDownloader} from './Attachment'
+import {isTauri} from '@tauri-apps/api/core'
+import {messageScope,recoverMessages} from './crypto/message-store'
+import {missingLocalHistory} from './crypto/message-storage-error'
 
 export function ChatPanel({crypto,session,device,server,url,accountControls,serverControls,invite,onInviteDone}:{crypto:AuthCrypto;session:Session;device:DeviceEnrollment;server:string;url:string;accountControls:ReactNode;serverControls:ReactNode;invite?:HearthInvite|null;onInviteDone?:()=>void}) {
   const [navigationOpen,setNavigationOpen]=useState(!!invite?.community)
@@ -33,6 +36,7 @@ export function ChatPanel({crypto,session,device,server,url,accountControls,serv
   useEffect(()=>{const wide=window.matchMedia('(min-width: 1150px)');const collapse=()=>{if(!wide.matches)setMembersOpen(false)};wide.addEventListener('change',collapse);return()=>wide.removeEventListener('change',collapse)},[])
   const [panel,setPanel]=useState<'dm'|'profile'|'search'|'access'|'channel'|'rules'|'post'|'poll'|'event'|'playback'|'privacy'|null>(null)
   const [state,setState]=useState(initialChat)
+  const [recoveringHistory,setRecoveringHistory]=useState(false)
   const [selected,setSelected]=useState('')
   const [draft,setDraft]=useState('')
   const [postTitle,setPostTitle]=useState('')
@@ -217,7 +221,8 @@ export function ChatPanel({crypto,session,device,server,url,accountControls,serv
         </>}
       </div>
       {(error || state.error) && <p className="input-error" role="alert">{error || state.error}</p>}
-      {state.fatal && <button className="retry-button" onClick={()=>setAttempt(value=>value+1)}>Retry messaging</button>}
+      {state.fatal && isTauri() && state.error===missingLocalHistory && <div className="input-help"><p>Look for your existing encrypted history on this computer. Your key stays in Windows, and existing history will not be overwritten.</p><button className="retry-button" disabled={recoveringHistory} onClick={()=>{setRecoveringHistory(true);setError('');void recoverMessages(messageScope(session.account.id,server,device.device_key)).then(()=>setAttempt(value=>value+1)).catch(error=>setError(error instanceof Error?error.message:'History recovery could not finish. Original data was preserved.')).finally(()=>setRecoveringHistory(false))}}>{recoveringHistory?'Recovering encrypted history…':'Recover existing history'}</button></div>}
+      {state.fatal && <button className="retry-button" disabled={recoveringHistory} onClick={()=>setAttempt(value=>value+1)}>Retry messaging</button>}
     </section>
     {active&&membersOpen&&<><button className="member-backdrop" aria-label="Close member list" onClick={closeMembers}/><MemberList members={members} channel={!!channel} onClose={closeMembers} onSelect={setMemberId}/></>}
     {member&&<MemberModal key={member.id} member={member} onClose={()=>setMemberId('')}/>}

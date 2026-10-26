@@ -34,18 +34,36 @@ Regression tests exercise real message-store IPC rejection handling through
 MessagingSession startup, check that no replacement store is initialized, redact
 unknown error text and preserve active/preparing-call cancellation.
 
-## Open real-use gate
+## Confirmed missing-file condition and recovery patch
 
-The exact native failure has not yet been captured in the normal Windows client.
-The new messages are diagnostic improvements, not a confirmed recovery fix.
-No original key, encrypted database or user profile has been reset, migrated,
-merged or deleted. Installation created a protected rollback backup; it verified
-that every existing native profile file retained its original hash. Existing encrypted database metadata remains present from the
-command runner's view; its AppData virtualization does not establish what the
-normally launched app sees. This is the same environment distinction documented
-in [saved-host recovery](HOST_SIDEBAR_RECOVERY.md).
+The user confirmed the exact 0.4.1 error after normal sign-in: the saved Windows
+key exists but this profile has no matching encrypted history file. Existing
+history files remain in the earlier packaged app cache. Directory listings from
+Codex alone do not establish which file the normal app can use.
 
-The user must close/reopen Hearth normally from the Windows menu, confirm
-0.4.1 in the header, sign in and report the exact new message. Preserve the original profile/history. Do not
-create fresh storage over an existing key/file mismatch or infer a safe migration
-from directory listings alone. Railway stays paused and Spotify disabled.
+Local 0.4.2 adds **Recover existing history**, shown only for this exact missing-
+history condition in the desktop client. The explicit action runs in the actual
+signed-in client's Windows context. It looks only for the current account/server/
+device's hashed store filename inside earlier packaged Preview app-data folders.
+It reads the existing OS key without creating, replacing or exporting credentials.
+
+Each candidate is locked against product writers, size/link/journal checked,
+copied into an encrypted temporary snapshot, and authenticated read-only by
+SQLCipher using that existing key. The schema, row revision and sealed envelope
+must validate. Identical copies are deduplicated; different valid copies or any
+active source stop recovery. The verified encrypted snapshot is published as a
+new destination file atomically, with no overwrite. Source bytes remain unchanged;
+there is no whole-profile merge. Normal messaging startup then verifies its own
+identity-bound envelope and resumes the existing state.
+
+Client verification passes 157 tests plus SDK/deployment/type/lint/build checks.
+Native library verification passes 17 tests (3 existing ignored); clippy passes.
+The tests cover packaged-path discovery, source preservation, wrong keys,
+conflicting copies, hot journals, busy sources, identical snapshots and refusal
+to overwrite. A restricted test runner initially denied hard-link publication;
+the same tests pass with normal Windows filesystem permissions.
+
+The local recovery patch is being built. Actual recovery is still pending the
+user's normal Windows-menu launch, sign-in and **Recover existing history** click.
+No original history has been reset or overwritten. Installed 0.4.1 profiles were
+backed up and verified unchanged. Railway remains paused and Spotify disabled.

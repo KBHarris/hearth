@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict'
 import {test} from 'node:test'
 import {registerHooks} from 'node:module'
-import {readMessages,writeMessages} from '../src/crypto/message-store.ts'
+import {readMessages,writeMessages,recoverMessages} from '../src/crypto/message-store.ts'
 registerHooks({resolve(specifier,context,next){try{return next(specifier,context)}catch(error){if(specifier.startsWith('.')&&!/\.[a-z]+$/i.test(specifier))return next(specifier+'.ts',context);throw error}}})
 const {MessagingSession}=await import('../src/crypto/messaging-session.ts')
 const {DirectCall}=await import('../src/media/direct-call.ts')
@@ -37,4 +37,16 @@ test('a failed native write retains its revision and cannot fall back to a fresh
   commands.length=0;rejection=missing
   await assert.rejects(writeMessages(scope,42,'01'+'ab'.repeat(40)),error=>error instanceof Error&&error.message===missing)
   assert.deepEqual(commands,['message_store_write'])
+})
+
+test('explicit recovery sends only the selected scope and never creates replacement keys or state',async()=>{
+  const invocations=[]
+  const original=window.__TAURI_INTERNALS__.invoke
+  window.__TAURI_INTERNALS__.invoke=async(command,args)=>{invocations.push({command,args})}
+  try{
+    await recoverMessages(scope)
+    assert.deepEqual(invocations,[{command:'message_store_recover',args:{scope}}])
+    window.__TAURI_INTERNALS__.invoke=async()=>{throw 'Different matching history copies were found. Nothing was restored; preserve those files before choosing a recovery source.'}
+    await assert.rejects(recoverMessages(scope),/Different matching history copies/)
+  }finally{window.__TAURI_INTERNALS__.invoke=original}
 })

@@ -1,8 +1,13 @@
 // Native command rejections are strings. Surface only fixed storage messages;
 // arbitrary IPC/OS error text can contain paths, identifiers or key material.
+export const missingLocalHistory='The saved encryption key exists, but encrypted history is missing from this Windows profile. Keep the original profile and history files; do not reset your keys.'
 const messages=new Set([
   'The encrypted message store is locked, damaged or changed in another window. Preserve it, unlock the system key store and sign in again.',
-  'The saved encryption key exists, but encrypted history is missing from this Windows profile. Keep the original profile and history files; do not reset your keys.',
+  missingLocalHistory,
+  'No matching encrypted history could be recovered from the earlier Windows app cache. Original files and keys were preserved.',
+  'Different matching history copies were found. Nothing was restored; preserve those files before choosing a recovery source.',
+  'Encrypted history already exists in this profile. Nothing was overwritten; retry messaging.',
+  'A matching history file is still in use. Close other Hearth windows and try recovery again. Original files and keys were preserved.',
   'Encrypted history exists, but its saved encryption key is unavailable in this Windows profile. Keep the original files and sign in from the original Windows profile.',
   'The system key store could not be opened. Unlock your Windows session and try again. Existing encrypted history was preserved.',
   'Invalid encrypted message storage request.',

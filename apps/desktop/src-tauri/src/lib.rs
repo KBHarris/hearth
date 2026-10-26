@@ -103,6 +103,7 @@ pub fn run() {
             vault_store::identity_vault_read,
             vault_store::identity_vault_create,
             message_store::message_store_read,
+            message_store::message_store_recover,
             message_store::message_store_write
         ])
         .run(tauri::generate_context!())

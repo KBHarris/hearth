@@ -23,6 +23,11 @@ function open():Promise<IDBDatabase> {
     request.onerror=request.onblocked=()=>{settled=true;reject(new Error(ERROR))}
   })
 }
+/** Explicit recovery uses the existing OS key; it never initializes a fresh store. */
+export async function recoverMessages(scope:string):Promise<void>{
+  if(!isTauri())throw new Error('Local history recovery requires the desktop app.')
+  try{await invoke('message_store_recover',{scope})}catch(error){throw messageStorageError(error)}
+}
 export async function readMessages(scope:string):Promise<StoredState|null> {
   if(isTauri()){
     let saved:unknown
