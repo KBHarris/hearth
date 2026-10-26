@@ -10,6 +10,16 @@ use sqlx::Row;
 fn unavailable(_: sqlx::Error) -> StatusCode {
     StatusCode::SERVICE_UNAVAILABLE
 }
+pub(crate) async fn owns_active_community(
+    tx: &mut sqlx::PgConnection,
+    account: &str,
+) -> Result<bool, StatusCode> {
+    sqlx::query_scalar("SELECT EXISTS(SELECT 1 FROM communities WHERE owner_id=$1 AND NOT deleted)")
+        .bind(account)
+        .fetch_one(tx)
+        .await
+        .map_err(unavailable)
+}
 pub(crate) async fn erase(
     State(state): State<SharedState>,
     headers: HeaderMap,
@@ -49,15 +59,7 @@ pub(crate) async fn erase(
     if account_id(&state, &headers).await? != *id {
         return Err(StatusCode::FORBIDDEN);
     };
-    if row.get::<bool, _>("owner")
-        || sqlx::query_scalar::<_, bool>(
-            "SELECT EXISTS(SELECT 1 FROM communities WHERE owner_id=$1)",
-        )
-        .bind(id)
-        .fetch_one(&mut *tx)
-        .await
-        .map_err(unavailable)?
-    {
+    if row.get::<bool, _>("owner") || owns_active_community(&mut tx, id).await? {
         return Err(StatusCode::CONFLICT);
     };
     let device=sqlx::query("SELECT certificate,account_signature,device_signature FROM account_devices WHERE account_id=$1 AND device_key=$2").bind(id).bind(&value.member.enrollment.device_key).fetch_optional(&mut *tx).await.map_err(unavailable)?.ok_or(StatusCode::FORBIDDEN)?;

@@ -391,6 +391,18 @@ mod tests {
     #[ignore = "requires isolated PostgreSQL"]
     async fn community_deletion_blocks_members_invites_management_and_old_owner(db: sqlx::PgPool) {
         let f = Fixture::new(db).await;
+        let owner_id: String = sqlx::query_scalar("SELECT owner_id FROM communities WHERE id=$1")
+            .bind(&f.community)
+            .fetch_one(&f.state.db)
+            .await
+            .unwrap();
+        let mut tx = f.state.db.begin().await.unwrap();
+        assert!(
+            crate::account_departure::owns_active_community(&mut tx, &owner_id)
+                .await
+                .unwrap()
+        );
+        tx.commit().await.unwrap();
         let path = format!("/api/v1/communities/{}/delete", f.community);
         assert_eq!(
             f.request(
@@ -430,6 +442,13 @@ mod tests {
             .0,
             StatusCode::FORBIDDEN
         );
+        let mut tx = f.state.db.begin().await.unwrap();
+        assert!(
+            !crate::account_departure::owns_active_community(&mut tx, &owner_id)
+                .await
+                .unwrap()
+        );
+        tx.commit().await.unwrap();
         let list = f
             .request("/api/v1/communities", Some(&f.owner), None)
             .await

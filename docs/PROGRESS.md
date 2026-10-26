@@ -10,6 +10,9 @@ channels keep unsent drafts. Three isolated PostgreSQL/HTTP checks pass, includi
 a concurrent deletion/access regression. Standard checks pass 159 client, 49 SDK,
 15 deployment and 17 server unit tests, plus server clippy/format checks. All six
 real browser checks pass, including visible confirmation at narrow widths.
+Deleted communities also reject policy changes and no longer block a former
+owner's account erasure solely through retained ownership metadata; the three
+database checks pass again with that boundary covered.
 [Sanitized local evidence](evidence/community-deletion-local-2026-10-25.json).
 Preview 0.4.3 client/server packaging and installed upgrade are pending. See
 [management instructions](COMMUNITY_MANAGEMENT.md).

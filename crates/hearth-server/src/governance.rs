@@ -81,7 +81,7 @@ async fn member(tx: &mut PgConnection, id: &str, account: &str) -> Result<sqlx::
         return Err(StatusCode::BAD_REQUEST);
     }
     let row =
-        sqlx::query("SELECT owner_id,authority,governance FROM communities WHERE id=$1 FOR SHARE")
+        sqlx::query("SELECT owner_id,authority,governance FROM communities WHERE id=$1 AND NOT deleted FOR SHARE")
             .bind(id)
             .fetch_optional(&mut *tx)
             .await
@@ -153,7 +153,7 @@ pub(crate) async fn set(
     }
     let mut tx = state.db.begin().await.map_err(unavailable)?;
     let row =
-        sqlx::query("SELECT owner_id,authority,governance FROM communities WHERE id=$1 FOR UPDATE")
+        sqlx::query("SELECT owner_id,authority,governance FROM communities WHERE id=$1 AND NOT deleted FOR UPDATE")
             .bind(&id)
             .fetch_optional(&mut *tx)
             .await

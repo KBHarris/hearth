@@ -23,6 +23,9 @@ Deletion does not erase saved messages, encrypted files, device copies or backup
 The server retains channel identifiers to ensure a deleted channel can never be
 treated as a direct conversation. This is removal of access, not content erasure.
 Existing retention and account/file erasure policies remain separate operations.
+A deleted community no longer counts as an owned community when its former
+owner requests account deletion; active community ownership must still be
+transferred first. Deleted communities also reject policy changes.
 
 Both client and server need the deletion update. The focused check
 `node scripts/verify-community-deletion-ui.mjs` uses disposable local PostgreSQL
