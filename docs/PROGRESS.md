@@ -2,9 +2,10 @@
 
 **Real-use messaging gate reopened, 2026-10-25:** the user reports encrypted
 messaging failing immediately after normal sign-in to 0.4.0, despite the saved
-server sidebar working. Retry reproduces it. A local 0.4.1 diagnostic patch
+server sidebar working. Retry reproduces it. A signed local 0.4.1 diagnostic patch is installed; it
 preserves fixed native storage errors and removes idle call-ended notices;
-156 client tests and 14 native tests pass. The underlying storage condition is
+156 client tests, 14 native tests and five installation/preservation checks pass.
+The underlying storage condition is
 still unconfirmed; no keys or history were reset. See
 [the startup investigation](MESSAGING_STARTUP_RECOVERY.md). The published 0.4.0
 release and prior local acceptance evidence retain their original scope.

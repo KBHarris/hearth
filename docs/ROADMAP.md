@@ -313,6 +313,13 @@ tools, manual commands or secrets in diagnostic exports. See
 
 ## Phase 4: Cloud hosting, voice, video, and events
 
+**Current real-use blocker, 2026-10-25:** normal sign-in to 0.4.0 immediately
+fails to open encrypted messaging, while saved-server discovery succeeds. A
+signed local 0.4.1 diagnostic patch is installed and preserves safe native storage errors and avoids
+idle call-ended notices. The actual storage condition remains unconfirmed;
+see [the startup investigation](MESSAGING_STARTUP_RECOVERY.md). This reopens
+the normal Windows messaging acceptance gate without relabeling prior fixtures.
+
 **Local automated release work complete, 2026-10-25.** Preview 0.4.0 is published;
 all 14 public downloads match the validated signed bundle. The installed Windows
 client and original selected server are upgraded to 0.4.0, the server is healthy,

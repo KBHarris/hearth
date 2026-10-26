@@ -1,8 +1,10 @@
 # Phase 4 closeout checkpoint - 2026-10-25
 
 **Latest real-use issue:** normal sign-in to 0.4.0 cannot open encrypted messaging.
-The saved server is visible. A local 0.4.1 diagnostic patch is being prepared;
-the actual storage failure is not yet identified or repaired. See
+The saved server is visible. A signed local 0.4.1 diagnostic patch is installed; five profile-preserving
+installation checks pass. The actual storage failure is not yet identified or
+repaired. The next step requires a normal Windows-menu launch and user sign-in,
+then the exact new error text. No broad media rerun or server update is needed. See
 `docs/MESSAGING_STARTUP_RECOVERY.md`; preserve original keys, databases and profiles.
 The completed release/upgrade checkpoint below does not establish this manual gate.
 

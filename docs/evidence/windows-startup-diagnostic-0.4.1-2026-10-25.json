@@ -1,0 +1,19 @@
+{
+  "outcome": "pass",
+  "measuredAt": "2026-10-26T00:07:46.048Z",
+  "version": "0.4.1",
+  "sourceCommit": "f4cb55ce052b0b46406a27b8ba7e021ff167cca7",
+  "installerSha256": "fda9fae4dd7f74a29be816c7c77b9f88e99944f17d00085ca9480e8a7aa58ee1",
+  "installedClientSha256": "c88ddca1b56f79a6aca96915f5056eec300c364984d9b002c63482a0aca78b5d",
+  "checks": {
+    "silent_installer_completed": true,
+    "installed_version_and_source_match_patch": true,
+    "installed_bytes_match_nsis_stamped_build": true,
+    "existing_native_profile_and_encrypted_store_files_unchanged": true,
+    "protected_pre_upgrade_backup_created": true
+  },
+  "normalSignInValidated": false,
+  "underlyingStorageFailureIdentified": false,
+  "serverUpdated": false,
+  "publicReleasePublished": false
+}

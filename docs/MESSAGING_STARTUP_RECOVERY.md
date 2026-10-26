@@ -25,8 +25,10 @@ changing storage behavior:
 The direct-call lock callback now leaves idle calls quiet. Active calls, including
 preparation before an offer exists, still end when messaging authorization locks.
 
-The local patch is version 0.4.1; it is not a new public release or a server
-update. Required npm checks pass: 156 client, 48 SDK and 15 deployment tests.
+The signed local patch **0.4.1 is installed**. Five installation/preservation
+checks pass, including exact installed bytes/source/version and unchanged
+existing native files. [Installation evidence](evidence/windows-startup-diagnostic-0.4.1-2026-10-25.json).
+It is not a new public release or a server update. Required npm checks pass: 156 client, 48 SDK and 15 deployment tests.
 Native library tests pass 14 with 3 existing ignored tests; formatting passes.
 Regression tests exercise real message-store IPC rejection handling through
 MessagingSession startup, check that no replacement store is initialized, redact
@@ -36,13 +38,14 @@ unknown error text and preserve active/preparing-call cancellation.
 
 The exact native failure has not yet been captured in the normal Windows client.
 The new messages are diagnostic improvements, not a confirmed recovery fix.
-No original key, encrypted database or user profile has been reset, copied,
-merged or deleted. Existing encrypted database metadata remains present from the
+No original key, encrypted database or user profile has been reset, migrated,
+merged or deleted. Installation created a protected rollback backup; it verified
+that every existing native profile file retained its original hash. Existing encrypted database metadata remains present from the
 command runner's view; its AppData virtualization does not establish what the
 normally launched app sees. This is the same environment distinction documented
 in [saved-host recovery](HOST_SIDEBAR_RECOVERY.md).
 
-After installing the local patch, the user must open Hearth normally, sign in
-and report the exact new message. Preserve the original profile/history. Do not
+The user must close/reopen Hearth normally from the Windows menu, confirm
+0.4.1 in the header, sign in and report the exact new message. Preserve the original profile/history. Do not
 create fresh storage over an existing key/file mismatch or infer a safe migration
 from directory listings alone. Railway stays paused and Spotify disabled.
