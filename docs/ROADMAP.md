@@ -313,6 +313,12 @@ tools, manual commands or secrets in diagnostic exports. See
 
 ## Phase 4: Cloud hosting, voice, video, and events
 
+- [x] Owner-only deletion controls for channels, categories and communities;
+  exact-name confirmation, retained drafts and server-enforced access removal.
+  Category deletion keeps channels. Saved encrypted content and backups are
+  retained; see [management instructions](COMMUNITY_MANAGEMENT.md). Focused local
+  checks pass; client/server packaging and installed upgrade are pending.
+
 **Normal-profile recovery accepted, 2026-10-25:** the user confirms local 0.4.2
 recovery works. The reported saved-key/missing-history startup blocker is resolved
 by [manual acceptance](evidence/windows-history-recovery-user-acceptance-2026-10-25.json).

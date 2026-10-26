@@ -23,7 +23,7 @@ const packed = spawnSync('tar', ['-cf', join(assets,hostTar), ...preparedFiles],
 assert.equal(packed.status,0,'Could not assemble the host-only TAR')
 const server={schema:1,version,min_client_version:version,source_commit:manifest.sourceCommit,image_id:manifest.server.imageId,archive_url:base+archive,archive_sha256:manifest.files[archive],host_archive_sha256:digest(join(assets,hostTar))}
 writeFileSync(join(assets,'server.json'),JSON.stringify(server,null,2)+'\n');sign(join(assets,'server.json'))
-writeFileSync(join(assets,'latest.json'),JSON.stringify({version,notes:'Encrypted voice, video, screen and optional computer audio in direct calls, private groups and community rooms; optional SFU/relay hosting, stages, scheduled events and consent-based shared playback.',pub_date:new Date().toISOString(),platforms:{'windows-x86_64':{signature:installerSignature,url:base+manifest.client.installer}}},null,2)+'\n')
+writeFileSync(join(assets,'latest.json'),JSON.stringify({version,notes:'Adds owner-only channel, category and community deletion with name confirmation and preserved drafts. Includes the Windows encrypted-history recovery fix. Update both the app and hosted server.',pub_date:new Date().toISOString(),platforms:{'windows-x86_64':{signature:installerSignature,url:base+manifest.client.installer}}},null,2)+'\n')
 const clientZip=Object.keys(manifest.files).find(file=>file.endsWith('.zip'));assert.ok(clientZip)
 for(const file of [clientZip,archive])copyFileSync(join(directory,file),join(assets,file))
 copyFileSync(installer,join(assets,manifest.client.installer));copyFileSync(installer+'.sig',join(assets,manifest.client.installer+'.sig'))
@@ -43,7 +43,9 @@ files.push(hostTar,'host-package.json','host-package.json.sig')
 writeFileSync(join(assets,'SHA256SUMS.txt'),files.map(file=>`${digest(join(assets,file))}  ${file}`).join('\n')+'\n')
 writeFileSync(join(assets,'RELEASE_NOTES.md'),`# Hearth Preview ${version}
 
-Encrypted voice, camera, screen sharing and optional computer audio in direct calls, three-person private calls and community voice rooms. Optional locally hosted SFU rooms support larger communities, with independent media permissions and stage speaker consent. Adds microphone/camera switching, speaker controls, scheduled events and encrypted RSVPs, and opt-in synchronized YouTube/SoundCloud playback. Spotify playback is disabled in this release.
+Adds owner-only deletion of channels, categories and communities in community settings, with exact-name confirmation. Category deletion keeps its channels; channel/community deletion stops new messages and calls without erasing saved messages, files or backups. Cancelling preserves unfinished creation forms and keyboard focus; connection failures preserve confirmation. Deleted channels cannot redirect unsent drafts or be reinterpreted as DMs. Confirmation dialogs remain visible on narrow windows.
+
+Includes the 0.4.1/0.4.2 Windows messaging startup diagnostics and recovery of an existing matching encrypted history store with the saved key. Recovery never resets keys or overwrites existing history; keep original profile/history files. Existing encrypted voice, video, screen/computer audio and SFU/relay capabilities remain available. Spotify remains disabled.
 
 Update the Windows app first, then the hosted server. Server updates verify signed deployment assets, rehearse the database backup and preserve the existing host configuration, server keys and encrypted history. Enable voice/video hosting in Hosting & updates; internet media still requires correct router/firewall configuration and outside-network acceptance. Railway remains paused.
 

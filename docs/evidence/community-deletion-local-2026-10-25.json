@@ -1,0 +1,30 @@
+{
+  "outcome": "pass",
+  "measuredAt": "2026-10-26T04:00:55.956Z",
+  "checks": {
+    "create_and_select_community_with_literal_text": true,
+    "name_confirmation_escape_focus_and_creation_draft_preservation": true,
+    "category_deletion_keeps_channels_and_ungroups_them": true,
+    "active_channel_deletion_removes_it_without_sending_its_draft_elsewhere": true,
+    "network_failure_preserves_confirmation_and_channel": true,
+    "community_deletion_clears_directory_and_narrow_confirmation_fits": true,
+    "owner_and_cross_community_permission_checks": true,
+    "category_channels_retained": true,
+    "channel_tombstones_prevent_dm_reinterpretation": true,
+    "deleted_community_invites_and_management_denied": true,
+    "concurrent_delete_access_fails_closed": true,
+    "client_sdk_deployment_verification": true,
+    "server_unit_and_clippy_and_format": true
+  },
+  "counts": {
+    "browser": 6,
+    "database": 3,
+    "client": 159,
+    "sdk": 49,
+    "deployment": 15,
+    "serverUnit": 17
+  },
+  "scope": "One isolated Chromium profile, real production controls/WASM/MLS, authenticated HTTP and disposable PostgreSQL. No installed user profile or data modified.",
+  "contentErasure": false,
+  "installedUpgradePending": true
+}

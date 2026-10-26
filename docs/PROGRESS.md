@@ -1,5 +1,19 @@
 # Progress
 
+**Community deletion controls, 2026-10-25:** owner-only channel, category and
+community deletion is implemented with exact-name confirmation. Removing a
+category preserves its channels. Removing channels/communities blocks subsequent
+messaging, room admission, invites and management without erasing encrypted
+history or reinterpreting old channel IDs as DMs. Cancelling preserves creation
+forms and focus; disconnected requests preserve confirmation; unavailable active
+channels keep unsent drafts. Three isolated PostgreSQL/HTTP checks pass, including
+a concurrent deletion/access regression. Standard checks pass 159 client, 49 SDK,
+15 deployment and 17 server unit tests, plus server clippy/format checks. All six
+real browser checks pass, including visible confirmation at narrow widths.
+[Sanitized local evidence](evidence/community-deletion-local-2026-10-25.json).
+Preview 0.4.3 client/server packaging and installed upgrade are pending. See
+[management instructions](COMMUNITY_MANAGEMENT.md).
+
 **Normal-profile recovery accepted, 2026-10-25:** the user confirms that local
 0.4.2 recovery works. The reported missing-history startup blocker is resolved
 by manual acceptance, not measured telemetry. Restored history is saved in the

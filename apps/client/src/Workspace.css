@@ -265,3 +265,9 @@
 .hosting-panel p, .hosting-panel small { line-height: 1.55; }
 .hosting-panel .host-folder { overflow-wrap: anywhere; font-family: monospace; font-size: 11px; }
 .hosting-panel button { margin: 5px 6px 5px 0; }
+.structure-management { list-style:none; padding:0; display:grid; gap:.5rem; }
+.structure-management li { display:flex; align-items:center; justify-content:space-between; gap:1rem; padding:.5rem 0; border-bottom:1px solid var(--border, #303730); }
+.structure-management li span { overflow-wrap:anywhere; min-width:0; }
+.structure-management li button { flex-shrink:0; }
+.structure-delete-community { margin-top:1.5rem; padding-top:1rem; border-top:1px solid var(--border, #303730); }
+.structure-delete-confirmation strong { overflow-wrap:anywhere; }

@@ -24,7 +24,7 @@ async fn row(tx: &mut PgConnection, id: &str) -> Result<sqlx::postgres::PgRow> {
     if !hearth_crypto::messaging::valid_id(id) {
         return Err(StatusCode::BAD_REQUEST);
     }
-    sqlx::query("SELECT owner_id,authority,governance,ownership_offer FROM communities WHERE id=$1 FOR UPDATE")
+    sqlx::query("SELECT owner_id,authority,governance,ownership_offer FROM communities WHERE id=$1 AND NOT deleted FOR UPDATE")
         .bind(id).fetch_optional(tx).await.map_err(unavailable)?.ok_or(StatusCode::NOT_FOUND)
 }
 async fn endorsed(
@@ -44,7 +44,7 @@ async fn endorsed(
         values.push(digest(&decode::<CommunityAdmission>(a)?)?);
     }
     let policies: Vec<Option<serde_json::Value>> = sqlx::query_scalar(
-        "SELECT policy FROM community_channels WHERE community_id=$1 ORDER BY id",
+        "SELECT policy FROM community_channels WHERE community_id=$1 AND NOT deleted ORDER BY id",
     )
     .bind(id)
     .fetch_all(tx)
@@ -176,12 +176,13 @@ pub(crate) async fn offer(
     {
         return Err(StatusCode::FORBIDDEN);
     }
-    let channels: Vec<String> =
-        sqlx::query_scalar("SELECT id FROM community_channels WHERE community_id=$1")
-            .bind(&id)
-            .fetch_all(&mut *tx)
-            .await
-            .map_err(unavailable)?;
+    let channels: Vec<String> = sqlx::query_scalar(
+        "SELECT id FROM community_channels WHERE community_id=$1 AND NOT deleted",
+    )
+    .bind(&id)
+    .fetch_all(&mut *tx)
+    .await
+    .map_err(unavailable)?;
     for c in channels {
         if crate::governance::bits(
             &mut tx,

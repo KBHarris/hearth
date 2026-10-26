@@ -1,4 +1,5 @@
 import { useEffect, useId, useRef, type ReactNode } from 'react'
+import { createPortal } from 'react-dom'
 
 /** Native dialogs keep keyboard focus inside the panel and restore it on close. */
 export function Modal({ title, description, onClose, children }: {
@@ -15,7 +16,7 @@ export function Modal({ title, description, onClose, children }: {
       if (previous instanceof HTMLElement && previous.isConnected) previous.focus()
     }
   }, [])
-  return <dialog ref={dialog} className="panel-dialog" aria-labelledby={id} aria-describedby={description ? `${id}-help` : undefined}
+  return createPortal(<dialog ref={dialog} className="panel-dialog" aria-labelledby={id} aria-describedby={description ? `${id}-help` : undefined}
     onCancel={event => { event.preventDefault(); onClose() }}
     onKeyDown={event => {
       if (event.key !== 'Tab') return
@@ -34,5 +35,5 @@ export function Modal({ title, description, onClose, children }: {
       {description && <p className="panel-description" id={`${id}-help`}>{description}</p>}
       <div className="panel-body">{children}</div>
     </div>
-  </dialog>
+  </dialog>, document.body)
 }

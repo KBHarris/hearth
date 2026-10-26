@@ -1,5 +1,14 @@
 # Phase 4 closeout checkpoint - 2026-10-25
 
+**Current follow-up:** community deletion controls are implemented and focused
+local checks pass. See `docs/COMMUNITY_MANAGEMENT.md`. Three isolated server
+deletion tests include an access/deletion concurrency regression; normal npm
+verification passes 159 client, 49 SDK and 15 deployment tests. Server unit tests
+pass 17, with clippy/format clean. All six real browser checks pass, including
+visible responsive confirmation. Preview 0.4.3 client/server packaging/upgrade
+are the remaining follow-up steps. Do not repeat
+the unrelated 25-person media run. No installed user community has been deleted.
+
 **Latest real-use result:** the user confirms normal-profile recovery works in
 local 0.4.2. The reported missing-history startup issue is resolved by user
 acceptance; see `docs/evidence/windows-history-recovery-user-acceptance-2026-10-25.json`.

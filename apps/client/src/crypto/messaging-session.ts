@@ -27,9 +27,9 @@ export function admitted(roster:ChannelRoster,person:Person):boolean {
 
 type Pending={kind:'commit';conversation_id:string;upload:CommitUpload}|{kind:'message';conversation_id:string;upload:MessageUpload}
 type EngineView={last_seq:number;governance_epochs:Record<string,number>;messages:LocalMessage[];groups:Conversation[];pending:Pending[];pending_packages:KeyPackageRecord[];profiles:Record<string,LocalProfile>;presence:Record<string,LocalPresence>;read:Record<string,Record<string,string>>;history_backfill:string[];history_waiting:string[];emoji:Record<string,Record<string,LocalAttachment>>}
-export type ChatState={blocked:string[];conversations:Conversation[];channels:Record<string,ChannelRoster>;joined:string[];messages:LocalMessage[];people:Record<string,Person>;typing:Record<string,{account:string;until:number}[]>;pending:number;connection:string;error:string;fatal:boolean;profiles:Record<string,LocalProfile>;presence:Record<string,LocalPresence>;read:Record<string,Record<string,string>>;history_waiting:string[];emoji:Record<string,Record<string,LocalAttachment>>}
+export type ChatState={unavailable:string[];blocked:string[];conversations:Conversation[];channels:Record<string,ChannelRoster>;joined:string[];messages:LocalMessage[];people:Record<string,Person>;typing:Record<string,{account:string;until:number}[]>;pending:number;connection:string;error:string;fatal:boolean;profiles:Record<string,LocalProfile>;presence:Record<string,LocalPresence>;read:Record<string,Record<string,string>>;history_waiting:string[];emoji:Record<string,Record<string,LocalAttachment>>}
 const initialView:EngineView={last_seq:0,governance_epochs:{},messages:[],groups:[],pending:[],pending_packages:[],profiles:{},presence:{},read:{},history_backfill:[],history_waiting:[],emoji:{}}
-export const initialChat:ChatState={blocked:[],conversations:[],channels:{},joined:[],messages:[],people:{},typing:{},pending:0,connection:'Opening encrypted storage…',error:'',fatal:false,profiles:{},presence:{},read:{},history_waiting:[],emoji:{}}
+export const initialChat:ChatState={unavailable:[],blocked:[],conversations:[],channels:{},joined:[],messages:[],people:{},typing:{},pending:0,connection:'Opening encrypted storage…',error:'',fatal:false,profiles:{},presence:{},read:{},history_waiting:[],emoji:{}}
 
 /** One serialized stream owns the in-memory ratchets; CAS detects competing tabs/processes. */
 export class MessagingSession {
@@ -133,6 +133,7 @@ export class MessagingSession {
   private maintenance:ReturnType<typeof setInterval>|undefined
   private reconnect:ReturnType<typeof setTimeout>|undefined
   private heartbeatAt=0
+  private unavailableChannels=new Set<string>()
   private initialized=false
   private lastTyping=0
   private closed=false
@@ -162,7 +163,7 @@ export class MessagingSession {
     if(this.closed && !patch.fatal)return
     const now=Date.now()
     const typing=Object.fromEntries(Object.entries(this.state.typing).map(([id,peers])=>[id,peers.filter(peer=>peer.until>now)]))
-    this.state={...this.state,typing,...patch,messages:this.view.messages,profiles:this.view.profiles,presence:this.view.presence,read:this.view.read,history_waiting:this.view.history_waiting,emoji:this.view.emoji,joined:this.view.groups.map(g=>g.id),pending:this.view.pending.length+this.view.pending_packages.length}
+    this.state={...this.state,typing,...patch,messages:this.view.messages,profiles:this.view.profiles,presence:this.view.presence,read:this.view.read,history_waiting:this.view.history_waiting,emoji:this.view.emoji,unavailable:[...this.unavailableChannels],joined:this.view.groups.filter(g=>!this.unavailableChannels.has(g.id)).map(g=>g.id),pending:this.view.pending.length+this.view.pending_packages.length}
     this.changed(this.state)
   }
   private async inspect() {
@@ -267,20 +268,30 @@ export class MessagingSession {
       if(backlog.length<128)break
     }
   }
+  /** Hide inaccessible channels without destroying local encrypted history. */
+  channelsRemoved(ids:string[]):void {
+    if(!ids.length)return
+    for(const id of ids){this.unavailableChannels.add(id);this.mediaRosters.delete(id);this.lockCalls(id)}
+    this.publish({conversations:this.state.conversations.filter(conversation=>!this.unavailableChannels.has(conversation.id)),channels:Object.fromEntries(Object.entries(this.state.channels).filter(([id])=>!this.unavailableChannels.has(id)))})
+  }
   refreshBlocks():Promise<void>{return this.enqueue(async()=>{this.publish({blocked:(await this.client.blocks(this.session.token,this.options)).map(person=>person.id)})})}
   private async refresh() {
     if(callCapability())await this.callConfiguration().catch(()=>{})
     // Drain the preceding epoch before adding a device. A commit must not discard
     // application secrets for messages still waiting in the ordered backlog.
     await this.synchronize()
-    const conversations=await this.client.conversations(this.session.token,this.options)
+    let conversations=await this.client.conversations(this.session.token,this.options)
+    const visible=new Set(conversations.map(conversation=>conversation.id))
+    this.channelsRemoved([...this.state.conversations,...this.view.groups].filter(conversation=>conversation.channel_id&&!visible.has(conversation.id)).map(conversation=>conversation.id))
+    for(const conversation of conversations)this.unavailableChannels.delete(conversation.id)
     await this.mediaWork.drain()
     const ids=new Set(conversations.filter(conversation=>!conversation.channel_id).flatMap(conversation=>conversation.accounts))
     const people={...this.state.people}
     for(const id of ids){people[id]=await this.client.personById(this.session.token,id,this.options);await this.mediaWork.drain()}
     const channels:Record<string,ChannelRoster>={}
     for(const conversation of conversations.filter(c=>c.channel_id)) {
-      const roster=await this.prepareChannel(conversation.id)
+      let roster:ChannelRoster
+      try{roster=await this.prepareChannel(conversation.id)}catch(error){if(error instanceof HearthError&&[403,404].includes(error.status)){this.channelsRemoved([conversation.id]);conversations=conversations.filter(current=>current.id!==conversation.id);continue}throw error}
       await this.mediaWork.drain()
       if(roster.channel.id!==conversation.id || !roster.people.some(p=>p.account.id===this.session.account.id))throw new Error('The channel roster could not be verified.')
       channels[conversation.id]=roster
@@ -512,6 +523,7 @@ export class MessagingSession {
   }
   async send(id:string,content:MessageContent):Promise<'sent'|'queued'> {
     return this.enqueue(async()=>{
+      if(this.unavailableChannels.has(id))throw new Error('This channel is no longer available. Your draft was preserved.')
       await this.flush()
       if(content.kind==='call')currentRoomKeyContext(content.signal,this.view.groups.find(group=>group.id===id),this.mediaRosters.get(id),this.device.device_key,Date.now(),this.view.governance_epochs[id]??0)
       const upload=await this.operation<MessageUpload>('send',{id,content});await this.persist()

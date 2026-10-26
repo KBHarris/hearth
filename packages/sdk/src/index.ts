@@ -129,6 +129,9 @@ export class HearthClient {
   communityStructure(token:string,id:string,options?:RequestOptions):Promise<CommunityStructure> { checkedId(id);return this.community(id,token,isCommunityStructure,undefined,options) }
   createCategory(token:string,id:string,name:string,options?:RequestOptions):Promise<Category> { checkedId(id);return this.community(`${id}/categories`,token,isCategory,{name},options) }
   createChannel(token:string,id:string,body:CreateChannel,options?:RequestOptions):Promise<Channel> { checkedId(id);return this.community(`${id}/channels`,token,isChannel,body,options) }
+  deleteChannel(token:string,community:string,id:string,expectedName:string,options?:RequestOptions):Promise<null>{checkedId(community);checkedId(id);return this.community(`${community}/channels/${id}/delete`,token,isEmpty,{expected_name:expectedName},options)}
+  deleteCategory(token:string,community:string,id:string,expectedName:string,options?:RequestOptions):Promise<null>{checkedId(community);checkedId(id);return this.community(`${community}/categories/${id}/delete`,token,isEmpty,{expected_name:expectedName},options)}
+  deleteCommunity(token:string,id:string,expectedName:string,options?:RequestOptions):Promise<null>{checkedId(id);return this.community(`${id}/delete`,token,isEmpty,{expected_name:expectedName},options)}
   createCommunityInvite(token:string,id:string,body:CreateCommunityInvite,options?:RequestOptions):Promise<CommunityInvite> { checkedId(id);return this.community(`${id}/invites`,token,isCommunityInvite,body,options) }
   joinCommunity(token:string,code:string,options?:RequestOptions):Promise<Community> { checkedId(code);return this.community('join',token,isCommunity,{code},options) }
   governance(token:string,id:string,options?:RequestOptions):Promise<GovernanceView>{checkedId(id);return this.community(`${id}/governance`,token,isGovernanceView,undefined,options)}

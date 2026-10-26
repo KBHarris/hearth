@@ -73,6 +73,7 @@ export function ChatPanel({crypto,session,device,server,url,accountControls,serv
   const sendPreview=draftPreview?.url===dismissedPreview?null:draftPreview
   const searchThread=useRef<string|null>(null)
   const service=useRef<MessagingSession|null>(null)
+  const onChannelsRemoved=useCallback((ids:string[])=>service.current?.channelsRemoved(ids),[])
   const [callBinding,setCallBinding]=useState<{calls:DirectCall;groups:GroupCall;rooms:VoiceRoomCall;messages:MessagingSession}|null>(null)
   const [callState,setCallState]=useState(idleCall)
   const [groupState,setGroupState]=useState(idleGroup)
@@ -101,7 +102,8 @@ export function ChatPanel({crypto,session,device,server,url,accountControls,serv
     const clock=setInterval(()=>setNow(Date.now()),1000)
     return ()=>{active=false;clearInterval(clock);uploadAbort.current?.abort();rooms.close();groups.close();calls.close();client.close();service.current=null}
   },[crypto,session,device,server,url,attempt])
-  const activeId=selected || state.conversations[0]?.id || ''
+  const activeId=selected || (state.unavailable.length&&(draft||file||reply||editing)?'':state.conversations[0]?.id??'')
+  const channelUnavailable=state.unavailable.includes(activeId)
   const active=state.conversations.find(conversation=>conversation.id===activeId)
   const channel=state.channels[activeId]
   const members=useMemo(()=>conversationMembers(active,channel,state.people,state.profiles),[active,channel,state.people,state.profiles])
@@ -111,7 +113,7 @@ export function ChatPanel({crypto,session,device,server,url,accountControls,serv
   const access=(channel?permissions(channel.governance,channel.community.owner_id,session.account.id,activeId,now,channel.admissions.find(a=>a.account_id===session.account.id)?.invitation?.issued_at??null):1023)&(needsRules?~30:1023)
   const canWrite=!!(access&Permission.send)&&(!channel || channel.channel.kind!=='announcement' || channel.community.owner_id===session.account.id)
   const joined=state.joined.includes(activeId)
-  const channelMessages=state.messages.filter(message=>message.conversation_id===activeId)
+  const channelMessages=state.messages.filter(message=>!channelUnavailable&&message.conversation_id===activeId)
   const messages=channelMessages.filter(message=>!state.blocked.includes(message.author_id)).filter(message=>pins?message.pinned:thread?message.thread===thread || message.id===thread:!message.thread)
   const participants=Object.fromEntries(Object.values(state.people).map(person=>[person.account.username,person.account.id]))
   useEffect(()=>{setThread(searchThread.current??'');searchThread.current=null;setPins(false)},[activeId])
@@ -170,7 +172,7 @@ export function ChatPanel({crypto,session,device,server,url,accountControls,serv
           {directMessages.map(conversation=><button key={conversation.id} className={conversation.id===activeId?'selected':''} aria-current={conversation.id===activeId?'page':undefined} onClick={()=>{setSelected(conversation.id);setNavigationOpen(false);setReply(null);setEditing('');setDraft('');setFile(null);setDismissedPreview('')}}><span className="conversation-avatar">{name(conversation.accounts.find(id=>id!==session.account.id)??session.account.id).slice(0,2).toUpperCase()}</span><span>{conversation.accounts.filter(id=>id!==session.account.id).map(name).join(', ')}<small>{state.joined.includes(conversation.id)?'Encrypted':'Preparing this device…'}</small></span></button>)}
         </nav>
       </section>
-<CommunityPanel serverKey={server} pendingInvite={invite} onInviteDone={onInviteDone} ownership={ownership} onLoadGovernance={loadGovernance} onGovernance={(id,policy)=>{if(!service.current)throw new Error('Messaging is opening.');return service.current.saveGovernance(id,policy)}} activeChannel={active?.channel_id ?? undefined} session={session} url={url} onSecure={async(kind,id,code)=>{if(!service.current)throw new Error('Messaging is opening. Retry shortly.');await (kind==='community'?service.current.secureCommunity(id):kind==='join'?service.current.secureJoin(id,code??''):service.current.secureChannel(id))}} onInvite={(id,expiry,uses)=>{if(!service.current)throw new Error('Messaging is opening. Retry shortly.');return service.current.createInvite(id,expiry,uses)}} onOpenChannel={async id=>{setBusy(true);try{const opened=await service.current?.openChannel(id);if(!opened)throw new Error('Encrypted messaging is still opening. Retry shortly.');setSelected(opened);setNavigationOpen(false);setDraft('');setReply(null);setEditing('');setFile(null);setDismissedPreview('')}finally{setBusy(false)}}}/>
+<CommunityPanel onRemoved={onChannelsRemoved} serverKey={server} pendingInvite={invite} onInviteDone={onInviteDone} ownership={ownership} onLoadGovernance={loadGovernance} onGovernance={(id,policy)=>{if(!service.current)throw new Error('Messaging is opening.');return service.current.saveGovernance(id,policy)}} activeChannel={active?.channel_id ?? undefined} session={session} url={url} onSecure={async(kind,id,code)=>{if(!service.current)throw new Error('Messaging is opening. Retry shortly.');await (kind==='community'?service.current.secureCommunity(id):kind==='join'?service.current.secureJoin(id,code??''):service.current.secureChannel(id))}} onInvite={(id,expiry,uses)=>{if(!service.current)throw new Error('Messaging is opening. Retry shortly.');return service.current.createInvite(id,expiry,uses)}} onOpenChannel={async id=>{setBusy(true);try{const opened=await service.current?.openChannel(id);if(!opened)throw new Error('Encrypted messaging is still opening. Retry shortly.');setSelected(opened);setNavigationOpen(false);setDraft('');setReply(null);setEditing('');setFile(null);setDismissedPreview('')}finally{setBusy(false)}}}/>
       <div className="sidebar-bottom">{pendingAccess>0 && <button className="sidebar-action access-action" onClick={()=>setPanel('access')}><Icon name="shield" />Access requests <span className="count-badge">{pendingAccess}</span></button>}
         <button className="sidebar-action" onClick={()=>setPanel('privacy')}><Icon name="shield"/>Privacy & blocked people</button>
         <button className="sidebar-action" onClick={()=>{setDisplayName(state.profiles[session.account.id]?.display_name??'');setBio(state.profiles[session.account.id]?.bio??'');setPanel('profile')}}><Icon name="users" />Profile & presence</button>{serverControls}{accountControls}
@@ -220,6 +222,7 @@ export function ChatPanel({crypto,session,device,server,url,accountControls,serv
           </form>}{Object.keys(state.emoji[activeId]??{}).length>0&&<div className="emoji-picker">{Object.entries(state.emoji[activeId]).map(([alias,file])=><button key={alias} type="button" disabled={!canWrite||busy||state.fatal} title={`Insert :${alias}:`} onClick={()=>setDraft(value=>`${value}:${alias}:`)}><EncryptedImage conversation={activeId} file={file} download={download} emoji/> :{alias}:</button>)}</div>}</>
         </>}
       </div>
+      {channelUnavailable&&<p role="status">This channel is no longer available. Your unsent draft has been kept.</p>}
       {(error || state.error) && <p className="input-error" role="alert">{error || state.error}</p>}
       {state.fatal && isTauri() && state.error===missingLocalHistory && <div className="input-help"><p>Look for your existing encrypted history on this computer. Your key stays in Windows, and existing history will not be overwritten.</p><button className="retry-button" disabled={recoveringHistory} onClick={()=>{setRecoveringHistory(true);setError('');void recoverMessages(messageScope(session.account.id,server,device.device_key)).then(()=>setAttempt(value=>value+1)).catch(error=>setError(error instanceof Error?error.message:'History recovery could not finish. Original data was preserved.')).finally(()=>setRecoveringHistory(false))}}>{recoveringHistory?'Recovering encrypted history…':'Recover existing history'}</button></div>}
       {state.fatal && <button className="retry-button" disabled={recoveringHistory} onClick={()=>setAttempt(value=>value+1)}>Retry messaging</button>}

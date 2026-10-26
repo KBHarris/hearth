@@ -49,7 +49,7 @@ pub(crate) async fn bits(
     policy: Option<&Governance>,
 ) -> Result<u32> {
     let member: bool = sqlx::query_scalar(
-        "SELECT EXISTS(SELECT 1 FROM community_members m JOIN accounts a ON a.id=m.account_id WHERE community_id=$1 AND account_id=$2 AND NOT a.deleted)",
+        "SELECT EXISTS(SELECT 1 FROM community_members m JOIN accounts a ON a.id=m.account_id JOIN communities c ON c.id=m.community_id WHERE m.community_id=$1 AND m.account_id=$2 AND NOT a.deleted AND NOT c.deleted)",
     )
     .bind(community)
     .bind(account)
@@ -88,7 +88,7 @@ async fn member(tx: &mut PgConnection, id: &str, account: &str) -> Result<sqlx::
             .map_err(unavailable)?
             .ok_or(StatusCode::NOT_FOUND)?;
     let member: bool = sqlx::query_scalar(
-        "SELECT EXISTS(SELECT 1 FROM community_members m JOIN accounts a ON a.id=m.account_id WHERE community_id=$1 AND account_id=$2 AND NOT a.deleted)",
+        "SELECT EXISTS(SELECT 1 FROM community_members m JOIN accounts a ON a.id=m.account_id JOIN communities c ON c.id=m.community_id WHERE m.community_id=$1 AND m.account_id=$2 AND NOT a.deleted AND NOT c.deleted)",
     )
     .bind(id)
     .bind(account)

@@ -14,6 +14,8 @@ use sqlx::{PgConnection, Row, postgres::PgRow};
 use tower_http::cors::CorsLayer;
 
 type Result<T> = std::result::Result<T, StatusCode>;
+#[path = "community_deletion.rs"]
+mod deletion;
 fn decode_kind(value: &str) -> Result<ChannelKind> {
     match value {
         "text" => Ok(ChannelKind::Text),
@@ -57,12 +59,13 @@ async fn authenticated(state: &SharedState, headers: &HeaderMap) -> Result<Strin
 }
 async fn owner(tx: &mut PgConnection, community_id: &str, account: &str) -> Result<()> {
     id(community_id)?;
-    let owner: Option<String> =
-        sqlx::query_scalar("SELECT owner_id FROM communities WHERE id=$1 FOR UPDATE")
-            .bind(community_id)
-            .fetch_optional(tx)
-            .await
-            .map_err(unavailable)?;
+    let owner: Option<String> = sqlx::query_scalar(
+        "SELECT owner_id FROM communities WHERE id=$1 AND NOT deleted FOR UPDATE",
+    )
+    .bind(community_id)
+    .fetch_optional(tx)
+    .await
+    .map_err(unavailable)?;
     if owner.as_deref() != Some(account) {
         return Err(StatusCode::FORBIDDEN);
     }
@@ -88,6 +91,12 @@ pub fn routes(origins: &[String]) -> Router<SharedState> {
         .route("/{id}", get(structure))
         .route("/{id}/categories", post(create_category))
         .route("/{id}/channels", post(create_channel))
+        .route("/{id}/delete", post(deletion::community))
+        .route("/{id}/channels/{channel}/delete", post(deletion::channel))
+        .route(
+            "/{id}/categories/{category}/delete",
+            post(deletion::category),
+        )
         .route("/{id}/authority", post(set_authority))
         .route("/{id}/admissions", post(admit_member))
         .route("/channels/{id}/policy", post(set_policy))
@@ -134,11 +143,21 @@ pub(crate) async fn channel_access(
     channel: &str,
     account: &str,
 ) -> Result<Option<ChannelAccess>> {
-    let row = sqlx::query("SELECT c.id AS community_id,c.owner_id,c.authority,c.governance,h.policy,h.kind FROM community_channels h JOIN communities c ON c.id=h.community_id WHERE h.id=$1 FOR SHARE OF c")
+    let row = sqlx::query("SELECT c.id AS community_id,c.owner_id,c.authority,c.governance,c.deleted FROM communities c WHERE c.id=(SELECT h.community_id FROM community_channels h WHERE h.id=$1) FOR SHARE OF c")
         .bind(channel).fetch_optional(&mut *tx).await.map_err(unavailable)?;
     let Some(row) = row else {
         return Ok(None);
     };
+    // Read channel metadata only after the community lock is held. A joined
+    // row read before waiting on that lock can otherwise retain a stale channel.
+    let metadata = sqlx::query("SELECT policy,kind,deleted FROM community_channels WHERE id=$1")
+        .bind(channel)
+        .fetch_one(&mut *tx)
+        .await
+        .map_err(unavailable)?;
+    if row.get::<bool, _>("deleted") || metadata.get::<bool, _>("deleted") {
+        return Err(StatusCode::FORBIDDEN);
+    }
     let community_id: String = row.get("community_id");
     let member: bool = sqlx::query_scalar(
         "SELECT EXISTS(SELECT 1 FROM community_members WHERE community_id=$1 AND account_id=$2)",
@@ -168,10 +187,10 @@ pub(crate) async fn channel_access(
         community_id,
         governance,
         owner_id: row.get("owner_id"),
-        announcement: row.get::<&str, _>("kind") == "announcement",
-        kind: decode_kind(row.get("kind"))?,
+        announcement: metadata.get::<&str, _>("kind") == "announcement",
+        kind: decode_kind(metadata.get("kind"))?,
         authority: decode_optional(row.get("authority"))?,
-        policy: decode_optional(row.get("policy"))?,
+        policy: decode_optional(metadata.get("policy"))?,
     }))
 }
 async fn channel_roster(
@@ -360,7 +379,7 @@ async fn admit_member(
     }
     let invitation = decode_optional::<CommunityInvitation>(
         sqlx::query_scalar(
-            "SELECT invitation FROM community_members WHERE community_id=$1 AND account_id=$2",
+            "SELECT m.invitation FROM community_members m JOIN communities c ON c.id=m.community_id WHERE m.community_id=$1 AND m.account_id=$2 AND NOT c.deleted",
         )
         .bind(&id)
         .bind(&value.account_id)
@@ -456,7 +475,7 @@ async fn list(
     headers: HeaderMap,
 ) -> Result<Json<Vec<Community>>> {
     let account = authenticated(&state, &headers).await?;
-    let rows = sqlx::query("SELECT c.id,c.name,c.owner_id FROM communities c JOIN community_members m ON m.community_id=c.id WHERE m.account_id=$1 ORDER BY c.created_at,c.id")
+    let rows = sqlx::query("SELECT c.id,c.name,c.owner_id FROM communities c JOIN community_members m ON m.community_id=c.id WHERE m.account_id=$1 AND NOT c.deleted ORDER BY c.created_at,c.id")
         .bind(account).fetch_all(&state.db).await.map_err(unavailable)?;
     Ok(Json(rows.iter().map(community).collect()))
 }
@@ -476,7 +495,7 @@ async fn create(
         .await
         .map_err(unavailable)?;
     let count: i64 =
-        sqlx::query_scalar("SELECT count(*) FROM community_members WHERE account_id=$1")
+        sqlx::query_scalar("SELECT count(*) FROM community_members m JOIN communities c ON c.id=m.community_id WHERE m.account_id=$1 AND NOT c.deleted")
             .bind(&account)
             .fetch_one(&mut *tx)
             .await
@@ -517,11 +536,11 @@ async fn structure(
         .execute(&mut *tx)
         .await
         .map_err(unavailable)?;
-    let row = sqlx::query("SELECT c.id,c.name,c.owner_id,c.authority,c.governance FROM communities c JOIN community_members m ON m.community_id=c.id WHERE c.id=$1 AND m.account_id=$2")
+    let row = sqlx::query("SELECT c.id,c.name,c.owner_id,c.authority,c.governance FROM communities c JOIN community_members m ON m.community_id=c.id WHERE c.id=$1 AND m.account_id=$2 AND NOT c.deleted")
         .bind(&community_id).bind(&account).fetch_optional(&mut *tx).await.map_err(unavailable)?.ok_or(StatusCode::FORBIDDEN)?;
     let categories = sqlx::query("SELECT id,community_id,name FROM community_categories WHERE community_id=$1 ORDER BY created_at,id").bind(&community_id).fetch_all(&mut *tx).await.map_err(unavailable)?
         .iter().map(|r| Category { id:r.get("id"), community_id:r.get("community_id"), name:r.get("name") }).collect();
-    let channels = sqlx::query("SELECT id,community_id,category_id,name,kind FROM community_channels WHERE community_id=$1 ORDER BY created_at,id").bind(&community_id).fetch_all(&mut *tx).await.map_err(unavailable)?
+    let channels = sqlx::query("SELECT id,community_id,category_id,name,kind FROM community_channels WHERE community_id=$1 AND NOT deleted ORDER BY created_at,id").bind(&community_id).fetch_all(&mut *tx).await.map_err(unavailable)?
         .iter().map(|r| Ok(Channel { id:r.get("id"), community_id:r.get("community_id"), name:r.get("name"), category_id:r.get("category_id"), kind: match r.get::<&str,_>("kind") { "text"=>ChannelKind::Text,"announcement"=>ChannelKind::Announcement,"forum"=>ChannelKind::Forum,"voice"=>ChannelKind::Voice,"stage"=>ChannelKind::Stage,_=>return Err(StatusCode::SERVICE_UNAVAILABLE) } })).collect::<Result<Vec<_>>>()?;
     let governance = crate::governance::decode(row.get("governance"))?;
     let mut permitted = Vec::new();
@@ -610,12 +629,13 @@ async fn create_channel(
             return Err(StatusCode::BAD_REQUEST);
         }
     }
-    let count: i64 =
-        sqlx::query_scalar("SELECT count(*) FROM community_channels WHERE community_id=$1")
-            .bind(&community_id)
-            .fetch_one(&mut *tx)
-            .await
-            .map_err(unavailable)?;
+    let count: i64 = sqlx::query_scalar(
+        "SELECT count(*) FROM community_channels WHERE community_id=$1 AND NOT deleted",
+    )
+    .bind(&community_id)
+    .fetch_one(&mut *tx)
+    .await
+    .map_err(unavailable)?;
     if count >= 512 {
         return Err(StatusCode::CONFLICT);
     }
@@ -699,7 +719,7 @@ async fn member_invitation(
 ) -> Result<Json<Option<CommunityInvitation>>> {
     let account = authenticated(&state, &headers).await?;
     let value: Option<serde_json::Value> = sqlx::query_scalar(
-        "SELECT invitation FROM community_members WHERE community_id=$1 AND account_id=$2",
+        "SELECT m.invitation FROM community_members m JOIN communities c ON c.id=m.community_id WHERE m.community_id=$1 AND m.account_id=$2 AND NOT c.deleted",
     )
     .bind(id)
     .bind(account)
@@ -732,7 +752,7 @@ async fn join(
             .map_err(unavailable)?
             .ok_or(StatusCode::FORBIDDEN)?;
     let row =
-        sqlx::query("SELECT id,name,owner_id,governance FROM communities WHERE id=$1 FOR UPDATE")
+        sqlx::query("SELECT id,name,owner_id,governance FROM communities WHERE id=$1 AND NOT deleted FOR UPDATE")
             .bind(&community_id)
             .fetch_one(&mut *tx)
             .await
@@ -790,7 +810,7 @@ async fn join(
                 .await
                 .map_err(unavailable)?;
         let own: i64 =
-            sqlx::query_scalar("SELECT count(*) FROM community_members WHERE account_id=$1")
+            sqlx::query_scalar("SELECT count(*) FROM community_members m JOIN communities c ON c.id=m.community_id WHERE m.account_id=$1 AND NOT c.deleted")
                 .bind(&account)
                 .fetch_one(&mut *tx)
                 .await
