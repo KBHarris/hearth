@@ -1,0 +1,13 @@
+{
+  "date": "2026-10-25",
+  "outcome": "user_reported_pass",
+  "clientVersion": "0.4.2",
+  "sourceCommit": "b3a1101",
+  "scope": "User confirms the recovery action works after reporting the normal-profile missing-history error. This is manual acceptance, not instrumented telemetry.",
+  "userStatement": "Yes it works but will people have to do that every time?",
+  "recoveryReportedSuccessful": true,
+  "repeatLaunchValidated": false,
+  "rebootValidated": false,
+  "freshMachineValidated": false,
+  "mediaOrInternetAcceptanceValidated": false
+}

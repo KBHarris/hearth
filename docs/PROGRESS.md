@@ -1,5 +1,12 @@
 # Progress
 
+**Normal-profile recovery accepted, 2026-10-25:** the user confirms that local
+0.4.2 recovery works. The reported missing-history startup blocker is resolved
+by manual acceptance, not measured telemetry. Restored history is saved in the
+normal profile for future launches; repeated-launch/reboot behavior has not yet
+been observed. [User acceptance](evidence/windows-history-recovery-user-acceptance-2026-10-25.json).
+Earlier pending checkpoints below retain their original scope.
+
 **Missing history identified, 2026-10-25:** the normal Windows client can access
 its saved encryption key but has no corresponding history file in that profile.
 Signed local 0.4.2 is installed and adds explicit recovery of one matching earlier encrypted store,

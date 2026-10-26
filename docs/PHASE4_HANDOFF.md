@@ -1,14 +1,12 @@
 # Phase 4 closeout checkpoint - 2026-10-25
 
-**Latest real-use issue:** 0.4.1 confirms the existing Windows key has no matching
-history file in the normal profile. Signed local 0.4.2 is installed with a **Recover existing history**
-action: authenticate an earlier encrypted snapshot with the existing key, preserve
-its source and atomically restore only a missing store. Never overwrite existing
-history, reset keys or merge profiles. See `docs/MESSAGING_STARTUP_RECOVERY.md`.
-Client checks pass 157 tests; native checks pass 17 plus clippy. All five installation/preservation checks pass; the original profile/store files
-are unchanged. See `docs/evidence/windows-history-recovery-0.4.2-2026-10-25.json`.
-Actual recovery needs a normal Windows-menu launch, user sign-in and the
-recovery click. No broad media rerun or server update is needed.
+**Latest real-use result:** the user confirms normal-profile recovery works in
+local 0.4.2. The reported missing-history startup issue is resolved by user
+acceptance; see `docs/evidence/windows-history-recovery-user-acceptance-2026-10-25.json`.
+Recovery saves the verified history in the normal profile using the existing key;
+it is a one-time repair, not a normal launch step. Repeat launches and reboot
+have not yet been observed. Existing broader media/network/platform manual gates
+remain open. The published release/server remain 0.4.0; local client is 0.4.2.
 
 **Local automated release work is complete.** Preview 0.4.0 is published:
 https://github.com/KBHarris/hearth/releases/tag/v0.4.0

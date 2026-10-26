@@ -313,11 +313,11 @@ tools, manual commands or secrets in diagnostic exports. See
 
 ## Phase 4: Cloud hosting, voice, video, and events
 
-**Current real-use blocker, 2026-10-25:** normal sign-in confirms a saved key
-with a missing history file in this Windows profile. Signed local 0.4.2 is installed with explicit,
-verified recovery of one earlier encrypted store without key replacement or
-profile merging. Automated recovery checks pass; normal-profile recovery still
-needs the user's sign-in/action. See [recovery details](MESSAGING_STARTUP_RECOVERY.md).
+**Normal-profile recovery accepted, 2026-10-25:** the user confirms local 0.4.2
+recovery works. The reported saved-key/missing-history startup blocker is resolved
+by [manual acceptance](evidence/windows-history-recovery-user-acceptance-2026-10-25.json).
+The recovered file persists in the normal profile; repeated-launch and reboot
+acceptance remain unobserved. Other real-device/network/platform gates remain open.
 
 **Local automated release work complete, 2026-10-25.** Preview 0.4.0 is published;
 all 14 public downloads match the validated signed bundle. The installed Windows

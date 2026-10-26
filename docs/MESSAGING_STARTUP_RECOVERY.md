@@ -72,3 +72,17 @@ Actual recovery is still pending the user's normal Windows-menu launch, sign-in
 and **Recover existing history** click.
 No original history has been reset or overwritten. Installed 0.4.1 profiles were
 backed up and verified unchanged. Railway remains paused and Spotify disabled.
+
+## User acceptance
+
+On 2026-10-25 the user confirmed: “Yes it works”.
+[Manual record](evidence/windows-history-recovery-user-acceptance-2026-10-25.json).
+This closes the reported startup blocker by user acceptance. It does not establish
+repeat-launch, reboot, fresh-machine or media/network behavior. The installation
+report predates the recovery action and remains unchanged.
+
+Recovery places the verified file in the normal profile, where ordinary reads and
+writes continue. The button is offered only when a saved key exists and the
+corresponding file is missing. It is a one-time repair for the earlier location
+mismatch. Fresh installations create their key/file together, and ordinary upgrades
+retain them; recovery is not part of the normal launch/sign-in flow.
