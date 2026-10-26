@@ -9,6 +9,9 @@ use tauri::Manager;
 use zeroize::Zeroizing;
 const SERVICE: &str = "chat.hearth.message-store.v1";
 const ERROR: &str = "The encrypted message store is locked, damaged or changed in another window. Preserve it, unlock the system key store and sign in again.";
+const MISSING_HISTORY: &str = "The saved encryption key exists, but encrypted history is missing from this Windows profile. Keep the original profile and history files; do not reset your keys.";
+const MISSING_KEY: &str = "Encrypted history exists, but its saved encryption key is unavailable in this Windows profile. Keep the original files and sign in from the original Windows profile.";
+const KEY_STORE_UNAVAILABLE: &str = "The system key store could not be opened. Unlock your Windows session and try again. Existing encrypted history was preserved.";
 const MAX_ENVELOPE: usize = (8 * 1024 * 1024 + 41) * 2;
 #[derive(Clone, Serialize)]
 pub struct StoredState {
@@ -84,17 +87,20 @@ fn store(
         .map_err(|_| ERROR)?;
     lock.lock().map_err(|_| ERROR)?;
     let existed = path.exists();
-    let entry = Entry::new(service, scope).map_err(|_| ERROR)?;
+    let entry = Entry::new(service, scope).map_err(|_| KEY_STORE_UNAVAILABLE)?;
     let key = match entry.get_secret() {
         Ok(bytes) => {
-            if bytes.len() != 32 || !existed {
+            if bytes.len() != 32 {
                 return Err(ERROR.into());
+            }
+            if !existed {
+                return Err(MISSING_HISTORY.into());
             }
             Zeroizing::new(bytes)
         }
         Err(Error::NoEntry) => {
             if existed {
-                return Err(ERROR.into());
+                return Err(MISSING_KEY.into());
             }
             if write.is_none() {
                 return Ok(None);
@@ -111,7 +117,7 @@ fn store(
             }
             saved
         }
-        Err(_) => return Err(ERROR.into()),
+        Err(_) => return Err(KEY_STORE_UNAVAILABLE.into()),
     };
     if !existed {
         if write.is_none() {

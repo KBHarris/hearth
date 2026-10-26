@@ -62,7 +62,7 @@ export class DirectCall {
   constructor(transport:CallTransport,changed:(state:CallState)=>void,capture=(constraints:MediaStreamConstraints)=>navigator.mediaDevices.getUserMedia(constraints),displayCapture=captureDisplay,edge?:GroupEdge){
     this.edge=edge
     this.transport=transport;this.changed=changed;this.capture=capture;this.displayCapture=displayCapture
-    this.disposeListener=transport.onCall(event=>{const generation=this.generation;this.serial=this.serial.then(()=>this.receive(event)).catch(()=>{if(generation===this.generation)this.finish('Call verification failed. Start a new call.')})},conversation=>{if(!conversation||conversation===this.state.conversation)this.finish('Encryption or authentication changed. Start a new call.')},(conversation,epoch)=>this.epochChanged(conversation,epoch))
+    this.disposeListener=transport.onCall(event=>{const generation=this.generation;this.serial=this.serial.then(()=>this.receive(event)).catch(()=>{if(generation===this.generation)this.finish('Call verification failed. Start a new call.')})},conversation=>{if(this.active&&(!conversation||conversation===this.state.conversation))this.finish('Encryption or authentication changed. Start a new call.')},(conversation,epoch)=>this.epochChanged(conversation,epoch))
   }
   private publish(patch:Partial<CallState>){this.state={...this.state,...patch};this.changed(this.state)}
   private check(offer:CallSignal){if(this.offer!==offer||!this.active)throw new Error('Call ended')}

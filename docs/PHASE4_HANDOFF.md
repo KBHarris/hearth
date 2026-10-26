@@ -1,5 +1,11 @@
 # Phase 4 closeout checkpoint - 2026-10-25
 
+**Latest real-use issue:** normal sign-in to 0.4.0 cannot open encrypted messaging.
+The saved server is visible. A local 0.4.1 diagnostic patch is being prepared;
+the actual storage failure is not yet identified or repaired. See
+`docs/MESSAGING_STARTUP_RECOVERY.md`; preserve original keys, databases and profiles.
+The completed release/upgrade checkpoint below does not establish this manual gate.
+
 **Local automated release work is complete.** Preview 0.4.0 is published:
 https://github.com/KBHarris/hearth/releases/tag/v0.4.0
 

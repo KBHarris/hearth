@@ -1,5 +1,14 @@
 # Progress
 
+**Real-use messaging gate reopened, 2026-10-25:** the user reports encrypted
+messaging failing immediately after normal sign-in to 0.4.0, despite the saved
+server sidebar working. Retry reproduces it. A local 0.4.1 diagnostic patch
+preserves fixed native storage errors and removes idle call-ended notices;
+156 client tests and 14 native tests pass. The underlying storage condition is
+still unconfirmed; no keys or history were reset. See
+[the startup investigation](MESSAGING_STARTUP_RECOVERY.md). The published 0.4.0
+release and prior local acceptance evidence retain their original scope.
+
 **Released and upgraded, 2026-10-25:** [Preview 0.4.0](https://github.com/KBHarris/hearth/releases/tag/v0.4.0)
 is published. All 14 public assets match the validated local checksums. The
 installed Windows client and original selected server are both 0.4.0 at source

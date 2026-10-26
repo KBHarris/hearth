@@ -1,4 +1,5 @@
 import {invoke,isTauri} from '@tauri-apps/api/core'
+import {messageStorageError} from './message-storage-error.ts'
 export type StoredState={revision:number;envelope:string}
 const DATABASE='hearth-messages-v1'
 const STORE='states'
@@ -23,7 +24,11 @@ function open():Promise<IDBDatabase> {
   })
 }
 export async function readMessages(scope:string):Promise<StoredState|null> {
-  if(isTauri())return validate(await invoke('message_store_read',{scope}))
+  if(isTauri()){
+    let saved:unknown
+    try{saved=await invoke('message_store_read',{scope})}catch(error){throw messageStorageError(error)}
+    return validate(saved)
+  }
   const db=await open()
   try {return await new Promise((resolve,reject)=>{
     const tx=db.transaction(STORE,'readonly');const request=tx.objectStore(STORE).get(scope)
@@ -35,7 +40,9 @@ export async function readMessages(scope:string):Promise<StoredState|null> {
 export async function writeMessages(scope:string,revision:number,sealed:string):Promise<StoredState> {
   if(!envelope(sealed) || !Number.isSafeInteger(revision) || revision<0 || revision>=Number.MAX_SAFE_INTEGER)throw new Error(ERROR)
   if(isTauri()) {
-    const saved=validate(await invoke('message_store_write',{scope,revision,envelope:sealed}));if(!saved || saved.revision!==revision+1)throw new Error(ERROR);return saved
+    let result:unknown
+    try{result=await invoke('message_store_write',{scope,revision,envelope:sealed})}catch(error){throw messageStorageError(error)}
+    const saved=validate(result);if(!saved || saved.revision!==revision+1)throw new Error(ERROR);return saved
   }
   const db=await open()
   try {return await new Promise((resolve,reject)=>{
