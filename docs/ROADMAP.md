@@ -317,8 +317,11 @@ tools, manual commands or secrets in diagnostic exports. See
   exact-name confirmation, retained drafts and server-enforced access removal.
   Category deletion keeps channels. Saved encrypted content and backups are
   retained; see [management instructions](COMMUNITY_MANAGEMENT.md). Focused local
-  checks pass; the signed 0.4.3 installer/server bundle is built at `e462db9`.
-  Installed package acceptance, publication and upgrade await Hearth being closed.
+  checks pass; Preview 0.4.3 at `e462db9` is published and installed on both the
+  Windows client and original server (2026-10-27). All 16 packaged upgrade checks
+  and 14 public asset checks pass; migration 32, preserved profiles/keys/encrypted
+  history and healthy SFU/relay services are confirmed.
+  [Upgrade evidence](evidence/preview-0.4.3-publication-upgrade-2026-10-27.json).
 
 **Normal-profile recovery accepted, 2026-10-25:** the user confirms local 0.4.2
 recovery works. The reported saved-key/missing-history startup blocker is resolved

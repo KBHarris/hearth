@@ -1,5 +1,21 @@
 # Progress
 
+**Deletion update released and installed, 2026-10-27:**
+[Preview 0.4.3](https://github.com/KBHarris/hearth/releases/tag/v0.4.3) is published,
+and both the Windows client and original selected server run frozen source
+`e462db9`. All 16 packaged upgrade checks pass, and all 14 public downloads match
+the signed validated bundle. The actual server update completed its backup and
+restore rehearsal; migration 32 is applied. Operator credentials, signing/OPAQUE
+keys, accounts/devices, durable encrypted history and storage match the fresh
+protected baseline. Native profile and saved host configuration preservation
+checks pass. Server health, SFU and relay services pass. No installed user
+community or channel was deleted during validation. Normal Start-menu use of this
+new version and physical/network/platform acceptance remain manual; Railway and
+hosted CI remain paused, Spotify disabled. [Sanitized upgrade evidence](evidence/preview-0.4.3-publication-upgrade-2026-10-27.json).
+Open the community gear for the new [deletion controls](COMMUNITY_MANAGEMENT.md).
+
+The dated checkpoints below retain their original scope and pending states.
+
 **Community deletion controls, 2026-10-25:** owner-only channel, category and
 community deletion is implemented with exact-name confirmation. Removing a
 category preserves its channels. Removing channels/communities blocks subsequent

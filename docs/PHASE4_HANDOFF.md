@@ -1,22 +1,36 @@
-# Phase 4 closeout checkpoint - 2026-10-25
+# Phase 4 closeout checkpoint - 2026-10-27
 
-**Current follow-up:** community deletion controls are implemented and focused
-local checks pass. See `docs/COMMUNITY_MANAGEMENT.md`. Three isolated server
-deletion tests include an access/deletion concurrency regression; normal npm
-verification passes 159 client, 49 SDK and 15 deployment tests. Server unit tests
-pass 17, with clippy/format clean. All six real browser checks pass, including
-visible responsive confirmation. The signed Preview 0.4.3 client/server bundle
-is built at `target/manual-test/release/guided-e462db9` from source `e462db9`.
-The user has been asked to close Hearth before installed package acceptance.
-Do not install until they reply closed. Next: take a fresh protected host baseline
-with `target/phase4-sfu-evidence/verify-deletion-host.mjs before`, then run
-`scripts/verify-test-bundle.mjs target/manual-test/release/guided-e462db9 --upgrade-installed`.
-Prepare/publish only after package validation passes; version-scoped publication,
-download, selected-host update and preservation helpers are under ignored
-`target/phase4-sfu-evidence/*deletion*`. Old baselines and failed evidence remain
-intact. Installed client remains 0.4.2; existing server/public release remain
-0.4.0. Do not repeat
-the unrelated 25-person media run. No installed user community has been deleted.
+**Current installed state:** Preview 0.4.3 is published and installed on the
+Windows client and original selected server, from frozen source `e462db9`.
+https://github.com/KBHarris/hearth/releases/tag/v0.4.3
+
+The user closed Hearth before installation. All 16 packaged upgrade checks pass;
+all 14 public assets match the validated signed bundle. The native server update
+completed backup/restore rehearsal and applied migration 32. Fresh before/after
+comparison confirms operator credentials, signing/OPAQUE keys, accounts/devices,
+durable encrypted history and storage are preserved. Native profile and host
+selection checks pass. The actual installed client bytes match the frozen build
+with the verified NSIS marker substitution. Server is healthy; SFU/relay run.
+See `docs/evidence/preview-0.4.3-publication-upgrade-2026-10-27.json`.
+
+Deletion controls have six passing real-browser checks, three isolated database
+checks (including concurrent access/deletion and account ownership), 159 client,
+49 SDK, 15 deployment and 17 server unit tests, plus server clippy/format. See
+`docs/COMMUNITY_MANAGEMENT.md`. Category deletion keeps channels; channel/community
+deletion revokes access while retaining encrypted content and identifiers. No
+installed user community/channel was deleted during validation. The client is
+closed after diagnostic checks; normal Start-menu launch/sign-in and physical
+device/network/platform acceptance remain manual.
+
+The validated bundle is `target/manual-test/release/guided-e462db9`. Version-scoped
+helpers/evidence remain under ignored `target/phase4-sfu-evidence/*deletion*`.
+Never overwrite `target/phase4-private-state/before-deletion-0.4.3.json` or the
+earlier 0.4.0 baseline. Railway/hosted CI remain paused; Spotify remains disabled.
+No further rebuild or broad 25-person media run is required for this patch.
+
+## Earlier recovery and 0.4.0 checkpoints (2026-10-25)
+
+The following records retain their original historical scope.
 
 **Latest real-use result:** the user confirms normal-profile recovery works in
 local 0.4.2. The reported missing-history startup issue is resolved by user
@@ -24,7 +38,8 @@ acceptance; see `docs/evidence/windows-history-recovery-user-acceptance-2026-10-
 Recovery saves the verified history in the normal profile using the existing key;
 it is a one-time repair, not a normal launch step. Repeat launches and reboot
 have not yet been observed. Existing broader media/network/platform manual gates
-remain open. The published release/server remain 0.4.0; local client is 0.4.2.
+remain open. At that recovery checkpoint the published release/server were
+0.4.0 and the local client was 0.4.2.
 
 **Local automated release work is complete.** Preview 0.4.0 is published:
 https://github.com/KBHarris/hearth/releases/tag/v0.4.0
