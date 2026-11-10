@@ -210,12 +210,12 @@ void run().catch(async(error:unknown)=>{
     const known:Record<string,string>={
       'Acceptance assertion failed':'assertion',
       'Acceptance timed out':'acceptance_timeout',
-      'Authentication was interrupted. Please try again.':'worker_interrupted',
+      'Sign-in was interrupted. Try again.':'worker_interrupted',
       'The password or authentication exchange could not be verified.':'auth_crypto',
-      'The identity operation could not be verified. Check your kit, passphrase, account and server; existing keys were preserved.':'identity_crypto',
-      'Your system key store is unavailable or locked. Unlock it and try again.':'key_store',
+      'Check your recovery kit, backup password, account and server, then try again. Your existing account keys were kept. Nothing was lost.':'identity_crypto',
+      'Your computer’s secure key storage is locked or unavailable. Unlock it and try again.':'key_store',
       'Encrypted storage failed':'encrypted_storage',
-      'The message was rejected after an encryption or permission update. Retry after updates arrive.':'message_epoch_conflict',
+      'Your message wasn’t sent because the channel’s encryption or permissions were updating. Wait a moment and try again.':'message_epoch_conflict',
     }
     failure=known[message] ?? failure
   }

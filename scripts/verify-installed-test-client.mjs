@@ -115,7 +115,7 @@ export async function verifyInstalledTestClient({ bundle, origin, output, hostPr
       return (await response.json()).find(target => target.type === 'page' && target.webSocketDebuggerUrl && /tauri[.:]/.test(target.url))
     }, 'production WebView2 startup', 45000)
     cdp = await devtools(target.webSocketDebuggerUrl)
-    await eventually(() => cdp.evaluate('document.querySelectorAll(".setup-choice").length===2'), 'Host/Join welcome')
+    await eventually(() => cdp.evaluate('document.querySelectorAll(".setup-choice").length===3'), 'Host/Join welcome')
     const metadata = await cdp.evaluate('Promise.all([window.__TAURI_INTERNALS__.invoke("plugin:app|version"),window.__TAURI_INTERNALS__.invoke("plugin:app|identifier"),window.__TAURI_INTERNALS__.invoke("protocol_version")])')
     assert.deepEqual(metadata, [manifest.client.version, manifest.client.identifier, 1])
     checks.installed_release_has_correct_version_profile_and_native_ipc = true
@@ -123,7 +123,7 @@ export async function verifyInstalledTestClient({ bundle, origin, output, hostPr
     checks.installed_binary_embeds_matching_source_revision=true
     async function reviewLink(expected) {
       await eventually(()=>cdp.evaluate('[...document.querySelectorAll("button")].some(e=>e.textContent==="Review invite")'),'native invite handoff')
-      assert.equal(await cdp.evaluate('document.querySelectorAll(".setup-screen .setup-choice").length'),2,'OS links must preserve the existing screen until reviewed')
+      assert.equal(await cdp.evaluate('document.querySelectorAll(".setup-screen .setup-choice").length'),3,'OS links must preserve the existing screen until reviewed')
       await cdp.evaluate('[...document.querySelectorAll("button")].find(e=>e.textContent==="Review invite").click()')
       assert.equal(await cdp.evaluate('document.querySelector("dialog #setup-address")?.value'),expected)
       assert.equal(await cdp.evaluate('document.querySelectorAll("dialog .setup-result").length'),0,'Opening a link must not connect automatically')
@@ -151,7 +151,7 @@ export async function verifyInstalledTestClient({ bundle, origin, output, hostPr
       await eventually(()=>cdp.evaluate('document.querySelector(".hosting-panel")?.textContent.includes("Stopped")'),'native stop',180000)
       await cdp.evaluate('[...document.querySelectorAll(".hosting-panel button")].find(e=>e.textContent==="Start server").click()')
       await eventually(()=>cdp.evaluate('document.querySelector(".hosting-panel")?.textContent.includes("Running")'),'native start',180000)
-      await cdp.evaluate('document.querySelector(".hosting-panel details").open=true;[...document.querySelectorAll(".hosting-panel button")].find(e=>e.textContent==="Get owner setup code").click()')
+      await cdp.evaluate('[...document.querySelectorAll(".hosting-panel button")].find(e=>e.textContent==="Get owner setup code").click()')
       assert.match(await eventually(()=>cdp.evaluate('document.querySelector("#local-owner-code")?.value'),'protected local setup code'),/^[a-f0-9]{64}$/)
       checks.installed_host_ui_starts_stops_and_retrieves_setup_code_without_terminal=true
       await screenshot('installed-hosting.png')

@@ -76,7 +76,7 @@ export class VoiceRoomCall {
     this.fault={operation,name:error instanceof Error?error.name:'untyped',locations:error instanceof Error?error.stack?.split('\n').map(line=>line.match(/(?:voice-room|group-admission|direct-call|messaging-session)\.ts:\d+:\d+/)?.[0]).filter((line):line is string=>!!line).slice(0,5):[]}
     const cryptoOperation=(error as {cryptoOperation?:unknown})?.cryptoOperation;if(typeof cryptoOperation==='string'&&/^[a-z_]{1,40}$/.test(cryptoOperation))this.fault.cryptoOperation=cryptoOperation
     const status=(error as {status?:unknown})?.status;if(typeof status==='number')this.fault.status=status
-    const reason=['Your voice room participation is no longer active.','The voice room roster moved backwards.','Encrypted message or device verification failed. Existing data was preserved; sign in again to retry.','Group call ended during key agreement','Unknown SFU participant'].indexOf(error instanceof Error?error.message:'');if(reason>=0)this.fault.reason=reason
+    const reason=['You are no longer in this voice room. Join again to reconnect.','Hearth saw an out-of-date list of people in this room, so it disconnected you to stay safe. Join again to reconnect.','Hearth could not confirm that a message or device was genuine, so it stopped. Nothing was lost. Sign in again to retry.','Group call ended during key agreement','Unknown SFU participant'].indexOf(error instanceof Error?error.message:'');if(reason>=0)this.fault.reason=reason
   }
   failureDiagnostics(){return this.fault}
   private transport:VoiceTransport
@@ -99,7 +99,7 @@ export class VoiceRoomCall {
         else if(event.signal.expires_at>Date.now()){
           if(this.pending.length<128)this.pending.push(event)
           const generation=this.generation
-          void this.refresh().catch(error=>{if(generation===this.generation){this.failed('sfu-refresh',error);if(transient(error))this.recover('Reconnecting encrypted room signaling…');else this.finish('SFU room access was lost.')}})
+          void this.refresh().catch(error=>{if(generation===this.generation){this.failed('sfu-refresh',error);if(transient(error))this.recover('Reconnecting…');else this.finish('Your access to this voice room couldn’t be confirmed, so you were disconnected. Join again to try.')}})
         }
         return
       }
@@ -108,33 +108,33 @@ export class VoiceRoomCall {
         if(event.signal.expires_at<=Date.now()||event.signal.expires_at>Date.now()+65_000)return
         // The MLS engine authenticates the parent broadcast to the selected room
         // roster. Each child consumes liveness only for that authenticated peer.
-        try{const flags=this.remoteMedia.receive(event.signal.from_device,event.signal.description);if(flags)this.publish({participants:this.state.participants.map(person=>person.device===event.signal.from_device?{...person,...flags}:person)})}catch{this.finish('Room media state could not be verified.');return}
+        try{const flags=this.remoteMedia.receive(event.signal.from_device,event.signal.description);if(flags)this.publish({participants:this.state.participants.map(person=>person.device===event.signal.from_device?{...person,...flags}:person)})}catch{this.finish('The voice room hit a problem and had to stop. Join again to reconnect.');return}
         edge.listener?.({...event,signal:{...event.signal,kind:'heartbeat',description:null,call_id:edge.id,to_device:this.transport.callDevice}});return
       }
       if(this.matches(event.signal)&&edge?.id===event.signal.call_id){edge.listener?.(event);return}
       if(event.signal.kind==='offer'&&event.signal.expires_at>Date.now()){
         if(this.pending.length<8)this.pending.push(event)
         const generation=this.generation
-        void this.refresh().catch(error=>{if(generation===this.generation){this.failed('offer-refresh',error);this.finish('Voice room access was lost.')}})
+        void this.refresh().catch(error=>{if(generation===this.generation){this.failed('offer-refresh',error);this.finish('Your access to this voice room couldn’t be confirmed, so you were disconnected. Join again to try.')}})
       }
-    },id=>{if(!id||id===this.state.channel)this.finish('Voice room ended because encryption or access changed.')},(id,epoch)=>{if(id===this.state.channel&&(!epoch||epoch>(this.own?.epoch??0)))this.recover('Updating room encryption…',epoch??(this.own?.epoch??0)+1)})
+    },id=>{if(!id||id===this.state.channel)this.finish('Encryption or someone’s access changed, so you were disconnected to keep the room private. Join again to reconnect.')},(id,epoch)=>{if(id===this.state.channel&&(!epoch||epoch>(this.own?.epoch??0)))this.recover('Securing the room again…',epoch??(this.own?.epoch??0)+1)})
   }
   get busy(){return this.active}
   private publish(patch:Partial<VoiceState>){this.state={...this.state,...patch};this.changed(this.state)}
   private current(generation=this.generation){if(!this.active||generation!==this.generation)throw new Error('You left the voice room')}
-  private checkMesh(version:number){this.current();if(version!==this.mesh||!this.admission||this.admission.stopped)throw new Error('Voice room membership changed')}
+  private checkMesh(version:number){this.current();if(version!==this.mesh||!this.admission||this.admission.stopped)throw new Error('The people in the room changed. Try again.')}
   private matches(signal:CallSignal){const context=this.admission?.context;return !!context&&signal.voice_room===context.voiceRoom&&signal.group_id===context.id&&signal.epoch===context.epoch&&signal.relay_only===context.relayOnly&&JSON.stringify(signal.participants)===JSON.stringify(context.participants)}
   async join(channel:string,relayOnly=false,ice:RTCIceServer[]=[]){
     if(this.active||!this.available())throw new Error('Leave the current call first.')
-    if(!callCapability())throw new Error('This runtime cannot encrypt voice frames.')
-    if(relayOnly&&!ice.some(server=>(Array.isArray(server.urls)?server.urls:[server.urls]).some(url=>/^turns?:/.test(url))))throw new Error('Relay-only voice rooms need a configured TURN relay.')
+    if(!callCapability())throw new Error('This app or browser can’t join encrypted voice rooms. Update it or try another browser.')
+    if(relayOnly&&!ice.some(server=>(Array.isArray(server.urls)?server.urls:[server.urls]).some(url=>/^turns?:/.test(url))))throw new Error('Relay only voice rooms need a relay, but this server has no relay set up. Hearth did not try a direct connection.')
     this.active=true;this.fault=null;this.recoveries=[];const generation=++this.generation;this.created=this.checkedAt=Date.now();this.ice=ice
-    this.publish({...idleVoice,phase:'joining',channel,relayOnly,message:'Checking voice room access…'})
+    this.publish({...idleVoice,phase:'joining',channel,relayOnly,message:'Checking access to this room…'})
     this.timer=setInterval(()=>this.watch(),1000)
     try{
       const initial=await this.transport.voiceRoom(channel);this.current(generation)
       this.speakConsent=!!((initial.permissions?.[this.transport.callDevice]??MEDIA_PERMISSIONS)&Permission.speak)
-      if(initial.room.participants.length&&initial.room.relay_only!==relayOnly)throw new Error('This room has a different connection privacy setting. Refresh the room and review it before joining.')
+      if(initial.room.participants.length&&initial.room.relay_only!==relayOnly)throw new Error('This room’s relay only setting is different from what you chose. Refresh the room and check it before joining.')
       const context:GroupContext={server:this.server,conversation:channel,id:initial.room.room_id,epoch:initial.room.epoch,host:this.transport.callDevice,participants:[this.transport.callDevice],relayOnly,voiceRoom:initial.room.room_id,...(initial.room.sfu?{sfu:true as const}:{})}
       const contribution=await GroupKeyAgreement.create(context,this.transport.callDevice)
       if(!this.active||generation!==this.generation){contribution.close();return}
@@ -168,28 +168,28 @@ export class VoiceRoomCall {
     if(!(ownPermissions&Permission.speak)){this.speakConsent=false;this.stopSource()}
     if(!(ownPermissions&Permission.camera))this.stopVideo('camera')
     if(!(ownPermissions&Permission.screen))this.stopVideo('screen')
-    if(!this.own||room.channel_id!==this.state.channel||room.room_id!==this.own.room_id||room.epoch!==this.own.epoch||room.sfu!==this.own.sfu||room.relay_only!==this.state.relayOnly||!own||own.incarnation!==this.own.incarnation||own.public_key!==this.own.public_key)throw new Error('Your voice room participation is no longer active.')
+    if(!this.own||room.channel_id!==this.state.channel||room.room_id!==this.own.room_id||room.epoch!==this.own.epoch||room.sfu!==this.own.sfu||room.relay_only!==this.state.relayOnly||!own||own.incarnation!==this.own.incarnation||own.public_key!==this.own.public_key)throw new Error('You are no longer in this voice room. Join again to reconnect.')
     const manifest=voiceManifest(room)
-    if(previous&&(room.revision<previous.revision||room.revision===previous.revision&&manifest!==voiceManifest(previous)))throw new Error('The voice room roster moved backwards.')
+    if(previous&&(room.revision<previous.revision||room.revision===previous.revision&&manifest!==voiceManifest(previous)))throw new Error('Hearth saw an out-of-date list of people in this room, so it disconnected you to stay safe. Join again to reconnect.')
     this.own={...this.own,expires_at:own.expires_at};this.snapshot=view
     if(previous&&manifest===voiceManifest(previous)){this.admission?.refresh(room);return}
-    const version=++this.mesh;this.admission?.end('Voice room membership changed');this.agreement?.close();this.agreement=null
+    const version=++this.mesh;this.admission?.end('The people in the room changed. Try again.');this.agreement?.close();this.agreement=null
     const preserveVideo=(!!previous&&room.participants.length>1)||this.retainedCapture
     const videoWasActive=this.state.camera||this.state.sharing||this.state.cameraPending||this.state.sharingPending
     this.sfu?.close();this.sfu=null;this.sfuKeys?.close();this.sfuKeys=null;this.sfuPublishedKeys=false
     if(!preserveVideo){this.stopVideo('camera');this.stopVideo('screen')}
-    else{this.videoVersion.camera++;this.videoVersion.screen++;this.publish({cameraPending:false,sharingPending:false,mediaNotice:videoWasActive?'Refreshing encrypted media for the changed room…':''})}
+    else{this.videoVersion.camera++;this.videoVersion.screen++;this.publish({cameraPending:false,sharingPending:false,mediaNotice:videoWasActive?'Reconnecting your camera or screen sharing…':''})}
     this.remoteMedia.clear();this.mediaRevision=1
-    if(videoWasActive&&!preserveVideo)this.publish({mediaNotice:'Room membership changed. Turn your camera or screen sharing on again when ready.'})
+    if(videoWasActive&&!preserveVideo)this.publish({mediaNotice:'The people in the room changed. Turn your camera or screen sharing on again when you’re ready.'})
     this.lastHeartbeat=0
     for(const edge of this.edges.values())edge.call.close();this.edges.clear()
     this.publish({participants:room.participants.map(peer=>({device:peer.device_key,account:conversation.members.find(member=>member.enrollment.device_key===peer.device_key)!.account_id,remote:null,phase:peer.device_key===this.transport.callDevice?'You':'Connecting'}))})
-    if(room.participants.length===1){this.admission=null;if(!this.retainedCapture)this.stopSource();this.connectUntil=this.retainedCapture?Date.now()+30_000:0;this.publish({phase:'waiting',message:this.retainedCapture?'Encryption updated. Waiting for room participants; capture is paused.':'You’re in the room. Your microphone is off until someone joins.'});return}
+    if(room.participants.length===1){this.admission=null;if(!this.retainedCapture)this.stopSource();this.connectUntil=this.retainedCapture?Date.now()+30_000:0;this.publish({phase:'waiting',message:this.retainedCapture?'The room was secured again. Waiting for others; your microphone, camera and screen sharing are paused.':'You’re in the room. Your microphone is off until someone joins.'});return}
     const context=await voiceContext(this.server,room);this.current(generation);if(version!==this.mesh)return
     const admission=new VoiceMembership(context,this.transport.callDevice,room);this.admission=admission
     this.agreement=this.contribution!.forkForRoom(context)
-    this.connectUntil=Date.now()+(room.sfu?90_000:45_000);this.publish({phase:'connecting',message:room.sfu?'Connecting encrypted SFU room…':'Connecting encrypted room audio…'})
-    if(room.sfu){void this.startSfu(room,admission,version).catch(error=>{if(this.active&&version===this.mesh){this.failed('sfu-start',error);if(transient(error))this.recover('Reconnecting encrypted room signaling…');else this.finish('The encrypted SFU room could not connect.')}});return}
+    this.connectUntil=Date.now()+(room.sfu?90_000:45_000);this.publish({phase:'connecting',message:room.sfu?'Connecting to the voice server…':'Connecting…'})
+    if(room.sfu){void this.startSfu(room,admission,version).catch(error=>{if(this.active&&version===this.mesh){this.failed('sfu-start',error);if(transient(error))this.recover('Reconnecting…');else this.finish('Hearth couldn’t connect to the voice server. Join again to try.')}});return}
     const ids=await Promise.all(context.participants.filter(peer=>peer!==this.transport.callDevice).map(async peer=>[peer,await groupEdgeId(context,this.transport.callDevice,peer,admission.transcript())] as const));this.checkMesh(version)
     for(const [peer,id] of ids){
       const edge={} as Edge
@@ -201,17 +201,17 @@ export class VoiceRoomCall {
         onCall:listener=>{edge.listener=listener;return()=>{edge.listener=undefined}},
       }
       edge.id=id;edge.answering=false
-      edge.call=new DirectCall(transport,state=>{if(version===this.mesh)this.edgeChanged(peer,state,version)},async()=>{this.checkMesh(version);const stream=await this.microphone();if(version!==this.mesh){stream.getTracks().forEach(track=>track.stop());throw new Error('Room changed during capture')}return stream},async()=>{throw new Error('Room video is not available yet')},{groupId:context.id,participants:context.participants,callId:id,voiceRoom:context.voiceRoom,allowAudio:this.canSpeak&&this.speakConsent})
+      edge.call=new DirectCall(transport,state=>{if(version===this.mesh)this.edgeChanged(peer,state,version)},async()=>{this.checkMesh(version);const stream=await this.microphone();if(version!==this.mesh){stream.getTracks().forEach(track=>track.stop());throw new Error('The room changed while your microphone was starting. Try again.')}return stream},async()=>{throw new Error('Room video is not available yet')},{groupId:context.id,participants:context.participants,callId:id,voiceRoom:context.voiceRoom,allowAudio:this.canSpeak&&this.speakConsent})
       this.edges.set(peer,edge)
     }
     const pending=this.pending;this.pending=[]
     for(const event of pending){const edge=this.edges.get(event.signal.from_device);if(this.matches(event.signal)&&edge?.id===event.signal.call_id)edge.listener?.(event)}
-    void Promise.all([...this.edges].filter(([peer])=>this.transport.callDevice<peer).map(([peer,edge])=>edge.call.start(context.conversation,peer,context.relayOnly,this.ice))).catch(error=>{if(this.active&&version===this.mesh){this.failed('edge-start',error);this.finish('Room audio could not be encrypted or connected.')}})
+    void Promise.all([...this.edges].filter(([peer])=>this.transport.callDevice<peer).map(([peer,edge])=>edge.call.start(context.conversation,peer,context.relayOnly,this.ice))).catch(error=>{if(this.active&&version===this.mesh){this.failed('edge-start',error);this.finish('Hearth couldn’t connect the room’s audio securely. Join again to try.')}})
   }
   private receiveSfu(signal:CallSignal,version:number){
     if(!this.active||version!==this.mesh||!this.matches(signal)||signal.expires_at<=Date.now()||signal.expires_at>Date.now()+65_000)return
     if(signal.kind==='sfu-heartbeat'){
-      try{const flags=this.remoteMedia.receive(signal.from_device,signal.description);this.publish({participants:this.state.participants.map(person=>person.device===signal.from_device?{...person,...flags,phase:'Connected'}:person)})}catch{this.finish('SFU media state could not be verified.')}
+      try{const flags=this.remoteMedia.receive(signal.from_device,signal.description);this.publish({participants:this.state.participants.map(person=>person.device===signal.from_device?{...person,...flags,phase:'Connected'}:person)})}catch{this.finish('The voice room hit a problem and had to stop. Join again to reconnect.')}
       return
     }
     const keys=this.sfuKeys,session=this.sfu
@@ -222,7 +222,7 @@ export class VoiceRoomCall {
       if(!this.active||version!==this.mesh||session!==this.sfu||signal.expires_at<=Date.now())return
       const key=await keys.receive(signal)
       if(key)try{if(this.active&&version===this.mesh&&session===this.sfu)await session.install(signal.from_device,key)}finally{key.fill(0)}
-    }).catch(error=>{if(this.active&&version===this.mesh){this.failed('sfu-key',error);if((error instanceof Error&&error.name==='SfuLeaseExpired')||transient(error))this.recover('Refreshing encrypted room participation…');else this.finish('SFU participant encryption could not be verified.')}})
+    }).catch(error=>{if(this.active&&version===this.mesh){this.failed('sfu-key',error);if((error instanceof Error&&error.name==='SfuLeaseExpired')||transient(error))this.recover('Securing your place in the room again…');else this.finish('Hearth couldn’t confirm someone’s encryption in this room, so it disconnected you to keep it private. Join again to reconnect.')}})
   }
   private sfuTrack(device:string,source:SfuSource,track:MediaStreamTrack|null,version:number){
     if(!this.active||version!==this.mesh)return
@@ -230,7 +230,7 @@ export class VoiceRoomCall {
   }
   private async startSfu(room:VoiceRoom,admission:VoiceMembership,version:number){
     const {SfuSession}=await import('./sfu-session.ts');this.checkMesh(version)
-    const session=new SfuSession(room,this.transport.callDevice,(device,source,track)=>this.sfuTrack(device,source,track,version),(reason,detail)=>{if(this.active&&version===this.mesh){if(reason==='reconnecting'||reason==='disconnected'){this.recover('Reconnecting the encrypted room…');return}this.fault={operation:'sfu-'+reason,reason:detail};this.finish('The encrypted SFU connection was lost. Join again to reconnect.')}},()=>{},this.permissions)
+    const session=new SfuSession(room,this.transport.callDevice,(device,source,track)=>this.sfuTrack(device,source,track,version),(reason,detail)=>{if(this.active&&version===this.mesh){if(reason==='reconnecting'||reason==='disconnected'){this.recover('Reconnecting to the voice server…');return}this.fault={operation:'sfu-'+reason,reason:detail};this.finish('The connection to the voice server dropped. Join again to reconnect.')}},()=>{},this.permissions)
     this.sfu=session
     const keys=new SfuKeys(this.agreement!,admission,async signal=>{await this.refresh();this.checkMesh(version);const key=await this.transport.callKey(this.state.channel,signal);await this.refresh();this.checkMesh(version);return key});this.sfuKeys=keys
     const pending=this.pending;this.pending=[]
@@ -257,27 +257,27 @@ export class VoiceRoomCall {
         }else if(stream)this.stopVideo(kind)
       }
       this.connectUntil=0;this.retainedCapture=false
-      this.publish({phase:'connected',message:this.state.relayOnly?'Encrypted SFU room · relay only':'Encrypted SFU room',mediaNotice:''});this.mediaChanged()
+      this.publish({phase:'connected',message:this.state.relayOnly?'Encrypted voice room · relay only':'Encrypted voice room',mediaNotice:''});this.mediaChanged()
     }finally{bundle.key.fill(0)}
   }
   private async microphone(){
-    if(!this.canSpeak||!this.speakConsent)throw new Error('Choose Start speaking before opening your microphone.')
-    const generation=this.generation,mesh=this.mesh;this.current(generation);if(!this.admission?.canPublish)throw new Error('No active room peers')
+    if(!this.canSpeak||!this.speakConsent)throw new Error('Choose Start speaking to turn on your microphone.')
+    const generation=this.generation,mesh=this.mesh;this.current(generation);if(!this.admission?.canPublish)throw new Error('Wait for someone else to join before turning on your microphone.')
     await this.refresh();this.current(generation);this.checkMesh(mesh)
     if(!this.sourcePromise){const sourceVersion=this.sourceVersion
       this.sourcePromise=this.capture({audio:{echoCancellation:true,noiseSuppression:true},video:false}).then(stream=>{
-        if(!this.active||generation!==this.generation||sourceVersion!==this.sourceVersion||!this.admission?.canPublish||stream.getAudioTracks().length!==1||stream.getVideoTracks().length){stream.getTracks().forEach(track=>track.stop());throw new Error('Room changed during capture')}
-        this.source=stream;const track=stream.getAudioTracks()[0];track.enabled=!this.state.muted;track.onended=()=>this.finish('The microphone stopped.');return stream
+        if(!this.active||generation!==this.generation||sourceVersion!==this.sourceVersion||!this.admission?.canPublish||stream.getAudioTracks().length!==1||stream.getVideoTracks().length){stream.getTracks().forEach(track=>track.stop());throw new Error('The room changed while your microphone was starting. Try again.')}
+        this.source=stream;const track=stream.getAudioTracks()[0];track.enabled=!this.state.muted;track.onended=()=>this.finish('Your microphone stopped, so you left the voice room. Join again when it’s working.');return stream
       })
     }
     const source=await this.sourcePromise;this.current(generation)
     // Permission prompts can outlive the authorization that opened them.
-    try{await this.refresh(0);this.current(generation);this.checkMesh(mesh);if(!this.admission?.canPublish)throw new Error('Room access changed during microphone capture')}
-    catch(error){if(this.active&&generation===this.generation&&mesh===this.mesh){if((error as {status?:number}).status===409)this.recover('Updating room participation…');else this.finish('Room microphone access could not be verified.')}throw error}
+    try{await this.refresh(0);this.current(generation);this.checkMesh(mesh);if(!this.admission?.canPublish)throw new Error('Your access to this room changed while your microphone was starting.')}
+    catch(error){if(this.active&&generation===this.generation&&mesh===this.mesh){if((error as {status?:number}).status===409)this.recover('Refreshing your place in the room…');else this.finish('Hearth couldn’t confirm you can speak in this room, so you were disconnected. Join again to try.')}throw error}
     this.resumeSources();const track=source.getAudioTracks()[0].clone();track.enabled=!this.state.muted;return new MediaStream([track])
   }
   private resumeSources(){
-    if(!this.admission?.canPublish)throw new Error('Room authorization is not current.')
+    if(!this.admission?.canPublish)throw new Error('Hearth couldn’t confirm your access to this room. Try again.')
     this.source?.getAudioTracks().forEach(track=>{track.enabled=this.canSpeak&&this.speakConsent&&!this.state.muted})
     for(const [kind,stream] of this.videoSources)if(this.ownPermissions&(kind==='camera'?Permission.camera:Permission.screen))stream.getTracks().forEach(track=>{track.enabled=true})
   }
@@ -288,7 +288,7 @@ export class VoiceRoomCall {
     if(this.recovering){this.recoveryEpoch=Math.max(this.recoveryEpoch,minimumEpoch);return}
     this.recoveryEpoch=minimumEpoch
     this.recoveries=this.recoveries.filter(time=>Date.now()-time<60_000)
-    if(this.recoveries.length>=3){this.fault??={operation:'recovery-budget',reason:['Updating room encryption…','Reconnecting encrypted room signaling…','Reconnecting the encrypted room…','Updating room participation…','Refreshing encrypted room participation…'].indexOf(message)};this.finish('Room recovery could not stabilize. Join again when the connection is ready.');return}
+    if(this.recoveries.length>=3){this.fault??={operation:'recovery-budget',reason:['Securing the room again…','Reconnecting…','Reconnecting to the voice server…','Refreshing your place in the room…','Securing your place in the room again…'].indexOf(message)};this.finish('Reconnecting failed too many times, so you were disconnected. Join again when your connection is steady.');return}
     this.recoveries.push(Date.now())
     this.recovering=true;this.retainedCapture=true;this.renewing=false;this.recoveryUntil=Date.now()+30_000
     const generation=++this.generation;this.mesh++;this.refreshPromise=null
@@ -319,8 +319,8 @@ export class VoiceRoomCall {
           await new Promise(resolve=>setTimeout(resolve,500))
         }
       }
-      throw new Error('Encrypted room recovery timed out.')
-    })().catch(error=>{if(this.active&&generation===this.generation){this.failed('recovery',error);this.finish('Room access or encryption could not be restored.')}})
+      throw new Error('Reconnecting to the room took too long. Join again to reconnect.')
+    })().catch(error=>{if(this.active&&generation===this.generation){this.failed('recovery',error);this.finish('Hearth couldn’t secure the room again or confirm your access, so you were disconnected. Join again to try.')}})
   }
   private async restoreMeshVideo(version:number){
     if(this.restoredVideo===version)return;this.restoredVideo=version
@@ -336,37 +336,37 @@ export class VoiceRoomCall {
     if(!this.active||version!==this.mesh)return
     this.publish({participants:this.state.participants.map(person=>person.device===peer?{...person,phase:state.phase,remote:state.remote,cameraTrack:state.remoteCamera,screenTrack:state.remoteScreen,systemAudioTrack:state.remoteSystemAudio}:person)})
     const edge=this.edges.get(peer)
-    if(state.phase==='incoming'&&edge&&!edge.answering){edge.answering=true;void edge.call.answer(this.ice).catch(error=>{if(this.active&&version===this.mesh){this.failed('edge-answer',error);this.finish('A room audio connection failed.')}})}
+    if(state.phase==='incoming'&&edge&&!edge.answering){edge.answering=true;void edge.call.answer(this.ice).catch(error=>{if(this.active&&version===this.mesh){this.failed('edge-answer',error);this.finish('The connection to someone in the room failed, so you were disconnected. Join again to reconnect.')}})}
     if(state.phase==='ended'){
-      const reason=['Call ended.','Connection interrupted. Start a new call.','The selected privacy route could not be verified.','Connection recovery timed out. Start a new call.','Connection recovery failed. Start a new call.','Call verification timed out. Start a new call.','Call ended because authorization or signaling was lost.','Group encryption changed. Start a new call.'].indexOf(state.message)
+      const reason=['Call ended.','The connection dropped. Start a new call.','Hearth could not confirm the call was using the relay, so it stopped the call. Start a new call.','The call couldn’t reconnect in time. Start a new call.','The call couldn’t reconnect. Start a new call.','The call stopped responding or took too long to connect. Start a new call.','Hearth lost its connection or your permission for this call, so the call ended. Start a new call.','The group’s encryption changed, so the call was stopped to keep it private. Start a new call.'].indexOf(state.message)
       this.fault={operation:'edge-ended',reason}
-      setTimeout(()=>{if(!this.active||version!==this.mesh)return;void this.refresh(0).then(()=>{if(this.active&&version===this.mesh)this.finish('A room audio connection ended. Join again to reconnect.')}).catch(error=>{if(version===this.mesh){this.failed('edge-ended-refresh',error);this.finish('Room access was lost.')}})},2000)
+      setTimeout(()=>{if(!this.active||version!==this.mesh)return;void this.refresh(0).then(()=>{if(this.active&&version===this.mesh)this.finish('The connection to someone in the room ended. Join again to reconnect.')}).catch(error=>{if(version===this.mesh){this.failed('edge-ended-refresh',error);this.finish('Your access to this voice room couldn’t be confirmed, so you were disconnected. Join again to try.')}})},2000)
     }
   }
   private watch(){
     if(!this.active)return
     const now=Date.now(),generation=this.generation
-    if(this.recovering){if(now>=this.recoveryUntil)this.finish('Encrypted room recovery timed out.');return}
-    if(now-this.checkedAt>25_000||now-this.created>=50*60_000||this.own&&this.own.expires_at>0&&this.own.expires_at<=now){this.fault={operation:'authorization-expired',checkedAge:now-this.checkedAt,leaseRemaining:(this.own?.expires_at??now)-now};this.finish('Voice room access verification expired.');return}
-    if(this.connectUntil&&now>this.connectUntil){this.fault={operation:'connect-timeout',stage:this.sfu?.stage??'key-wrap',leaseRemaining:Math.min(...(this.snapshot?.room.participants.map(peer=>peer.expires_at-now)??[0])),checkedAge:now-this.checkedAt};this.finish('Room audio connection timed out.');return}
+    if(this.recovering){if(now>=this.recoveryUntil)this.finish('Reconnecting to the room took too long. Join again to reconnect.');return}
+    if(now-this.checkedAt>25_000||now-this.created>=50*60_000||this.own&&this.own.expires_at>0&&this.own.expires_at<=now){this.fault={operation:'authorization-expired',checkedAge:now-this.checkedAt,leaseRemaining:(this.own?.expires_at??now)-now};this.finish('Your time in the voice room ran out or your access couldn’t be confirmed. Join again to reconnect.');return}
+    if(this.connectUntil&&now>this.connectUntil){this.fault={operation:'connect-timeout',stage:this.sfu?.stage??'key-wrap',leaseRemaining:Math.min(...(this.snapshot?.room.participants.map(peer=>peer.expires_at-now)??[0])),checkedAge:now-this.checkedAt};this.finish('Connecting took too long. Join again to try.');return}
     if(this.snapshot&&this.own&&now-this.renewedAt>=10_000&&!this.renewing){
       this.renewing=true
       const renewal=this.transport.renewVoicePresence?this.transport.renewVoicePresence(this.presence(true)).then(expires=>{this.current(generation);if(this.own)this.own={...this.own,expires_at:expires};this.renewedAt=Date.now()}):this.transport.voicePresence(this.presence(true)).then(async view=>{this.current(generation);await this.apply(view,generation);this.current(generation);this.renewedAt=this.checkedAt=Date.now()})
-      void renewal.catch(error=>{if(generation===this.generation){this.failed('renew',error);if((error as {status?:number}).status===409||transient(error))this.recover('Updating room participation…');else this.finish('Voice room permissions were lost.')}}).finally(()=>{if(generation===this.generation)this.renewing=false})
+      void renewal.catch(error=>{if(generation===this.generation){this.failed('renew',error);if((error as {status?:number}).status===409||transient(error))this.recover('Refreshing your place in the room…');else this.finish('Hearth couldn’t confirm your permission to be in this room, so you were disconnected. Join again to try.')}}).finally(()=>{if(generation===this.generation)this.renewing=false})
     }
-    if(this.snapshot&&this.own&&now-this.lastPoll>=5000){this.lastPoll=now;void this.refresh().catch(error=>{if(generation===this.generation){this.failed('poll',error);if((error as {status?:number}).status===409||transient(error))this.recover('Updating room participation…');else this.finish('Voice room access was lost.')}})}
+    if(this.snapshot&&this.own&&now-this.lastPoll>=5000){this.lastPoll=now;void this.refresh().catch(error=>{if(generation===this.generation){this.failed('poll',error);if((error as {status?:number}).status===409||transient(error))this.recover('Refreshing your place in the room…');else this.finish('Your access to this voice room couldn’t be confirmed, so you were disconnected. Join again to try.')}})}
     // SFU liveness already has independent signed leases and fresh-policy reads.
     // State changes send immediately; periodic MLS state/key repeats need only
     // run every thirty seconds. Mesh peers retain their ten-second heartbeat.
     if((this.edges.size||this.sfu)&&this.admission&&now-this.lastHeartbeat>=(this.sfu?30_000:10_000)){
       this.lastHeartbeat=now;const context=this.admission.context,version=this.mesh
       const signal:CallSignal={call_id:context.id,group_id:context.id,voice_room:context.voiceRoom,participants:[...context.participants],epoch:context.epoch,from_device:this.transport.callDevice,to_device:context.participants.find(device=>device!==this.transport.callDevice)!,kind:context.sfu?'sfu-heartbeat':'room-heartbeat',description:roomMediaDescription(this.mediaRevision,this.state),relay_only:context.relayOnly,expires_at:now+60_000}
-      if(this.sfuPublishedKeys&&this.sfuKeys&&now-this.lastSfuKeys>=30_000){try{this.lastSfuKeys=now;void this.transport.send(context.conversation,{kind:'call',signal:this.sfuKeys.repeat()}).then(result=>{if(result!=='sent')throw signalingPending()}).catch(error=>{if(this.active&&version===this.mesh){this.failed('sfu-repeat',error);if(transient(error))this.recover('Reconnecting encrypted room signaling…');else this.finish('SFU key signaling was lost.')}})}catch{this.recover('Refreshing encrypted room participation…');return}}
-      void this.transport.send(context.conversation,{kind:'call',signal}).then(result=>{if(result!=='sent')throw signalingPending()}).catch(error=>{if(this.active&&version===this.mesh){this.failed('heartbeat',error);if(transient(error))this.recover('Reconnecting encrypted room signaling…');else this.finish('Voice room signaling was lost.')}})
+      if(this.sfuPublishedKeys&&this.sfuKeys&&now-this.lastSfuKeys>=30_000){try{this.lastSfuKeys=now;void this.transport.send(context.conversation,{kind:'call',signal:this.sfuKeys.repeat()}).then(result=>{if(result!=='sent')throw signalingPending()}).catch(error=>{if(this.active&&version===this.mesh){this.failed('sfu-repeat',error);if(transient(error))this.recover('Reconnecting…');else this.finish('Hearth lost its connection, so you were disconnected. Join again to reconnect.')}})}catch{this.recover('Securing your place in the room again…');return}}
+      void this.transport.send(context.conversation,{kind:'call',signal}).then(result=>{if(result!=='sent')throw signalingPending()}).catch(error=>{if(this.active&&version===this.mesh){this.failed('heartbeat',error);if(transient(error))this.recover('Reconnecting…');else this.finish('Hearth lost its connection, so you were disconnected. Join again to reconnect.')}})
     }
     if(this.edges.size&&[...this.edges.values()].every(edge=>edge.call.state.phase==='connected')){
       const version=this.mesh
-      void this.diagnostics().then(async metrics=>{if(this.active&&version===this.mesh&&metrics.every(metric=>!(this.permissions.get(metric.peer)!&Permission.speak)||metric.decrypted>0)){this.connectUntil=0;this.publish({phase:'connected',message:this.state.relayOnly?'Encrypted voice room · relay only':'Encrypted voice room'});await this.restoreMeshVideo(version)}}).catch(()=>{if(this.active&&version===this.mesh)this.finish('Room encryption could not be verified.')})
+      void this.diagnostics().then(async metrics=>{if(this.active&&version===this.mesh&&metrics.every(metric=>!(this.permissions.get(metric.peer)!&Permission.speak)||metric.decrypted>0)){this.connectUntil=0;this.publish({phase:'connected',message:this.state.relayOnly?'Encrypted voice room · relay only':'Encrypted voice room'});await this.restoreMeshVideo(version)}}).catch(()=>{if(this.active&&version===this.mesh)this.finish('Hearth couldn’t confirm the room was secure, so you were disconnected. Join again to reconnect.')})
     }
   }
   mute(){if(!this.active)return;const muted=!this.state.muted;this.source?.getAudioTracks().forEach(track=>{track.enabled=!muted});for(const edge of this.edges.values())edge.call.mute(muted);this.sfu?.mute(muted);this.publish({muted})}
@@ -387,18 +387,18 @@ export class VoiceRoomCall {
   async video(kind:RoomMediaKind,withAudio=false){
     const enabled=kind==='camera'?this.state.camera:this.state.sharing,pending=kind==='camera'?this.state.cameraPending:this.state.sharingPending
     if(enabled||pending){this.stopVideo(kind);this.mediaChanged();return}
-    if(!this.active||this.state.phase!=='connected'||(!this.sfu&&!this.edges.size)||[...this.edges.values()].some(edge=>edge.call.state.phase!=='connected'))throw new Error('Wait for room audio to connect before sharing video.')
+    if(!this.active||this.state.phase!=='connected'||(!this.sfu&&!this.edges.size)||[...this.edges.values()].some(edge=>edge.call.state.phase!=='connected'))throw new Error('Wait for the room to connect before turning on your camera or screen sharing.')
     const generation=this.generation,mesh=this.mesh,version=++this.videoVersion[kind]
     let stream:MediaStream|null=null
     const current=()=>this.active&&generation===this.generation&&mesh===this.mesh&&version===this.videoVersion[kind]
-    const authorize=async()=>{try{await this.refresh(0);this.checkMesh(mesh);if(!(this.ownPermissions&(kind==='camera'?Permission.camera:Permission.screen)))throw new Error('Your role does not allow this publication.')}catch(error){if(current())this.finish('Room video access could not be verified.');throw error}}
+    const authorize=async()=>{try{await this.refresh(0);this.checkMesh(mesh);if(!(this.ownPermissions&(kind==='camera'?Permission.camera:Permission.screen)))throw new Error('Your role doesn’t allow your camera or screen sharing in this room.')}catch(error){if(current())this.finish('Hearth couldn’t confirm you can share video in this room, so you were disconnected. Join again to try.');throw error}}
     this.publish({...(kind==='camera'?{cameraPending:true}:{sharingPending:true}),mediaNotice:''})
     try{
       await authorize();if(!current())return
       stream=kind==='camera'?await this.capture({audio:false,video:{deviceId:this.cameraDevice?{exact:this.cameraDevice}:undefined,width:{ideal:1280},height:{ideal:720},frameRate:{ideal:15,max:20}}}):await this.displayCapture(withAudio)
       if(!current()){stream.getTracks().forEach(track=>track.stop());return}
       const track=stream.getVideoTracks()[0]
-      if(stream.getVideoTracks().length!==1||stream.getAudioTracks().length>(kind==='screen'&&withAudio?1:0)||!track||track.readyState!=='live')throw new Error('Select one video source and explicitly enable any shared computer audio.')
+      if(stream.getVideoTracks().length!==1||stream.getAudioTracks().length>(kind==='screen'&&withAudio?1:0)||!track||track.readyState!=='live')throw new Error('Choose one camera or screen to share. Computer sound is only shared if you turn it on.')
       // Capture permissions may have been pending while channel access changed.
       await authorize();if(!current()){stream.getTracks().forEach(track=>track.stop());return}
       this.videoSources.set(kind,stream)
@@ -413,7 +413,7 @@ export class VoiceRoomCall {
       if(this.sfu){await this.sfu.publish(kind,track.clone());if(kind==='screen'&&stream.getAudioTracks()[0])await this.sfu.publish('system',stream.getAudioTracks()[0].clone())}
       else await Promise.all([...this.edges.values()].flatMap(edge=>[edge.call.setRoomVideo(kind,track.clone()),...(kind==='screen'&&stream!.getAudioTracks()[0]?[edge.call.setRoomVideo('system',stream!.getAudioTracks()[0].clone())]:[])]))
       if(!current())return
-      this.publish(kind==='camera'?{camera:true,cameraPending:false}:{sharing:true,sharingPending:false,systemAudio:stream.getAudioTracks().length===1});if(kind==='screen'&&withAudio&&!stream.getAudioTracks().length)this.publish({mediaNotice:'The selected source did not provide audio. Video is shared; choose a supported tab or display with audio to include sound.'});this.mediaChanged()
+      this.publish(kind==='camera'?{camera:true,cameraPending:false}:{sharing:true,sharingPending:false,systemAudio:stream.getAudioTracks().length===1});if(kind==='screen'&&withAudio&&!stream.getAudioTracks().length)this.publish({mediaNotice:'What you picked has no sound. Your screen is being shared without sound. To include sound, pick a tab or screen that has audio.'});this.mediaChanged()
     }catch(error){stream?.getTracks().forEach(track=>track.stop());if(current())this.stopVideo(kind);throw error}
   }
   leave(){this.finish('You left the voice room.')}
@@ -423,28 +423,28 @@ export class VoiceRoomCall {
   async changeDevice(kind:'audio'|'video',device:string){
     const version=++this.deviceVersion[kind],generation=this.generation,mesh=this.mesh
     if(kind==='video'){this.cameraDevice=device;if(!this.state.camera)return}
-    if(this.state.phase!=='connected'||kind==='audio'&&!this.speaking)throw new Error('Join as a speaker before changing the active microphone.')
+    if(this.state.phase!=='connected'||kind==='audio'&&!this.speaking)throw new Error('Choose Start speaking before changing your microphone.')
     await this.refresh(0);this.checkMesh(mesh)
     const stream=await this.capture(kind==='audio'?{audio:{deviceId:device?{exact:device}:undefined,echoCancellation:true,noiseSuppression:true},video:false}:{audio:false,video:{deviceId:device?{exact:device}:undefined,width:{ideal:1280},height:{ideal:720},frameRate:{ideal:15,max:20}}})
     try{
       await this.refresh(0);this.current(generation);this.checkMesh(mesh)
-      if(version!==this.deviceVersion[kind]||stream.getTracks().length!==1||stream.getTracks()[0].kind!==kind)throw new Error('Device selection changed during permission approval.')
+      if(version!==this.deviceVersion[kind]||stream.getTracks().length!==1||stream.getTracks()[0].kind!==kind)throw new Error('You picked a different device while Hearth was asking for permission. Try again.')
       const track=stream.getTracks()[0]
       if(kind==='audio'){
-        if(!this.speaking)throw new Error('Speaking permission was lost.')
+        if(!this.speaking)throw new Error('You no longer have permission to speak in this room.')
         track.enabled=!this.state.muted
         if(this.sfu)await this.sfu.publish('microphone',track.clone());else await Promise.all([...this.edges.values()].map(edge=>edge.call.setMicrophone(track.clone())))
         this.checkMesh(mesh);const previous=this.source;this.sourceVersion++;this.source=stream;this.sourcePromise=Promise.resolve(stream);previous?.getTracks().forEach(track=>{track.onended=null;track.stop()})
-        track.onended=()=>{if(this.source===stream)this.finish('The microphone stopped.')}
+        track.onended=()=>{if(this.source===stream)this.finish('Your microphone stopped, so you left the voice room. Join again when it’s working.')}
       }else{
-        if(!(this.ownPermissions&Permission.camera))throw new Error('Camera permission was lost.')
+        if(!(this.ownPermissions&Permission.camera))throw new Error('You no longer have permission to use your camera in this room.')
         if(this.sfu)await this.sfu.publish('camera',track.clone());else await Promise.all([...this.edges.values()].map(edge=>edge.call.setRoomVideo('camera',track.clone())))
         this.checkMesh(mesh);const previous=this.videoSources.get('camera');this.videoVersion.camera++;this.videoSources.set('camera',stream);previous?.getTracks().forEach(track=>{track.onended=null;track.stop()});track.onended=()=>{if(this.videoSources.get('camera')===stream){this.stopVideo('camera');this.mediaChanged()}};this.mediaChanged()
       }
     }catch(error){stream.getTracks().forEach(track=>track.stop());throw error}
   }
   async startSpeaking(){
-    await this.refresh(0);if(!this.canSpeak||this.state.phase!=='connected')throw new Error('Speaking permission is not available.')
+    await this.refresh(0);if(!this.canSpeak||this.state.phase!=='connected')throw new Error('You can’t speak in this room right now.')
     this.speakConsent=true
     const version=this.mesh
     try{const stream=await this.microphone();this.checkMesh(version);if(this.sfu)await this.sfu.publish('microphone',stream.getAudioTracks()[0]);else{await Promise.all([...this.edges.values()].map(edge=>edge.call.setMicrophone(stream.getAudioTracks()[0].clone())));stream.getTracks().forEach(track=>track.stop())}}catch(error){this.speakConsent=false;this.stopSource();throw error}

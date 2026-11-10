@@ -27,7 +27,7 @@ async function launch() {
   console.log('QA launch',child.pid)
   const target=await wait(async()=>{const response=await fetch(`http://127.0.0.1:${debugPort}/json/list`);return(await response.json()).find(v=>v.type==='page'&&v.webSocketDebuggerUrl&&/tauri[.:]/.test(v.url))},'WebView2')
   cdp=await devtools(target.webSocketDebuggerUrl)
-  await wait(()=>cdp.evaluate('!!window.__TAURI_INTERNALS__ && document.querySelectorAll(".setup-choice").length===2'),'application render')
+  await wait(()=>cdp.evaluate('!!window.__TAURI_INTERNALS__ && document.querySelectorAll(".setup-choice").length===3'),'application render')
   assert.equal(await cdp.evaluate('window.__TAURI_INTERNALS__.invoke("plugin:app|identifier")'),identifier)
   console.log('QA native IPC ready')
 }
@@ -36,7 +36,7 @@ try {
   await launch()
   const saved = await cdp.evaluate('window.__TAURI_INTERNALS__.invoke("host_saved").catch(error=>({error:String(error)}))')
   console.log('QA saved host',saved ? {state:saved.state,error:saved.error,local_url:!!saved.local_url}:null)
-  console.log('QA page',await cdp.evaluate('({native:window.isTauri,rail:[...document.querySelectorAll(".server-rail button")].map(e=>e.getAttribute("aria-label")),network:document.body.textContent.includes("Help someone check their internet host"),saved:localStorage.getItem("hearth.saved-servers")})'))
+  console.log('QA page',await cdp.evaluate('({native:window.isTauri,rail:[...document.querySelectorAll(".server-rail button")].map(e=>e.getAttribute("aria-label")),network:document.body.textContent.includes("Help a friend test their server"),saved:localStorage.getItem("hearth.saved-servers")})'))
   assert.ok(saved?.local_url, JSON.stringify(saved))
   await wait(()=>cdp.evaluate(`!!document.querySelector('[aria-label="Open your hosted server"]')`),'saved host rail entry')
   checks.saved_host_is_visible_without_browser_saved_servers_or_docker_access=true

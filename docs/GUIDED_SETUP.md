@@ -27,7 +27,7 @@ unmounting an existing account or chat until another server is confirmed.
   configure its public address/HTTPS, start/stop it and retrieve the owner code
   through protected local IPC. Docker Desktop is required. Configuration is
   generated natively; Node.js is only needed by the advanced CLI. On the owner
-  form, **Use this computer's host** avoids copying the private setup code.
+  form, **Set up from this computer** avoids copying the private setup code.
 - Readiness checks real health, protocol compatibility, setup status and server
   identity. An invite must match the returned key and any existing local pin.
   The active server identity is also checked if local storage cannot be read.
@@ -141,7 +141,7 @@ running host, compatible native invite handoff and fresh package services.
   those assets are now published with Preview 0.3.5 and verified over public HTTPS.
   Stable and preview feeds
   remain separate. Existing signed folders can still be selected without downloads.
-- **Install hosting runtime** is an explicit action with separate OS consent.
+- **Install hosting tools** is an explicit action with separate OS consent.
   Windows x64 and macOS Intel/Apple Silicon use immutable Docker Desktop 4.96.0
   vendor downloads and pinned SHA-256 checksums, reviewed 2026-10-20. Windows also
   checks Authenticode; macOS checks the application code signature and runs the
@@ -151,7 +151,7 @@ running host, compatible native invite handoff and fresh package services.
   enrollment and a required sign-out. Other Linux distributions retain their
   supported package-installation path. Virtualization and supported OS versions
   remain vendor prerequisites; installation is not claimed to pass on every PC.
-- **Start this host when I sign in** creates a per-profile Windows startup shortcut,
+- **Start this server when I sign in to this computer** creates a per-profile Windows startup shortcut,
   macOS LaunchAgent or Linux autostart entry. It reopens this app's existing host,
   waits for Docker and starts the existing services. Startup status and disabling
   enrollment are available in the same panel. Disabling app startup does not stop
@@ -168,7 +168,7 @@ running host, compatible native invite handoff and fresh package services.
   selected host changes only after successful startup. The old host must remain
   stopped to prevent two servers from using the same identity. Backups are trusted
   local inputs containing executable server images; do not import strangers' backups.
-- **Check access from another network** creates a 15-minute public-address/identity
+- **Test if friends can reach your server** creates a 15-minute public-address/identity
   challenge. A tester on another household or cellular checks HTTPS, protocol,
   health and the expected server identity without credentials. The result is
   matched to the originating challenge and local identity. Network location is
@@ -195,7 +195,7 @@ removing the Node.js prerequisite from UI hosting. The advanced CLI still uses
 Node. Existing credentials and storage configuration remain unchanged on retry;
 conflicting files fail before any write. Docker installation remains manual.
 
-The native owner form adds **Use this computer's host**. Protected IPC accepts
+The native owner form adds **Set up from this computer**. Protected IPC accepts
 only the selected loopback host and configured port, rechecks its identity and
 requires incomplete owner setup before retrieving its private code. The code
 stays in component memory for at most five minutes, never appears in an input

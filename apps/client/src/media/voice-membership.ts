@@ -18,7 +18,7 @@ export class VoiceMembership implements GroupKeyState {
   get generation(){return this.version}
   get stopped(){return this.ended}
   get canPublish(){this.checkTime();return !this.ended&&this.context.participants.includes(this.own)&&this.context.participants.length>1}
-  refresh(room:VoiceRoom){if(voiceManifest(room)!==voiceManifest(this.room))throw new Error('Voice room membership changed');this.room=room}
+  refresh(room:VoiceRoom){if(voiceManifest(room)!==voiceManifest(this.room))throw new Error('The people in the room changed. Try again.');this.room=room}
   transcript(){if(!this.canPublish)throw new Error('Join a live voice room before deriving keys');return this.room.participants.map(peer=>[peer.device_key,peer.public_key,peer.incarnation])}
   checkTime(now=Date.now()){if(this.room.participants.some(peer=>peer.expires_at<=now))this.end('Voice room presence expired')}
   end(_reason:string){if(!this.ended){this.ended=true;this.version++}}

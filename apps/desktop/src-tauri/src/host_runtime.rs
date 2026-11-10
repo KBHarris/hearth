@@ -31,13 +31,15 @@ pub(crate) fn start_runtime() -> Result<(), String> {
     }
     #[cfg(target_os = "windows")]
     {
-        let program = std::env::var_os("ProgramFiles").ok_or("Docker Desktop is unavailable.")?;
+        let program = std::env::var_os("ProgramFiles").ok_or(
+            "Hearth couldn’t find Docker Desktop. Choose Install hosting tools, then try again.",
+        )?;
         let executable = Path::new(&program).join("Docker/Docker/Docker Desktop.exe");
         use std::os::windows::process::CommandExt;
         std::process::Command::new(executable)
             .creation_flags(0x08000000)
             .spawn()
-            .map_err(|_| "Install Docker Desktop, then retry.")?;
+            .map_err(|_| "Docker Desktop couldn’t be opened. Choose Install hosting tools, then try again.")?;
     }
     #[cfg(target_os = "macos")]
     hosting::command(
@@ -80,9 +82,10 @@ fn installer(app: &tauri::AppHandle) -> Result<std::path::PathBuf, String> {
     let directory = app
         .path()
         .app_cache_dir()
-        .map_err(|_| "Runtime download storage is unavailable.")?
+        .map_err(|_| "Hearth couldn’t find a place on this computer to download the hosting tools. Nothing was installed.")?
         .join("runtime-4.96.0");
-    fs::create_dir_all(&directory).map_err(|_| "Cannot prepare runtime download.")?;
+    fs::create_dir_all(&directory)
+        .map_err(|_| "Hearth couldn’t prepare the hosting tools download. Try again.")?;
     let path = directory.join(name);
     if path.exists() && hosting::sha256(&path)? == hash {
         return Ok(path);
@@ -92,45 +95,51 @@ fn installer(app: &tauri::AppHandle) -> Result<std::path::PathBuf, String> {
         .timeout(Duration::from_secs(1200))
         .connect_timeout(Duration::from_secs(15))
         .build()
-        .map_err(|_| "Cannot initialize vendor download.")?;
-    let response = client.get(url).send().and_then(|r| r.error_for_status()).map_err(|_| "The pinned Docker installer is unavailable. Update Hearth or install Docker using its official installer.")?;
+        .map_err(|_| "Hearth couldn’t start the Docker Desktop download. Try again.")?;
+    let response = client.get(url).send().and_then(|r| r.error_for_status()).map_err(|_| "Hearth couldn’t download Docker Desktop. Check your internet connection and try again. If it still fails, update Hearth or install Docker Desktop from Docker’s official website.")?;
     let mut source = response.take(2 * 1024 * 1024 * 1024 + 1);
     let temporary = directory.join("installer.partial");
     let mut output =
-        fs::File::create(&temporary).map_err(|_| "Cannot save the runtime installer.")?;
+        fs::File::create(&temporary).map_err(|_| "Hearth couldn’t save the Docker Desktop download. Make sure your computer has free disk space, then try again.")?;
     let count = std::io::copy(&mut source, &mut output)
-        .map_err(|_| "Runtime download interrupted. Retry installation.")?;
+        .map_err(|_| "The Docker Desktop download was interrupted. Choose Install hosting tools to try again.")?;
     drop(output);
     if count > 2 * 1024 * 1024 * 1024 || hosting::sha256(&temporary)? != hash {
         return Err(
-            "Runtime installer checksum verification failed. Nothing was installed.".into(),
+            "The Docker Desktop download was damaged or changed, so nothing was installed. Choose Install hosting tools to try again.".into(),
         );
     }
     if path.exists() {
         hosting::regular(&path)?;
-        fs::remove_file(&path).map_err(|_| "Cannot replace an incomplete runtime download.")?;
+        fs::remove_file(&path).map_err(
+            |_| "Hearth couldn’t replace an unfinished Docker Desktop download. Try again.",
+        )?;
     }
-    fs::rename(&temporary, &path).map_err(|_| "Cannot finish runtime download.")?;
+    fs::rename(&temporary, &path)
+        .map_err(|_| "Hearth couldn’t finish downloading Docker Desktop. Try again.")?;
     Ok(path)
 }
 fn install(app: &tauri::AppHandle) -> Result<String, String> {
     #[cfg(target_os = "windows")]
     {
         let path = installer(app)?;
-        let path = path.to_str().ok_or("Installer path is unavailable.")?;
+        let path = path
+            .to_str()
+            .ok_or("Hearth couldn’t open the Docker Desktop installer. Try again.")?;
         // A verified fixed script, with the path passed as data, never shell interpolation.
         hosting::command_env("powershell.exe", &["-NoProfile".into(), "-NonInteractive".into(), "-Command".into(), "$s = Get-AuthenticodeSignature -LiteralPath $env:HEARTH_RUNTIME_INSTALLER; if ($s.Status -ne 'Valid') { exit 1 }; $p = Start-Process -FilePath $env:HEARTH_RUNTIME_INSTALLER -Verb RunAs -Wait -PassThru; exit $p.ExitCode".into()], Path::new("."), 1200, &[("HEARTH_RUNTIME_INSTALLER", path)])
-            .map_err(|_| "Docker installation did not finish. Open the Windows App Installer and check Docker Desktop setup, virtualization and WSL requirements. Existing Hearth data was preserved.")?;
-        Ok("Docker Desktop installation finished. Complete Docker’s license/setup prompts and restart Windows if requested, then check the runtime again.".into())
+            .map_err(|_| "Docker Desktop didn’t finish installing. Your Hearth data is safe. Choose Install hosting tools to try again and follow Docker’s setup steps; Docker Desktop may need virtualization and WSL turned on in Windows.")?;
+        Ok("Docker Desktop is installed. Finish Docker’s own setup and license steps and restart Windows if it asks, then choose Check hosting tools.".into())
     }
     #[cfg(target_os = "macos")]
     {
         let path = installer(app)?;
         let mount = path
             .parent()
-            .ok_or("Installer path unavailable.")?
+            .ok_or("Hearth couldn’t open the Docker Desktop installer. Try again.")?
             .join("mounted");
-        std::fs::create_dir_all(&mount).map_err(|_| "Cannot prepare installer mount.")?;
+        std::fs::create_dir_all(&mount)
+            .map_err(|_| "Hearth couldn’t open the Docker Desktop installer. Try again.")?;
         let args = vec![
             "attach".into(),
             "-nobrowse".into(),
@@ -154,7 +163,9 @@ fn install(app: &tauri::AppHandle) -> Result<String, String> {
                 120,
             )?;
             let executable = docker.join("Contents/MacOS/install");
-            let text = executable.to_str().ok_or("Installer path unavailable.")?;
+            let text = executable
+                .to_str()
+                .ok_or("Hearth couldn’t open the Docker Desktop installer. Try again.")?;
             // AppleScript quotes the path as a shell argument itself.
             let literal = text.replace('\\', "\\\\").replace('"', "\\\"");
             hosting::command(
@@ -168,7 +179,7 @@ fn install(app: &tauri::AppHandle) -> Result<String, String> {
                 Path::new("/"),
                 1200,
             )?;
-            Ok("Docker Desktop installed. Open the runtime and complete Docker’s own license and setup prompts.".into())
+            Ok("Docker Desktop is installed. Choose Open hosting tools and finish Docker’s own setup and license steps.".into())
         })();
         let _ = hosting::command(
             "/usr/bin/hdiutil",
@@ -182,12 +193,12 @@ fn install(app: &tauri::AppHandle) -> Result<String, String> {
     {
         let _ = app;
         let release = std::fs::read_to_string("/etc/os-release")
-            .map_err(|_| "Cannot identify this Linux distribution.")?;
+            .map_err(|_| "Hearth couldn’t tell which version of Linux this is, so it can’t install the hosting tools for you. Install Docker and Docker Compose yourself, then choose Check hosting tools.")?;
         if !release
             .lines()
             .any(|line| matches!(line, "ID=ubuntu" | "ID=\"ubuntu\""))
         {
-            return Err("Automatic Linux runtime setup currently supports Ubuntu. Use your distribution’s supported Docker and Compose packages, then check again.".into());
+            return Err("Hearth can install the hosting tools for you only on Ubuntu. Install Docker and Docker Compose from your Linux system’s own packages, then choose Check hosting tools.".into());
         }
         hosting::command(
             "pkexec",
@@ -204,14 +215,14 @@ fn install(app: &tauri::AppHandle) -> Result<String, String> {
             1200,
         )?;
         let user = hosting::command("/usr/bin/id", &["-un".into()], Path::new("/"), 10)?;
-        let user = String::from_utf8(user).map_err(|_| "Cannot identify the current user.")?;
+        let user = String::from_utf8(user).map_err(|_| "Docker was installed, but Hearth couldn’t find your user name to give you access to it. Choose Install hosting tools to try again.")?;
         let user = user.trim();
         if user.is_empty()
             || !user
                 .bytes()
                 .all(|b| b.is_ascii_alphanumeric() || matches!(b, b'_' | b'-'))
         {
-            return Err("Unsupported user name for runtime enrollment.".into());
+            return Err("Docker was installed, but Hearth can’t give your user account access to it because the user name has unusual characters. Add your account to the docker group yourself.".into());
         }
         hosting::command(
             "pkexec",
@@ -229,7 +240,7 @@ fn install(app: &tauri::AppHandle) -> Result<String, String> {
             Path::new("/"),
             120,
         )?;
-        Ok("Docker Engine and Compose installed from Ubuntu packages. Sign out and back in to activate Docker access, then check the runtime. Docker group membership grants host administration privileges.".into())
+        Ok("Docker and Docker Compose are installed. Sign out of your computer and back in, then choose Check hosting tools. Note: being in the docker group gives your user account administrator-level control of this computer.".into())
     }
 }
 #[tauri::command]
@@ -240,13 +251,13 @@ pub async fn host_runtime(
 ) -> Result<RuntimeStatus, String> {
     let lock = state.0.clone();
     tauri::async_runtime::spawn_blocking(move || {
-        let _guard = lock.lock().map_err(|_| "Host controls are busy.")?;
+        let _guard = lock.lock().map_err(|_| "Hearth’s server controls stopped responding. Close and reopen Hearth, then try again.")?;
         let message = match action.as_str() {
-            "status" => if ready() { "Docker and Compose are ready for Linux containers." } else { "Docker with Compose is not ready. Install or start Docker Desktop, complete its setup, then check again." }.into(),
-            "install" => if ready() { "The runtime is already ready; nothing was installed.".into() } else { install(&app)? },
-            "start" => { start_runtime()?; "Docker was asked to start. Complete its setup, then check again.".into() }
-            _ => return Err("Unknown runtime action.".into()),
+            "status" => if ready() { "The hosting tools are ready." } else { "The hosting tools aren’t ready. Install or open Docker Desktop, finish its setup, then choose Check hosting tools." }.into(),
+            "install" => if ready() { "The hosting tools are already ready, so nothing was installed.".into() } else { install(&app)? },
+            "start" => { start_runtime()?; "Docker Desktop is starting. Finish any setup it asks for, then choose Check hosting tools.".into() }
+            _ => return Err("Hearth didn’t recognize that request. Close and reopen Hearth, then try again.".into()),
         };
         Ok(RuntimeStatus { ready: ready(), message })
-    }).await.map_err(|_| "Runtime controls are unavailable.".to_string())?
+    }).await.map_err(|_| "Something went wrong checking the hosting tools. Close and reopen Hearth, then try again.".to_string())?
 }

@@ -26,11 +26,15 @@ struct Package {
     archive_sha256: String,
 }
 fn check_package(package: &Package, client_version: &str) -> Result<(), String> {
-    let version =
-        semver::Version::parse(&package.version).map_err(|_| "Invalid host package version.")?;
-    let required = semver::Version::parse(&package.min_client_version)
-        .map_err(|_| "Invalid host package compatibility.")?;
-    let client = semver::Version::parse(client_version).map_err(|_| "Invalid client version.")?;
+    let version = semver::Version::parse(&package.version).map_err(
+        |_| "The server download information looks damaged. Update Hearth, then try again.",
+    )?;
+    let required = semver::Version::parse(&package.min_client_version).map_err(
+        |_| "The server download information looks damaged. Update Hearth, then try again.",
+    )?;
+    let client = semver::Version::parse(client_version).map_err(
+        |_| "Hearth couldn’t read its own version number. Reinstall Hearth, then try again.",
+    )?;
     if package.schema != 1
         || package.architecture != "amd64"
         || client < required
@@ -44,37 +48,42 @@ fn check_package(package: &Package, client_version: &str) -> Result<(), String> 
             .bytes()
             .all(|b| b.is_ascii_hexdigit())
     {
-        return Err("This host package is incompatible or has an untrusted source. Update Hearth and retry.".into());
+        return Err("These server files don’t work with this version of Hearth, or they don’t come from Hearth’s official releases. Update Hearth, then try again.".into());
     }
     Ok(())
 }
 fn small(client: &reqwest::blocking::Client, url: &str, max: u64) -> Result<Vec<u8>, String> {
-    let response = client.get(url).send().and_then(|r| r.error_for_status()).map_err(|_| "No signed host package is available. Check your connection or choose an existing signed package.")?;
+    let response = client.get(url).send().and_then(|r| r.error_for_status()).map_err(|_| "Hearth couldn’t download verified server files. Check your internet connection, or use Choose server files to pick server files you already have.")?;
     let mut bytes = Vec::new();
     response
         .take(max + 1)
         .read_to_end(&mut bytes)
-        .map_err(|_| "Host package download interrupted.")?;
+        .map_err(|_| "The server files download was interrupted. Try again.")?;
     if bytes.len() as u64 > max {
-        return Err("Host package metadata exceeds its size limit.".into());
+        return Err("The server download information is larger than expected, so Hearth didn’t use it. Try again later.".into());
     }
     Ok(bytes)
 }
 pub(crate) fn extract(archive: &Path, destination: &Path) -> Result<(), String> {
-    let mut archive =
-        tar::Archive::new(fs::File::open(archive).map_err(|_| "Cannot open the host package.")?);
+    let mut archive = tar::Archive::new(
+        fs::File::open(archive)
+            .map_err(|_| "Hearth couldn’t open the downloaded server files. Try again.")?,
+    );
     let mut seen = BTreeSet::new();
     let mut total = 0u64;
     for entry in archive
         .entries()
-        .map_err(|_| "Invalid host package archive.")?
+        .map_err(|_| "These server files look damaged. Download them again.")?
     {
-        let mut entry = entry.map_err(|_| "Invalid host package entry.")?;
+        let mut entry =
+            entry.map_err(|_| "These server files look damaged. Download them again.")?;
         let path = entry
             .path()
-            .map_err(|_| "Invalid host package path.")?
+            .map_err(|_| "These server files look damaged. Download them again.")?
             .into_owned();
-        let name = path.to_str().ok_or("Invalid host package filename.")?;
+        let name = path
+            .to_str()
+            .ok_or("These server files look damaged. Download them again.")?;
         let allowed = matches!(
             name,
             "manifest.json"
@@ -91,7 +100,7 @@ pub(crate) fn extract(archive: &Path, destination: &Path) -> Result<(), String> 
                 && !name.contains(['/', '\\']));
         total = total
             .checked_add(entry.size())
-            .ok_or("Host package is too large.")?;
+            .ok_or("These server files are larger than expected, so Hearth didn’t use them. Download them again.")?;
         if !allowed
             || name.contains(['\\', ':'])
             || path
@@ -103,12 +112,16 @@ pub(crate) fn extract(archive: &Path, destination: &Path) -> Result<(), String> 
             || seen.len() > 32
         {
             return Err(
-                "Unsafe, duplicate or oversized host package entry. Nothing was selected.".into(),
+                "These server files contain something unsafe or unexpected, so Hearth didn’t use them.".into(),
             );
         }
         let target = destination.join(path);
-        fs::create_dir_all(target.parent().ok_or("Invalid host destination.")?)
-            .map_err(|_| "Cannot create host storage.")?;
+        fs::create_dir_all(
+            target
+                .parent()
+                .ok_or("Hearth couldn’t unpack the server files. Try again.")?,
+        )
+        .map_err(|_| "Hearth couldn’t create a folder for the server files. Try again.")?;
         let mut options = fs::OpenOptions::new();
         options.write(true).create_new(true);
         #[cfg(unix)]
@@ -118,10 +131,10 @@ pub(crate) fn extract(archive: &Path, destination: &Path) -> Result<(), String> 
         }
         let mut output = options
             .open(&target)
-            .map_err(|_| "Host destination already exists or is unavailable.")?;
+            .map_err(|_| "Hearth couldn’t unpack the server files. Try again.")?;
         std::io::copy(&mut entry, &mut output)
             .and_then(|_| output.sync_all())
-            .map_err(|_| "Cannot finish host extraction.")?;
+            .map_err(|_| "Hearth couldn’t finish unpacking the server files. Try again.")?;
     }
     let bundle = hosting::validate(destination)?;
     let images = bundle
@@ -134,7 +147,9 @@ pub(crate) fn extract(archive: &Path, destination: &Path) -> Result<(), String> 
         })
         .collect::<Vec<_>>();
     if images.len() != 1 || hosting::sha256(&destination.join(images[0].0))? != *images[0].1 {
-        return Err("The signed server archive is missing or damaged.".into());
+        return Err(
+            "Part of the verified server files is missing or damaged. Download them again.".into(),
+        );
     }
     Ok(())
 }
@@ -152,12 +167,14 @@ pub(crate) fn update_candidate(
     let directory = data
         .join("host-updates")
         .join(format!("package-{}", hex::encode(nonce)));
-    fs::create_dir_all(&directory).map_err(|_| "Cannot stage the signed deployment update.")?;
+    fs::create_dir_all(&directory).map_err(
+        |_| "Hearth couldn’t prepare the server update. Your server wasn’t changed. Try again.",
+    )?;
     let client = reqwest::blocking::Client::builder()
         .https_only(true)
         .timeout(Duration::from_secs(600))
         .build()
-        .map_err(|_| "Cannot initialize deployment downloads.")?;
+        .map_err(|_| "Hearth couldn’t start downloading the server update. Your server wasn’t changed. Try again.")?;
     let url = format!(
         "https://github.com/KBHarris/hearth/releases/download/v{}/Hearth_Host_{}.tar",
         release.version, release.version
@@ -167,20 +184,20 @@ pub(crate) fn update_candidate(
         .send()
         .and_then(|response| response.error_for_status())
         .map_err(
-            |_| "Cannot fetch the matching deployment package; the current host was preserved.",
+            |_| "Hearth couldn’t download the server update. Your server wasn’t changed. Check your internet connection, then try again.",
         )?;
     if response
         .content_length()
         .is_some_and(|length| length > LIMIT)
     {
-        return Err("Deployment download is too large.".into());
+        return Err("The server update download is larger than expected, so Hearth didn’t use it. Your server wasn’t changed.".into());
     }
     let archive = directory.join("download.tar");
     let mut file = fs::OpenOptions::new()
         .write(true)
         .create_new(true)
         .open(&archive)
-        .map_err(|_| "Cannot stage the deployment download.")?;
+        .map_err(|_| "Hearth couldn’t save the server update download. Your server wasn’t changed. Try again.")?;
     let mut reader = response.take(LIMIT + 1);
     let mut hash = Sha256::new();
     let mut count = 0u64;
@@ -188,43 +205,43 @@ pub(crate) fn update_candidate(
     loop {
         let length = reader
             .read(&mut bytes)
-            .map_err(|_| "Deployment download interrupted.")?;
+            .map_err(|_| "The server update download was interrupted. Your server wasn’t changed. Try again.")?;
         if length == 0 {
             break;
         }
         count += length as u64;
         if count > LIMIT {
-            return Err("Deployment download is too large.".into());
+            return Err("The server update download is larger than expected, so Hearth didn’t use it. Your server wasn’t changed.".into());
         }
         hash.update(&bytes[..length]);
         file.write_all(&bytes[..length])
-            .map_err(|_| "Cannot save deployment download.")?;
+            .map_err(|_| "Hearth couldn’t save the server update download. Your server wasn’t changed. Try again.")?;
     }
     file.sync_all()
-        .map_err(|_| "Cannot finish deployment download.")?;
+        .map_err(|_| "Hearth couldn’t finish downloading the server update. Your server wasn’t changed. Try again.")?;
     drop(file);
     if hex::encode(hash.finalize()) != expected {
-        return Err("Deployment checksum verification failed; hosting was preserved.".into());
+        return Err("The server update download was damaged or changed, so Hearth didn’t install it. Your server wasn’t changed.".into());
     }
     extract(&archive, &directory)?;
     let bundle = hosting::validate(&directory)?;
     let manifest: serde_json::Value = serde_json::from_slice(
         &fs::read(directory.join("manifest.json"))
-            .map_err(|_| "Cannot read deployment revision.")?,
+            .map_err(|_| "The server update files couldn’t be read, so Hearth didn’t install them. Your server wasn’t changed.")?,
     )
-    .map_err(|_| "Invalid deployment revision.")?;
+    .map_err(|_| "The server update files look damaged, so Hearth didn’t install them. Your server wasn’t changed.")?;
     if manifest["sourceCommit"] != release.source_commit {
-        return Err("Deployment and server source revisions differ.".into());
+        return Err("The parts of this server update don’t match each other, so Hearth didn’t install it. Your server wasn’t changed. Try again later.".into());
     }
     if bundle.client.version != release.version || bundle.server.image_id != release.image_id {
-        return Err("Deployment and server release do not match.".into());
+        return Err("The parts of this server update don’t match each other, so Hearth didn’t install it. Your server wasn’t changed. Try again later.".into());
     }
     Ok(Some(directory))
 }
 pub(crate) fn install_candidate(candidate: &Path, selection: &Selection) -> Result<(), String> {
     let bundle = hosting::validate(candidate)?;
     if bundle.server.compose_project != selection.project {
-        return Err("Deployment project changed; the host was preserved.".into());
+        return Err("This server update is for a different server setup, so Hearth didn’t install it. Your server files weren’t changed.".into());
     }
     let files = std::iter::once("manifest.json")
         .chain(std::iter::once("manifest.json.sig"))
@@ -253,10 +270,15 @@ pub(crate) fn install_candidate(candidate: &Path, selection: &Selection) -> Resu
         if target.exists() {
             hosting::regular(&target)?;
         }
-        fs::create_dir_all(target.parent().ok_or("Invalid deployment path.")?)
-            .map_err(|_| "Cannot prepare deployment update.")?;
-        fs::copy(candidate.join(file), target)
-            .map_err(|_| "Cannot install the verified deployment update.")?;
+        fs::create_dir_all(
+            target
+                .parent()
+                .ok_or("Hearth couldn’t install the server update files.")?,
+        )
+        .map_err(|_| "Hearth couldn’t install the server update files.")?;
+        fs::copy(candidate.join(file), target).map_err(
+            |_| "Hearth couldn’t copy the verified server update files into your server folder.",
+        )?;
     }
     Ok(())
 }
@@ -273,7 +295,7 @@ pub async fn host_prepare(
 ) -> Result<HostStatus, String> {
     let lock = state.0.clone();
     tauri::async_runtime::spawn_blocking(move || {
-        let _guard = lock.lock().map_err(|_| "Host controls are busy.")?;
+        let _guard = lock.lock().map_err(|_| "Hearth’s server controls stopped responding. Close and reopen Hearth, then try again.")?;
         let selection_path = hosting::selection_path(&app)?;
         if selection_path.exists() {
             let selection = hosting::selected_for_recovery(&app)?;
@@ -285,7 +307,7 @@ pub async fn host_prepare(
             .timeout(Duration::from_secs(600))
             .connect_timeout(Duration::from_secs(15))
             .build()
-            .map_err(|_| "Cannot initialize host downloads.")?;
+            .map_err(|_| "Hearth couldn’t start downloading the server files. Try again.")?;
         let feed = if app.config().identifier == "chat.hearth.desktop" {
             STABLE_FEED
         } else {
@@ -293,62 +315,62 @@ pub async fn host_prepare(
         };
         let raw = small(&client, feed, 65536)?;
         let signature = String::from_utf8(small(&client, &format!("{feed}.sig"), 16384)?)
-            .map_err(|_| "Invalid package signature.")?;
+            .map_err(|_| "Hearth could not confirm this download is genuine, so nothing was installed.")?;
         crate::updates::verify_bytes(&raw, &signature)?;
         let package: Package =
-            serde_json::from_slice(&raw).map_err(|_| "Invalid signed host package.")?;
+            serde_json::from_slice(&raw).map_err(|_| "The server download information looks damaged, so nothing was installed. Update Hearth, then try again.")?;
         check_package(&package, &app.package_info().version.to_string())?;
         let data = app
             .path()
             .app_data_dir()
-            .map_err(|_| "Host storage is unavailable.")?;
+            .map_err(|_| "Hearth couldn’t open its storage folder on this computer. Close and reopen Hearth, then try again.")?;
         let mut nonce = [0u8; 12];
         OsRng.fill_bytes(&mut nonce);
         let directory = data.join("hosts").join(hex::encode(nonce));
-        fs::create_dir_all(&directory).map_err(|_| "Cannot create private host storage.")?;
+        fs::create_dir_all(&directory).map_err(|_| "Hearth couldn’t create a private folder for your server files. Try again.")?;
         let archive = directory.join("download.tar");
         let response = client
             .get(&package.archive_url)
             .send()
             .and_then(|r| r.error_for_status())
-            .map_err(|_| "Cannot download the signed host package. Retry or choose a package.")?;
+            .map_err(|_| "Hearth couldn’t download the verified server files. Try again, or use Choose server files to pick server files you already have.")?;
         if response.content_length().is_some_and(|n| n > LIMIT) {
-            return Err("Host download is too large.".into());
+            return Err("The server files download is larger than expected, so Hearth didn’t use it. Try again later.".into());
         }
         let mut reader = response.take(LIMIT + 1);
         let mut file = fs::OpenOptions::new()
             .write(true)
             .create_new(true)
             .open(&archive)
-            .map_err(|_| "Cannot save the host download.")?;
+            .map_err(|_| "Hearth couldn’t save the server files download. Make sure your computer has free disk space, then try again.")?;
         let mut hash = Sha256::new();
         let mut size = 0u64;
         let mut buffer = [0u8; 65536];
         loop {
             let n = reader
                 .read(&mut buffer)
-                .map_err(|_| "Host download interrupted. Retry setup.")?;
+                .map_err(|_| "The server files download was interrupted. Try again.")?;
             if n == 0 {
                 break;
             }
             size += n as u64;
             if size > LIMIT {
-                return Err("Host download is too large.".into());
+                return Err("The server files download is larger than expected, so Hearth didn’t use it. Try again later.".into());
             }
             hash.update(&buffer[..n]);
             file.write_all(&buffer[..n])
-                .map_err(|_| "Cannot save the host download.")?;
+                .map_err(|_| "Hearth couldn’t save the server files download. Make sure your computer has free disk space, then try again.")?;
         }
         file.sync_all()
-            .map_err(|_| "Cannot finish the host download.")?;
+            .map_err(|_| "Hearth couldn’t finish downloading the server files. Try again.")?;
         drop(file);
         if hex::encode(hash.finalize()) != package.archive_sha256 {
-            return Err("Host archive checksum failed. Nothing was selected.".into());
+            return Err("The server files download was damaged or changed, so nothing was installed. Try again.".into());
         }
         extract(&archive, &directory)?;
         let bundle = hosting::validate(&directory)?;
         if bundle.client.version != package.version {
-            return Err("Host package versions do not match.".into());
+            return Err("The downloaded server files aren’t the expected version, so Hearth didn’t use them. Try again later.".into());
         }
         let selection = Selection {
             root: directory,
@@ -359,11 +381,11 @@ pub async fn host_prepare(
         hosting::save_selection(&app, &selection)?;
         Ok(HostStatus::prepared(
             &selection,
-            "Signed host package ready. Prepare the runtime, then start the server.".into(),
+            "Verified server files are ready. Set up the hosting tools, then choose Start server.".into(),
         ))
     })
     .await
-    .map_err(|_| "Host preparation is unavailable.".to_string())?
+    .map_err(|_| "Hearth couldn’t prepare your server. Close and reopen Hearth, then try again.".to_string())?
 }
 #[cfg(test)]
 mod tests {

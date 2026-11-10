@@ -10,5 +10,5 @@ test('a pending system storage prompt cannot leave the client busy after cancell
   await assert.rejects(pending,error => error === reason)
 })
 test('storage deadlines settle even if the platform operation never completes', async () => {
-  await assert.rejects(storageDeadline(new Promise(() => {}),new AbortController().signal,20),/Identity storage took too long/)
+  await assert.rejects(storageDeadline(new Promise(() => {}),new AbortController().signal,20),/Opening your account keys took too long/)
 })

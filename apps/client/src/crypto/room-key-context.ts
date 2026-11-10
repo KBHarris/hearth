@@ -5,7 +5,7 @@ import {Permission,permissions,mediaPermissions,type CallSignal,type Conversatio
  * No approval or key is produced here; Rust still verifies every allowed export. */
 export function currentRoomKeyContext(signal:CallSignal,conversation:Conversation|undefined,roster:ChannelRoster|undefined,own:string,now=Date.now(),epochGovernance=0){
   if(!signal.voice_room)return
-  const changed=()=>Object.assign(new Error('The encrypted room context changed.'),{status:409})
+  const changed=()=>Object.assign(new Error('This room was just updated. Try again in a moment.'),{status:409})
   if(!conversation||conversation.epoch!==signal.epoch||!roster)throw changed()
   const required=Permission.connect|Permission.listen
   const selected=signal.participants??[]
@@ -19,7 +19,7 @@ export function currentRoomKeyContext(signal:CallSignal,conversation:Conversatio
     const approved=roster.people.some(person=>person.account.id===account&&person.devices.some(proof=>proof.device_key===device&&proof.identity_key===identity))
     const departed=roster.departures?.some(departure=>departure.member.account_id===account&&departure.member.enrollment.identity_key===identity)
     const access=mediaPermissions(roster.governance,permissions(roster.governance,roster.community.owner_id,account,roster.channel.id,now,grant?.invitation?.issued_at??null),roster.channel.kind==='stage',account===roster.community.owner_id)
-    if(!approved||(!owner&&!grant)||departed||(access&required)!==required)throw device===own?Object.assign(new Error('Your room access was revoked.'),{status:403}):changed()
+    if(!approved||(!owner&&!grant)||departed||(access&required)!==required)throw device===own?Object.assign(new Error('You no longer have access to this room.'),{status:403}):changed()
   }
   // Rust also requires sends to use the policy committed into this MLS epoch.
   // Fresh authorization can arrive first; pause obsolete work until the actual

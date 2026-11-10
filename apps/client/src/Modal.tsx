@@ -1,5 +1,6 @@
 import { useEffect, useId, useRef, type ReactNode } from 'react'
 import { createPortal } from 'react-dom'
+import { Icon } from './Icons'
 
 /** Native dialogs keep keyboard focus inside the panel and restore it on close. */
 export function Modal({ title, description, onClose, children }: {
@@ -21,7 +22,8 @@ export function Modal({ title, description, onClose, children }: {
     onKeyDown={event => {
       if (event.key !== 'Tab') return
       const controls = Array.from(event.currentTarget.querySelectorAll<HTMLElement>('button, input, textarea, select, a[href], summary, [tabindex]'))
-        .filter(control => control.tabIndex >= 0 && !control.matches(':disabled') && control.getClientRects().length > 0)
+        // Fields inside a collapsed <details> still report layout boxes, so ask whether they are really shown.
+        .filter(control => control.tabIndex >= 0 && !control.matches(':disabled') && control.getClientRects().length > 0 && (control.checkVisibility?.() ?? true))
       if (!controls.length) { event.preventDefault(); return }
       const index = controls.indexOf(document.activeElement as HTMLElement)
       if (index < 0 || (!event.shiftKey && index === controls.length - 1) || (event.shiftKey && index === 0)) {
@@ -31,7 +33,7 @@ export function Modal({ title, description, onClose, children }: {
     }}
     onClick={event => { if (event.target === dialog.current) onClose() }}>
     <div className="dialog-surface">
-      <header className="panel-heading"><h2 id={id}>{title}</h2><button type="button" className="icon-button" aria-label={`Close ${title}`} onClick={onClose}>×</button></header>
+      <header className="panel-heading"><h2 id={id}>{title}</h2><button type="button" className="icon-button" aria-label={`Close ${title}`} onClick={onClose}><Icon name="close" /></button></header>
       {description && <p className="panel-description" id={`${id}-help`}>{description}</p>}
       <div className="panel-body">{children}</div>
     </div>

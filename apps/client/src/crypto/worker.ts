@@ -30,7 +30,7 @@ self.onmessage = async ({ data }: MessageEvent<Request>) => {
     if(error instanceof WebAssembly.RuntimeError || error instanceof RangeError){
       failure=/stack/i.test(message)?'wasm_stack':/memory|bounds/i.test(message)?'wasm_memory':error instanceof RangeError?'wasm_range':'wasm_runtime'
     }
-    if (['messaging','openMessaging'].includes(data.operation)) { self.postMessage({id:data.id,failure,error:'Encrypted message or device verification failed. Existing data was preserved; sign in again to retry.'});return }
-    self.postMessage({ id: data.id, failure, error: ['prepareIdentity','restoreIdentity','exportRecovery','linkOffer','linkId'].includes(data.operation) ? 'The identity operation could not be verified. Check your kit, passphrase, account and server; existing keys were preserved.' : 'The password or authentication exchange could not be verified.' })
+    if (['messaging','openMessaging'].includes(data.operation)) { self.postMessage({id:data.id,failure,error:'Hearth could not confirm that a message or device was genuine, so it stopped. Nothing was lost. Sign in again to retry.'});return }
+    self.postMessage({ id: data.id, failure, error: ['prepareIdentity','restoreIdentity','exportRecovery','linkOffer','linkId'].includes(data.operation) ? 'Check your recovery kit, backup password, account and server, then try again. Your existing account keys were kept. Nothing was lost.' : 'The password or authentication exchange could not be verified.' })
   } finally { data.password = '' }
 }

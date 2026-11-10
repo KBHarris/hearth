@@ -20,7 +20,7 @@ test('a messaging lock leaves idle calls quiet but still ends a selected active 
     f.lock();assert.deepEqual(f.call.state,idleCall)
     await f.call.start(conversation,peer)
     f.lock(id('e'));assert.equal(f.call.state.phase,'outgoing')
-    f.lock(conversation);assert.equal(f.call.state.phase,'ended');assert.match(f.call.state.message,/Encryption or authentication changed/)
+    f.lock(conversation);assert.equal(f.call.state.phase,'ended');assert.match(f.call.state.message,/Encryption or someone’s access changed/)
     const stopped=f.call.state;f.lock();assert.equal(f.call.state,stopped)
   }finally{f.call.close()}
 })

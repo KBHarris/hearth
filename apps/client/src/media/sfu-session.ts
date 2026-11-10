@@ -66,7 +66,7 @@ export class SfuSession {
     // The owning room stops/rejoins on this bounded preview failure path.
     this.room.on(RoomEvent.Reconnecting,()=>{for(const track of this.tracks.values())track.enabled=false;this.status(false);if(!this.ended)this.failed('reconnecting')})
   }
-  private check(){if(this.ended)throw new Error('SFU session ended')}
+  private check(){if(this.ended)throw new Error('The connection to the voice server ended. Join again to reconnect.')}
   private source(publication:RemoteTrackPublication){return (Object.keys(sources) as SfuSource[]).find(source=>sources[source]===publication.source)}
   private allowed(device:string,source:SfuSource){return !!((this.permissions.get(device)??MEDIA_PERMISSIONS)&(source==='microphone'?Permission.speak:source==='camera'?Permission.camera:Permission.screen))}
   private subscribe(publication:RemoteTrackPublication,participant:RemoteParticipant){
@@ -128,7 +128,7 @@ export class SfuSession {
     if(previous)await this.room.localParticipant.unpublishTrack(previous,true).catch(()=>{})
     if(!track)return
     try{
-      this.check();if(!this.allowed(this.ownDevice,source)||!this.ready||!this.room.isE2EEEnabled||track.readyState!=='live'||track.kind!==(source==='microphone'||source==='system'?'audio':'video')||version!==this.versions[source])throw new Error('SFU publication is not ready')
+      this.check();if(!this.allowed(this.ownDevice,source)||!this.ready||!this.room.isE2EEEnabled||track.readyState!=='live'||track.kind!==(source==='microphone'||source==='system'?'audio':'video')||version!==this.versions[source])throw new Error('Your microphone, camera or screen couldn’t be shared right now. Try again.')
       this.tracks.set(source,track)
       let publicationTrack:MediaStreamTrack|LocalAudioTrack=track
       if(source==='microphone'){
@@ -140,7 +140,7 @@ export class SfuSession {
         await this.syncMute();this.check()
       }
       const publication=await this.room.localParticipant.publishTrack(publicationTrack,{source:sources[source],videoCodec:'vp8',simulcast:false,dtx:false,red:false});this.check()
-      if(version!==this.versions[source]||!publication.isEncrypted||!this.room.isE2EEEnabled)throw new Error('SFU publication encryption changed')
+      if(version!==this.versions[source]||!publication.isEncrypted||!this.room.isE2EEEnabled)throw new Error('The room’s encryption changed before sharing started. Try again.')
     }catch(error){track.stop();if(this.tracks.get(source)===track)this.tracks.delete(source);throw error}
   }
   mute(muted:boolean){this.microphoneMuted=muted;const track=this.tracks.get('microphone');if(track)track.enabled=!muted;void this.syncMute().catch(()=>{if(!this.ended)this.failed('mute')})}

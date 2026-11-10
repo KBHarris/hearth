@@ -26,12 +26,12 @@ export function AdminPanel({session,url,serverKey,configured}:{session:Session;u
   return <section className="recovery-panel">
     {settings && <form onSubmit={event => void save(event)}><fieldset disabled={busy}>
       <label htmlFor="server-name">Server name</label><input id="server-name" name="server-name" defaultValue={settings.server_name} required maxLength={80}/>
-      <label htmlFor="registration-mode">Registration</label><select id="registration-mode" name="registration-mode" defaultValue={settings.registration_mode}>
-        <option value="invite">Invite only</option><option value="closed">Closed</option><option value="open">Open to everyone</option>
+      <label htmlFor="registration-mode">Who can create an account</label><select id="registration-mode" name="registration-mode" defaultValue={settings.registration_mode}>
+        <option value="invite">Invite only</option><option value="closed">Nobody (closed)</option><option value="open">Open to everyone</option>
       </select><button type="submit">Save server settings</button>
     </fieldset></form>}
     {saved && <p role="status">Server settings saved.</p>}
-    <p>Invite someone to create an account. The invite includes this server’s address and identity, works once and expires after 24 hours.</p>
+    <p>Invite someone to create an account on this server. The invite includes this server’s address and safety code, works once and expires after 24 hours.</p>
     <button type="button" disabled={busy} onClick={() => void createInvite()}>Create account invite</button>
     {invite && <><ShareInvite key={invite} token={session.token} invite={{server:url,serverKey,account:invite}}/><button type="button" onClick={() => setInvite('')}>Hide invite</button></>}
     <BlockedPeople url={url} session={session} operator/>

@@ -1,7 +1,7 @@
 import type {PlaybackPosition,PlaybackProvider} from '@hearth/sdk'
 export function playbackAddress(input:string):{provider:PlaybackProvider;url:string}{
   const url=new URL(input.trim())
-  if(url.protocol!=='https:'||url.username||url.password||url.port)throw new Error('Use a public HTTPS media link without credentials.')
+  if(url.protocol!=='https:'||url.username||url.password||url.port)throw new Error('Use a public link that starts with https:// and has no username or password in it.')
   if(['www.youtube.com','youtube.com','youtu.be'].includes(url.hostname)){
     const id=url.hostname==='youtu.be'?url.pathname.slice(1):url.pathname==='/watch'?url.searchParams.get('v'):url.pathname.startsWith('/shorts/')?url.pathname.slice(8):null
     if(id&&/^[a-zA-Z0-9_-]{11}$/.test(id))return {provider:'youtube',url:'https://www.youtube.com/watch?v='+id}

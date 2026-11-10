@@ -6,6 +6,12 @@
       "runtimeExecutable": "npm",
       "runtimeArgs": ["run", "dev"],
       "port": 5173
+    },
+    {
+      "name": "client-sandbox",
+      "runtimeExecutable": "node",
+      "runtimeArgs": ["scripts/dev-sandbox.mjs"],
+      "port": 5175
     }
   ]
 }

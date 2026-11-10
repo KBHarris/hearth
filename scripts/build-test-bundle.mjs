@@ -38,12 +38,12 @@ writeFileSync(join(deploy,'.env.example'),env)
 const installerName=`${productName.replaceAll(' ','_')}_${version}_x64-setup.exe`;assert.ok([installerName,`${productName}_${version}_x64-setup.exe`].includes(resolve(installer).split(/[\\/]/).at(-1)),'Installer name must match the frozen product and version');copyFileSync(resolve(installer),join(directory,'client',installerName))
 writeFileSync(join(directory,'client/START_HERE.txt'),`${productName} ${version} - Windows x64
 
-1. Extract this ZIP, then run ${installerName}. This is an unsigned test build; Windows may show an unknown-publisher warning. WebView2 may download if missing.
-2. Open ${productName}, choose Join a server and enter the server address and pretty invite code your host sends separately. Check the server, then continue. Do not use localhost to reach your buddy.
-3. Create your account, then choose Join invited community. Keep both apps online while your host approves your device. If you already have an account on this new test server, choose Sign in.
-4. Test a DM, community messages, files up to 50 MB, the member sidebar and reopening the app. Compare identity fingerprints with your host over your existing trusted call. Hosting & updates checks for signed app updates.
+1. Extract this ZIP, then run ${installerName}. Windows may warn that the publisher is unknown, because this preview is not yet signed for Windows: choose More info, then Run anyway. If your PC needs WebView2, Windows downloads it for you.
+2. Open ${productName} and choose Join a server. Enter the server address and the invite code your host sent you (they arrive separately), choose Check server, then continue. Never use "localhost": that only works on the host's own computer.
+3. Create your account, then choose Join invited community. Keep the app open: your host has to let you in from their own app. Already have an account on this server? Choose Sign in instead.
+4. Try it out: a direct message, community messages, a file (up to 50 MB), the Members list, and closing and reopening the app. To be sure nobody is pretending to be your host, compare safety codes with them on a call you already trust (open Members, then their name). New versions arrive in Hosting & updates, on the Updates tab.
 
-Older Hearth invite links still open Review invite in the app. New invitations use only pretty codes with a separate server address. Checking and continuing remain explicit steps. You do not need Docker, Node or the owner's setup code. Keep your password and recovery kit private.
+Older Hearth invite links still open a Review invite screen in the app. New invites are a short code plus a separate server address. You do not need Docker, Node or the owner's setup code. Keep your password and recovery kit private.
 
 Source: ${commit}
 Installer SHA-256 is in SHA256SUMS.txt. This ZIP contains no host configuration, account invite, setup code or recovery kit.
@@ -62,7 +62,7 @@ Source: ${commit}
 Send only [the friend ZIP](${zipName}) to your buddy. Install that client on your PC too.
 Follow [the two-PC guide](TWO_PC_LATEST_TEST.md). The fresh server uses backend 8080, S3 18335 and Compose project hearth-guided-test. Port 8080 must be available. Existing test servers and profiles are preserved.
 
-Install and start Docker Desktop, then open Hosting & updates in the desktop app and choose this extracted folder. Configure your public IPv4 or DNS name and start the server. Connect to the local server and choose Use this computer’s host on the owner form; manual setup codes remain available for advanced hosts. Configure port forwarding and verify access from another network, then create a readable account/community invite in the owner client. You can stay connected to localhost while preparing a code for the public HTTPS address. Keep operator files on the host and share only the pretty code and separate server address privately. App and hosted-server updates verify signed releases; server updates retain a verified rollback backup.
+Install and start Docker Desktop, then open Hosting & updates in the desktop app and choose this extracted folder. Configure your public IPv4 or DNS name and start the server. Connect to the local server and choose Set up from this computer on the owner form; manual setup codes remain available for advanced hosts. Configure port forwarding and verify access from another network, then create a readable account/community invite in the owner client. You can stay connected to localhost while preparing a code for the public HTTPS address. Keep operator files on the host and share only the pretty code and separate server address privately. App and hosted-server updates verify signed releases; server updates retain a verified rollback backup.
 `)
 const files={}
 for(const f of [...mediaFiles,zipName,archiveName,'client/'+installerName,'deploy/compose.yaml','deploy/compose.https.yaml','deploy/setup.mjs','deploy/Caddyfile','deploy/storage-entrypoint.sh','deploy/.env.example','client/START_HERE.txt','client/SHA256SUMS.txt','START_HOST_HERE.md','TWO_PC_LATEST_TEST.md'])files[f]=digest(join(directory,f))

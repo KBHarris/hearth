@@ -26,7 +26,20 @@ const paths = {
   users: 'M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2 M9 3a4 4 0 1 0 0 8 4 4 0 0 0 0-8 M20 21v-2a4 4 0 0 0-3-4 M16 3a4 4 0 0 1 0 8',
   search: 'M10 3a7 7 0 1 0 0 14 7 7 0 0 0 0-14 M15 15l6 6',
   refresh: 'M20 8a8 8 0 1 0 1 7 M20 3v5h-5',
+  pin: 'M12 16v6 M8 3h8l-1 6 3 4H6l3-4z',
+  more: 'M5 11a1 1 0 1 0 0 2 1 1 0 0 0 0-2 M12 11a1 1 0 1 0 0 2 1 1 0 0 0 0-2 M19 11a1 1 0 1 0 0 2 1 1 0 0 0 0-2',
+  hash: 'M5 9h14 M5 15h14 M10 4 8 20 M16 4l-2 16',
+  user: 'M12 3a4 4 0 1 0 0 8 4 4 0 0 0 0-8 M4 21a8 8 0 0 1 16 0',
+  logout: 'M10 4H5v16h5 M15 8l4 4-4 4 M19 12H9',
+  volume: 'M4 9v6h4l5 4V5L8 9z M17 9a4 4 0 0 1 0 6',
+  megaphone: 'M3 10v4l11 5V5z M17 9a4 4 0 0 1 0 6 M6 15v4h3v-3',
+  microphone: 'M12 3a3 3 0 0 0-3 3v6a3 3 0 0 0 6 0V6a3 3 0 0 0-3-3 M6 11a6 6 0 0 0 12 0 M12 17v4',
+  forum: 'M4 5h16v5H4z M4 14h16v5H4z',
+  calendar: 'M4 6h16v14H4z M4 10h16 M8 3v4 M16 3v4',
+  play: 'M7 4v16l13-8z',
+  poll: 'M5 20V10 M12 20V4 M19 20v-7',
 }
+export type IconName = keyof typeof paths
 
 export function Icon({ name }: { name: keyof typeof paths }) {
   return (

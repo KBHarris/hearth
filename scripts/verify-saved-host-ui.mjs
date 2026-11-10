@@ -31,7 +31,7 @@ try {
   driver = await new Builder().forBrowser('chrome').setChromeOptions(new chrome.Options().addArguments('--headless=new', '--window-size=1100,900')).build()
   const wait = selector => driver.wait(async () => (await driver.findElements(By.css(selector)))[0] ?? false, 15000)
   const hosted = '[aria-label="Open your hosted server"]'
-  const recovery = '[aria-label="Your host needs attention"]'
+  const recovery = '[aria-label="Your server needs attention"]'
   async function page(mode) {
     if (injection) await driver.sendDevToolsCommand('Page.removeScriptToEvaluateOnNewDocument', { identifier: injection })
     const result = await driver.sendAndGetDevToolsCommand('Page.addScriptToEvaluateOnNewDocument', { source: `
@@ -82,7 +82,7 @@ try {
 
   await page('missing')
   await driver.findElement(By.css('[aria-label="Hosting and updates"]')).click()
-  const choose = await driver.wait(async () => (await driver.findElements(By.xpath('//button[normalize-space(.)="Choose host package"]')))[0] ?? false, 5000)
+  const choose = await driver.wait(async () => (await driver.findElements(By.xpath('//button[normalize-space(.)="Choose server files"]')))[0] ?? false, 5000)
   await choose.click()
   await wait(hosted)
   checks.host_selection_updates_sidebar_while_settings_are_open = true

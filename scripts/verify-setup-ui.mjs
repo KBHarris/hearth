@@ -115,7 +115,7 @@ try {
   await driver.findElement(By.css('[aria-label="Add server"]')).click()
   await driver.findElement(By.xpath('//button[contains(.,"Join a server")]')).click()
   await fill(origin); await check()
-  assert.ok((await (await wait('.setup-error')).getText()).includes('identity does not match'))
+  assert.ok((await (await wait('.setup-error')).getText()).includes('safety code does not match'))
   await driver.executeScript('Storage.prototype.getItem=window.__setupGetItem;delete window.__setupGetItem')
   checks.current_server_identity_is_preserved_even_when_saved_pins_cannot_be_read = true
 
@@ -129,7 +129,7 @@ try {
   await driver.findElement(By.xpath('//button[contains(. ,"Host a server")]')).click()
   await fill(origin); await check(); await wait('.setup-result')
   await (await button('Set up owner account')).click(); await wait('.local-owner-setup')
-  await (await button('Use this computer’s host')).click()
+  await (await button('Set up from this computer')).click()
   await wait('.auth-panel form .notice')
   assert.equal((await driver.findElements(By.id('setup-code'))).length, 0)
   assert.equal(await driver.executeScript(`return (document.documentElement.outerHTML+JSON.stringify({...localStorage,...sessionStorage})).includes('d'.repeat(64))`), false)
@@ -144,7 +144,7 @@ try {
   checks.expired_local_authorization_cannot_submit_owner_creation = true
 
   await driver.executeScript("window.__ownerMode='slow'")
-  await (await button('Use this computer’s host')).click()
+  await (await button('Set up from this computer')).click()
   await driver.wait(()=>driver.executeScript('return !!window.__releaseOwner'),5000)
   await (await button('Cancel')).click()
   await driver.executeScript('window.__releaseOwner()')
@@ -155,7 +155,7 @@ try {
   checks.cancelled_local_lookup_cannot_restore_owner_authorization = true
 
   await driver.executeScript("window.__ownerMode='error'")
-  await (await button('Use this computer’s host')).click()
+  await (await button('Set up from this computer')).click()
   assert.ok((await (await wait('.auth-panel [role=alert]')).getText()).includes('unavailable'))
   assert.equal((await driver.findElements(By.id('setup-code'))).length,1)
   checks.failed_local_owner_lookup_keeps_manual_recovery_available = true

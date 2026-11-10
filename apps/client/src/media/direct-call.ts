@@ -62,7 +62,7 @@ export class DirectCall {
   constructor(transport:CallTransport,changed:(state:CallState)=>void,capture=(constraints:MediaStreamConstraints)=>navigator.mediaDevices.getUserMedia(constraints),displayCapture=captureDisplay,edge?:GroupEdge){
     this.edge=edge
     this.transport=transport;this.changed=changed;this.capture=capture;this.displayCapture=displayCapture
-    this.disposeListener=transport.onCall(event=>{const generation=this.generation;this.serial=this.serial.then(()=>this.receive(event)).catch(()=>{if(generation===this.generation)this.finish('Call verification failed. Start a new call.')})},conversation=>{if(this.active&&(!conversation||conversation===this.state.conversation))this.finish('Encryption or authentication changed. Start a new call.')},(conversation,epoch)=>this.epochChanged(conversation,epoch))
+    this.disposeListener=transport.onCall(event=>{const generation=this.generation;this.serial=this.serial.then(()=>this.receive(event)).catch(()=>{if(generation===this.generation)this.finish('Hearth couldn’t verify this call, so it stopped. Start a new call.')})},conversation=>{if(this.active&&(!conversation||conversation===this.state.conversation))this.finish('Encryption or someone’s access changed, so the call was stopped to keep it private. Start a new call.')},(conversation,epoch)=>this.epochChanged(conversation,epoch))
   }
   private publish(patch:Partial<CallState>){this.state={...this.state,...patch};this.changed(this.state)}
   private check(offer:CallSignal){if(this.offer!==offer||!this.active)throw new Error('Call ended')}
@@ -70,12 +70,12 @@ export class DirectCall {
     const offer=this.offer;if(!offer)throw new Error('Call ended')
     const from=this.transport.callDevice,to=from===offer.from_device?offer.to_device:offer.from_device
     const result=await this.transport.send(this.state.conversation,{kind:'call',signal:{...offer,from_device:from,to_device:to,kind,description,expires_at:Date.now()+60_000}})
-    if(result!=='sent')throw new Error('Call signaling is offline. Try again when messaging reconnects.')
+    if(result!=='sent')throw new Error('You are offline. Try again when Hearth reconnects.')
   }
   async start(id:string,device:string,relayOnly=false,iceServers:RTCIceServer[]=[]){
     if(this.active)throw new Error('End the current call first.')
-    if(!callCapability())throw new Error('Encrypted calls need a supported browser with media permissions and encoded transforms.')
-    if(relayOnly&&!iceServers.some(s=>(Array.isArray(s.urls)?s.urls:[s.urls]).some(url=>/^turns?:/.test(url))))throw new Error('Relay-only calls need a configured TURN relay. No direct connection was attempted.')
+    if(!callCapability())throw new Error('This app or browser can’t make encrypted calls. Update it or try another browser.')
+    if(relayOnly&&!iceServers.some(s=>(Array.isArray(s.urls)?s.urls:[s.urls]).some(url=>/^turns?:/.test(url))))throw new Error('Relay only calls need a relay, but this server has no relay set up. Hearth did not try a direct connection.')
     const generation=++this.generation
     this.completedRekeys=0
     this.retiredKeyUpdates.clear()
@@ -100,9 +100,9 @@ export class DirectCall {
     const key=await this.transport.callKey(this.state.conversation,offer);this.check(offer)
     const worker=new Worker(new URL('./transform-worker.ts',import.meta.url),{type:'module'});this.worker=worker
     await new Promise<void>((resolve,reject)=>{
-      const timer=setTimeout(()=>reject(new Error('Media encryption did not become ready.')),10_000)
-      worker.onmessage=({data})=>{if(data.op==='ready'){clearTimeout(timer);resolve()}else if(data.op==='fatal'){clearTimeout(timer);reject(new Error('Media encryption failed.'));if(this.worker===worker&&this.offer===offer)this.finish('Media encryption failed.')}}
-      worker.onerror=()=>{clearTimeout(timer);reject(new Error('Media encryption failed.'));if(this.worker===worker&&this.offer===offer)this.finish('Media encryption failed.')}
+      const timer=setTimeout(()=>reject(new Error('Hearth couldn’t secure the call. Try again.')),10_000)
+      worker.onmessage=({data})=>{if(data.op==='ready'){clearTimeout(timer);resolve()}else if(data.op==='fatal'){clearTimeout(timer);reject(new Error('The call’s encryption stopped working, so the call ended. Start a new call.'));if(this.worker===worker&&this.offer===offer)this.finish('The call’s encryption stopped working, so the call ended. Start a new call.')}}
+      worker.onerror=()=>{clearTimeout(timer);reject(new Error('The call’s encryption stopped working, so the call ended. Start a new call.'));if(this.worker===worker&&this.offer===offer)this.finish('The call’s encryption stopped working, so the call ended. Start a new call.')}
       worker.postMessage({op:'init',key,role,epoch:offer.epoch,id:offer.call_id,slots:4})
     })
     this.check(offer)
@@ -124,30 +124,30 @@ export class DirectCall {
     const kinds=['audio','video','video','audio']
     this.transceivers=kinds.map((kind,slot)=>{
       const transceiver=role===0?pc.addTransceiver(kind,{direction:'sendrecv'}):pc.getTransceivers()[slot]
-      if(!transceiver||transceiver.receiver.track.kind!==kind||role===1&&pc.getTransceivers().length!==kinds.length)throw new Error('Unsupported encrypted call description.')
+      if(!transceiver||transceiver.receiver.track.kind!==kind||role===1&&pc.getTransceivers().length!==kinds.length)throw new Error('The call hit a problem and had to stop. Start a new call.')
       transceiver.direction='sendrecv'
       ;(transceiver.sender as unknown as TransformEndpoint).transform=new Transform(worker,{direction:'send',slot})
       ;(transceiver.receiver as unknown as TransformEndpoint).transform=new Transform(worker,{direction:'receive',slot})
       // One video codec gives an explicit tested framing/packetization profile.
       if(kind==='video'){
         const codecs=RTCRtpReceiver.getCapabilities('video')?.codecs.filter(c=>c.mimeType.toLowerCase()==='video/vp8')
-        if(!codecs?.length)throw new Error('This runtime needs VP8 for encrypted video calls.')
+        if(!codecs?.length)throw new Error('This app or browser doesn’t support encrypted video calls. Update it or try another browser.')
         transceiver.setCodecPreferences(codecs)
       }
       return transceiver
     })
     const connectionChanged=()=>{
       if(this.pc!==pc)return
-      if(this.keyUpdating){if(pc.connectionState==='closed')this.finish('Connection interrupted during key update.');return}
-      if(pc.connectionState==='closed')this.finish('Connection interrupted. Start a new call.')
+      if(this.keyUpdating){if(pc.connectionState==='closed')this.finish('The connection dropped while the call was being secured again. Start a new call.');return}
+      if(pc.connectionState==='closed')this.finish('The connection dropped. Start a new call.')
       else if(['failed','disconnected'].includes(pc.connectionState)||['failed','disconnected'].includes(pc.iceConnectionState)){
-        if(!this.established){this.finish('Connection interrupted. Start a new call.');return}
+        if(!this.established){this.finish('The connection dropped. Start a new call.');return}
         this.beginRecovery(offer)
         if(!this.retryTimer&&!this.negotiating&&!this.recovery?.pending){
           this.retryTimer=setTimeout(()=>{this.retryTimer=undefined;void this.reconnect().catch(()=>{})},pc.connectionState==='failed'||pc.iceConnectionState==='failed'?0:2000)
         }
       }else if(pc.connectionState==='connected'&&!this.recoveryUntil){
-        void this.verifyRoute(offer).then(()=>{this.check(offer);if(this.recoveryUntil)return;this.established=true;this.publish({phase:'connected',message:offer.relay_only?'Encrypted · relay only':'Encrypted call'})}).catch(()=>{if(this.offer===offer&&this.pc===pc)this.finish('The selected privacy route could not be verified.')})
+        void this.verifyRoute(offer).then(()=>{this.check(offer);if(this.recoveryUntil)return;this.established=true;this.publish({phase:'connected',message:offer.relay_only?'Encrypted · relay only':'Encrypted call'})}).catch(()=>{if(this.offer===offer&&this.pc===pc)this.finish('Hearth could not confirm the call was using the relay, so it stopped the call. Start a new call.')})
       }
     }
     pc.onconnectionstatechange=connectionChanged;pc.oniceconnectionstatechange=connectionChanged
@@ -155,7 +155,7 @@ export class DirectCall {
     const audio=await this.capture({audio:{echoCancellation:true,noiseSuppression:true},video:false})
     if(this.offer!==offer||!this.active){audio.getTracks().forEach(t=>t.stop());throw new Error('Call ended')}
     this.streams.add(audio);this.publish({local:audio})
-    const track=audio.getAudioTracks()[0];if(!track)throw new Error('Microphone capture did not provide audio.')
+    const track=audio.getAudioTracks()[0];if(!track)throw new Error('Your microphone didn’t send any sound. Check your microphone and try again.')
     await this.transceivers[0].sender.replaceTrack(track)
   }
   private async verifyRoute(offer:CallSignal){
@@ -178,7 +178,7 @@ export class DirectCall {
     const pc=this.pc!;if(pc.iceGatheringState==='complete')return
     await new Promise<void>((resolve,reject)=>{
       const done=()=>{if(pc.iceGatheringState==='complete'){clearTimeout(timer);pc.removeEventListener('icegatheringstatechange',done);resolve()}}
-      const timer=setTimeout(()=>{pc.removeEventListener('icegatheringstatechange',done);reject(new Error('Network discovery timed out. Check your relay settings.'))},12_000)
+      const timer=setTimeout(()=>{pc.removeEventListener('icegatheringstatechange',done);reject(new Error('Connecting took too long. Check your internet connection and try again. If you chose relay only, this server’s relay may be unreachable: tell your host.'))},12_000)
       pc.addEventListener('icegatheringstatechange',done);done()
     });this.check(offer)
   }
@@ -187,12 +187,12 @@ export class DirectCall {
     this.recoveryUntil=Date.now()+20_000
     this.recoveryBaseline=this.diagnostics().then(value=>value.decrypted)
     // Observe failures even if another queued operation never reaches the await.
-    void this.recoveryBaseline.catch(()=>{if(this.offer===offer)this.finish('Media recovery could not be verified.')})
-    this.publish({phase:'reconnecting',message:'Reconnecting encrypted call…'})
+    void this.recoveryBaseline.catch(()=>{if(this.offer===offer)this.finish('Hearth couldn’t confirm the call reconnected safely, so it stopped the call. Start a new call.')})
+    this.publish({phase:'reconnecting',message:'Reconnecting…'})
     let busy=false
     this.recoveryTimer=setInterval(()=>{
       if(this.offer!==offer)return
-      if(Date.now()>=this.recoveryUntil){this.finish('Connection recovery timed out. Start a new call.');return}
+      if(Date.now()>=this.recoveryUntil){this.finish('The call couldn’t reconnect in time. Start a new call.');return}
       if(busy||this.negotiating||this.recovery?.pending||this.retryTimer||this.pc?.signalingState!=='stable'||!['connected','completed'].includes(this.pc.iceConnectionState))return
       busy=true
       void(async()=>{
@@ -203,7 +203,7 @@ export class DirectCall {
         if(this.negotiating||this.recovery?.pending)return
         clearInterval(this.recoveryTimer);this.recoveryTimer=undefined;this.recoveryUntil=0;this.recoveryBaseline=null;this.completedRestarts++
         this.publish({phase:'connected',message:offer.relay_only?'Encrypted · relay only':'Encrypted call'})
-      })().catch(()=>{if(this.offer===offer)this.finish('The recovered privacy route could not be verified.')}).finally(()=>{busy=false})
+      })().catch(()=>{if(this.offer===offer)this.finish('Hearth could not confirm the reconnected call was using the relay, so it stopped the call. Start a new call.')}).finally(()=>{busy=false})
     },500)
   }
   /** Restart only the network negotiation. Capture, workers, keys and counters survive. */
@@ -224,7 +224,7 @@ export class DirectCall {
         await this.signal('offer',restartDescription(pc.localDescription!.sdp,id));this.check(offer)
       }finally{if(this.offer===offer)this.negotiating=false}
     })
-    this.serial=operation.catch(()=>{if(this.offer===scheduledOffer&&this.active)this.finish('Connection recovery failed. Start a new call.')})
+    this.serial=operation.catch(()=>{if(this.offer===scheduledOffer&&this.active)this.finish('The call couldn’t reconnect. Start a new call.')})
     return operation
   }
   private async recoverSignal(signal:CallSignal,offer:CallSignal){
@@ -291,8 +291,8 @@ export class DirectCall {
   async answer(iceServers:RTCIceServer[]=[]){
     const offer=this.offer;if(!offer||this.state.phase!=='incoming')return
     try{
-      if(offer.relay_only&&!iceServers.some(s=>(Array.isArray(s.urls)?s.urls:[s.urls]).some(url=>/^turns?:/.test(url))))throw new Error('This call requires a configured TURN relay. No direct connection was attempted.')
-      this.publish({phase:'preparing',message:'Preparing encrypted media…'})
+      if(offer.relay_only&&!iceServers.some(s=>(Array.isArray(s.urls)?s.urls:[s.urls]).some(url=>/^turns?:/.test(url))))throw new Error('This call is set to relay only, but this server has no relay set up. Hearth did not try a direct connection.')
+      this.publish({phase:'preparing',message:'Preparing encrypted call…'})
       await this.transport.authorizeCall(this.state.conversation,offer);this.check(offer)
       await this.prepare(offer,1,iceServers);this.check(offer)
       if(!this.established)this.publish({phase:'connecting',message:'Connecting securely…'})
@@ -304,18 +304,18 @@ export class DirectCall {
     const offer=this.offer
     let paused:Promise<void>|undefined
     if(!offer||!this.active||conversation!==this.state.conversation)return
-    if(this.edge){this.finish('Group encryption changed. Start a new call.');return}
-    if(epoch===undefined&&this.keyUpdating){this.finish('Encryption changed again before the key update completed.');return}
+    if(this.edge){this.finish('The group’s encryption changed, so the call was stopped to keep it private. Start a new call.');return}
+    if(epoch===undefined&&this.keyUpdating){this.finish('The call’s encryption changed again before it could be secured, so the call was stopped to keep it private. Start a new call.');return}
     if(!this.keyUpdating){
-      if(!this.established||this.recoveryUntil||this.negotiating||this.completedRekeys>=32){this.finish('Encryption changed. Start a new call.');return}
+      if(!this.established||this.recoveryUntil||this.negotiating||this.completedRekeys>=32){this.finish('The call’s encryption changed, so the call was stopped to keep it private. Start a new call.');return}
       this.keyUpdating=true
       paused=this.keyCommand('pause',randomId()).then(()=>{})
-      void paused.catch(()=>{if(this.offer===offer)this.finish('Media publication could not be paused.')})
-      this.publish({phase:'rekeying',message:'Updating call encryption…'})
+      void paused.catch(()=>{if(this.offer===offer)this.finish('Hearth couldn’t pause your sound and video while securing the call again, so it stopped the call. Start a new call.')})
+      this.publish({phase:'rekeying',message:'Securing the call again…'})
       const deadline=Date.now()+20_000;let busy=false
       this.keyTimer=setInterval(()=>{
         if(this.offer!==offer)return
-        if(Date.now()>=deadline||Date.now()-this.started>50*60_000){this.finish('Call encryption update timed out. Start a new call.');return}
+        if(Date.now()>=deadline||Date.now()-this.started>50*60_000){this.finish('Securing the call again took too long. Start a new call.');return}
         const update=this.keyUpdate
         if(busy||update?.stage!=='confirmed')return
         busy=true
@@ -326,11 +326,11 @@ export class DirectCall {
           if(this.keyUpdate!==update)return
           clearInterval(this.keyTimer);this.keyTimer=undefined;this.retiredKeyUpdates.add(update.id);this.keyUpdate=null;this.keyUpdating=false;this.completedRekeys++
           this.watch(offer);this.publish({phase:'connected',message:offer.relay_only?'Encrypted · relay only':'Encrypted call'})
-        })().catch(()=>{if(this.offer===offer)this.finish('Call encryption could not be verified.')}).finally(()=>{busy=false})
+        })().catch(()=>{if(this.offer===offer)this.finish('Hearth couldn’t confirm the call was still secure, so it stopped the call. Start a new call.')}).finally(()=>{busy=false})
       },500)
     }
     if(epoch!==undefined){
-      this.serial=this.serial.then(()=>this.prepareEpoch(offer,epoch)).catch(()=>{if(this.offer===offer)this.finish('Call encryption update was not authorized.')})
+      this.serial=this.serial.then(()=>this.prepareEpoch(offer,epoch)).catch(()=>{if(this.offer===offer)this.finish('Hearth couldn’t confirm permission for the call’s new encryption, so it stopped the call. Start a new call.')})
     }
     return paused
   }
@@ -399,8 +399,8 @@ export class DirectCall {
     this.timer=setInterval(()=>{
       if(this.offer!==offer)return
       if(this.keyUpdating)return
-      if(Date.now()-this.lastPeer>25_000||Date.now()-lastAuthorization>25_000||(['incoming','outgoing','connecting','preparing'].includes(this.state.phase)&&Date.now()-this.started>60_000)){this.finish('Call verification timed out. Start a new call.');return}
-      if(Date.now()-this.started>50*60_000){this.finish('This preview call reached its 50-minute limit. Start a new call to refresh relay credentials.');return}
+      if(Date.now()-this.lastPeer>25_000||Date.now()-lastAuthorization>25_000||(['incoming','outgoing','connecting','preparing'].includes(this.state.phase)&&Date.now()-this.started>60_000)){this.finish('The call stopped responding or took too long to connect. Start a new call.');return}
+      if(Date.now()-this.started>50*60_000){this.finish('Calls in this preview version can last up to 50 minutes. Start a new call to keep talking.');return}
       if(busy)return
       busy=true
       void(async()=>{
@@ -412,20 +412,20 @@ export class DirectCall {
         // every five seconds from each member of a four-person mesh.
         if(!this.edge?.voiceRoom||Date.now()-lastHeartbeat>=10_000){await this.signal('heartbeat');lastHeartbeat=Date.now()}
         this.check(offer)
-      })().catch(()=>{if(this.offer===offer&&!this.keyUpdating)this.finish('Call ended because authorization or signaling was lost.')}).finally(()=>{busy=false})
+      })().catch(()=>{if(this.offer===offer&&!this.keyUpdating)this.finish('Hearth lost its connection or your permission for this call, so the call ended. Start a new call.')}).finally(()=>{busy=false})
     },5000)
   }
   mute(muted=!this.state.muted){this.state.local?.getAudioTracks().forEach(track=>{track.enabled=!muted});this.publish({muted})}
   async setMicrophone(track:MediaStreamTrack,stillCurrent=()=>true){
     const offer=this.offer
     try{
-      if(!offer||!this.active||!this.transceivers[0]||track.kind!=='audio'||track.readyState!=='live')throw new Error('The encrypted microphone connection is not ready.')
-      await this.transport.authorizeCall(this.state.conversation,offer);this.check(offer);if(!stillCurrent())throw new Error('Microphone selection changed.')
+      if(!offer||!this.active||!this.transceivers[0]||track.kind!=='audio'||track.readyState!=='live')throw new Error('Wait for the call to connect before changing your microphone.')
+      await this.transport.authorizeCall(this.state.conversation,offer);this.check(offer);if(!stillCurrent())throw new Error('You picked a different microphone before this one was ready.')
       track.enabled=!this.state.muted
       const previous=this.transceivers[0].sender.track
-      await this.transceivers[0].sender.replaceTrack(track);this.check(offer);if(!stillCurrent())throw new Error('Microphone selection changed.')
+      await this.transceivers[0].sender.replaceTrack(track);this.check(offer);if(!stillCurrent())throw new Error('You picked a different microphone before this one was ready.')
       previous?.stop();this.streams.add(new MediaStream([track]));this.publish({local:new MediaStream([track])})
-      track.onended=()=>{if(this.offer===offer&&this.transceivers[0]?.sender.track===track)this.finish('The microphone stopped.')}
+      track.onended=()=>{if(this.offer===offer&&this.transceivers[0]?.sender.track===track)this.finish('Your microphone stopped, so the call ended. Start a new call.')}
     }catch(error){track.stop();throw error}
   }
   async changeDevice(kind:'audio'|'video',device:string){
@@ -436,7 +436,7 @@ export class DirectCall {
     const stream=await this.capture(kind==='audio'?{audio:{deviceId:device?{exact:device}:undefined,echoCancellation:true,noiseSuppression:true},video:false}:{audio:false,video:{deviceId:device?{exact:device}:undefined,width:{ideal:1280},height:{ideal:720}}})
     try{
       await this.transport.authorizeCall(this.state.conversation,offer);this.check(offer)
-      if(version!==this.deviceVersion[kind]||stream.getTracks().length!==1||stream.getTracks()[0].kind!==(kind==='audio'?'audio':'video'))throw new Error('Device selection changed during permission approval.')
+      if(version!==this.deviceVersion[kind]||stream.getTracks().length!==1||stream.getTracks()[0].kind!==(kind==='audio'?'audio':'video'))throw new Error('You picked a different device while Hearth was asking for permission. Try again.')
       if(kind==='audio')await this.setMicrophone(stream.getAudioTracks()[0],()=>version===this.deviceVersion[kind])
       else{const previous=this.transceivers[1].sender.track,track=stream.getVideoTracks()[0];await this.transceivers[1].sender.replaceTrack(track);this.check(offer);previous?.stop();track.onended=()=>{if(this.offer===offer&&this.transceivers[1]?.sender.track===track){void this.transceivers[1].sender.replaceTrack(null).catch(()=>{});this.publish({camera:false})}}}
       this.streams.add(stream)
@@ -450,12 +450,12 @@ export class DirectCall {
     const sender=this.transceivers[slot]?.sender
     if(!track){this.publish(kind==='camera'?{camera:false}:kind==='screen'?{sharing:false}:{systemAudio:false});await sender?.replaceTrack(null);return}
     try{
-      if(!this.edge||!offer||!sender||!this.worker||this.state.phase!=='connected'||track.kind!==(kind==='system'?'audio':'video')||track.readyState!=='live')throw new Error('Room media is not ready.')
+      if(!this.edge||!offer||!sender||!this.worker||this.state.phase!=='connected'||track.kind!==(kind==='system'?'audio':'video')||track.readyState!=='live')throw new Error('Wait for the call to connect before turning on your camera or screen sharing.')
       this.roomVideo.set(kind,track)
       await this.transport.authorizeCall(this.state.conversation,offer);this.check(offer)
-      if(version!==this.roomVideoVersion[kind]||this.state.phase!=='connected'||track.readyState!=='live')throw new Error('Room video changed.')
+      if(version!==this.roomVideoVersion[kind]||this.state.phase!=='connected'||track.readyState!=='live')throw new Error('Your camera or screen sharing changed before it could start. Try again.')
       await sender.replaceTrack(track);this.check(offer)
-      if(version!==this.roomVideoVersion[kind]||track.readyState!=='live')throw new Error('Room video changed.')
+      if(version!==this.roomVideoVersion[kind]||track.readyState!=='live')throw new Error('Your camera or screen sharing changed before it could start. Try again.')
       this.publish(kind==='camera'?{camera:true}:kind==='screen'?{sharing:true}:{systemAudio:true})
     }catch(error){track.stop();if(this.roomVideo.get(kind)===track)this.roomVideo.delete(kind);throw error}
   }
@@ -467,10 +467,10 @@ export class DirectCall {
     await this.transport.authorizeCall(this.state.conversation,offer);this.check(offer)
     const stream=kind==='camera'?await this.capture({audio:false,video:{deviceId:this.cameraDevice?{exact:this.cameraDevice}:undefined,width:{ideal:1280},height:{ideal:720}}}):await this.displayCapture(withAudio)
     if(this.offer!==offer||!this.active){stream.getTracks().forEach(t=>t.stop());return}
-    const track=stream.getVideoTracks()[0];if(!track||stream.getVideoTracks().length!==1||stream.getAudioTracks().length>(kind==='screen'&&withAudio?1:0)){stream.getTracks().forEach(t=>t.stop());throw new Error('Invalid selected video or audio tracks.')}
+    const track=stream.getVideoTracks()[0];if(!track||stream.getVideoTracks().length!==1||stream.getAudioTracks().length>(kind==='screen'&&withAudio?1:0)){stream.getTracks().forEach(t=>t.stop());throw new Error('Hearth couldn’t use what you picked. Choose one camera or screen and try again.')}
     try{await this.transport.authorizeCall(this.state.conversation,offer);this.check(offer)}catch(error){stream.getTracks().forEach(t=>t.stop());throw error}
     this.streams.add(stream)
-    try{await this.transceivers[slot].sender.replaceTrack(track);if(kind==='screen'&&stream.getAudioTracks()[0])await this.transceivers[3].sender.replaceTrack(stream.getAudioTracks()[0]);this.check(offer)}catch{stream.getTracks().forEach(t=>t.stop());throw new Error('This capture could not be added to the encrypted call.')}
+    try{await this.transceivers[slot].sender.replaceTrack(track);if(kind==='screen'&&stream.getAudioTracks()[0])await this.transceivers[3].sender.replaceTrack(stream.getAudioTracks()[0]);this.check(offer)}catch{stream.getTracks().forEach(t=>t.stop());throw new Error('Your camera or screen couldn’t be added to the call. Try again.')}
     track.onended=()=>{stream.getTracks().forEach(track=>track.stop());if(this.offer===offer){void this.transceivers[slot]?.sender.replaceTrack(null).catch(()=>{});if(kind==='screen')void this.transceivers[3]?.sender.replaceTrack(null).catch(()=>{});this.publish(kind==='camera'?{camera:false}:{sharing:false,systemAudio:false})}}
     const audio=kind==='screen'?stream.getAudioTracks()[0]:null
     if(audio)audio.onended=()=>{if(this.offer===offer&&this.transceivers[3]?.sender.track===audio){void this.transceivers[3].sender.replaceTrack(null).catch(()=>{});this.publish({systemAudio:false})}}
@@ -488,7 +488,7 @@ export class DirectCall {
     for(const track of this.roomVideo.values())track.stop();this.roomVideo.clear()
     clearInterval(this.keyTimer);this.keyTimer=undefined;this.keyUpdating=false;this.keyUpdate=null
     this.captureConnectivity()
-    this.connectivity.stopReason=message.includes('privacy route')?'route':message.includes('verification timed')?'watchdog':message.includes('Connection interrupted')?'ice':message.includes('authorization or signaling')?'authorization':message.includes('Encryption or authentication')?'epoch_or_authentication':'ended'
+    this.connectivity.stopReason=message.includes('was using the relay')?'route':message.includes('The call stopped responding')?'watchdog':message.includes('The connection dropped')?'ice':message.includes('lost its connection or your permission')?'authorization':message.includes('Encryption or someone’s access changed')?'epoch_or_authentication':'ended'
     if(this.offer){this.stopped.add(this.offer.call_id);if(this.stopped.size>128)this.stopped.delete(this.stopped.values().next().value!)}
     this.active=false;this.offer=null;clearInterval(this.timer);clearInterval(this.recoveryTimer);clearTimeout(this.retryTimer);this.recoveryTimer=undefined;this.retryTimer=undefined;this.recoveryUntil=0;this.recoveryBaseline=null;this.recovery=null;this.established=false;this.negotiating=false;this.pc?.close();this.pc=null;this.worker?.terminate();this.worker=null
     for(const stream of this.streams)stream.getTracks().forEach(track=>track.stop());this.streams.clear();this.transceivers=[]

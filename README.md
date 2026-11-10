@@ -140,7 +140,7 @@ See [ADR 0006](docs/adr/0006-first-device-vault.md) for the vault format and
 [ADR 0007](docs/adr/0007-recovery-and-registration.md) for recovery and member onboarding.
 
 Keep both participants signed in to prepare their encrypted devices, then enter usernames
-under **Start a conversation**. Separate usernames with commas for a group DM. An existing
+in **New direct message** (the **+** beside Direct messages). Separate usernames with commas for a group DM. An existing
 participant adds approved new devices automatically while signed in; the new install reads
 subsequent messages without inheriting old history. Browser message snapshots are encrypted
 in IndexedDB. Desktop snapshots use SQLCipher with a separate OS-stored database key.

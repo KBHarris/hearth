@@ -29,11 +29,11 @@ pub struct MediaStatus {
     message: String,
 }
 fn docker_path(path: &Path) -> Result<String, String> {
-    let text = path.to_str().ok_or("Media path is unavailable.")?;
+    let text = path.to_str().ok_or("Hearth couldn’t read your server folder’s location for voice and video. Move the server folder somewhere else on this computer, then try again.")?;
     #[cfg(windows)]
     let text = text.strip_prefix("\\\\?\\").unwrap_or(text);
     if text.contains([',', '\n', '\r']) || text.starts_with("UNC\\") {
-        return Err("Choose a local host folder without commas or line breaks.".into());
+        return Err("Your server folder’s location contains a comma or line break, which voice and video can’t use. Move the server folder somewhere whose folder names have no commas, then try again.".into());
     }
     Ok(text.replace('\\', "/"))
 }
@@ -42,37 +42,39 @@ pub(crate) fn directory(root: &Path) -> Result<std::path::PathBuf, String> {
     let path = root.join("deploy/media/data");
     let canonical = root
         .canonicalize()
-        .map_err(|_| "Cannot inspect host storage.")?;
+        .map_err(|_| "Hearth couldn’t check your server folder. Try again.")?;
     if root
         .join("deploy")
         .canonicalize()
-        .map_err(|_| "Cannot inspect deployment storage.")?
+        .map_err(|_| "Hearth couldn’t check your server folder. Try again.")?
         != canonical.join("deploy")
     {
-        return Err("Deployment files must remain inside the host folder without links.".into());
+        return Err("Your server folder contains a link or shortcut to another place, which Hearth doesn’t allow for safety. Use the original server files.".into());
     }
     let media = root.join("deploy/media");
     if !media.exists() {
-        fs::create_dir(&media).map_err(|_| "Cannot prepare media storage.")?;
+        fs::create_dir(&media)
+            .map_err(|_| "Hearth couldn’t prepare voice and video settings. Try again.")?;
     }
     if media
         .canonicalize()
-        .map_err(|_| "Cannot inspect media storage.")?
+        .map_err(|_| "Hearth couldn’t check voice and video settings. Try again.")?
         != canonical.join("deploy/media")
     {
-        return Err("Media files must remain inside the host folder without links.".into());
+        return Err("Voice and video files must stay inside your server folder, with no links or shortcuts to other places.".into());
     }
-    fs::create_dir_all(&path).map_err(|_| "Cannot prepare private media settings.")?;
+    fs::create_dir_all(&path)
+        .map_err(|_| "Hearth couldn’t prepare private voice and video settings. Try again.")?;
     if path
         .canonicalize()
-        .map_err(|_| "Cannot inspect media storage.")?
+        .map_err(|_| "Hearth couldn’t check voice and video settings. Try again.")?
         != root
             .canonicalize()
-            .map_err(|_| "Cannot inspect host storage.")?
+            .map_err(|_| "Hearth couldn’t check your server folder. Try again.")?
             .join("deploy/media/data")
     {
         return Err(
-            "Media storage must remain inside the selected host folder without links.".into(),
+            "Voice and video files must stay inside your server folder, with no links or shortcuts to other places.".into(),
         );
     }
     Ok(path)
@@ -84,9 +86,14 @@ pub(crate) fn enabled(root: &Path) -> Result<bool, String> {
     }
     hosting::regular(&path)?;
     serde_json::from_slice::<bool>(
-        &fs::read(path).map_err(|_| "Cannot read the media preference.")?,
+        &fs::read(path).map_err(
+            |_| "Hearth couldn’t read whether voice and video are turned on. Try again.",
+        )?,
     )
-    .map_err(|_| "Invalid media preference.".into())
+    .map_err(|_| {
+        "The voice and video on/off setting (enabled.json in your server folder) looks damaged."
+            .into()
+    })
 }
 pub(crate) fn options(root: &Path) -> Result<Vec<String>, String> {
     if !enabled(root)? {
@@ -97,9 +104,10 @@ pub(crate) fn options(root: &Path) -> Result<Vec<String>, String> {
         hosting::regular(&dir.join(file))?;
     }
     let settings: serde_json::Value = serde_json::from_slice(
-        &fs::read(dir.join("settings.json")).map_err(|_| "Cannot read media settings.")?,
+        &fs::read(dir.join("settings.json"))
+            .map_err(|_| "Hearth couldn’t read your voice and video settings. Try again.")?,
     )
-    .map_err(|_| "Invalid media settings.")?;
+    .map_err(|_| "Your saved voice and video settings look damaged.")?;
     let mut result = vec![
         "--env-file".into(),
         ".env".into(),
@@ -119,7 +127,8 @@ pub(crate) fn rebase(root: &Path) -> Result<(), String> {
     let dir = directory(root)?;
     let path = dir.join(".env");
     hosting::regular(&path)?;
-    let text = fs::read_to_string(&path).map_err(|_| "Cannot read private media settings.")?;
+    let text = fs::read_to_string(&path)
+        .map_err(|_| "Hearth couldn’t read your private voice and video settings. Try again.")?;
     let mut lines = vec![];
     for line in text.lines() {
         let rewritten = if line.starts_with("HEARTH_SFU_CONFIG_PATH=") {
@@ -136,7 +145,7 @@ pub(crate) fn rebase(root: &Path) -> Result<(), String> {
         }
     }
     fs::write(path, lines.join("\n") + "\n")
-        .map_err(|_| "Cannot relocate private media settings.".into())
+        .map_err(|_| "Hearth couldn’t update your private voice and video settings for this server folder. Try again.".into())
 }
 pub(crate) fn restore(
     root: &Path,
@@ -151,15 +160,16 @@ pub(crate) fn restore(
                 if dir.join(file).exists() {
                     hosting::regular(&dir.join(file))?;
                 }
-                fs::copy(backup.join(name), dir.join(file))
-                    .map_err(|_| "Cannot restore media settings.")?;
+                fs::copy(backup.join(name), dir.join(file)).map_err(
+                    |_| "Hearth couldn’t restore your voice and video settings from the backup.",
+                )?;
             }
         }
         rebase(root)?;
     } else if root.join("deploy/media/data/enabled.json").exists() {
         hosting::regular(&root.join("deploy/media/data/enabled.json"))?;
         fs::write(root.join("deploy/media/data/enabled.json"), b"false\n")
-            .map_err(|_| "Cannot restore disabled media state.")?;
+            .map_err(|_| "Hearth couldn’t turn voice and video off while restoring the backup.")?;
     }
     Ok(())
 }
@@ -169,7 +179,7 @@ fn ipv4(address: &str) -> Result<Ipv4Addr, String> {
     }
     (address, 443)
         .to_socket_addrs()
-        .map_err(|_| "Cannot resolve the configured public media address.")?
+        .map_err(|_| "Hearth couldn’t look up your server’s public address. Check the address and your internet connection, then try again.")?
         .find_map(|a| {
             if let std::net::IpAddr::V4(ip) = a.ip() {
                 Some(ip)
@@ -177,12 +187,12 @@ fn ipv4(address: &str) -> Result<Ipv4Addr, String> {
                 None
             }
         })
-        .ok_or_else(|| "Media hosting currently requires a public IPv4 address.".into())
+        .ok_or_else(|| "Voice and video hosting needs a public IPv4 internet address, and your server’s public address doesn’t have one.".into())
 }
 fn mount(path: &Path, target: &str, readonly: bool) -> Result<String, String> {
     let source = docker_path(path)?;
     if source.contains([',', '\n', '\r']) {
-        return Err("Choose a host folder without commas or line breaks.".into());
+        return Err("Your server folder’s location contains a comma or line break, which voice and video can’t use. Move the server folder somewhere whose folder names have no commas, then try again.".into());
     }
     Ok(format!(
         "type=bind,src={source},dst={target}{}",
@@ -195,38 +205,39 @@ pub(crate) fn configure(selection: &Selection) -> Result<(), String> {
         .iter()
         .any(|file| !bundle.files.contains_key(*file))
     {
-        return Err("Update this host package before enabling voice and video hosting.".into());
+        return Err("These server files are too old for voice and video. Choose Update hosted server first, then turn on voice and video.".into());
     }
     let dir = directory(&selection.root)?;
     let preferences = dir.join("settings.json");
     let signal_port = if preferences.exists() {
         hosting::regular(&preferences)?;
         let settings: serde_json::Value = serde_json::from_slice(
-            &fs::read(&preferences).map_err(|_| "Cannot read media preferences.")?,
+            &fs::read(&preferences)
+                .map_err(|_| "Hearth couldn’t read your voice and video settings. Try again.")?,
         )
-        .map_err(|_| "Invalid media preferences; existing settings were preserved.")?;
+        .map_err(|_| "Your saved voice and video settings look damaged. Nothing was changed.")?;
         settings["signalPort"]
             .as_u64()
             .filter(|port| (1024..=65535).contains(port))
-            .ok_or("Invalid media signaling port; existing settings were preserved.")?
+            .ok_or("The voice and video connection port in your saved settings looks damaged. Nothing was changed.")?
     } else {
         7880
     };
     let socket = UdpSocket::bind((Ipv4Addr::UNSPECIFIED, 0))
-        .map_err(|_| "Cannot inspect this computer's network.")?;
+        .map_err(|_| "Hearth couldn’t check this computer’s network connection. Try again.")?;
     // UDP connect selects a route without transmitting a packet.
     socket
         .connect((Ipv4Addr::new(192, 0, 2, 1), 9))
-        .map_err(|_| "Connect this computer to a network before enabling media.")?;
+        .map_err(|_| "Connect this computer to a network before turning on voice and video.")?;
     let std::net::IpAddr::V4(lan) = socket
         .local_addr()
-        .map_err(|_| "Cannot find a local media address.")?
+        .map_err(|_| "Hearth couldn’t find this computer’s address on your local network. Check your network connection, then try again.")?
         .ip()
     else {
-        return Err("A local IPv4 network is required.".into());
+        return Err("Voice and video need this computer to be on a local network with an IPv4 address. Check your network connection.".into());
     };
     if lan.is_loopback() || lan.is_unspecified() || lan.is_multicast() {
-        return Err("A usable local IPv4 network is required.".into());
+        return Err("Voice and video need a working local network connection with an IPv4 address. Check your network connection.".into());
     }
     let mut settings = vec![
         "--turn".to_string(),
@@ -238,7 +249,7 @@ pub(crate) fn configure(selection: &Selection) -> Result<(), String> {
         let host = selection
             .public_address
             .as_deref()
-            .ok_or("Save your public host address first.")?;
+            .ok_or("Save your server’s public address first.")?;
         let public = ipv4(host)?;
         if public.is_private()
             || public.is_loopback()
@@ -247,7 +258,7 @@ pub(crate) fn configure(selection: &Selection) -> Result<(), String> {
             || public.is_link_local()
         {
             return Err(
-                "The configured media address must resolve to a public IPv4 address.".into(),
+                "For voice and video, your server’s public address must point to a public IPv4 internet address.".into(),
             );
         }
         settings.extend([
@@ -286,7 +297,7 @@ pub(crate) fn configure(selection: &Selection) -> Result<(), String> {
         "/opt/setup.mjs".into(),
     ];
     args.extend(settings);
-    hosting::command("docker",&args,&selection.root,300).map_err(|_|"Media setup failed. Existing keys and server data were preserved; check Docker and retry.")?;
+    hosting::command("docker",&args,&selection.root,300).map_err(|_|"Voice and video setup didn’t finish. Your existing keys and server data are safe. Make sure Docker Desktop is running, then try again.")?;
     rebase(&selection.root)
 }
 #[tauri::command]
@@ -297,30 +308,30 @@ pub async fn host_media(
 ) -> Result<MediaStatus, String> {
     let mutex = state.0.clone();
     tauri::async_runtime::spawn_blocking(move||{
-        let _guard=mutex.lock().map_err(|_|"Host controls are unavailable.")?;
+        let _guard=mutex.lock().map_err(|_|"Hearth’s server controls stopped responding. Close and reopen Hearth, then try again.")?;
         let selection=hosting::selected(&app)?;
         match action.as_str(){
             "status"=>{},
             "enable"=>{
                 configure(&selection)?;
-                fs::write(directory(&selection.root)?.join("enabled.json"),b"true\n").map_err(|_|"Cannot save media preference.")?;
-                hosting::compose(&selection,&["up","-d","--no-build","--wait","--wait-timeout","120"],300).map_err(|_|"Media is configured but did not finish starting. Check Docker and refresh host status.")?;
+                fs::write(directory(&selection.root)?.join("enabled.json"),b"true\n").map_err(|_|"Hearth couldn’t save the voice and video setting. Try again.")?;
+                hosting::compose(&selection,&["up","-d","--no-build","--wait","--wait-timeout","120"],300).map_err(|_|"Voice and video are set up but didn’t finish starting. Make sure Docker Desktop is running, then choose Refresh status.")?;
             },
             "disable"=>{
                 if enabled(&selection.root)?{hosting::compose(&selection,&["stop","media","relay"],150)?;}
-                fs::write(directory(&selection.root)?.join("enabled.json"),b"false\n").map_err(|_|"Cannot save media preference.")?;
+                fs::write(directory(&selection.root)?.join("enabled.json"),b"false\n").map_err(|_|"Hearth couldn’t save the voice and video setting. Try again.")?;
                 hosting::compose(&selection,&["up","-d","--no-build","--wait","--wait-timeout","120"],180)?;
             },
-            _=>return Err("Unknown media action.".into())
+            _=>return Err("Hearth didn’t recognize that voice and video request. Close and reopen Hearth, then try again.".into())
         }
         let enabled=enabled(&selection.root)?;
         let message=if enabled{
             let file=directory(&selection.root)?.join("settings.json");hosting::regular(&file)?;
-            let settings:serde_json::Value=serde_json::from_slice(&fs::read(file).map_err(|_|"Cannot read media settings.")?).map_err(|_|"Invalid media settings.")?;
-            let port=|name:&str|settings[name].as_u64().filter(|n|(1024..=65535).contains(n)).ok_or("Invalid media port settings.");
-            let tls=if settings["turnTls"]==true{format!(", {} TCP for TLS",port("turnTlsPort")?)}else{String::new()};
-            format!("Voice/video hosting is enabled. Internet calling needs router ports {} TCP, {} UDP, {} TCP/UDP{} and {}–{} UDP; test from another network.{}",port("tcpPort")?,port("udpPort")?,port("turnPort")?,tls,port("relayMin")?,port("relayMax")?,if settings["turnTls"]==true{" TLS waits for this host's HTTPS certificate."}else{""})
-        }else{"Voice/video hosting is off. Direct calls can still use a separately configured relay.".into()};
+            let settings:serde_json::Value=serde_json::from_slice(&fs::read(file).map_err(|_|"Hearth couldn’t read your voice and video settings. Try again.")?).map_err(|_|"Your saved voice and video settings look damaged.")?;
+            let port=|name:&str|settings[name].as_u64().filter(|n|(1024..=65535).contains(n)).ok_or("The port numbers in your saved voice and video settings look damaged.");
+            let tls=if settings["turnTls"]==true{format!(", {} TCP for secure connections",port("turnTlsPort")?)}else{String::new()};
+            format!("Voice and video hosting is on. For calls over the internet, forward these ports on your router: {} TCP, {} UDP, {} TCP/UDP{} and {}–{} UDP. Then test from a different network.{}",port("tcpPort")?,port("udpPort")?,port("turnPort")?,tls,port("relayMin")?,port("relayMax")?,if settings["turnTls"]==true{" Secure connections start working once your server has its HTTPS certificate."}else{""})
+        }else{"Voice and video hosting is off. Direct calls can still work through a relay server that was set up separately.".into()};
         Ok(MediaStatus{enabled,message})
-    }).await.map_err(|_|"Media controls failed.".to_string())?
+    }).await.map_err(|_|"Something went wrong with voice and video settings. Close and reopen Hearth, then try again.".to_string())?
 }

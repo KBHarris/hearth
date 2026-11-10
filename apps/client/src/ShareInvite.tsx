@@ -40,7 +40,7 @@ export function ShareInvite({ invite, token }: { invite: HearthInvite; token: st
   }
   function applyAddress() {
     try { const next = normalizeServerUrl(address); setAddress(next); setShareServer(next); setError(''); setShared(null); setRetry(value => value + 1) }
-    catch { setError('Enter a valid server address, using HTTPS for internet access.') }
+    catch { setError('Enter a valid server address. Use https:// for a server on the internet.') }
   }
   const addressChanged = address !== shareServer
   return <div className="share-invite">
@@ -48,13 +48,13 @@ export function ShareInvite({ invite, token }: { invite: HearthInvite; token: st
     <input id={id + '-server'} className="invite-server-address" value={address} autoComplete="off" spellCheck={false} disabled={checkingHost} onChange={event => setAddress(event.target.value)} />
     {addressChanged && <button type="button" onClick={applyAddress}>Use server address</button>}
     {shared && !addressChanged ? <><label htmlFor={id + '-code'}>Invite code</label>
-      <input id={id + '-code'} className="invite-code" readOnly value={shared.code} autoComplete="off" spellCheck={false} onFocus={event => event.currentTarget.select()} /></> : !error && <p role="status">{addressChanged ? 'Apply the server address to prepare its code.' : 'Preparing invite…'}</p>}
-    <small>Share the server address and this code privately. Your friend enters both in Join a server. The code lasts up to 24 hours; the original invite’s expiry and use limits still apply. {invite.account ? 'Account setup is single use.' : 'Your friend needs an account on this server.'}</small>
-    {addressScope(shareServer) !== 'public' && <p className="notice">This address {addressScope(shareServer) === 'loopback' ? 'only works on this computer' : 'may not work outside your network'}. Enter your public HTTPS address before inviting someone in another household.</p>}
-    {server !== shareServer && <small>You can stay connected locally. This code is prepared for your friend’s address above; check that it works from another network.</small>}
+      <input id={id + '-code'} className="invite-code" readOnly value={shared.code} autoComplete="off" spellCheck={false} onFocus={event => event.currentTarget.select()} /></> : !error && <p role="status">{addressChanged ? 'Select Use server address to make a code for it.' : 'Preparing invite…'}</p>}
+    <small>Send the server address and this code to your friend privately. They enter both under Join a server. The code works for up to 24 hours, and the original invite’s expiry and use limits still apply. {invite.account ? 'It can create only one account.' : 'Your friend needs an account on this server.'}</small>
+    {addressScope(shareServer) !== 'public' && <p className="notice">This address {addressScope(shareServer) === 'loopback' ? 'only works on this computer' : 'may not work outside your network'}. Enter your internet (https://) address before you invite someone outside your home.</p>}
+    {server !== shareServer && <small>You can stay connected on this computer. This code uses the address above, so test that it works from another network.</small>}
     <div className="button-row"><button type="button" disabled={!shared || addressChanged} onClick={() => shared && void copy(shared.code, 'Invite code')}>Copy code</button>
       <button type="button" disabled={!shared || addressChanged} onClick={() => void copy(shareServer, 'Server address')}>Copy server address</button></div>
-    {error && <><p role="alert">{error}</p><button type="button" onClick={() => setRetry(value => value + 1)}>Retry invite</button></>}
+    {error && <><p role="alert">{error}</p><button type="button" onClick={() => setRetry(value => value + 1)}>Try again</button></>}
     {message && <p role="status">{message}</p>}
   </div>
 }

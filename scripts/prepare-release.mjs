@@ -23,7 +23,7 @@ const packed = spawnSync('tar', ['-cf', join(assets,hostTar), ...preparedFiles],
 assert.equal(packed.status,0,'Could not assemble the host-only TAR')
 const server={schema:1,version,min_client_version:version,source_commit:manifest.sourceCommit,image_id:manifest.server.imageId,archive_url:base+archive,archive_sha256:manifest.files[archive],host_archive_sha256:digest(join(assets,hostTar))}
 writeFileSync(join(assets,'server.json'),JSON.stringify(server,null,2)+'\n');sign(join(assets,'server.json'))
-writeFileSync(join(assets,'latest.json'),JSON.stringify({version,notes:'Adds owner-only channel, category and community deletion with name confirmation and preserved drafts. Includes the Windows encrypted-history recovery fix. Update both the app and hosted server.',pub_date:new Date().toISOString(),platforms:{'windows-x86_64':{signature:installerSignature,url:base+manifest.client.installer}}},null,2)+'\n')
+writeFileSync(join(assets,'latest.json'),JSON.stringify({version,notes:'A simpler, friendlier Hearth: communities on the left rail, one Settings menu, tabs instead of expandable sections, plain wording throughout and a clear message when a username or password is wrong. Update both the app and the hosted server.',pub_date:new Date().toISOString(),platforms:{'windows-x86_64':{signature:installerSignature,url:base+manifest.client.installer}}},null,2)+'\n')
 const clientZip=Object.keys(manifest.files).find(file=>file.endsWith('.zip'));assert.ok(clientZip)
 for(const file of [clientZip,archive])copyFileSync(join(directory,file),join(assets,file))
 copyFileSync(installer,join(assets,manifest.client.installer));copyFileSync(installer+'.sig',join(assets,manifest.client.installer+'.sig'))
@@ -43,13 +43,22 @@ files.push(hostTar,'host-package.json','host-package.json.sig')
 writeFileSync(join(assets,'SHA256SUMS.txt'),files.map(file=>`${digest(join(assets,file))}  ${file}`).join('\n')+'\n')
 writeFileSync(join(assets,'RELEASE_NOTES.md'),`# Hearth Preview ${version}
 
-Adds owner-only deletion of channels, categories and communities in community settings, with exact-name confirmation. Category deletion keeps its channels; channel/community deletion stops new messages and calls without erasing saved messages, files or backups. Cancelling preserves unfinished creation forms and keyboard focus; connection failures preserve confirmation. Deleted channels cannot redirect unsent drafts or be reinterpreted as DMs. Confirmation dialogs remain visible on narrow windows.
+A simpler, friendlier Hearth. Nothing about how messages are encrypted or stored has changed in this release; it is a redesign of what you see and read.
 
-Includes the 0.4.1/0.4.2 Windows messaging startup diagnostics and recovery of an existing matching encrypted history store with the saved key. Recovery never resets keys or overwrites existing history; keep original profile/history files. Existing encrypted voice, video, screen/computer audio and SFU/relay capabilities remain available. Spotify remains disabled.
+What is new
+- Layout: your communities sit on the left rail with a Home button for direct messages, and the sidebar shows the channels of the community you are in. Server switching, Add server and Hosting & updates moved to the bottom of the rail.
+- One Settings menu beside your name (profile and status, privacy, devices and backup, server settings, sign out) replaces the row of sidebar links.
+- Messages: Reply, Open thread, Pin, Edit, Delete and Report appear when you point at a message (always shown on touch screens, or switch them on permanently under Privacy). Polls, events, watch-together and attachments live under the + beside the message box. Enter sends; Shift+Enter starts a new line.
+- No more expandable arrows: Account & devices, Hosting & updates, the server test and device linking use tabs or plain sections. Hosting is laid out as numbered steps, with Backups and Updates on their own tabs.
+- Plain wording everywhere, including error and status messages from messaging, calls, hosting, updates and backups. "Identity fingerprint" is now "safety code", a "passphrase" is a "backup password", and the hosting "runtime" is "hosting tools (Docker Desktop)".
+- Sign-in: a wrong username or password now says so clearly beside the Sign in button, and Hearth remembers the username you last used on each server.
+- Fixed: keyboard focus could leave a dialog that contained a collapsed section.
 
-Update the Windows app first, then the hosted server. Server updates verify signed deployment assets, rehearse the database backup and preserve the existing host configuration, server keys and encrypted history. Enable voice/video hosting in Hosting & updates; internet media still requires correct router/firewall configuration and outside-network acceptance. Railway remains paused.
+Updating
+Update the Windows app first, then the hosted server (Hosting & updates, Updates tab). The server update makes and checks a backup first and keeps your server settings, keys and saved messages. The server itself only changes version in this release.
 
-Automated local validation and its limits are recorded in docs/PHASE4_RELEASE_CHECKLIST.md and docs/PROGRESS.md. Physical devices, real provider accounts/autoplay, two-household restrictive networks, reboot, clean-machine/fresh-host and remaining platform acceptance require manual testing. Local health does not prove internet reachability. Backup exports contain private server keys and credentials; keep them protected. The Windows installer has no Authenticode publisher signature; updater signatures are verified.
+Known limits
+Automated local checks and their limits are recorded in docs/PROGRESS.md. Clean-machine installs, two-household network tests, physical audio/video devices and non-Windows packaging still need manual testing. A local health check does not prove your server can be reached from the internet. Backup exports contain private server keys and passwords; keep them protected. The Windows installer has no publisher signature yet, so Windows shows an unknown-publisher warning; Hearth's own update signatures are verified. Spotify playback remains disabled.
 
 Source: ${manifest.sourceCommit}
 `)

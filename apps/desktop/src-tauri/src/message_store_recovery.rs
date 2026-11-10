@@ -11,12 +11,11 @@ use std::{
 };
 use zeroize::Zeroizing;
 
-const NOT_FOUND: &str = "No matching encrypted history could be recovered from the earlier Windows app cache. Original files and keys were preserved.";
-const AMBIGUOUS: &str = "Different matching history copies were found. Nothing was restored; preserve those files before choosing a recovery source.";
-const EXISTS: &str =
-    "Encrypted history already exists in this profile. Nothing was overwritten; retry messaging.";
+const NOT_FOUND: &str = "Hearth couldn’t find your saved messages from an earlier install of Hearth on this computer. Your original files and keys were not changed.";
+const AMBIGUOUS: &str = "Hearth found more than one different copy of your saved messages, so it didn’t restore any of them. Don’t delete those copies; keep them until you choose which one to recover.";
+const EXISTS: &str = "Your saved messages are already in this Windows user account, so nothing was replaced. Try opening your messages again.";
 const LIMIT: usize = MAX_ENVELOPE + 2 * 1024 * 1024;
-const BUSY: &str = "A matching history file is still in use. Close other Hearth windows and try recovery again. Original files and keys were preserved.";
+const BUSY: &str = "A copy of your saved messages is still in use. Close other Hearth windows and try again. Your original files and keys were not changed.";
 
 fn plain(path: &Path) -> bool {
     path.ancestors().all(|part| {
@@ -195,7 +194,7 @@ fn restore(
 
 pub(super) fn recover(directory: &Path, local_data: &Path, scope: &str) -> Result<(), String> {
     if !valid_scope(scope) {
-        return Err("Invalid encrypted message storage request.".into());
+        return Err("Something went wrong opening your saved messages. Nothing was changed. Close and reopen Hearth, then try again.".into());
     }
     let key = Zeroizing::new(
         Entry::new(SERVICE, scope)

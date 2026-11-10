@@ -21,7 +21,7 @@ export class RecoveryHandshake {
     if(!/^[a-f0-9]{64}$/.test(id))throw new Error('Invalid call recovery transaction')
     if(this.seen.has(id))return false
     this.attempts=this.attempts.filter(at=>now-at<60_000)
-    if(this.attempts.length>=6)throw new Error('Too many connection recovery attempts. Start a new call.')
+    if(this.attempts.length>=6)throw new Error('Reconnecting failed too many times. Start a new call.')
     this.attempts.push(now);this.seen.add(id)
     // No call can outlive 50 minutes; keep the entire accepted transaction set
     // for that call so an evicted identifier can never become a fresh offer.

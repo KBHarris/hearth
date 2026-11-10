@@ -11,7 +11,7 @@ export const idleGroup:GroupCallState={phase:'idle',conversation:'',message:'',m
 const randomId=()=>Array.from(crypto.getRandomValues(new Uint8Array(32)),byte=>byte.toString(16).padStart(2,'0')).join('')
 const hex=(key:Uint8Array)=>Array.from(key,byte=>byte.toString(16).padStart(2,'0')).join('')
 export async function groupEdgeId(context:GroupContext,a:string,b:string,transcript:readonly string[][]=[]){
-  if(a===b||![a,b].every(device=>context.participants.includes(device)))throw new Error('Invalid group edge')
+  if(a===b||![a,b].every(device=>context.participants.includes(device)))throw new Error('The call hit a problem and had to stop. Start a new call.')
   return hex(new Uint8Array(await crypto.subtle.digest('SHA-256',new TextEncoder().encode(JSON.stringify(['hearth/v1/group-call/edge',context.server,context.conversation,context.id,context.epoch,context.host,context.participants,context.relayOnly,[a,b].sort(),transcript])))))
 }
 type Edge={call:DirectCall;listener?:(event:LocalCallSignal)=>void;answering:boolean;id:string}
@@ -75,23 +75,23 @@ export class GroupCall {
   failureDiagnostics(){return this.fault}
   constructor(transport:GroupTransport,server:string,changed:(state:GroupCallState)=>void,capture=(constraints:MediaStreamConstraints)=>navigator.mediaDevices.getUserMedia(constraints),available=()=>true,displayCapture=captureDisplay){
     this.transport=transport;this.server=server;this.changed=changed;this.capture=capture;this.available=available;this.displayCapture=displayCapture
-    const lock=(conversation?:string)=>{if(!conversation||conversation===this.state.conversation)this.finish('Group call ended because encryption or access changed.')}
+    const lock=(conversation?:string)=>{if(!conversation||conversation===this.state.conversation)this.finish('Encryption or someone’s access changed, so the call was stopped to keep it private. Start a new call.')}
     this.dispose=transport.onCall(event=>{
       if(event.signal.group_id===undefined)return
       const generation=this.generation
-      this.serial=this.serial.then(()=>this.receive(event)).catch(()=>{if(generation===this.generation)this.finish('Group call verification failed. Start a new call.')})
+      this.serial=this.serial.then(()=>this.receive(event)).catch(()=>{if(generation===this.generation)this.finish('Hearth couldn’t verify this group call, so it stopped. Start a new call.')})
     },lock,(conversation,epoch)=>this.epochChanged(conversation,epoch))
   }
   get busy(){return this.active}
   private publish(patch:Partial<GroupCallState>){this.state={...this.state,...patch};this.changed(this.state)}
   private claim(conversation:string,phase:GroupCallState['phase'],relayOnly:boolean){
     if(this.active||!this.available())throw new Error('End the current call first.')
-    if(!callCapability())throw new Error('Encrypted group calls need a supported runtime with encoded media transforms.')
+    if(!callCapability())throw new Error('This app or browser can’t make encrypted group calls. Update it or try another browser.')
     for(const [id,until] of this.retired)if(until<Date.now())this.retired.delete(id)
     if(this.retired.size>=128)throw new Error('Too many recent invitations. Wait a moment before calling again.')
     this.forgetParked();clearInterval(this.timer)
     this.active=true;this.created=Date.now();this.authAt=this.created;this.generation++
-    this.publish({...idleGroup,conversation,phase,relayOnly,message:'Checking group call access…'})
+    this.publish({...idleGroup,conversation,phase,relayOnly,message:'Checking access to this call…'})
     this.timer=setInterval(()=>this.watch(),1000)
     return this.generation
   }
@@ -106,12 +106,12 @@ export class GroupCall {
   }
   private async authorize(room:GroupMembership,signal=this.heartbeatSignal(room),maxAge=0){
     this.check(room)
-    if(!this.matches(room,signal))throw new Error('Group call context changed')
+    if(!this.matches(room,signal))throw new Error('The call hit a problem and had to stop. Start a new call.')
     if(this.current&&maxAge>0&&Date.now()-this.authAt<maxAge)return this.current
     if(!this.authPromise){
       const request=this.transport.authorizeGroupCall(room.context.conversation,signal).then(current=>{
         this.check(room)
-        if(current.epoch!==room.context.epoch)throw new Error('Group encryption changed')
+        if(current.epoch!==room.context.epoch)throw new Error('The group’s encryption changed, so the call was stopped to keep it private. Start a new call.')
         groupContext(this.server,current,room.context.id,room.context.host,room.context.participants,room.context.relayOnly)
         this.current=current;this.authAt=Date.now();return current
       })
@@ -121,10 +121,10 @@ export class GroupCall {
     const result=await this.authPromise;this.check(room);return result
   }
   private async dispatch(room:GroupMembership,signals:CallSignal[]){
-    for(const signal of signals){this.check(room);if(await this.transport.send(room.context.conversation,{kind:'call',signal})!=='sent')throw new Error('Group call signaling is offline');this.check(room)}
+    for(const signal of signals){this.check(room);if(await this.transport.send(room.context.conversation,{kind:'call',signal})!=='sent')throw new Error('You are offline. Try again when Hearth reconnects.');this.check(room)}
   }
   private dispatchLater(room:GroupMembership,signals:CallSignal[]){
-    void this.dispatch(room,signals).catch(()=>{if(this.room===room)this.finish('Group call signaling was lost.')})
+    void this.dispatch(room,signals).catch(()=>{if(this.room===room)this.finish('Hearth lost its connection, so the call ended. Start a new call.')})
   }
   async start(conversation:string,selected:readonly string[],relayOnly=false,ice:RTCIceServer[]=[]){
     this.requireRelay(relayOnly,ice)
@@ -142,17 +142,17 @@ export class GroupCall {
     }catch(error){if(generation===this.generation)this.finish(error instanceof Error?error.message:'Group call could not start.');throw error}
   }
   private participants(current:Conversation,c:GroupContext){return c.participants.map(device=>({device,account:current.members.find(member=>member.enrollment.device_key===device)!.account_id,phase:device===this.transport.callDevice?'You':'Invited',remote:null}))}
-  private requireRelay(relay:boolean,ice:RTCIceServer[]){if(relay&&!ice.some(server=>(Array.isArray(server.urls)?server.urls:[server.urls]).some(url=>/^turns?:/.test(url))))throw new Error('Relay-only group calls need a configured TURN relay. No direct connection was attempted.')}
+  private requireRelay(relay:boolean,ice:RTCIceServer[]){if(relay&&!ice.some(server=>(Array.isArray(server.urls)?server.urls:[server.urls]).some(url=>/^turns?:/.test(url))))throw new Error('This call is set to relay only, but this server has no relay set up. Hearth did not try a direct connection.')}
   async answer(ice:RTCIceServer[]=[]){
     const room=this.room;if(!room||this.state.phase!=='incoming')return
     this.requireRelay(room.context.relayOnly,ice)
-    this.publish({phase:'preparing',message:'Checking group call access…'})
+    this.publish({phase:'preparing',message:'Checking access to this call…'})
     try{
       await this.authorize(room);this.check(room);this.ice=ice
       const keys=await GroupKeyAgreement.create(room.context,this.transport.callDevice)
       if(this.room!==room||!this.active){keys.close();return}
       this.keys=keys;const controls=room.answer(keys.publicKey)
-      this.publish({phase:'outgoing',message:'Joining encrypted group voice…'})
+      this.publish({phase:'outgoing',message:'Joining the encrypted group call…'})
       await this.dispatch(room,controls)
       this.membershipChanged(room)
     }catch(error){this.noteFailure('join',error);if(this.room===room)this.finish('The group call could not be answered.');throw error}
@@ -172,7 +172,7 @@ export class GroupCall {
       const keys=await GroupKeyAgreement.create(room.context,this.transport.callDevice)
       if(this.room!==room||!this.active||generation!==this.generation){keys.close();return}
       this.keys=keys;const controls=room.answer(keys.publicKey)
-      this.publish({phase:'outgoing',message:'Rejoining encrypted group voice…'})
+      this.publish({phase:'outgoing',message:'Rejoining the encrypted group call…'})
       await this.dispatch(room,controls);this.membershipChanged(room)
     }catch(error){if(generation===this.generation){this.noteFailure('rejoin',error);this.finish('The group call could not be rejoined.')}throw error}
   }
@@ -231,7 +231,7 @@ export class GroupCall {
   private retainDescription(event:LocalCallSignal){
     this.pending=this.pending.filter(value=>value.signal.expires_at>Date.now())
     if(this.pending.some(value=>value.signal.from_device===event.signal.from_device&&value.signal.call_id===event.signal.call_id&&value.signal.kind===event.signal.kind&&value.signal.description===event.signal.description))return
-    if(this.pending.length>=8){this.finish('Too many pending group descriptions.');return}
+    if(this.pending.length>=8){this.finish('The call hit a problem and had to stop. Start a new call.');return}
     this.pending.push(event)
   }
   private deliverPending(room:GroupMembership){
@@ -262,12 +262,12 @@ export class GroupCall {
     this.meshReady=false;this.checking=false;this.remoteMedia.clear();this.mediaRevision=1;this.lastMediaHeartbeat=0
     this.publish({participants:this.state.participants.map(person=>({...person,remote:null}))})
     if(!room.hasConsent)return
-    if(!room.canPublish){if(!this.retainedCapture){this.stopSource();this.stopVideo('camera');this.stopVideo('screen')}this.connectUntil=this.retainedCapture?Date.now()+30_000:0;this.publish({phase:'outgoing',message:this.retainedCapture?'Encryption updated. Waiting for continuing participants; your microphone is paused.':'Waiting for someone to join. Your microphone is off.'});return}
+    if(!room.canPublish){if(!this.retainedCapture){this.stopSource();this.stopVideo('camera');this.stopVideo('screen')}this.connectUntil=this.retainedCapture?Date.now()+30_000:0;this.publish({phase:'outgoing',message:this.retainedCapture?'The call was secured again. Waiting for the others to reconnect; your microphone is paused.':'Waiting for someone to join. Your microphone is off.'});return}
     this.connectUntil=Date.now()+45_000
-    this.publish({phase:'connecting',message:this.source?'Updating group encryption…':'Connecting encrypted group audio…'})
-    void this.beginMesh(room,version).catch(error=>{if(this.room===room&&version===this.meshVersion){this.noteFailure('mesh',error);this.finish('Group media could not be encrypted or connected.')}})
+    this.publish({phase:'connecting',message:this.source?'Securing the call again…':'Connecting…'})
+    void this.beginMesh(room,version).catch(error=>{if(this.room===room&&version===this.meshVersion){this.noteFailure('mesh',error);this.finish('Hearth couldn’t connect the call securely. Start a new call.')}})
   }
-  private checkMesh(room:GroupMembership,version:number){this.check(room);if(version!==this.meshVersion||room.generation!==this.membershipAt)throw new Error('Group membership changed')}
+  private checkMesh(room:GroupMembership,version:number){this.check(room);if(version!==this.meshVersion||room.generation!==this.membershipAt)throw new Error('The people in the call changed. Try again.')}
   private async beginMesh(room:GroupMembership,version:number){
     // One current grant covers the bounded mesh burst, including both child
     // endpoints. Explicit join/rejoin still requests a fresh grant first.
@@ -282,38 +282,38 @@ export class GroupCall {
         watchCall:async(_,signal)=>{this.checkMesh(room,version);const value=await this.authorize(room,signal,10_000);this.checkMesh(room,version);return value},
         callKey:async(id,signal)=>{
           this.checkMesh(room,version)
-          if(!this.matches(room,signal)||signal.call_id!==edge.id||![signal.from_device,signal.to_device].includes(peer))throw new Error('Unexpected group edge')
+          if(!this.matches(room,signal)||signal.call_id!==edge.id||![signal.from_device,signal.to_device].includes(peer))throw new Error('The call hit a problem and had to stop. Start a new call.')
           await this.authorize(room,signal,2000)
           const base=await this.transport.callKey(id,signal);this.checkMesh(room,version)
           const key=await this.keys!.derive(room,peer,base)
           try{this.checkMesh(room,version);return hex(key)}finally{key.fill(0)}
         },
-        send:async(id,content)=>{this.checkMesh(room,version);if(content.kind!=='call'||!this.matches(room,content.signal)||content.signal.call_id!==edge.id)throw new Error('Unexpected group edge');if(content.signal.kind==='heartbeat')return 'sent';return this.transport.send(id,content)},
+        send:async(id,content)=>{this.checkMesh(room,version);if(content.kind!=='call'||!this.matches(room,content.signal)||content.signal.call_id!==edge.id)throw new Error('The call hit a problem and had to stop. Start a new call.');if(content.signal.kind==='heartbeat')return 'sent';return this.transport.send(id,content)},
         onCall:listener=>{edge.listener=listener;return()=>{edge.listener=undefined}},
       }
       edge.id=ids[index];edge.answering=false
-      edge.call=new DirectCall(transport,state=>{if(version===this.meshVersion)this.edgeChanged(room,peer,state)},async()=>{this.checkMesh(room,version);const stream=await this.microphone(room);if(version!==this.meshVersion){stream.getTracks().forEach(track=>track.stop());throw new Error('Group membership changed')}return stream},async()=>{throw new Error('Group video is not available')},binding)
+      edge.call=new DirectCall(transport,state=>{if(version===this.meshVersion)this.edgeChanged(room,peer,state)},async()=>{this.checkMesh(room,version);const stream=await this.microphone(room);if(version!==this.meshVersion){stream.getTracks().forEach(track=>track.stop());throw new Error('The people in the call changed. Try again.')}return stream},async()=>{throw new Error('Group video is not available')},binding)
       this.edges.set(peer,edge)
     })
-    this.meshReady=true;this.publish({phase:'connecting',message:'Connecting encrypted group audio…'})
+    this.meshReady=true;this.publish({phase:'connecting',message:'Connecting…'})
     this.deliverPending(room)
     await Promise.all([...this.edges].filter(([peer])=>this.transport.callDevice<peer).map(([peer,edge])=>edge.call.start(room.context.conversation,peer,room.context.relayOnly,this.ice)))
   }
   private async microphone(room:GroupMembership){
     this.check(room)
-    if(!room.canPublish)throw new Error('Join the call before using the microphone')
+    if(!room.canPublish)throw new Error('Join the call before turning on your microphone.')
     await this.authorize(room,undefined,2000);this.check(room)
     if(!this.sourcePromise){
       const sourceVersion=this.sourceVersion
       this.sourcePromise=this.capture({audio:{echoCancellation:true,noiseSuppression:true},video:false}).then(stream=>{
         if(this.room!==room||!this.active||!room.canPublish||sourceVersion!==this.sourceVersion){stream.getTracks().forEach(track=>track.stop());throw new Error('Group call ended during capture')}
-        if(stream.getAudioTracks().length!==1||stream.getVideoTracks().length){stream.getTracks().forEach(track=>track.stop());throw new Error('Group voice requires one microphone track')}
+        if(stream.getAudioTracks().length!==1||stream.getVideoTracks().length){stream.getTracks().forEach(track=>track.stop());throw new Error('Hearth couldn’t use your microphone. Check it and start a new call.')}
         this.source=stream;const track=stream.getAudioTracks()[0];track.enabled=!this.state.muted
-        track.onended=()=>{if(this.room===room)this.finish('The microphone stopped.')};return stream
+        track.onended=()=>{if(this.room===room)this.finish('Your microphone stopped, so the call ended. Start a new call.')};return stream
       })
     }
     const source=await this.sourcePromise;this.check(room)
-    source.getAudioTracks()[0].onended=()=>{if(this.active&&this.source===source)this.finish('The microphone stopped.')}
+    source.getAudioTracks()[0].onended=()=>{if(this.active&&this.source===source)this.finish('Your microphone stopped, so the call ended. Start a new call.')}
     source.getAudioTracks()[0].enabled=!this.state.muted
     const track=source.getAudioTracks()[0].clone();track.enabled=!this.state.muted
     return new MediaStream([track])
@@ -322,7 +322,7 @@ export class GroupCall {
     if(this.room!==room||!this.active)return
     if(state.phase==='ended'){
       const version=this.meshVersion
-      setTimeout(()=>{if(this.room===room&&version===this.meshVersion)this.finish(state.message||'A participant disconnected.')},1000)
+      setTimeout(()=>{if(this.room===room&&version===this.meshVersion)this.finish(state.message||'Someone disconnected, so the call ended. Start a new call.')},1000)
       return
     }
     this.publish({participants:this.state.participants.map(person=>person.device===peer?{...person,phase:state.phase,remote:state.remote,cameraTrack:state.remoteCamera,screenTrack:state.remoteScreen,systemAudioTrack:state.remoteSystemAudio}:person)})
@@ -330,21 +330,21 @@ export class GroupCall {
       const edge=this.edges.get(peer)
       if(!edge||edge.answering||!room.canPublish)return
       const version=this.meshVersion
-      edge.answering=true;void edge.call.answer(this.ice).catch(error=>{if(this.room===room&&version===this.meshVersion){this.noteFailure('edge-answer',error);this.finish('A group audio connection failed.')}})
+      edge.answering=true;void edge.call.answer(this.ice).catch(error=>{if(this.room===room&&version===this.meshVersion){this.noteFailure('edge-answer',error);this.finish('The connection to someone in the call failed. Start a new call.')}})
     }
-    if(state.phase==='reconnecting'){if(!this.connectUntil)this.connectUntil=Date.now()+25_000;this.publish({phase:'reconnecting',message:'Reconnecting encrypted group audio…'})}
+    if(state.phase==='reconnecting'){if(!this.connectUntil)this.connectUntil=Date.now()+25_000;this.publish({phase:'reconnecting',message:'Reconnecting…'})}
   }
   private watch(){
     if(!this.active){this.watchParked();return}
     const room=this.room,now=Date.now()
-    if(this.recovering){if(now>=this.recoveryUntil)this.finish('Group encryption recovery timed out.');return}
-    if(now-this.authAt>25_000||!room&&now-this.created>25_000){this.finish('Group call access verification timed out.');return}
+    if(this.recovering){if(now>=this.recoveryUntil)this.finish('Securing the call again took too long. Start a new call.');return}
+    if(now-this.authAt>25_000||!room&&now-this.created>25_000){this.finish('Checking access to this call took too long. Start a new call.');return}
     if(!room)return
     room.checkTime(now)
     if(room.stopped){this.finish(room.reason);return}
     this.membershipChanged(room)
-    if(this.connectUntil&&this.state.phase!=='connected'&&now>this.connectUntil){this.finish('Group audio connection timed out.');return}
-    if(now-this.authAt>=10_000)void this.authorize(room,undefined,10_000).catch(error=>{if(this.room===room){this.noteFailure('periodic-authorization',error);this.finish('Group call access was lost.')}})
+    if(this.connectUntil&&this.state.phase!=='connected'&&now>this.connectUntil){this.finish('Connecting took too long. Start a new call.');return}
+    if(now-this.authAt>=10_000)void this.authorize(room,undefined,10_000).catch(error=>{if(this.room===room){this.noteFailure('periodic-authorization',error);this.finish('Hearth couldn’t confirm your access to this call, so it ended. Start a new call.')}})
     if(now-this.lastHeartbeat>=10_000){this.lastHeartbeat=now;this.dispatchLater(room,room.heartbeat())}
     if(room.canPublish&&this.meshReady&&now-this.lastMediaHeartbeat>=10_000){this.lastMediaHeartbeat=now;this.dispatchLater(room,[{...this.heartbeatSignal(room),description:roomMediaDescription(this.mediaRevision,this.state)}])}
     if(!this.edges.size||![...this.edges.values()].every(edge=>edge.call.state.phase==='connected')||this.checking)return
@@ -354,7 +354,7 @@ export class GroupCall {
       if(metrics.every(metric=>metric.decrypted>0)&&[...this.edges.values()].every(edge=>edge.call.state.phase==='connected')){
         this.connectUntil=0;this.retainedCapture=false;this.publish({phase:'connected',message:room.context.relayOnly?'Encrypted group call · relay only':'Encrypted group call'});await this.restoreVideo(room,version)
       }
-    }).catch(()=>{if(this.room===room&&version===this.meshVersion)this.finish('Group encryption could not be verified.')}).finally(()=>{if(this.room===room&&version===this.meshVersion)this.checking=false})
+    }).catch(()=>{if(this.room===room&&version===this.meshVersion)this.finish('Hearth couldn’t confirm the call was secure, so it stopped the call. Start a new call.')}).finally(()=>{if(this.room===room&&version===this.meshVersion)this.checking=false})
   }
   private epochChanged(conversation:string,epoch?:number){
     if(conversation!==this.state.conversation)return
@@ -362,7 +362,7 @@ export class GroupCall {
     if(this.recovering)return
     const previous=this.room
     if(epoch!==undefined&&previous&&epoch<=previous.context.epoch)return
-    if(!previous?.hasConsent){this.finish('Encryption changed before the invitation was joined.');return}
+    if(!previous?.hasConsent){this.finish('The group’s encryption changed before you joined, so the call was stopped to keep it private. Start a new call.');return}
     this.recovering=true;this.retainedCapture=true;this.recoveryUntil=Date.now()+30_000
     const generation=++this.generation;this.meshVersion++;this.meshReady=false;this.authPromise=null
     this.source?.getTracks().forEach(track=>{track.enabled=false})
@@ -371,7 +371,7 @@ export class GroupCall {
     for(const edge of this.edges.values())edge.call.close();this.edges.clear()
     this.keys?.close();this.keys=null
     this.transition=previous;this.room=null;this.pending=[];previous.end('Previous media epoch ended')
-    this.publish({phase:'reconnecting',message:'Updating private group encryption…',participants:this.state.participants.map(person=>({...person,remote:null}))})
+    this.publish({phase:'reconnecting',message:'Securing the call again…',participants:this.state.participants.map(person=>({...person,remote:null}))})
     // Do not await messaging from its own epoch callback.
     void(async()=>{
       while(this.active&&generation===this.generation&&Date.now()<this.recoveryUntil){
@@ -395,8 +395,8 @@ export class GroupCall {
           await new Promise(resolve=>setTimeout(resolve,500))
         }
       }
-      throw new Error('Group encryption recovery timed out.')
-    })().catch(error=>{if(this.active&&generation===this.generation){this.noteFailure('epoch-recovery',error);this.finish('Private group encryption or access could not be restored.')}})
+      throw new Error('Securing the call again took too long. Start a new call.')
+    })().catch(error=>{if(this.active&&generation===this.generation){this.noteFailure('epoch-recovery',error);this.finish('Hearth couldn’t secure the call again or confirm your access, so it ended. Start a new call.')}})
   }
   private watchParked(){
     const parked=this.parked;if(!parked)return
@@ -430,7 +430,7 @@ export class GroupCall {
   async video(kind:RoomMediaKind,withAudio=false){
     if((kind==='camera'?this.state.camera||this.state.cameraPending:this.state.sharing||this.state.sharingPending)){this.stopVideo(kind);this.mediaChanged();return}
     const room=this.room,mesh=this.meshVersion,version=++this.videoVersion[kind],generation=this.generation
-    if(!room||this.state.phase!=='connected'||!this.edges.size||[...this.edges.values()].some(edge=>edge.call.state.phase!=='connected'))throw new Error('Wait for private group media to connect.')
+    if(!room||this.state.phase!=='connected'||!this.edges.size||[...this.edges.values()].some(edge=>edge.call.state.phase!=='connected'))throw new Error('Wait for the call to connect before turning on your camera or screen sharing.')
     const current=()=>this.active&&this.room===room&&this.generation===generation&&this.meshVersion===mesh&&this.videoVersion[kind]===version
     let stream:MediaStream|null=null
     this.publish({...(kind==='camera'?{cameraPending:true}:{sharingPending:true}),mediaNotice:''})
@@ -439,7 +439,7 @@ export class GroupCall {
       stream=kind==='camera'?await this.capture({audio:false,video:{deviceId:this.cameraDevice?{exact:this.cameraDevice}:undefined,width:{ideal:1280},height:{ideal:720},frameRate:{ideal:15,max:20}}}):await this.displayCapture(withAudio)
       if(!current()){stream.getTracks().forEach(track=>track.stop());return}
       const video=stream.getVideoTracks()[0],audio=stream.getAudioTracks()[0]
-      if(!video||stream.getVideoTracks().length!==1||stream.getAudioTracks().length>(kind==='screen'&&withAudio?1:0)||video.readyState!=='live')throw new Error('Select one video source and explicitly opt in to its audio.')
+      if(!video||stream.getVideoTracks().length!==1||stream.getAudioTracks().length>(kind==='screen'&&withAudio?1:0)||video.readyState!=='live')throw new Error('Choose one camera or screen to share. Computer sound is only shared if you turn it on.')
       await this.authorize(room);this.checkMesh(room,mesh);if(!current()){stream.getTracks().forEach(track=>track.stop());return}
       this.videoSources.set(kind,stream)
       video.onended=()=>{if(this.videoSources.get(kind)===stream){this.stopVideo(kind);this.mediaChanged()}}
@@ -447,22 +447,22 @@ export class GroupCall {
       await Promise.all([...this.edges.values()].flatMap(edge=>[edge.call.setRoomVideo(kind,video.clone()),...(audio?[edge.call.setRoomVideo('system',audio.clone())]:[])]))
       if(!current())return
       this.publish(kind==='camera'?{camera:true,cameraPending:false}:{sharing:true,sharingPending:false,systemAudio:!!audio})
-      if(kind==='screen'&&withAudio&&!audio)this.publish({mediaNotice:'This source did not provide computer audio. Your screen video is shared.'})
+      if(kind==='screen'&&withAudio&&!audio)this.publish({mediaNotice:'What you picked has no computer sound. Your screen is being shared without sound.'})
       this.mediaChanged()
     }catch(error){stream?.getTracks().forEach(track=>track.stop());if(current())this.stopVideo(kind);throw error}
   }
   async changeDevice(kind:'audio'|'video',device:string){
     if(kind==='video'){this.cameraDevice=device;if(this.state.camera){this.stopVideo('camera');await this.video('camera')}return}
     const room=this.room,version=++this.deviceVersion,mesh=this.meshVersion
-    if(!room||this.state.phase!=='connected')throw new Error('Wait for group audio to connect.')
+    if(!room||this.state.phase!=='connected')throw new Error('Wait for the call to connect before changing your microphone.')
     await this.authorize(room);this.checkMesh(room,mesh)
     const stream=await this.capture({audio:{deviceId:device?{exact:device}:undefined,echoCancellation:true,noiseSuppression:true},video:false})
     try{
       await this.authorize(room);this.checkMesh(room,mesh)
-      if(version!==this.deviceVersion||stream.getTracks().length!==1||stream.getAudioTracks().length!==1)throw new Error('Microphone selection changed during permission approval.')
+      if(version!==this.deviceVersion||stream.getTracks().length!==1||stream.getAudioTracks().length!==1)throw new Error('You picked a different microphone while Hearth was asking for permission. Try again.')
       const track=stream.getAudioTracks()[0];track.enabled=!this.state.muted
       await Promise.all([...this.edges.values()].map(edge=>edge.call.setMicrophone(track.clone(),()=>version===this.deviceVersion)))
-      this.checkMesh(room,mesh);const previous=this.source;this.sourceVersion++;this.source=stream;this.sourcePromise=Promise.resolve(stream);previous?.getTracks().forEach(track=>{track.onended=null;track.stop()});track.onended=()=>{if(this.source===stream)this.finish('The microphone stopped.')}
+      this.checkMesh(room,mesh);const previous=this.source;this.sourceVersion++;this.source=stream;this.sourcePromise=Promise.resolve(stream);previous?.getTracks().forEach(track=>{track.onended=null;track.stop()});track.onended=()=>{if(this.source===stream)this.finish('Your microphone stopped, so the call ended. Start a new call.')}
     }catch(error){stream.getTracks().forEach(track=>track.stop());throw error}
   }
   mute(){

@@ -3,9 +3,9 @@ import {messageStorageError} from './message-storage-error.ts'
 export type StoredState={revision:number;envelope:string}
 const DATABASE='hearth-messages-v1'
 const STORE='states'
-const ERROR='Encrypted storage changed in another window or could not be saved. Existing data was preserved. Close other Hearth windows and sign in again.'
+const ERROR='Close other Hearth windows and sign in again. Your saved messages changed in another window or could not be saved. Nothing already saved was changed.'
 export function messageScope(account:string,server:string,device:string) {
-  if(![account,server,device].every(id=>/^[a-f0-9]{64}$/.test(id)))throw new Error('Invalid message storage scope.')
+  if(![account,server,device].every(id=>/^[a-f0-9]{64}$/.test(id)))throw new Error('Something went wrong opening your saved messages. Sign in again, and update Hearth if it keeps happening.')
   return `${server}:${account}:${device}`
 }
 function envelope(value:unknown):value is string { return typeof value==='string' && value.length>=82 && value.length<=(8*1024*1024+41)*2 && value.length%2===0 && /^01[a-f0-9]+$/.test(value) }
@@ -25,7 +25,7 @@ function open():Promise<IDBDatabase> {
 }
 /** Explicit recovery uses the existing OS key; it never initializes a fresh store. */
 export async function recoverMessages(scope:string):Promise<void>{
-  if(!isTauri())throw new Error('Local history recovery requires the desktop app.')
+  if(!isTauri())throw new Error('Use the Hearth desktop app to recover your message history.')
   try{await invoke('message_store_recover',{scope})}catch(error){throw messageStorageError(error)}
 }
 export async function readMessages(scope:string):Promise<StoredState|null> {

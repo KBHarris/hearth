@@ -29,7 +29,7 @@ type Pending={kind:'commit';conversation_id:string;upload:CommitUpload}|{kind:'m
 type EngineView={last_seq:number;governance_epochs:Record<string,number>;messages:LocalMessage[];groups:Conversation[];pending:Pending[];pending_packages:KeyPackageRecord[];profiles:Record<string,LocalProfile>;presence:Record<string,LocalPresence>;read:Record<string,Record<string,string>>;history_backfill:string[];history_waiting:string[];emoji:Record<string,Record<string,LocalAttachment>>}
 export type ChatState={unavailable:string[];blocked:string[];conversations:Conversation[];channels:Record<string,ChannelRoster>;joined:string[];messages:LocalMessage[];people:Record<string,Person>;typing:Record<string,{account:string;until:number}[]>;pending:number;connection:string;error:string;fatal:boolean;profiles:Record<string,LocalProfile>;presence:Record<string,LocalPresence>;read:Record<string,Record<string,string>>;history_waiting:string[];emoji:Record<string,Record<string,LocalAttachment>>}
 const initialView:EngineView={last_seq:0,governance_epochs:{},messages:[],groups:[],pending:[],pending_packages:[],profiles:{},presence:{},read:{},history_backfill:[],history_waiting:[],emoji:{}}
-export const initialChat:ChatState={unavailable:[],blocked:[],conversations:[],channels:{},joined:[],messages:[],people:{},typing:{},pending:0,connection:'Opening encrypted storage…',error:'',fatal:false,profiles:{},presence:{},read:{},history_waiting:[],emoji:{}}
+export const initialChat:ChatState={unavailable:[],blocked:[],conversations:[],channels:{},joined:[],messages:[],people:{},typing:{},pending:0,connection:'Opening your saved messages…',error:'',fatal:false,profiles:{},presence:{},read:{},history_waiting:[],emoji:{}}
 
 /** One serialized stream owns the in-memory ratchets; CAS detects competing tabs/processes. */
 export class MessagingSession {
@@ -64,16 +64,16 @@ export class MessagingSession {
   private async readVoiceRoom(id:string){
     let view=await this.voiceAccess(id),room=await this.client.voiceRoom(this.session.token,id,this.device.device_key,this.options)
     if(room.epoch!==view.conversation.epoch){await this.synchronize();view=await this.voiceAccess(id);room=await this.client.voiceRoom(this.session.token,id,this.device.device_key,this.options)}
-    if(room.epoch!==view.conversation.epoch)throw Object.assign(new Error('Room encryption is updating.'),{status:409})
+    if(room.epoch!==view.conversation.epoch)throw Object.assign(new Error('This room is updating. Try again in a moment.'),{status:409})
     return {room,...view}
   }
   voiceRoom(id:string):Promise<{room:VoiceRoom;conversation:Conversation;permissions:Record<string,number>;stage:boolean}>{return this.enqueueMedia(()=>verifiedVoiceSnapshot(()=>this.readVoiceRoom(id),(value,now)=>this.operation('verify_voice_room',{room:value.room,now})))}
   voicePresence(value:VoicePresence):Promise<{room:VoiceRoom;conversation:Conversation;permissions:Record<string,number>;stage:boolean}>{return this.enqueueMedia(async()=>{
     const view=await this.voiceAccess(value.channel_id)
-    if(value.epoch!==view.conversation.epoch)throw Object.assign(new Error('Room encryption is updating.'),{status:409})
+    if(value.epoch!==view.conversation.epoch)throw Object.assign(new Error('This room is updating. Try again in a moment.'),{status:409})
     const signed=await this.operation<VoicePresence>('sign_voice_presence',value)
     const room=await this.client.voicePresence(this.session.token,signed,this.options)
-    if(room.epoch!==view.conversation.epoch)throw Object.assign(new Error('Room encryption is updating.'),{status:409})
+    if(room.epoch!==view.conversation.epoch)throw Object.assign(new Error('This room is updating. Try again in a moment.'),{status:409})
     let initial=true
     return verifiedVoiceSnapshot(async()=>{if(initial){initial=false;return {room,...view}}return this.readVoiceRoom(value.channel_id)},(value,now)=>this.operation('verify_voice_room',{room:value.room,now}))
   })}
@@ -82,12 +82,12 @@ export class MessagingSession {
     // nor authorizes media, so durable message work must not delay it. The
     // backend still checks current approval and signed permissions on this POST.
     // Callers must retain their separate, fresh-policy authorization watchdog.
-    if(this.closed)throw new Error('Messaging is locked. Sign in again.')
+    if(this.closed)throw new Error('Hearth is locked. Sign in again to continue.')
     const signed=await this.operation<VoicePresence>('sign_voice_presence',value)
-    if(this.closed)throw new Error('Messaging is locked. Sign in again.')
+    if(this.closed)throw new Error('Hearth is locked. Sign in again to continue.')
     const room=await this.client.voicePresence(this.session.token,signed,this.options)
     const own=room.participants.find(peer=>peer.device_key===this.device.device_key)
-    if(room.channel_id!==signed.channel_id||room.room_id!==signed.room_id||room.epoch!==signed.epoch||!own||!Object.entries(signed).every(([key,value])=>own[key as keyof VoicePresence]===value))throw Object.assign(new Error('Room participation is updating.'),{status:409})
+    if(room.channel_id!==signed.channel_id||room.room_id!==signed.room_id||room.epoch!==signed.epoch||!own||!Object.entries(signed).every(([key,value])=>own[key as keyof VoicePresence]===value))throw Object.assign(new Error('Your place in this room is updating. Try again in a moment.'),{status:409})
     return signed.expires_at
   }
   sfuAccess(id:string,revision:number):Promise<SfuAccess>{return this.enqueueMedia(async()=>{
@@ -98,7 +98,7 @@ export class MessagingSession {
     await this.synchronize()
     const conversations=await this.client.conversations(this.session.token,this.options)
     const current=conversations.find(c=>c.id===id),local=this.view.groups.find(c=>c.id===id)
-    if(!current||current.channel_id||current.accounts.length!==(group?3:2)||!local||current.epoch!==local.epoch||!current.members.some(m=>m.enrollment.device_key===this.device.device_key))throw new Error(group?'Open an up-to-date private conversation with exactly three people.':'Open an up-to-date private conversation with one person first.')
+    if(!current||current.channel_id||current.accounts.length!==(group?3:2)||!local||current.epoch!==local.epoch||!current.members.some(m=>m.enrollment.device_key===this.device.device_key))throw new Error(group?'Group calls work in a private conversation with exactly three people. Open it and let it finish loading, then try again.':'Calls work in a private conversation with one other person. Open it and let it finish loading, then try again.')
     // Authenticate the current conversation credentials locally. The fresh
     // readiness request below checks every approved device and both directions
     // of blocking for all participants; separate directory/block HTTP reads
@@ -107,12 +107,12 @@ export class MessagingSession {
     await this.verifyPeers(peers)
     const devices=signal?(group?signal.participants??[]:[signal.from_device,signal.to_device]):[this.device.device_key]
     if(group&&signal){
-      if(!signal.group_id||!signal.participants||!signal.participants.includes(this.device.device_key))throw new Error('This device is not invited.')
+      if(!signal.group_id||!signal.participants||!signal.participants.includes(this.device.device_key))throw new Error('This device wasn’t invited to the call.')
       groupContext(this.server,current,signal.group_id,signal.from_device,signal.participants,signal.relay_only)
     }
-    if(signal&&signal.epoch!==current.epoch)throw new Error('Encryption changed. Start a new call.')
-    if(devices.some(key=>!peers.some(p=>p.enrollment.device_key===key)||!local.members.some(p=>p.enrollment.device_key===key)))throw new Error('A call device is no longer approved. Start a new call after linking it.')
-    try{await (group?this.client.groupCallReady(this.session.token,id,this.device.device_key,this.options):this.client.callReady(this.session.token,id,this.device.device_key,this.options))}catch(error){if(error instanceof HearthError&&error.status===409)throw new Error(group?'Open current Hearth clients on each device in this conversation once to enable group calling. Devices can then be offline without blocking the call.':'Open current Hearth clients on every device in this conversation before calling. This protects older clients from incompatible call messages.');throw error}
+    if(signal&&signal.epoch!==current.epoch)throw new Error('The conversation’s encryption was updated. Start a new call.')
+    if(devices.some(key=>!peers.some(p=>p.enrollment.device_key===key)||!local.members.some(p=>p.enrollment.device_key===key)))throw new Error('A device in this call is no longer approved. Link that device again, then start a new call.')
+    try{await (group?this.client.groupCallReady(this.session.token,id,this.device.device_key,this.options):this.client.callReady(this.session.token,id,this.device.device_key,this.options))}catch(error){if(error instanceof HearthError&&error.status===409)throw new Error(group?'Everyone in this conversation needs to open a current Hearth version once on each of their devices to turn on group calls. After that, devices can be offline during calls.':'Everyone in this conversation needs to open a current Hearth version on each of their devices before you call. This keeps older versions from getting call messages they can’t read.');throw error}
     return current
   })}
   private crypto:AuthCrypto
@@ -148,12 +148,12 @@ export class MessagingSession {
   private server:string
   private get options(){return {signal:this.controller.signal}}
   private enqueue<T>(action:()=>Promise<T>):Promise<T> {
-    const result=this.tail.then(async()=>{await this.mediaWork.drain();if(this.closed)throw new Error('Messaging is locked. Sign in again.');return action()})
+    const result=this.tail.then(async()=>{await this.mediaWork.drain();if(this.closed)throw new Error('Hearth is locked. Sign in again to continue.');return action()})
     this.tail=result.catch(()=>{})
     return result
   }
   private enqueueMedia<T>(action:()=>Promise<T>,authorization=true):Promise<T>{
-    const result=this.mediaWork.add(async()=>{if(this.closed)throw new Error('Messaging is locked. Sign in again.');return action()},authorization)
+    const result=this.mediaWork.add(async()=>{if(this.closed)throw new Error('Hearth is locked. Sign in again to continue.');return action()},authorization)
     // A normal marker guarantees service even when there is no durable inbox.
     // Existing tasks also drain at their next saved batch boundary.
     void this.enqueue(async()=>{}).catch(()=>{})
@@ -176,7 +176,7 @@ export class MessagingSession {
     const sealed=await this.crypto.message('seal')
     try {
       const saved=await storageDeadline(writeMessages(this.scope,this.revision,sealed),this.controller.signal)
-      if(this.closed)throw new Error('Messaging is locked.')
+      if(this.closed)throw new Error('Hearth is locked. Sign in again to continue.')
       this.revision=saved.revision
       await this.inspect()
       // A durable checkpoint can service urgent authorization without waiting
@@ -187,7 +187,7 @@ export class MessagingSession {
       // A normal sign-out/close can cancel a pending native write. The native
       // fixture/store barrier drains it; the closed view must not become a failure.
       if(this.closed)throw error
-      this.close();this.publish({fatal:true,connection:'Encrypted storage needs attention',error:error instanceof Error?error.message:'Encrypted storage could not be saved. Sign in again.'});throw error
+      this.close();this.publish({fatal:true,connection:'Your saved messages need attention',error:error instanceof Error?error.message:'Sign in again. Hearth could not save your messages on this device.'});throw error
     }
   }
   private async operation<T>(name:string,input:unknown=''):Promise<T> {try{
@@ -208,7 +208,7 @@ export class MessagingSession {
       await this.refresh()
       this.openGateway()
       this.maintenance=setInterval(()=>{if(this.closed || this.refreshing)return;this.refreshing=true;void this.enqueue(()=>this.refresh()).catch(error=>this.report(error)).finally(()=>{this.refreshing=false})},30000)
-    }).catch(error=>{if(!this.closed){this.close();this.publish({fatal:true,error:error instanceof Error?error.message:'Could not open encrypted messaging.',connection:'Messaging could not start'})}throw error})
+    }).catch(error=>{if(!this.closed){this.close();this.publish({fatal:true,error:error instanceof Error?error.message:'Hearth could not start messaging. Sign in again to retry.',connection:'Messaging could not start'})}throw error})
   }
   private async flush(onRejected?:(pending:Pending,status:number)=>void) {
     let rejected=false
@@ -230,7 +230,7 @@ export class MessagingSession {
           if(!this.view.pending.some(p=>p.upload.operation_id===pending.upload.operation_id))continue
           await this.operation('reject',pending.upload.operation_id);await this.persist()
           onRejected?.(pending,error.status)
-          this.publish({error:'Encryption or permissions changed. The queued operation was rejected; retry after updates arrive.'})
+          this.publish({error:'Permissions or encryption changed in this conversation, so your last action didn’t go through. Wait a moment and try again.'})
           rejected=true
         }else throw error
       }
@@ -293,13 +293,13 @@ export class MessagingSession {
       let roster:ChannelRoster
       try{roster=await this.prepareChannel(conversation.id)}catch(error){if(error instanceof HearthError&&[403,404].includes(error.status)){this.channelsRemoved([conversation.id]);conversations=conversations.filter(current=>current.id!==conversation.id);continue}throw error}
       await this.mediaWork.drain()
-      if(roster.channel.id!==conversation.id || !roster.people.some(p=>p.account.id===this.session.account.id))throw new Error('The channel roster could not be verified.')
+      if(roster.channel.id!==conversation.id || !roster.people.some(p=>p.account.id===this.session.account.id))throw new Error('Hearth could not confirm who is in this channel, so it did not open it. Try again.')
       channels[conversation.id]=roster
       for(const person of roster.people)people[person.account.id]=person
     }
     const peers=Object.values(people).flatMap(person=>person.devices.map(enrollment=>({account_id:person.account.id,enrollment})))
     try {for(let offset=0;offset<peers.length;offset+=128)await this.verifyPeers(peers.slice(offset,offset+128))}
-    catch {throw new Error('A participant’s identity changed or could not be verified. Saved fingerprints were preserved. Compare identities using a trusted channel before adding devices.')}
+    catch {throw new Error('Someone’s safety code changed or could not be checked. Check their safety code with them in person or on a call before adding devices. Your saved safety codes were kept.')}
     const blocked=(await this.client.blocks(this.session.token,this.options)).map(person=>person.id);await this.mediaWork.drain()
     this.publish({conversations,people,channels,blocked})
     const count=await this.client.packageCount(this.session.token,this.device.device_key,this.options)
@@ -324,7 +324,7 @@ export class MessagingSession {
         for(const proof of people[account]?.devices ?? []) {
           if(conversation.channel_id && packages.length>=8)break
           if(known.has(proof.device_key))continue
-          if(known.size+packages.length>= (conversation.channel_id?128:32))throw new Error('This encrypted group has reached its device limit.')
+          if(known.size+packages.length>= (conversation.channel_id?128:32))throw new Error('This conversation has reached the maximum number of devices.')
           try {
             const claimed=await this.client.claimPackages(this.session.token,[proof.device_key],this.options)
             this.verifyClaim(claimed,account,proof);packages.push(...claimed)
@@ -342,26 +342,26 @@ export class MessagingSession {
       let cursor=0
       for(let page=0;page<128;page++) {
         const archive=await this.client.history(this.session.token,id,this.device.device_key,cursor,this.options)
-        if(archive.items.length && archive.next<=cursor)throw new Error('History did not advance. Retry the request.')
+        if(archive.items.length && archive.next<=cursor)throw new Error('Something went wrong loading message history. Try again, and update Hearth if it keeps happening.')
         await this.operation('import_history',{id,uploads:archive.items});await this.persist();cursor=archive.next
         if(archive.items.length<128){await this.operation('finish_history',id);await this.persist();break}
-        if(page===127)throw new Error('History exceeds the current device backfill limit.')
+        if(page===127)throw new Error('This conversation has more history than Hearth can load onto this device.')
       }
     }
     this.publish()
   }
   private verifyClaim(packages:KeyPackageRecord[],account:string,proof:DeviceEnrollment){
-    if(packages.length!==1 || packages[0].member.account_id!==account || Object.keys(proof).some(key=>packages[0].member.enrollment[key as keyof DeviceEnrollment]!==proof[key as keyof DeviceEnrollment]))throw new Error('A recipient device changed. Compare fingerprints before trying again.')
+    if(packages.length!==1 || packages[0].member.account_id!==account || Object.keys(proof).some(key=>packages[0].member.enrollment[key as keyof DeviceEnrollment]!==proof[key as keyof DeviceEnrollment]))throw new Error('One of their devices changed. Check their safety code with them in person or on a call before trying again.')
   }
   private async prepareCommunity(id:string):Promise<CommunityAuthority> {
     const structure=await this.client.communityStructure(this.session.token,id,this.options)
     let root=structure.authority
     if(!root) {
-      if(structure.community.owner_id!==this.session.account.id)throw new Error('The community owner needs to prepare its encryption identity.')
+      if(structure.community.owner_id!==this.session.account.id)throw new Error('This community isn’t ready yet. Ask the community owner to open Hearth, then try again.')
       root=await this.operation<CommunityAuthority>('sign_authority',id);await this.persist()
       root=await this.client.communityAuthority(this.session.token,id,root,this.options)
     }
-    if(root.owner.account_id!==structure.community.owner_id)throw new Error('The community owner identity did not match. Compare fingerprints before continuing.')
+    if(root.owner.account_id!==structure.community.owner_id)throw new Error('The community owner’s safety code did not match. Check it with them in person or on a call before continuing.')
     await this.operation('verify_authority',root);await this.persist()
     return root
   }
@@ -374,7 +374,7 @@ export class MessagingSession {
     await this.synchronize()
     await this.prepareCommunity(id);const state=await this.client.ownership(this.session.token,id,this.options)
     await this.operation('verify_authority',state.authority)
-    if(state.offer){if(JSON.stringify(state.offer.previous)!==JSON.stringify(state.authority))throw new Error('The ownership offer is stale. Ask the owner to prepare it again.');await this.operation('verify_ownership',state.offer)}
+    if(state.offer){if(JSON.stringify(state.offer.previous)!==JSON.stringify(state.authority))throw new Error('This ownership offer is out of date. Ask the owner to offer it again.');await this.operation('verify_ownership',state.offer)}
     await this.persist();return state
   })}
   offerOwnership(id:string,account:string,deviceKey?:string):Promise<void>{return this.enqueue(async()=>{
@@ -389,7 +389,7 @@ export class MessagingSession {
   })}
   acceptOwnership(id:string):Promise<void>{return this.enqueue(async()=>{
     await this.synchronize();const authority=await this.prepareCommunity(id),state=await this.client.ownership(this.session.token,id,this.options),view=await this.client.governance(this.session.token,id,this.options)
-    if(!state.offer)throw new Error('There is no pending ownership transfer.')
+    if(!state.offer)throw new Error('There is no ownership offer waiting.')
     await this.operation('pin_governance',{authority,policy:view.governance});await this.persist()
     const old=view.governance??{community_id:id,revision:0,everyone:15,roles:[],assignments:[],overrides:[],sanctions:[],limits:[],rules:'',screening:false,owner:authority.owner,signature:''}
     const acceptance=await this.operation<OwnershipAcceptance>('accept_ownership',{offer:state.offer,policy:{...old,revision:old.revision+1}});await this.persist()
@@ -430,8 +430,8 @@ export class MessagingSession {
       const authority=await this.prepareCommunity(id);await this.refresh()
       const history_from:Record<string,number>={}
       for(const channel of structure.channels){
-        if(!this.view.groups.some(g=>g.id===channel.id))throw new Error('Keep an existing owner device online until this device joins every channel.')
-        await this.operation('add_channel',{id:channel.id,packages:[],create:false});await this.persist();if(await this.flush())throw new Error('An epoch rotation was rejected. Retry creating the invite.');history_from[channel.id]=this.view.groups.find(g=>g.id===channel.id)!.epoch
+        if(!this.view.groups.some(g=>g.id===channel.id))throw new Error('Keep another of the owner’s devices online until this device has joined every channel.')
+        await this.operation('add_channel',{id:channel.id,packages:[],create:false});await this.persist();if(await this.flush())throw new Error('The channel’s encryption was updating, so the invite wasn’t created. Try creating the invite again.');history_from[channel.id]=this.view.groups.find(g=>g.id===channel.id)!.epoch
       }
       const [code,authorization]=await this.operation<[string,CommunityInvitation]>('sign_invitation',{authority,history_from,issued_at:Date.now()});await this.persist()
       return this.client.createCommunityInvite(this.session.token,id,{code,authorization,expires_in_seconds,max_uses},this.options)
@@ -443,14 +443,14 @@ export class MessagingSession {
   private async prepareChannel(id:string):Promise<ChannelRoster> {
     let roster=await this.client.channelRoster(this.session.token,id,this.options)
     const root=roster.authority ?? await this.prepareCommunity(roster.community.id)
-    if(root.owner.account_id!==roster.community.owner_id || root.community_id!==roster.community.id)throw new Error('The channel owner identity could not be verified.')
+    if(root.owner.account_id!==roster.community.owner_id || root.community_id!==roster.community.id)throw new Error('Hearth could not confirm who owns this channel, so it did not open it. Try again later, and tell the community owner if it keeps happening.')
     if(!roster.policy) {
-      if(root.owner.account_id!==this.session.account.id)throw new Error('This channel needs its owner to prepare encryption.')
+      if(root.owner.account_id!==this.session.account.id)throw new Error('This channel isn’t ready yet. Ask the community owner to open Hearth, then try again.')
       const policy=await this.operation<ChannelPolicy>('sign_policy',{authority:root,channel_id:id,kind:roster.channel.kind,history:'none',revision:1,created_at:Date.now(),history_open_for:[...new Set(roster.invitations.map(i=>i.invitation.invite_id))]});await this.persist()
       await this.client.channelPolicy(this.session.token,id,policy,this.options)
       roster=await this.client.channelRoster(this.session.token,id,this.options)
     }
-    if(!roster.authority||!roster.policy)throw new Error('The channel encryption policy is incomplete.')
+    if(!roster.authority||!roster.policy)throw new Error('This channel’s security settings are missing. Try again, and ask the community owner to open Hearth if it keeps happening.')
     const authorization:ChannelAuthorization={authority:roster.authority,policy:roster.policy,admissions:roster.admissions,governance:roster.governance,departures:roster.departures}
     const changed=await this.operation<boolean>('authorize_channel',{id,authorization})
     if(!this.mediaRosters.has(id)&&this.mediaRosters.size>=128)this.mediaRosters.delete(this.mediaRosters.keys().next().value!)
@@ -462,7 +462,7 @@ export class MessagingSession {
     const roster=await this.prepareChannel(channel)
     if(roster.community.owner_id!==this.session.account.id || !roster.authority)throw new Error('Only the community owner can approve a new member.')
     const person=roster.people.find(p=>p.account.id===account)
-    if(!person?.devices.length || person.devices.some(d=>d.identity_key!==expectedKey))throw new Error('The member identity changed. Compare fingerprints before trying again.')
+    if(!person?.devices.length || person.devices.some(d=>d.identity_key!==expectedKey))throw new Error('This member’s safety code changed. Check it with them in person or on a call before trying again.')
     await this.verifyPeers(person.devices.map(enrollment=>({account_id:account,enrollment})))
     const history_from=Object.fromEntries(Object.values(this.state.channels).filter(r=>r.community.id===roster.community.id).map(r=>[r.channel.id,this.state.conversations.find(c=>c.id===r.channel.id)?.epoch ?? 0]))
     const invitation=roster.invitations.find(i=>i.account_id===account)?.invitation
@@ -474,7 +474,7 @@ export class MessagingSession {
     return this.enqueue(async()=>{
       await this.synchronize()
       const roster=await this.prepareChannel(id)
-      if(roster.channel.id!==id || !roster.people.some(p=>p.account.id===this.session.account.id))throw new Error('The channel roster could not be verified.')
+      if(roster.channel.id!==id || !roster.people.some(p=>p.account.id===this.session.account.id))throw new Error('Hearth could not confirm who is in this channel, so it did not open it. Try again.')
       const peers=roster.people.flatMap(p=>p.devices.map(enrollment=>({account_id:p.account.id,enrollment})))
       for(let offset=0;offset<peers.length;offset+=128)await this.verifyPeers(peers.slice(offset,offset+128))
       // A Welcome may arrive before the directory refresh adds this new channel.
@@ -485,7 +485,7 @@ export class MessagingSession {
         for(const person of roster.people.filter(p=>admitted(roster,p)))for(const proof of person.devices) {
           if(packages.length>=8)break
           if(proof.device_key===this.device.device_key)continue
-          if(packages.length>=127)throw new Error('This channel has reached its device limit.')
+          if(packages.length>=127)throw new Error('This channel has reached the maximum number of devices.')
           try {const claimed=await this.client.claimPackages(this.session.token,[proof.device_key],this.options);this.verifyClaim(claimed,person.account.id,proof);packages.push(...claimed)}
           catch(error){if(!(error instanceof HearthError) || ![404,409].includes(error.status))throw error}
         }
@@ -501,7 +501,7 @@ export class MessagingSession {
       if(people.length<2 || people.length>10)throw new Error('Choose one to nine other people for this conversation.')
       const peers=people.flatMap(person=>person.devices.map(enrollment=>({account_id:person.account.id,enrollment})))
       try {for(let offset=0;offset<peers.length;offset+=128)await this.verifyPeers(peers.slice(offset,offset+128))}
-      catch {throw new Error('A recipient’s identity changed or could not be verified. Saved fingerprints were preserved. Compare identities using a trusted channel before trying again.')}
+      catch {throw new Error('Someone’s safety code changed or could not be checked. Check their safety code with them in person or on a call before trying again. Your saved safety codes were kept.')}
       const audience=people.map(person=>person.account.id).sort().join(':')
       const existing=this.state.conversations.find(conversation=>!conversation.channel_id && [...conversation.accounts].sort().join(':')===audience)
       if(existing)return existing.id
@@ -514,7 +514,7 @@ export class MessagingSession {
             this.verifyClaim(claimed,person.account.id,proof);packages.push(...claimed)
           }catch(error){if(!(error instanceof HearthError) || error.status!==409)throw error}
         }
-        if(person.account.id!==this.session.account.id && !packages.some(p=>p.member.account_id===person.account.id))throw new Error(`${person.account.username} needs to sign in and prepare an encrypted device first.`)
+        if(person.account.id!==this.session.account.id && !packages.some(p=>p.member.account_id===person.account.id))throw new Error(`${person.account.username} needs to sign in to Hearth once before you can message them.`)
       }
       const bytes=new Uint8Array(32);globalThis.crypto.getRandomValues(bytes);const id=Array.from(bytes,byte=>byte.toString(16).padStart(2,'0')).join('')
       await this.operation('add',{id,packages,create:true});await this.persist();await this.flush();await this.refresh()
@@ -531,7 +531,7 @@ export class MessagingSession {
         let roomConflict=false
         const rejected=await this.flush((pending,status)=>{if(content.kind==='call'&&content.signal.voice_room&&status===409&&pending.kind==='message'&&pending.conversation_id===id&&pending.upload.operation_id===upload.operation_id)roomConflict=true})
         if(rejected){
-          const error=new Error('The message was rejected after an encryption or permission update. Retry after updates arrive.')
+          const error=new Error('Your message wasn’t sent because the channel’s encryption or permissions were updating. Wait a moment and try again.')
           // A serialized room control can lose the epoch race after preflight.
           // It has already been rejected/rolled back, so request fresh verified
           // admission. Forbidden/malformed controls and ordinary chat stay terminal.
@@ -540,7 +540,7 @@ export class MessagingSession {
         }
         this.publish({error:''});return 'sent' as const
       }catch(error){
-        if(error instanceof HearthError && [0,429,503].includes(error.status) && !this.closed){this.publish({error:'Saved in your encrypted outbox. Delivery will retry when the connection returns.'});return 'queued' as const}
+        if(error instanceof HearthError && [0,429,503].includes(error.status) && !this.closed){this.publish({error:'Waiting to send. Your message will send when the connection comes back.'});return 'queued' as const}
         throw error
       }
     })
@@ -549,7 +549,7 @@ export class MessagingSession {
   reportKeys(id:string):Promise<ReportKey[]>{return this.enqueue(async()=>{await this.prepareChannel(id);return this.client.reportKeys(this.session.token,id,this.options)})}
   reportPreview(id:string,selected:string[],reason:string):Promise<ReportEvidence>{return this.enqueue(()=>this.operation('report_preview',{id,selected,reason}))}
   submitReport(id:string,selected:string[],reason:string,key:ReportKey):Promise<void>{return this.enqueue(async()=>{await this.prepareChannel(id);const envelope=await this.operation<ReportEnvelope>('prepare_report',{id,selected,reason,key});await this.client.submitReport(this.session.token,id,envelope,this.options)})}
-  reportQueue(id:string):Promise<ReportReview[]>{return this.enqueue(async()=>{const roster=await this.prepareChannel(id),key=await this.operation<ReportKey>('report_key',roster.community.id);await this.client.registerReportKey(this.session.token,id,key,this.options);const reports=await this.client.reportQueue(this.session.token,id,this.options);return Promise.all(reports.map(async report=>{try{return {...report,evidence:await this.operation<ReportEvidence>('open_report',report.envelope)}}catch{return {...report,error:'This report could not be verified on this device. It may belong to another approved device.'}}}))})}
+  reportQueue(id:string):Promise<ReportReview[]>{return this.enqueue(async()=>{const roster=await this.prepareChannel(id),key=await this.operation<ReportKey>('report_key',roster.community.id);await this.client.registerReportKey(this.session.token,id,key,this.options);const reports=await this.client.reportQueue(this.session.token,id,this.options);return Promise.all(reports.map(async report=>{try{return {...report,evidence:await this.operation<ReportEvidence>('open_report',report.envelope)}}catch{return {...report,error:'This report can’t be opened on this device. Try one of your other approved devices.'}}}))})}
   resolveReport(id:string,report:string):Promise<void>{return this.enqueue(async()=>{await this.client.resolveReport(this.session.token,id,report,this.options)})}
   search(query:string,conversation:string|null):Promise<LocalMessage[]>{return this.enqueue(()=>this.operation<LocalMessage[]>('search',{query,conversation}))}
   async removeAttachment(id:string,file:LocalAttachment){
@@ -561,10 +561,10 @@ export class MessagingSession {
     }
   }
   async sendAttachment(id:string,file:File,text:string,emoji?:string,signal?:AbortSignal){
-    if(!file.size||file.size>MAX_FILE)throw new Error('Choose a file between 1 byte and 50 MB.')
+    if(!file.size||file.size>MAX_FILE)throw new Error('Choose a file that isn’t empty and is no larger than 50 MB.')
     const uploadSignal=signal?AbortSignal.any([this.controller.signal,signal]):this.controller.signal
     uploadSignal.throwIfAborted()
-    if(new TextEncoder().encode(file.name).length>160||/[\u0000-\u001f/\\]/.test(file.name))throw new Error('Rename this file using no more than 160 bytes and no control characters.')
+    if(new TextEncoder().encode(file.name).length>160||/[\u0000-\u001f/\\]/.test(file.name))throw new Error('Rename this file with a shorter name (160 plain letters or fewer) and no slashes.')
     if(emoji&&!/^[a-z0-9_]{1,32}$/.test(emoji))throw new Error('Use a custom emoji name of 1–32 lowercase letters, numbers or underscores.')
     const preview=await thumbnail(file)
     if(emoji&&!preview)throw new Error('Custom emoji must be a PNG, JPEG or WebP image.')
@@ -578,7 +578,7 @@ export class MessagingSession {
         this.checkBlobUrl(reserved.url,id,result.file.id)
         const encrypted=unhex(result.ciphertext)
         const response=await fetch(reserved.url,{method:'PUT',headers:{'Content-Type':'application/octet-stream'},body:new Blob([encrypted as BlobPart]),credentials:'omit',referrerPolicy:'no-referrer',redirect:'error',signal:AbortSignal.any([uploadSignal,AbortSignal.timeout(300000)])})
-        if(!response.ok)throw new Error('Encrypted file upload failed. Try again.')
+        if(!response.ok)throw new Error('The file didn’t upload. Try again.')
         await this.client.completeBlob(this.session.token,id,result.file.id,this.device.device_key,{signal:uploadSignal})
         await cacheFile(`${this.scope}:${id}:${result.file.id}`,encrypted).catch(()=>{})
         return result.file.id
@@ -588,22 +588,22 @@ export class MessagingSession {
       await this.synchronize()
       uploadSignal.throwIfAborted()
       await this.operation('send_file',{id,file:asset,thumbnail:thumb,text,emoji:emoji??null});await this.persist()
-      if(await this.flush())throw new Error('Encryption changed during upload. Retry when channel updates arrive.')
+      if(await this.flush())throw new Error('The channel’s encryption was updating during the upload. Wait a moment and try again.')
       this.publish({error:''})
     })
   }
-  private checkBlobUrl(value:string,id:string,file:string){if(new URL(value).pathname!==`/hearth-blobs/${id}/${file}`)throw new Error('The encrypted file URL does not match this attachment.')}
+  private checkBlobUrl(value:string,id:string,file:string){if(new URL(value).pathname!==`/hearth-blobs/${id}/${file}`)throw new Error('Something went wrong downloading this file. Try again, and update Hearth if it keeps happening.')}
   async downloadAttachment(id:string,file:LocalAttachment):Promise<Blob>{
     const scope=`${this.scope}:${id}:${file.id}`
     let encrypted=await cachedFile(scope).catch(()=>null)
     if(!encrypted){
       const result=await this.client.downloadBlob(this.session.token,id,file.id,this.device.device_key,this.options);this.checkBlobUrl(result.url,id,file.id)
       const response=await fetch(result.url,{credentials:'omit',referrerPolicy:'no-referrer',redirect:'error',signal:AbortSignal.any([this.controller.signal,AbortSignal.timeout(300000)])})
-      if(!response.ok||Number(response.headers.get('content-length'))!==file.cipher_bytes)throw new Error('Encrypted file download failed or its size changed.')
-      const reader=response.body?.getReader();if(!reader)throw new Error('Encrypted download has no body.')
+      if(!response.ok||Number(response.headers.get('content-length'))!==file.cipher_bytes)throw new Error('The file didn’t download. Try again.')
+      const reader=response.body?.getReader();if(!reader)throw new Error('Something went wrong downloading this file. Try again, and update Hearth if it keeps happening.')
       const chunks:Uint8Array[]=[];let count=0
-      try{for(;;){const result=await reader.read();if(result.done)break;count+=result.value.length;if(count>file.cipher_bytes)throw new Error('Encrypted file exceeds its declared size.');chunks.push(result.value)}}finally{await reader.cancel()}
-      if(count!==file.cipher_bytes)throw new Error('Encrypted file was truncated.')
+      try{for(;;){const result=await reader.read();if(result.done)break;count+=result.value.length;if(count>file.cipher_bytes)throw new Error('Something went wrong downloading this file. Try again, and update Hearth if it keeps happening.');chunks.push(result.value)}}finally{await reader.cancel()}
+      if(count!==file.cipher_bytes)throw new Error('The file download was cut off. Try again.')
       encrypted=new Uint8Array(count);let offset=0;for(const chunk of chunks){encrypted.set(chunk,offset);offset+=chunk.length}
     }
     const ciphertext=encrypted
@@ -623,11 +623,11 @@ export class MessagingSession {
     this.publish({connection:'Connecting…'})
     socket.onmessage=event=>{
       let input:{op:string;d?:Record<string,unknown>}
-      try{input=JSON.parse(String(event.data))}catch{this.report(new Error('Invalid gateway frame.'));socket.close();return}
+      try{input=JSON.parse(String(event.data))}catch{this.report(new Error('Something went wrong talking to the server. Try again, and update Hearth if it keeps happening.'));socket.close();return}
       if(this.socket!==socket)return
       if(input.op==='event'){
         const delivery=input.d?.event
-        if(!validateDeliveryEvent(delivery)||input.d?.seq!==delivery.seq||this.deliveryInbox.length>=128){this.report(new Error('Invalid or overloaded encrypted gateway delivery.'));socket.close();return}
+        if(!validateDeliveryEvent(delivery)||input.d?.seq!==delivery.seq||this.deliveryInbox.length>=128){this.report(new Error('Something went wrong receiving messages. Hearth will reconnect; update Hearth if it keeps happening.'));socket.close();return}
         this.deliveryInbox.push(delivery);this.drainDelivery(socket);return
       }
       // Gateway control never mutates MLS state. Do not queue its challenge,
@@ -639,25 +639,25 @@ export class MessagingSession {
       if(this.socket!==socket)return
       const frame=input
       if(frame.op==='hello'){
-        if(frame.d?.protocol!==PROTOCOL_VERSION)throw new Error('The gateway protocol changed. Update Hearth.')
+        if(frame.d?.protocol!==PROTOCOL_VERSION)throw new Error('This server and your Hearth app are on different versions. Update Hearth. If that does not help, ask the host to update the server.')
       }else if(frame.op==='challenge'){
-        if(typeof frame.d?.challenge!=='string')throw new Error('Invalid gateway challenge.')
+        if(typeof frame.d?.challenge!=='string')throw new Error('Something went wrong talking to the server. Try again, and update Hearth if it keeps happening.')
         const signature=await this.operation<string>('gateway',{token:this.session.token,challenge:frame.d.challenge})
         if(this.closed||this.socket!==socket)return
         socket.send(JSON.stringify({op:'identify',d:{protocol:PROTOCOL_VERSION,token:this.session.token,device_key:this.device.device_key,signature}}))
       }else if(frame.op==='ready'){
-        if(typeof frame.d?.session_id!=='string')throw new Error('Invalid gateway session.')
+        if(typeof frame.d?.session_id!=='string')throw new Error('Something went wrong talking to the server. Try again, and update Hearth if it keeps happening.')
         socket.send(JSON.stringify({op:'resume',d:{session_id:frame.d.session_id,last_seq:this.view.last_seq}}))
         this.heartbeatAt=Date.now();this.publish({connection:'Connected'})
         this.heartbeat=setInterval(()=>{if(this.socket!==socket || this.closed)return;if(Date.now()-this.heartbeatAt>65000){socket.close();return}socket.send(JSON.stringify({op:'heartbeat',d:{last_seq:this.view.last_seq}}));this.publish()},30000)
       }else if(frame.op==='heartbeat_ack')this.heartbeatAt=Date.now()
-      else if(frame.op==='invalid_session')throw new Error('The gateway session was rejected. Sign in again if reconnecting does not help.')
+      else if(frame.op==='invalid_session')throw new Error('The server ended your session. Sign in again if reconnecting doesn’t help.')
     })().catch(error=>{if(this.socket===socket)this.report(error);socket.close()})}
     socket.onclose=()=>{
       if(this.socket!==socket)return
       this.socket=null;this.deliveryInbox=[];clearInterval(this.heartbeat)
       if(this.closed)return
-      this.publish({connection:'Disconnected · retrying'})
+      this.publish({connection:'Connection lost. Reconnecting…'})
       this.reconnect=setTimeout(()=>{void this.enqueue(async()=>{await this.synchronize();this.openGateway()}).catch(error=>{this.report(error);this.scheduleReconnect()})},2000)
     }
     socket.onerror=()=>socket.close()
@@ -666,6 +666,6 @@ export class MessagingSession {
     if(this.closed || this.socket)return
     this.reconnect=setTimeout(()=>{void this.enqueue(async()=>{await this.synchronize();this.openGateway()}).catch(error=>{this.report(error);this.scheduleReconnect()})},5000)
   }
-  private report(error:unknown){if(!this.closed)this.publish({error:error instanceof Error?error.message:'Encrypted delivery failed. Retry or sign in again.'})}
+  private report(error:unknown){if(!this.closed)this.publish({error:error instanceof Error?error.message:'Something went wrong delivering messages. Try again or sign in again.'})}
   close(){this.closed=true;this.lockCalls();this.controller.abort();clearInterval(this.heartbeat);clearInterval(this.maintenance);clearTimeout(this.reconnect);const socket=this.socket;this.socket=null;this.deliveryInbox=[];socket?.close()}
 }

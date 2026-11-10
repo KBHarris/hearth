@@ -46,7 +46,7 @@ test('the independent recovery deadline ends capture even when authorization nev
   t.mock.timers.enable({apis:['Date','setInterval'],now:1_000})
   let release;const f=fixture(()=>new Promise(resolve=>{release=resolve}))
   const pending=f.call.reconnect();const rejected=assert.rejects(pending)
-  try{await tick();t.mock.timers.tick(20_001);assert.equal(f.call.state.phase,'ended');assert.equal(f.track.readyState,'ended');assert.match(f.call.state.message,/timed out/);release({});await rejected}finally{f.call.close()}
+  try{await tick();t.mock.timers.tick(20_001);assert.equal(f.call.state.phase,'ended');assert.equal(f.track.readyState,'ended');assert.match(f.call.state.message,/reconnect in time/);release({});await rejected}finally{f.call.close()}
 })
 test('an unknown answer or a restart from another call or epoch cannot complete recovery',async()=>{
   const f=fixture()

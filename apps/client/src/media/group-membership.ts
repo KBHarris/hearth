@@ -60,7 +60,7 @@ export class GroupMembership implements GroupKeyState {
     if(member){
       const round=Number(member[1]),left=member[2]==='left',key=member[3]
       if(peer&&(round<peer.round||round===peer.round&&peer.left))return []
-      if(peer&&round===peer.round&&peer.key!==key){this.end('A participant changed their call key.');return []}
+      if(peer&&round===peer.round&&peer.key!==key){this.end('Someone’s call encryption changed unexpectedly, so the call was stopped to keep it private. Start a new call.');return []}
       if(!peer||round!==peer.round||left!==peer.left)this.revision++
       this.keys.set(signal.from_device,{key,round,left,at:now})
       if(this.consented&&!left)this.onceConnected=true
@@ -81,7 +81,7 @@ export class GroupMembership implements GroupKeyState {
     // Known public contributions remain in the transcript as tombstones; keys
     // after leave therefore differ from both the old and pre-join pair keys.
     for(const [device,peer] of this.keys)if(device!==this.own&&!peer.left&&peer.key&&now-peer.at>=30_000){peer.left=true;this.revision++}
-    if(now-this.created>=50*60_000||this.consented&&!this.onceConnected&&now-this.created>=60_000||!this.consented&&now-this.created>=60_000&&!this.readyPeers.length)this.end('Group call timed out.')
+    if(now-this.created>=50*60_000||this.consented&&!this.onceConnected&&now-this.created>=60_000||!this.consented&&now-this.created>=60_000&&!this.readyPeers.length)this.end('The group call ended because no one joined in time or it reached its time limit. Start a new call.')
   }
   transcript(){
     if(!this.canPublish)throw new Error('Join the call before deriving media keys')

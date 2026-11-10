@@ -10,15 +10,17 @@ fn read(path: &Path) -> Result<Option<String>, String> {
     }
     hosting::regular(path)?;
     if fs::metadata(path)
-        .map_err(|_| "Cannot inspect host configuration.")?
+        .map_err(|_| "Hearth couldn’t read your server’s settings files. Nothing was changed.")?
         .len()
         > 65536
     {
-        return Err("Host configuration is too large. Existing files were preserved.".into());
+        return Err(
+            "One of your server’s settings files is too large to use. Nothing was changed.".into(),
+        );
     }
     fs::read_to_string(path)
         .map(Some)
-        .map_err(|_| "Cannot read host configuration.".into())
+        .map_err(|_| "Hearth couldn’t read your server’s settings. Nothing was changed.".into())
 }
 fn value(text: &str, name: &str) -> Result<Option<String>, String> {
     let mut result = None;
@@ -33,12 +35,12 @@ fn value(text: &str, name: &str) -> Result<Option<String>, String> {
         }
         if result.is_some() {
             return Err(format!(
-                "Use exactly one {name}; existing configuration was preserved."
+                "Your server’s .env settings file lists {name} more than once. Remove the extra line, then try again. Nothing was changed."
             ));
         }
         if !raw.starts_with(&format!("{name}=")) {
             return Err(format!(
-                "Use plain {name}=value in host configuration; existing files were preserved."
+                "In your server’s .env settings file, write the line as {name}=value, with nothing before it and no spaces around the = sign. Nothing was changed."
             ));
         }
         result = Some(value.trim().to_owned());
@@ -68,19 +70,19 @@ struct Credential {
 }
 fn prepare(mut text: String, storage: Option<&str>) -> Result<(String, String), String> {
     let password = value(&text, "POSTGRES_PASSWORD")?
-        .ok_or("A database password is missing; restore the original configuration.")?;
+        .ok_or("Your server’s database password is missing from its .env settings file. Put back the original .env file (for example from a backup), then try again.")?;
     if password.len() < 32
         || !password
             .bytes()
             .all(|b| b.is_ascii_alphanumeric() || b == b'_' || b == b'-')
     {
-        return Err("The existing database password is invalid. Restore its original configuration; no password was changed.".into());
+        return Err("The database password in your server’s .env settings file looks damaged. Put back the original .env file, then try again. The password was not changed.".into());
     }
     if let Some(port) = value(&text, "HEARTH_PORT")? {
         port.parse::<u16>()
             .ok()
             .filter(|v| *v != 0)
-            .ok_or("HEARTH_PORT must be a valid TCP port.")?;
+            .ok_or("HEARTH_PORT in your server’s .env settings file must be a port number from 1 to 65535. Nothing was changed.")?;
     }
     let mut keys = Vec::new();
     for (name, size) in [("HEARTH_S3_ACCESS_KEY", 16), ("HEARTH_S3_SECRET_KEY", 32)] {
@@ -96,7 +98,7 @@ fn prepare(mut text: String, storage: Option<&str>) -> Result<(String, String), 
                 .all(|b| b.is_ascii_digit() || (b'a'..=b'f').contains(&b))
         {
             return Err(format!(
-                "{name} must be random hex; existing configuration was preserved."
+                "{name} in your server’s .env settings file looks damaged. Put back the original .env file, then try again. Nothing was changed."
             ));
         }
         if existing.as_deref().is_none_or(str::is_empty) {
@@ -125,15 +127,16 @@ fn prepare(mut text: String, storage: Option<&str>) -> Result<(String, String), 
             actions: ["Admin", "Read", "Write"],
         }],
     })
-    .map_err(|_| "Cannot prepare private storage.")?
+    .map_err(|_| "Hearth couldn’t prepare your server’s file storage settings. Try again.")?
         + "\n";
     if let Some(existing) = storage {
         let actual: serde_json::Value = serde_json::from_str(existing)
-            .map_err(|_| "Existing S3 configuration is invalid; files were preserved.")?;
-        let expected: serde_json::Value =
-            serde_json::from_str(&desired).map_err(|_| "Cannot prepare private storage.")?;
+            .map_err(|_| "Your server’s file storage settings (s3.json) look damaged. Put back the original s3.json file, then try again. Nothing was changed.")?;
+        let expected: serde_json::Value = serde_json::from_str(&desired).map_err(
+            |_| "Hearth couldn’t prepare your server’s file storage settings. Try again.",
+        )?;
         if actual != expected {
-            return Err("Existing S3 configuration differs. Restore matching credentials; files were preserved.".into());
+            return Err("Your server’s file storage settings (s3.json) don’t match its .env settings file. Put back the matching original files, then try again. Nothing was changed.".into());
         }
     }
     Ok((text, desired))
@@ -147,11 +150,11 @@ fn create(path: &Path, text: &str) -> Result<(), String> {
         options.mode(0o600);
     }
     let mut file = options.open(path).map_err(
-        |_| "Cannot create host configuration. Refresh and retry; existing files were preserved.",
+        |_| "Hearth couldn’t create your server’s settings file. Choose Refresh status and try again. Your existing files were not changed.",
     )?;
     file.write_all(text.as_bytes())
         .and_then(|_| file.sync_all())
-        .map_err(|_| "Cannot finish host configuration. Preserve these files for recovery.".into())
+        .map_err(|_| "Hearth couldn’t finish saving your server’s settings file. Don’t delete these files; they may be needed to recover your server.".into())
 }
 pub(crate) fn initialize(directory: &Path) -> Result<(), String> {
     let environment_path = directory.join(".env");
@@ -161,7 +164,7 @@ pub(crate) fn initialize(directory: &Path) -> Result<(), String> {
     let text = match &original {
         Some(text) => text.clone(),
         None => read(&directory.join(".env.example"))?
-            .ok_or("The signed host configuration template is missing.")?
+            .ok_or("The verified server files are missing their settings template (.env.example). Download the server files again.")?
             .replace(
                 "POSTGRES_PASSWORD=change-me",
                 &format!("POSTGRES_PASSWORD={}", random(32)),
@@ -170,9 +173,8 @@ pub(crate) fn initialize(directory: &Path) -> Result<(), String> {
     let (text, desired) = prepare(text, storage.as_deref())?;
     match original {
         None => create(&environment_path, &text)?,
-        Some(original) if original != text => {
-            fs::write(&environment_path, text).map_err(|_| "Cannot save host configuration.")?
-        }
+        Some(original) if original != text => fs::write(&environment_path, text)
+            .map_err(|_| "Hearth couldn’t save your server’s settings. Try again.")?,
         _ => {}
     }
     if storage.is_none() {

@@ -52,16 +52,16 @@ export function CallPanel({call,state,service,conversation,account,name,unavaila
       {state.remoteSystemAudio&&<AudioTrack key={state.remoteSystemAudio.id} track={state.remoteSystemAudio}/>}
       <label className="call-privacy"><input type="checkbox" checked={shareAudio} disabled={state.sharing||busy} onChange={event=>setShareAudio(event.target.checked)}/>Include computer or tab audio when sharing</label>
       <div className="call-videos">{videoTracks.map(track=><VideoTrack key={track.id} track={track}/>)}</div>
-      {state.sharing&&<p className="call-sharing" role="status">Your screen is being shared. {state.systemAudio?'Computer audio is included. Microphone mute does not mute shared audio.':'The selected source is not sharing audio.'}</p>}
+      {state.sharing&&<p className="call-sharing" role="status">Your screen is being shared. {state.systemAudio?'Computer sound is included. Muting your microphone does not mute it.':'No sound is being shared.'}</p>}
     </section>}
     {state.phase==='ended'&&<p className="call-ended" role="status">{state.message}</p>}
     {error&&<p role="alert" className="input-error">{error}</p>}
     {setup&&<Modal title="Start an encrypted call" onClose={()=>setSetup(false)} description="Your microphone starts when you call. Camera and screen sharing stay off until you enable them.">
-      {!callCapability()?<p>This runtime cannot encrypt media frames. Open Hearth in a supported browser to call.</p>:<>
-        <p>Direct calls can reveal your network address to the other participant. Relay-only uses your server’s TURN relay and never falls back to a direct connection.</p>
+      {!callCapability()?<p>This app or browser cannot encrypt calls. Open Hearth in a supported browser to call.</p>:<>
+        <p>A direct call can show your IP address to the other person. With Use relay only, the call goes through your server’s relay instead: this hides your IP address from them but can be slightly slower. It never switches to a direct connection.</p>
         <label htmlFor="call-device">Their device</label><select id="call-device" value={chosen} onChange={event=>setTarget(event.target.value)}>{peers.map((peer,index)=><option key={peer.enrollment.device_key} value={peer.enrollment.device_key}>{name(peer.account_id)} · device {index+1} ({peer.enrollment.device_key.slice(0,8)})</option>)}</select>
         <label className="call-privacy"><input type="checkbox" checked={relay} disabled={!canRelay} onChange={event=>setRelay(event.target.checked)}/>Use relay only</label>
-        {!canRelay&&<p className="muted">This server has no TURN relay configured. Direct connectivity depends on both networks.</p>}
+        {!canRelay&&<p className="muted">This server has no relay set up, so the call connects directly. Whether that works depends on both of your networks.</p>}
         <button className="primary-button" disabled={!chosen||busy||unavailable} onClick={()=>void attempt(async()=>{setSetup(false);await call!.start(conversation!.id,chosen,relay,configuration)})}>Start voice call</button>
       </>}
     </Modal>}

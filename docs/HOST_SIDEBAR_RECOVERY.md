@@ -55,7 +55,7 @@ whose package could not provide a local address. The implementation now:
   backoff, up to thirty seconds between attempts.
 - Refreshes when the app regains focus, becomes visible, or hosting settings change.
 - Keeps the last known host entry during a temporary lookup failure.
-- Shows **Your host needs attention** when lookup/package recovery is needed;
+- Shows **Your server needs attention** when lookup/package recovery is needed;
   that entry opens Hosting & updates.
 - Ignores stale results after a newer refresh or component cleanup.
 

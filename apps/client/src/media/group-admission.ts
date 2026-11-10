@@ -18,14 +18,14 @@ function checked(context:GroupContext):GroupContext {
   const selected=[...context.participants]
   if(![context.server,context.conversation,context.id,context.host,...selected].every(value=>identifier.test(value))||
     (context.voiceRoom?(!identifier.test(context.voiceRoom)||selected.length<1||selected.length>(context.sfu?25:4)):selected.length!==3)||selected.some((value,index)=>index>0&&selected[index-1]>=value)||!selected.includes(context.host)||
-    !Number.isSafeInteger(context.epoch)||context.epoch<0||typeof context.relayOnly!=='boolean')throw new Error('Invalid group call context')
+    !Number.isSafeInteger(context.epoch)||context.epoch<0||typeof context.relayOnly!=='boolean')throw new Error('The call hit a problem and had to stop. Start a new call.')
   return Object.freeze({...context,participants:Object.freeze(selected)})
 }
 
 /** The conversation must already have passed device-certificate and live access checks. */
 export function groupContext(server:string,conversation:Conversation,id:string,host:string,selected:readonly string[],relayOnly=false):GroupContext {
   const accounts=new Set(conversation.accounts),participants=[...selected].sort()
-  if(conversation.channel_id||accounts.size!==3||conversation.accounts.length!==3)throw new Error('Group voice requires a private conversation with exactly three people.')
+  if(conversation.channel_id||accounts.size!==3||conversation.accounts.length!==3)throw new Error('Group calls work only in private conversations with exactly three people.')
   const chosen=participants.map(device=>conversation.members.find(member=>member.enrollment.device_key===device)?.account_id)
   if(chosen.some(account=>!account||!accounts.has(account))||new Set(chosen).size!==3)throw new Error('Choose one approved device for each person.')
   return checked({server,conversation:conversation.id,id,host,participants,epoch:conversation.epoch,relayOnly})
@@ -165,15 +165,15 @@ export class GroupKeyAgreement {
    * disposable wrappers for each mesh. Never rebind a private call or room epoch. */
   forkForRoom(context:GroupContext){
     const next=checked(context)
-    if(!this.secret||!next.voiceRoom||next.voiceRoom!==this.context.voiceRoom||next.sfu!==this.context.sfu||next.server!==this.context.server||next.conversation!==this.context.conversation||next.epoch!==this.context.epoch||!next.participants.includes(this.own))throw new Error('Voice room encryption changed')
+    if(!this.secret||!next.voiceRoom||next.voiceRoom!==this.context.voiceRoom||next.sfu!==this.context.sfu||next.server!==this.context.server||next.conversation!==this.context.conversation||next.epoch!==this.context.epoch||!next.participants.includes(this.own))throw new Error('The room’s encryption changed, so you were disconnected to keep it private. Join again to reconnect.')
     return new GroupKeyAgreement(next,this.own,this.secret,this.publicKey)
   }
   async derive(admission:GroupKeyState,peer:string,mlsBase:string):Promise<Uint8Array<ArrayBuffer>> {
     const secret=this.secret,generation=admission.generation
-    if(!secret||!identifier.test(mlsBase)||admission.own!==this.own||binding(admission.context)!==binding(this.context)||peer===this.own||!this.context.participants.includes(peer))throw new Error('Invalid group media key request')
+    if(!secret||!identifier.test(mlsBase)||admission.own!==this.own||binding(admission.context)!==binding(this.context)||peer===this.own||!this.context.participants.includes(peer))throw new Error('The call hit a problem and had to stop. Start a new call.')
     const transcript=admission.transcript()
-    if(transcript.find(([device])=>device===this.own)?.[1]!==this.publicKey)throw new Error('Local call key does not match consent')
-    if(!publicKey.test(transcript.find(([device])=>device===peer)?.[1]??''))throw new Error('The peer has not joined this call')
+    if(transcript.find(([device])=>device===this.own)?.[1]!==this.publicKey)throw new Error('The call hit a problem and had to stop. Start a new call.')
+    if(!publicKey.test(transcript.find(([device])=>device===peer)?.[1]??''))throw new Error('The call hit a problem and had to stop. Start a new call.')
     const current=()=>{admission.checkTime();if(this.secret!==secret||!admission.canPublish||admission.generation!==generation)throw new Error('Group call ended during key agreement')}
     let shared:Uint8Array<ArrayBuffer>|undefined,output:Uint8Array<ArrayBuffer>|undefined
     const salt=bytes(mlsBase)
@@ -191,7 +191,7 @@ export class GroupKeyAgreement {
     }catch(error){
       // A normal membership change cancels an obsolete derivation without
       // destroying the private contribution needed by the continuing call.
-      if(admission.generation===generation){admission.end('Group key agreement failed.');this.close()}
+      if(admission.generation===generation){admission.end('Hearth couldn’t secure the call, so it stopped. Start a new call.');this.close()}
       else if(admission.stopped)this.close()
       throw error
     }

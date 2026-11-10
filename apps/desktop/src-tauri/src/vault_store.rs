@@ -5,7 +5,7 @@ use tauri::Manager;
 
 const SERVICE: &str = "chat.hearth.identity.v1";
 const UNAVAILABLE: &str =
-    "Your system key store is unavailable or locked. Unlock it and try again.";
+    "Your computer’s secure key storage is locked or unavailable. Unlock it and try again.";
 fn valid_scope(scope: &str) -> bool {
     scope.len() == 129
         && scope.as_bytes()[64] == b':'
@@ -25,10 +25,10 @@ fn read(entry: &Entry) -> Result<Option<String>, String> {
     match entry.get_secret() {
         Ok(bytes) => {
             let value = String::from_utf8(bytes).map_err(|_| {
-                "The saved identity is damaged. Preserve it for recovery.".to_owned()
+                "The account keys saved on this computer are damaged. Don’t delete them; keep them for recovery.".to_owned()
             })?;
             if !valid_envelope(&value) {
-                return Err("The saved identity is damaged. Preserve it for recovery.".into());
+                return Err("The account keys saved on this computer are damaged. Don’t delete them; keep them for recovery.".into());
             }
             Ok(Some(value))
         }
@@ -43,7 +43,7 @@ fn store(
     envelope: Option<&str>,
 ) -> Result<Option<String>, String> {
     if !valid_scope(scope) || envelope.is_some_and(|value| !valid_envelope(value)) {
-        return Err("Invalid identity storage request.".into());
+        return Err("Something went wrong reading or saving your account keys. Nothing was changed. Close and reopen Hearth, then try again.".into());
     }
     std::fs::create_dir_all(directory).map_err(|_| UNAVAILABLE)?;
     let lock = OpenOptions::new()
@@ -77,7 +77,7 @@ pub(crate) fn allowed(window: &tauri::WebviewWindow) -> Result<(), String> {
         && matches!(url.host_str(), Some("localhost" | "127.0.0.1"))
         && url.port() == Some(5173);
     if window.label() != "main" || !(bundled || dev) {
-        return Err("Identity storage is available only to the Hearth client.".into());
+        return Err("Account keys can only be opened from the main Hearth window.".into());
     }
     Ok(())
 }

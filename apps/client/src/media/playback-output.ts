@@ -7,7 +7,7 @@ function enqueue<T>(operation:()=>Promise<T>):Promise<T>{const next=pending.then
 export const outputSnapshot=()=>output
 export function subscribeOutput(listener:()=>void){listeners.add(listener);return()=>{listeners.delete(listener)}}
 async function apply(player:HTMLMediaElement,value:Output){
-  if(value.device&&typeof player.setSinkId!=='function')throw new Error('This runtime does not support speaker selection. Use your system sound settings.')
+  if(value.device&&typeof player.setSinkId!=='function')throw new Error('This app or browser can’t choose a speaker. Use your system sound settings.')
   if(typeof player.setSinkId==='function'&&player.sinkId!==value.device)await player.setSinkId(value.device)
   player.volume=value.volume;player.muted=value.deafened
 }

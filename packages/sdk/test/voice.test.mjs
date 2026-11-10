@@ -41,6 +41,6 @@ test('only loopback-authenticated backends can select local SFU signaling',async
   assert.equal((await new HearthClient('http://127.0.0.1:8080').sfuAccess('session',presence.channel_id,presence.device_key,3)).url,access.local_url)
   const remote=new HearthClient('https://host.example')
   assert.equal((await remote.sfuAccess('session',presence.channel_id,presence.device_key,3)).url,access.url)
-  access={...access,url:access.local_url};await assert.rejects(remote.sfuAccess('session',presence.channel_id,presence.device_key,3),/public encrypted media/)
+  access={...access,url:access.local_url};await assert.rejects(remote.sfuAccess('session',presence.channel_id,presence.device_key,3),/Voice isn’t set up for people outside/)
   assert.equal(isSfuAccess({...access,local_url:'ws://192.168.1.2:7880'}),false)
 })

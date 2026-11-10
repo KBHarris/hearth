@@ -7,5 +7,5 @@ export async function verifiedVoiceSnapshot<T extends {room:{participants:readon
     await verify(value,checkedAt)
     if(value.room.participants.every(peer=>peer.expires_at>now()))return value
   }
-  throw Object.assign(new Error('Voice room occupancy expired. Retry with current participation.'),{status:409})
+  throw Object.assign(new Error('The voice room changed while you were joining. Try again.'),{status:409})
 }

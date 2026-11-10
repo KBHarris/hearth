@@ -6,7 +6,7 @@ registerHooks({resolve(specifier,context,next){try{return next(specifier,context
 const {MessagingSession}=await import('../src/crypto/messaging-session.ts')
 const {DirectCall}=await import('../src/media/direct-call.ts')
 const id=char=>char.repeat(64),scope=[id('a'),id('b'),id('c')].join(':')
-const missing='The saved encryption key exists, but encrypted history is missing from this Windows profile. Keep the original profile and history files; do not reset your keys.'
+const missing='Hearth found the key for your saved messages, but the messages themselves are missing from this Windows user account. Keep your original Windows user account and message files, and don’t reset your keys.'
 globalThis.isTauri=true
 const commands=[]
 let rejection=missing
@@ -28,7 +28,7 @@ test('a fixed native storage rejection reaches messaging startup and does not cr
 test('unknown native error text is redacted and read failure never initializes replacement storage',async()=>{
   for(const error of ['PRIVATE_STORAGE_KEY_CANARY',new Error('PRIVATE_STORAGE_KEY_CANARY'),{detail:'PRIVATE_STORAGE_KEY_CANARY'}]){
     commands.length=0;rejection=error
-    await assert.rejects(readMessages(scope),failure=>failure instanceof Error&&failure.message.includes('Existing data was preserved')&&!failure.message.includes('PRIVATE_STORAGE_KEY_CANARY'))
+    await assert.rejects(readMessages(scope),failure=>failure instanceof Error&&failure.message.includes('Your existing messages were kept')&&!failure.message.includes('PRIVATE_STORAGE_KEY_CANARY'))
     assert.deepEqual(commands,['message_store_read'])
   }
 })
@@ -46,7 +46,7 @@ test('explicit recovery sends only the selected scope and never creates replacem
   try{
     await recoverMessages(scope)
     assert.deepEqual(invocations,[{command:'message_store_recover',args:{scope}}])
-    window.__TAURI_INTERNALS__.invoke=async()=>{throw 'Different matching history copies were found. Nothing was restored; preserve those files before choosing a recovery source.'}
-    await assert.rejects(recoverMessages(scope),/Different matching history copies/)
+    window.__TAURI_INTERNALS__.invoke=async()=>{throw 'Hearth found more than one different copy of your saved messages, so it didn’t restore any of them. Don’t delete those copies; keep them until you choose which one to recover.'}
+    await assert.rejects(recoverMessages(scope),/more than one different copy of your saved messages/)
   }finally{window.__TAURI_INTERNALS__.invoke=original}
 })

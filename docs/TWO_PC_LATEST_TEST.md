@@ -36,9 +36,9 @@ its data and identity. Reset test data only when its owner explicitly authorizes
 ## Host: start the new server
 
 You need Docker Desktop running Linux containers and an internet
-connection for prerequisite images and HTTPS setup. **Install hosting runtime**
+connection for prerequisite images and HTTPS setup. **Install hosting tools**
 in the app downloads the verified Windows installer; complete Docker's own
-permission, license and first-run prompts, then use **Check runtime**. Starting
+permission, license and first-run prompts, then use **Check hosting tools**. Starting
 and stopping a configured Hearth host is available in the app.
 
 Install the client on your PC too. Open **Hosting & updates** (server icon on the
@@ -49,7 +49,7 @@ package, or choose the extracted folder containing `manifest.json`. Choose
 private configuration natively; Node.js is not required for UI hosting.
 
 Open **Hearth Preview → Host a server**, enter `http://127.0.0.1:8080`, check it, and
-choose **Set up owner account**, then **Use this computer’s host**. Hearth verifies
+choose **Set up owner account**, then **Set up from this computer**. Hearth verifies
 the selected local host and keeps its owner authorization in memory for up to
 five minutes. Create your owner account without copying a private code. A manual
 setup-code field remains available for remote/advanced hosts. This uses Compose project `hearth-guided-test`, backend 8080 and S3
@@ -81,7 +81,7 @@ You can keep your owner client connected to `http://localhost:8080`. Preview
 after checking the local server identity. Authenticated storage requests stay on
 your current local connection. In the invite panel, verify **Server address for
 your friend** is the public HTTPS address. You can enter that address explicitly
-when automatic local-host selection is unavailable. **Check public HTTPS** in
+when automatic local-host selection is unavailable. **Test internet address** in
 Hosting & updates checks trusted TLS and matching identity from this PC; it does
 not establish outside reachability. Your buddy always connects to the public
 address, even if router loopback prevents your own PC from using it reliably.
@@ -89,7 +89,7 @@ address, even if router loopback prevents your own PC from using it reliably.
 ## Invite your buddy
 
 1. In the owner client, create a community and a text channel.
-2. Open **Manage community → Invites**, enable **Include a new server account**,
+2. Open **Manage community → Invites**, tick the **They are new here** box (it lets them create an account on this server),
    create the invite, then choose **Copy code** and **Copy server address**. Wait for invite preparation
    to finish. The readable code has 32 random characters, grouped in fours. The
    pretty code lasts up to 24 hours; the account invitation remains single use and
@@ -102,8 +102,8 @@ address, even if router loopback prevents your own PC from using it reliably.
    checks it and continues to account setup. Older Hearth links remain compatible;
    new invite sharing displays and copies only pretty codes.
 5. Your buddy creates an account, then chooses **Join invited community**. On your
-   PC, compare their identity fingerprint over your existing trusted call and
-   approve their **Access requests**. They can then open the encrypted channel.
+   PC, compare their safety code (identity fingerprint) over your existing trusted call and
+   approve them from the **waiting to join** notice above your name. They can then open the encrypted channel.
 
 If either person already has an account on this new server, sign in instead of
 creating another account. A new/unlinked device may require device linking or a
@@ -119,7 +119,7 @@ invite; paste it again if necessary.
   both directions; compare bytes. Check rejection above 50 MB and cancel/retry.
 - As server owner, remove a file with confirmation; verify a new download fails
   while other messages still work. Previously downloaded copies remain available.
-- Open **Server Members**, check names/roles, open a profile and compare/copy the
+- Open **Members** (the people icon above the chat), check names/roles, open a profile and compare/copy the
   fingerprint. Resize and test Escape/focus return. No Online/Offline grouping is used.
 - Try threads, pins, local search, encrypted profiles and presence.
 - Create a forum post/reply and a poll; vote from the buddy client and close it.

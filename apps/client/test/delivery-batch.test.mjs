@@ -16,7 +16,7 @@ test('storage failure exposes no unpersisted controls and oversized batches neve
   let emitted=false,received=0
   const callbacks={before:async()=>{},receive:async()=>{received++;return null},persist:async()=>{throw new Error('CAS conflict')},emit:()=>{emitted=true}}
   await assert.rejects(deliveryBatch(events,0,callbacks),/CAS conflict/);assert.equal(emitted,false)
-  received=0;await assert.rejects(deliveryBatch(Array(17).fill(events[0]),0,callbacks),/bound/);assert.equal(received,0)
+  received=0;await assert.rejects(deliveryBatch(Array(17).fill(events[0]),0,callbacks),/Something went wrong talking to the server/);assert.equal(received,0)
 })
 
 test('yielding saves and publishes only the processed prefix, then resumes without losing or replaying envelopes',async()=>{

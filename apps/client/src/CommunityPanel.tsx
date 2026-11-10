@@ -1,11 +1,12 @@
 import {useEffect,useRef,useState,type FormEvent} from 'react'
+import {createPortal} from 'react-dom'
 
 import {HearthClient,HearthError,resolveInviteCode,resolveSetupTarget,type Community,type CommunityStructure,type Session,type CommunityInvite,type Governance,type GovernanceView,type HearthInvite} from '@hearth/sdk'
 
 import {Modal} from './Modal'
 import {ShareInvite} from './ShareInvite'
 
-import {Icon} from './Icons'
+import {Icon,type IconName} from './Icons'
 
 import {GovernancePanel} from './GovernancePanel'
 
@@ -13,10 +14,11 @@ import {OwnershipPanel,type OwnershipActions} from './OwnershipPanel'
 
 type Removal={kind:'channel'|'category'|'community';id:string;name:string;channels:string[]}
 const ignoreRemoved=(_ids:string[])=>{}
+const kinds:Record<string,{icon:IconName;label:string}>={text:{icon:'hash',label:'Text channel'},announcement:{icon:'megaphone',label:'Announcement channel'},forum:{icon:'forum',label:'Forum channel'},voice:{icon:'volume',label:'Voice room'},stage:{icon:'microphone',label:'Stage room'}}
 
 
 
-export function CommunityPanel({session,url,onOpenChannel,onSecure,onInvite,activeChannel,onGovernance,onLoadGovernance,ownership,serverKey,pendingInvite,onInviteDone,onRemoved=ignoreRemoved}:{onRemoved?:(ids:string[])=>void;serverKey:string;pendingInvite?:HearthInvite|null;onInviteDone?:()=>void;ownership:OwnershipActions;onLoadGovernance:(id:string)=>Promise<GovernanceView>;onGovernance:(id:string,policy:Governance)=>Promise<Governance>;session:Session;url:string;activeChannel?:string;onOpenChannel:(id:string)=>Promise<void>;onSecure:(kind:'community'|'channel'|'join',id:string,code?:string)=>Promise<void>;onInvite:(id:string,expiry:number,uses:number)=>Promise<CommunityInvite>}) {
+export function CommunityPanel({home=false,onCommunity,onPick,session,url,onOpenChannel,onSecure,onInvite,activeChannel,onGovernance,onLoadGovernance,ownership,serverKey,pendingInvite,onInviteDone,onRemoved=ignoreRemoved}:{home?:boolean;onCommunity?:(id:string)=>void;onPick?:()=>void;onRemoved?:(ids:string[])=>void;serverKey:string;pendingInvite?:HearthInvite|null;onInviteDone?:()=>void;ownership:OwnershipActions;onLoadGovernance:(id:string)=>Promise<GovernanceView>;onGovernance:(id:string,policy:Governance)=>Promise<Governance>;session:Session;url:string;activeChannel?:string;onOpenChannel:(id:string)=>Promise<void>;onSecure:(kind:'community'|'channel'|'join',id:string,code?:string)=>Promise<void>;onInvite:(id:string,expiry:number,uses:number)=>Promise<CommunityInvite>}) {
 
   const [panel,setPanel]=useState<'create'|'join'|'manage'|null>(null)
 
@@ -50,6 +52,10 @@ export function CommunityPanel({session,url,onOpenChannel,onSecure,onInvite,acti
   const claimedInvite=useRef<{code:string;community:Community}|null>(null)
 
   const lifetime=useRef<AbortController|null>(null)
+  // The community tiles live in the app rail, outside this sidebar section.
+  const [rail,setRail]=useState<HTMLElement|null>(null)
+  useEffect(()=>{setRail(document.getElementById('rail-communities'))},[])
+  useEffect(()=>{onCommunity?.(selected)},[selected,onCommunity])
 
   const selection=useRef<AbortController|null>(null)
 
@@ -217,34 +223,33 @@ export function CommunityPanel({session,url,onOpenChannel,onSecure,onInvite,acti
     finally{if(!controller.signal.aborted)setBusy(false)}
   }
 
-  const channels=(category:string|null)=>structure?.channels.filter(c=>c.category_id===category).map(c=><li key={c.id}><button data-channel-name={c.name} title={c.kind==='stage'?'Stage room':c.kind==='voice'?'Voice room':c.kind==='forum'?'Forum channel':c.kind==='announcement'?'Announcement channel':'Text channel'} disabled={busy} className={activeChannel===c.id?'selected':''} aria-current={activeChannel===c.id?'page':undefined} onClick={()=>void openChannel(c.id)}><span aria-hidden="true">{c.kind==='stage'?'◉':c.kind==='voice'?'◖':c.kind==='forum'?'▤':c.kind==='announcement'?'◈':'#'}</span> {c.name}</button><small>{c.kind==='stage'?'Stage':c.kind==='voice'?'Voice':c.kind==='forum'?'Forum':c.kind==='announcement'?'Announcements':''}</small></li>)
+  const channels=(category:string|null)=>structure?.channels.filter(c=>c.category_id===category).map(c=><li key={c.id}><button data-channel-name={c.name} title={(kinds[c.kind]??kinds.text).label} disabled={busy} className={activeChannel===c.id?'selected':''} aria-current={activeChannel===c.id?'page':undefined} onClick={()=>void openChannel(c.id)}><Icon name={(kinds[c.kind]??kinds.text).icon}/><span className="visually-hidden">{(kinds[c.kind]??kinds.text).label}: </span> {c.name}</button></li>)
 
   function closePanel(){setPanel(null);setInvite('');setAccountInvite('')}
 
+  const tiles=<nav className="community-rail" aria-label="Your communities">{communities.map(c=><button key={c.id} disabled={busy} className={`community-link rail-tile ${selected===c.id&&!home?'selected':''}`} title={c.name} aria-label={c.name} aria-current={selected===c.id&&!home?'page':undefined} onClick={()=>{setSelected(c.id);onPick?.()}}>{c.name.trim().slice(0,2).toUpperCase()}</button>)}<button className="rail-tile add-community" aria-label="Create or join a community" title="Create or join a community" onClick={()=>setPanel('join')}><Icon name="plus" /></button></nav>
+
   return <section className="community-panel" aria-labelledby="communities-heading" aria-busy={loading || busy}>
 
-    <header className="navigation-heading"><h2 id="communities-heading">Communities</h2><button className="icon-button" aria-label="Create or join a community" title="Create or join a community" onClick={()=>setPanel('join')}><Icon name="plus" /></button></header>
-    {pendingInvite?.community && <div className="pending-invite"><strong>Community invite ready</strong><p>Join the community from your invite. An approved member’s device may need to be online before encrypted channels open.</p><button type="button" disabled={busy||loading} onClick={()=>void joinInvitedCommunity()}>Join invited community</button><button type="button" disabled={busy} onClick={()=>onInviteDone?.()}>Discard invite</button></div>}
-    {joinedNotice && <p className="navigation-empty" role="status">Community joined. If channels are waiting for access, ask an approved member to open Hearth.</p>}
+    <h2 id="communities-heading" className="visually-hidden">Communities</h2>
+    {rail&&createPortal(tiles,rail)}
+    {pendingInvite?.community && <div className="pending-invite"><strong>You have a community invite</strong><p>Join now. Its channels open once a member who is already in is online.</p><button type="button" className="primary-button" disabled={busy||loading} onClick={()=>void joinInvitedCommunity()}>Join invited community</button><button type="button" disabled={busy} onClick={()=>onInviteDone?.()}>Discard invite</button></div>}
+    {joinedNotice && <p className="navigation-empty" role="status">You joined. If channels stay closed, ask a member who is already in to open Hearth.</p>}
     {notice&&<p className="navigation-empty" role="status">{notice}</p>}
 
     {(error||refreshError) && !panel && <p className="input-error" role="alert">{error||refreshError} <button disabled={busy} onClick={()=>setRetry(value=>value+1)}>Refresh communities</button></p>}
 
-    <nav aria-label="Your communities">
-
-      {loading?<p className="navigation-empty" role="status">Loading communities…</p>:listFailed?<p className="navigation-empty">Communities could not be loaded.</p>:communities.length===0?<div className="navigation-empty"><p>Your groups live here.</p><button onClick={()=>setPanel('join')}>Join a community</button></div>:communities.map(c=><button key={c.id} disabled={busy} className={`community-link ${selected===c.id?'selected':''}`} aria-current={selected===c.id?'page':undefined} onClick={()=>setSelected(c.id)}><Icon name="users" />{c.name}</button>)}
-
-    </nav>
+    {loading?<p className="navigation-empty" role="status">Loading communities…</p>:listFailed?<p className="navigation-empty">Communities could not be loaded.</p>:communities.length===0?<div className="navigation-empty community-empty"><strong>Communities</strong><p>A community is a group space with its own channels. Start one for your friends, or join one with an invite.</p><button onClick={()=>setPanel('join')}>Join a community</button><button onClick={()=>setPanel('create')}>Create one</button></div>:null}
 
     <div className="community-structure">
 
-      {structure?<><header className="navigation-heading"><h3>{structure.community.name}</h3><button className="icon-button" aria-label={owner?'Manage community':'Community settings'} title="Community settings" onClick={()=>{if(!owner)setTab('ownership');setPanel('manage')}}><Icon name="settings" /></button></header>
+      {home?null:structure?<><header className="navigation-heading community-heading"><h3>{structure.community.name}</h3><button className="icon-button" aria-label={owner?'Manage community':'Community settings'} title="Community settings" onClick={()=>{if(!owner)setTab('ownership');setPanel('manage')}}><Icon name="settings" /></button></header>
 
         <ul className="channel-directory">{channels(null)}</ul>
 
         {structure.categories.map(category=><section key={category.id}><h4>{category.name}</h4><ul className="channel-directory">{channels(category.id)}</ul></section>)}
 
-        {structure.channels.length===0 && <div className="navigation-empty"><p>No channels yet.</p>{owner && <button onClick={()=>{setTab('channels');setPanel('manage')}}>Add a channel</button>}</div>}
+        {structure.channels.length===0 && <div className="navigation-empty"><p>No channels yet. Channels are the rooms where people talk.</p>{owner && <button onClick={()=>{setTab('channels');setPanel('manage')}}>Add a channel</button>}</div>}
 
       </>:selected?<p className="navigation-empty" role="status">{structureFailed?'Community could not be loaded.':'Loading channels…'}</p>:null}
 
@@ -252,15 +257,15 @@ export function CommunityPanel({session,url,onOpenChannel,onSecure,onInvite,acti
 
     {panel && <Modal title={removal?`Delete ${removal.kind}?`:panel==='create'?'Create a community':panel==='join'?'Join a community':`${structure?.community.name ?? 'Community'} settings`} onClose={()=>{if(removal){if(!busy)cancelDelete()}else closePanel()}}
 
-      description={removal?undefined:panel==='manage'?'Organize this group’s channels and invite people who already have an account on this server.':'A community is your group’s space on this server. Channels are rooms inside it, such as #general or #announcements.'}>
+      description={removal?undefined:panel==='manage'?'Set up channels and invite people who already have an account on this server.':'A community is your group’s space on this server. Channels are the rooms inside it, like #general or #announcements.'}>
 
       <div hidden={!!removal} style={removal?{display:'none'}:undefined}>
 
       {panel!=='manage' && <div className="panel-tabs" aria-label="Community setup"><button aria-pressed={panel==='join'} onClick={()=>{setPanel('join');setError('')}}>Join with an invite</button><button aria-pressed={panel==='create'} onClick={()=>{setPanel('create');setError('')}}>Create a community</button></div>}
 
-      {panel==='create' && <form onSubmit={event=>void action(event,'create')}><label htmlFor="community-name">Community name</label><input id="community-name" name="name" maxLength={80} required disabled={busy} placeholder="Weekend friends" autoFocus/><small>You’ll manage this community. Add channels after creating it.</small><button className="primary-button" type="submit" disabled={busy || loading}>Create community</button></form>}
+      {panel==='create' && <form onSubmit={event=>void action(event,'create')}><label htmlFor="community-name">Community name</label><input id="community-name" name="name" maxLength={80} required disabled={busy} placeholder="Weekend friends" autoFocus/><small>You will be its owner. You can add channels and invite people next.</small><button className="primary-button" type="submit" disabled={busy || loading}>Create community</button></form>}
 
-      {panel==='join' && <form onSubmit={event=>void action(event,'join')}><label htmlFor="community-code">Community invite code</label><input id="community-code" name="code" required maxLength={2048} type="text" spellCheck={false} autoComplete="off" disabled={busy} autoFocus/><small>Paste the pretty 32-character code for this server. To create an account, use Join a server first.</small><button className="primary-button" type="submit" disabled={busy || loading}>Join community</button></form>}
+      {panel==='join' && <form onSubmit={event=>void action(event,'join')}><label htmlFor="community-code">Community invite code</label><input id="community-code" name="code" required maxLength={2048} type="text" spellCheck={false} autoComplete="off" disabled={busy} autoFocus/><small>Paste the invite someone from that community sent you. It only works on the server it was made for.</small><button className="primary-button" type="submit" disabled={busy || loading}>Join community</button></form>}
 
       {panel==='manage'&&structure&&<>{owner&&<div className="panel-tabs" aria-label="Community settings"><button aria-pressed={tab==='channels'} onClick={()=>setTab('channels')}>Channels</button><button aria-pressed={tab==='categories'} onClick={()=>setTab('categories')}>Categories</button><button aria-pressed={tab==='invites'} onClick={()=>setTab('invites')}>Invites</button><button aria-pressed={tab==='governance'} onClick={()=>setTab('governance')}>Roles & moderation</button><button aria-pressed={tab==='ownership'} onClick={()=>setTab('ownership')}>Ownership</button></div>}{!owner&&<div className="panel-tabs" aria-label="Community settings"><button aria-pressed={tab==='governance'} onClick={()=>setTab('governance')}>Moderation</button><button aria-pressed={tab==='ownership'} onClick={()=>setTab('ownership')}>Ownership</button></div>}{tab==='ownership'&&<OwnershipPanel id={structure.community.id} session={session} url={url} actions={ownership} onLoadGovernance={onLoadGovernance} onChanged={()=>{const client=new HearthClient(url);void Promise.all([client.communityStructure(session.token,selected),client.communities(session.token)]).then(([next,list])=>{setStructure(next);setCommunities(list)}).catch(e=>setError(e instanceof Error?e.message:'Refresh communities to see the new owner.'))}}/>}</>}
 
@@ -272,22 +277,22 @@ export function CommunityPanel({session,url,onOpenChannel,onSecure,onInvite,acti
 
         {tab==='governance'&&<GovernancePanel structure={structure} session={session} url={url} onSave={onGovernance} onLoad={onLoadGovernance}/>}
 
-        {tab==='categories' && <form onSubmit={event=>void action(event,'category')}><label htmlFor="category-name">Category name</label><input id="category-name" name="name" required maxLength={80} disabled={busy} placeholder="Hangouts"/><small>Categories group related channels in the sidebar.</small><button className="primary-button" type="submit" disabled={busy}>Add category</button></form>}
+        {tab==='categories' && <form onSubmit={event=>void action(event,'category')}><label htmlFor="category-name">Category name</label><input id="category-name" name="name" required maxLength={80} disabled={busy} placeholder="Hangouts"/><small>A category is a heading that groups related channels in the sidebar.</small><button className="primary-button" type="submit" disabled={busy}>Add category</button></form>}
         {tab==='categories'&&structure&&<ul className="structure-management">{structure.categories.map(category=><li key={category.id}><span>{category.name}</span><button className="danger-button" disabled={busy} aria-label={`Delete category ${category.name}`} onClick={event=>askDelete('category',category.id,category.name,event.currentTarget)}>Delete</button></li>)}</ul>}
 
-        {tab==='channels' && <form onSubmit={event=>void action(event,'channel')}><label htmlFor="channel-name">Channel name</label><input id="channel-name" name="name" required maxLength={80} disabled={busy} placeholder="general"/><label htmlFor="channel-category">Category</label><select id="channel-category" name="category" disabled={busy}><option value="">No category</option>{structure.categories.map(c=><option key={c.id} value={c.id}>{c.name}</option>)}</select><label htmlFor="channel-kind">Channel type</label><select id="channel-kind" name="kind" disabled={busy}><option value="text">Text — everyone can chat</option><option value="announcement">Announcement — only the owner can post</option><option value="forum">Forum — posts with dedicated replies</option><option value="voice">Voice — join and leave room audio</option><option value="stage">Stage — speakers and a listening audience</option></select><button className="primary-button" type="submit" disabled={busy}>Add channel</button></form>}
-        {tab==='channels'&&structure&&<ul className="structure-management">{structure.channels.map(channel=><li key={channel.id}><span>{channel.name}</span><button className="danger-button" disabled={busy} aria-label={`Delete channel ${channel.name}`} onClick={event=>askDelete('channel',channel.id,channel.name,event.currentTarget)}>Delete</button></li>)}</ul>}
+        {tab==='channels' && <form onSubmit={event=>void action(event,'channel')}><label htmlFor="channel-name">Channel name</label><input id="channel-name" name="name" required maxLength={80} disabled={busy} placeholder="general"/><label htmlFor="channel-kind">What is it for?</label><select id="channel-kind" name="kind" disabled={busy}><option value="text">Text: everyone can chat</option><option value="announcement">Announcements: only the owner posts</option><option value="forum">Forum: posts that each get their own replies</option><option value="voice">Voice: drop in and talk</option><option value="stage">Stage: a few speakers, everyone else listens</option></select>{structure.categories.length>0?<><label htmlFor="channel-category">Category</label><select id="channel-category" name="category" disabled={busy}><option value="">No category</option>{structure.categories.map(c=><option key={c.id} value={c.id}>{c.name}</option>)}</select></>:<input type="hidden" name="category" value=""/>}<button className="primary-button" type="submit" disabled={busy}>Add channel</button></form>}
+        {tab==='channels'&&structure&&structure.channels.length>0&&<><h3>Your channels</h3><ul className="structure-management">{structure.channels.map(channel=><li key={channel.id}><span><Icon name={(kinds[channel.kind]??kinds.text).icon}/>{channel.name}</span><button className="danger-button" disabled={busy} aria-label={`Delete channel ${channel.name}`} onClick={event=>askDelete('channel',channel.id,channel.name,event.currentTarget)}>Delete</button></li>)}</ul></>}
 
-        {tab==='invites' && <><form onSubmit={event=>void action(event,'invite')}><label htmlFor="community-invite-expiry">Invite expires in</label><select id="community-invite-expiry" name="expiry" disabled={busy}><option value="86400">24 hours</option><option value="3600">1 hour</option><option value="604800">7 days</option></select><label htmlFor="community-invite-uses">Maximum new members</label><input id="community-invite-uses" name="uses" type="number" min={1} max={1000} defaultValue={1} required disabled={busy}/>{session.account.owner && <label><input name="include-account" type="checkbox" disabled={busy} /> Include a new server account (single use, 24 hours)</label>}<button className="primary-button" type="submit" disabled={busy}>Create community invite</button></form>
+        {tab==='invites' && <><form onSubmit={event=>void action(event,'invite')}><label htmlFor="community-invite-expiry">Invite stops working after</label><select id="community-invite-expiry" name="expiry" disabled={busy}><option value="86400">24 hours</option><option value="3600">1 hour</option><option value="604800">7 days</option></select><label htmlFor="community-invite-uses">How many people can use it</label><input id="community-invite-uses" name="uses" type="number" min={1} max={1000} defaultValue={1} required disabled={busy}/>{session.account.owner && <label><input name="include-account" type="checkbox" disabled={busy} /> They are new here: also let them create an account on this server (one person, 24 hours)</label>}<button className="primary-button" type="submit" disabled={busy}>Create community invite</button></form>
 
           {busy && <p role="status">Preparing invite…</p>}
           {invite && !busy && <div className="invite-result"><ShareInvite key={invite+accountInvite} token={session.token} invite={{server:url,serverKey,community:invite,...(accountInvite?{account:accountInvite}:{})}}/><button onClick={()=>{setInvite('');setAccountInvite('')}}>Hide code</button></div>}</>}
 
       </>}
 
-      {panel==='manage'&&owner&&structure&&<section className="structure-delete-community"><h3>Delete community</h3><p>Remove this community and all its channels. Saved messages, files and backups are not erased.</p><button className="danger-button" disabled={busy} onClick={event=>askDelete('community',structure.community.id,structure.community.name,event.currentTarget)}>Delete community</button></section>}
+      {panel==='manage'&&owner&&structure&&tab==='ownership'&&<section className="structure-delete-community"><h3>Delete community</h3><p>Removes this community and all its channels for everyone. Messages and files people already saved, and backups, are not erased.</p><button className="danger-button" disabled={busy} onClick={event=>askDelete('community',structure.community.id,structure.community.name,event.currentTarget)}>Delete community</button></section>}
       </div>
-      {removal&&<form className="structure-delete-confirmation" onSubmit={event=>void remove(event)}><p>{removal.kind==='category'?<>Delete <strong>{removal.name}</strong>? Its channels will be kept and moved out of this category.</>:<>Delete <strong>{removal.name}</strong>{removal.kind==='community'?' and all its channels':''}? This removes access and stops new messages and calls. Saved messages, files and backups are not erased.</>}</p><label htmlFor="delete-structure-name">Type {removal.name} to confirm</label><input id="delete-structure-name" autoFocus autoComplete="off" value={confirmation} onChange={event=>setConfirmation(event.target.value)} disabled={busy}/><div className="form-actions"><button type="button" disabled={busy} onClick={cancelDelete}>Cancel</button><button type="submit" className="danger-button" disabled={busy||!owner||confirmation!==removal.name}>{busy?'Deleting…':`Delete ${removal.kind}`}</button></div></form>}
+      {removal&&<form className="structure-delete-confirmation" onSubmit={event=>void remove(event)}><p>{removal.kind==='category'?<>Delete <strong>{removal.name}</strong>? Its channels will be kept and moved out of this category.</>:<>Delete <strong>{removal.name}</strong>{removal.kind==='community'?' and all its channels':''}? People lose access, and new messages and calls stop. Messages and files people already saved, and backups, are not erased.</>}</p><label htmlFor="delete-structure-name">Type {removal.name} to confirm</label><input id="delete-structure-name" autoFocus autoComplete="off" value={confirmation} onChange={event=>setConfirmation(event.target.value)} disabled={busy}/><div className="form-actions"><button type="button" disabled={busy} onClick={cancelDelete}>Cancel</button><button type="submit" className="danger-button" disabled={busy||!owner||confirmation!==removal.name}>{busy?'Deleting…':`Delete ${removal.kind}`}</button></div></form>}
 
       {error && <p className="input-error" role="alert">{error}</p>}
 

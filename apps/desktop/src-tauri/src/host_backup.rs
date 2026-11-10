@@ -42,7 +42,7 @@ fn volume(selection: &Selection, suffix: &str) -> Result<String, String> {
     if !DATA.contains(&suffix)
         && !(selection.https && ["caddy-data", "caddy-config"].contains(&suffix))
     {
-        return Err("Unknown host data volume.".into());
+        return Err("Hearth didn’t recognize part of your server’s data, so it stopped to protect your data.".into());
     }
     let name = format!("{}_{suffix}", selection.project);
     let project = docker(
@@ -57,16 +57,18 @@ fn volume(selection: &Selection, suffix: &str) -> Result<String, String> {
         20,
     )?;
     if String::from_utf8_lossy(&project).trim() != selection.project {
-        return Err("Refusing to modify a volume outside the selected Hearth host.".into());
+        return Err("Hearth stopped because some Docker data doesn’t belong to your selected server. Hearth didn’t change it.".into());
     }
     Ok(name)
 }
 fn bind(path: &Path) -> Result<String, String> {
-    let text = path.to_str().ok_or("Backup path is unavailable.")?;
+    let text = path
+        .to_str()
+        .ok_or("Hearth couldn’t use the backup folder’s location. Try again.")?;
     #[cfg(windows)]
     let text = text.strip_prefix("\\\\?\\").unwrap_or(text);
     if text.contains([',', '\n', '\r']) {
-        return Err("The backup path contains unsupported characters.".into());
+        return Err("The backup folder’s location contains a comma or line break, which Hearth can’t use. Move it to a folder without commas in its name, then try again.".into());
     }
     Ok(format!("type=bind,src={text},dst=/backup"))
 }
@@ -75,19 +77,21 @@ fn optional_file(path: &Path) -> Result<Option<Vec<u8>>, String> {
         return Ok(None);
     }
     hosting::regular(path)?;
-    Ok(Some(
-        fs::read(path).map_err(|_| "Cannot read the previous server release.")?,
-    ))
+    Ok(Some(fs::read(path).map_err(
+        |_| "Hearth couldn’t read your server’s update files for the backup. Try again.",
+    )?))
 }
 fn restore_file(path: &Path, bytes: &Option<Vec<u8>>) -> Result<(), String> {
     if path.exists() {
         hosting::regular(path)?;
     }
     match bytes {
-        Some(bytes) => fs::write(path, bytes)
-            .map_err(|_| "Cannot restore the previous server release.".to_string()),
-        None if path.exists() => fs::remove_file(path)
-            .map_err(|_| "Cannot remove the server update override.".to_string()),
+        Some(bytes) => fs::write(path, bytes).map_err(|_| {
+            "Hearth couldn’t put back your server’s previous update files.".to_string()
+        }),
+        None if path.exists() => fs::remove_file(path).map_err(|_| {
+            "Hearth couldn’t remove a newer update file from your server folder.".to_string()
+        }),
         None => Ok(()),
     }
 }
@@ -109,12 +113,13 @@ fn snapshot(data: &Path, selection: &Selection) -> Result<(PathBuf, Backup), Str
     OsRng.fill_bytes(&mut nonce);
     let id = hex::encode(nonce);
     let directory = data.join("host-backups").join(&id);
-    fs::create_dir_all(&directory).map_err(|_| "Cannot create the private host backup.")?;
+    fs::create_dir_all(&directory)
+        .map_err(|_| "Hearth couldn’t create a private backup of your server.")?;
     #[cfg(unix)]
     {
         use std::os::unix::fs::PermissionsExt;
         fs::set_permissions(&directory, fs::Permissions::from_mode(0o700))
-            .map_err(|_| "Cannot protect the host backup.")?;
+            .map_err(|_| "Hearth couldn’t make the server backup private on this computer.")?;
     }
     let mount = bind(&directory)?;
     let image_ref = String::from_utf8(hosting::compose(
@@ -122,21 +127,21 @@ fn snapshot(data: &Path, selection: &Selection) -> Result<(PathBuf, Backup), Str
         &["images", "-q", "postgres"],
         20,
     )?)
-    .map_err(|_| "Cannot identify the PostgreSQL runtime.")?
+    .map_err(|_| "Hearth couldn’t find your server’s database to back it up. Choose Start server, then try again.")?
     .trim()
     .to_string();
     let image_digest = image_ref.strip_prefix("sha256:").unwrap_or(&image_ref);
     if !(12..=64).contains(&image_digest.len())
         || !image_digest.bytes().all(|b| b.is_ascii_hexdigit())
     {
-        return Err("Cannot identify the PostgreSQL runtime.".into());
+        return Err("Hearth couldn’t find your server’s database to back it up. Choose Start server, then try again.".into());
     }
     let image = String::from_utf8(docker(
         selection,
         &["image", "inspect", "--format", "{{.Id}}", &image_ref],
         20,
     )?)
-    .map_err(|_| "Cannot identify the PostgreSQL runtime.")?
+    .map_err(|_| "Hearth couldn’t find your server’s database to back it up. Choose Start server, then try again.")?
     .trim()
     .to_string();
     if image.len() != 71
@@ -144,7 +149,7 @@ fn snapshot(data: &Path, selection: &Selection) -> Result<(PathBuf, Backup), Str
         || !image[7..].bytes().all(|b| b.is_ascii_hexdigit())
     {
         return Err(
-            "Cannot identify the PostgreSQL runtime. Start the host before updating it.".into(),
+            "Hearth couldn’t find your server’s database to back it up. Choose Start server, then try again.".into(),
         );
     }
     let mut hashes = BTreeMap::new();
@@ -254,7 +259,7 @@ fn snapshot(data: &Path, selection: &Selection) -> Result<(PathBuf, Backup), Str
             )?;
             if expected != restored {
                 return Err(
-                    "The restored server signing identity does not match. Update cancelled.".into(),
+                    "Hearth tested the backup, but your server’s keys didn’t restore correctly, so it stopped. Nothing was updated.".into(),
                 );
             }
         }
@@ -290,7 +295,7 @@ fn snapshot(data: &Path, selection: &Selection) -> Result<(PathBuf, Backup), Str
         }
         if Instant::now() >= deadline {
             return Err(
-                "The PostgreSQL backup did not pass its restore rehearsal. Update cancelled."
+                "Hearth tested the backup, but the database didn’t restore correctly, so it stopped. Nothing was updated."
                     .into(),
             );
         }
@@ -313,8 +318,9 @@ fn snapshot(data: &Path, selection: &Selection) -> Result<(PathBuf, Backup), Str
     for file in [".env", "s3.json"] {
         let source = selection.root.join("deploy").join(file);
         hosting::regular(&source)?;
-        fs::copy(&source, directory.join(file))
-            .map_err(|_| "Cannot back up host configuration.")?;
+        fs::copy(&source, directory.join(file)).map_err(
+            |_| "Hearth couldn’t back up your server’s settings files (.env and s3.json).",
+        )?;
         hashes.insert(file.to_string(), hosting::sha256(&directory.join(file))?);
     }
     let previous_image = crate::updates::runtime(&selection.root)?
@@ -328,7 +334,7 @@ fn snapshot(data: &Path, selection: &Selection) -> Result<(PathBuf, Backup), Str
             "--output",
             image_archive
                 .to_str()
-                .ok_or("Backup path is unavailable.")?,
+                .ok_or("Hearth couldn’t use the backup folder’s location. Try again.")?,
             &previous_image,
         ],
         180,
@@ -343,7 +349,7 @@ fn snapshot(data: &Path, selection: &Selection) -> Result<(PathBuf, Backup), Str
             "--output",
             helper_archive
                 .to_str()
-                .ok_or("Backup path is unavailable.")?,
+                .ok_or("Hearth couldn’t use the backup folder’s location. Try again.")?,
             &image,
         ],
         180,
@@ -352,20 +358,21 @@ fn snapshot(data: &Path, selection: &Selection) -> Result<(PathBuf, Backup), Str
     if selection.root.join("deploy/media/data/.env").exists() {
         crate::host_media::directory(&selection.root)?;
         fs::create_dir_all(directory.join("media"))
-            .map_err(|_| "Cannot back up private media settings.")?;
+            .map_err(|_| "Hearth couldn’t back up your private voice and video settings.")?;
         for file in crate::host_media::PRIVATE_FILES {
             let source = selection.root.join("deploy/media/data").join(file);
             if source.exists() {
                 hosting::regular(&source)?;
                 let name = format!("media/{file}");
                 fs::copy(&source, directory.join(&name))
-                    .map_err(|_| "Cannot back up media credentials.")?;
+                    .map_err(|_| "Hearth couldn’t back up your voice and video keys.")?;
                 hashes.insert(name.clone(), hosting::sha256(&directory.join(name))?);
             }
         }
     }
     let package = directory.join("package");
-    fs::create_dir_all(package.join("deploy")).map_err(|_| "Cannot prepare portable backup.")?;
+    fs::create_dir_all(package.join("deploy"))
+        .map_err(|_| "Hearth couldn’t prepare a backup you can move to another computer.")?;
     let bundle = hosting::validate(&selection.root)?;
     for file in [
         "manifest.json",
@@ -385,10 +392,15 @@ fn snapshot(data: &Path, selection: &Selection) -> Result<(PathBuf, Backup), Str
             .filter(|file| bundle.files.contains_key(*file)),
     ) {
         hosting::regular(&selection.root.join(file))?;
-        fs::create_dir_all(package.join(file).parent().ok_or("Invalid package path.")?)
-            .map_err(|_| "Cannot prepare portable media backup.")?;
+        fs::create_dir_all(
+            package
+                .join(file)
+                .parent()
+                .ok_or("Hearth couldn’t copy your server files into the backup.")?,
+        )
+        .map_err(|_| "Hearth couldn’t prepare the voice and video part of the backup.")?;
         fs::copy(selection.root.join(file), package.join(file))
-            .map_err(|_| "Cannot back up the signed deployment package.")?;
+            .map_err(|_| "Hearth couldn’t back up your verified server files.")?;
         hashes.insert(
             format!("package/{file}"),
             hosting::sha256(&package.join(file))?,
@@ -401,10 +413,13 @@ fn snapshot(data: &Path, selection: &Selection) -> Result<(PathBuf, Backup), Str
             && !name.contains(['/', '\\'])
     }) {
         if hosting::sha256(&selection.root.join(name))? != *expected {
-            return Err("The base server image archive is damaged. Backup cancelled.".into());
+            return Err(
+                "Part of your verified server files is damaged, so the backup was cancelled."
+                    .into(),
+            );
         }
         fs::copy(selection.root.join(name), package.join(name))
-            .map_err(|_| "Cannot back up the base server image.")?;
+            .map_err(|_| "Hearth couldn’t back up your server’s software.")?;
         hashes.insert(format!("package/{name}"), expected.clone());
     }
     let backup = Backup {
@@ -418,14 +433,16 @@ fn snapshot(data: &Path, selection: &Selection) -> Result<(PathBuf, Backup), Str
     };
     fs::write(
         directory.join("backup.json"),
-        serde_json::to_vec(&backup).map_err(|_| "Cannot record the host backup.")?,
+        serde_json::to_vec(&backup)
+            .map_err(|_| "Hearth couldn’t finish saving the server backup.")?,
     )
-    .map_err(|_| "Cannot record the host backup.")?;
+    .map_err(|_| "Hearth couldn’t finish saving the server backup.")?;
     fs::write(
         data.join("last-host-backup.json"),
-        serde_json::to_vec(&directory).map_err(|_| "Cannot record the host backup.")?,
+        serde_json::to_vec(&directory)
+            .map_err(|_| "Hearth couldn’t finish saving the server backup.")?,
     )
-    .map_err(|_| "Cannot record the host backup.")?;
+    .map_err(|_| "Hearth couldn’t finish saving the server backup.")?;
     Ok((directory, backup))
 }
 fn validate_backup(directory: &Path, backup: &Backup) -> Result<(), String> {
@@ -444,31 +461,35 @@ fn validate_backup(directory: &Path, backup: &Backup) -> Result<(), String> {
         .contains(&file.as_str())
             && !portable_file(file)
         {
-            return Err("Unknown backup file.".into());
+            return Err(
+                "This backup contains a file Hearth doesn’t recognize, so it wasn’t used.".into(),
+            );
         }
         if &hosting::sha256(&directory.join(file))? != expected {
-            return Err("Backup checksum verification failed; host data was preserved.".into());
+            return Err("This backup is damaged or was changed, so it wasn’t used. Your server data is safe.".into());
         }
     }
     if DATA
         .iter()
         .any(|suffix| !backup.hashes.contains_key(&format!("{suffix}.tar")))
     {
-        return Err("Incomplete host backup.".into());
+        return Err("This backup is incomplete, so it can’t be used.".into());
     }
     if !backup.hashes.contains_key("server-image.tar") {
-        return Err("The rollback server image is missing.".into());
+        return Err(
+            "This backup is missing its copy of the server software, so it can’t be used.".into(),
+        );
     }
     for file in [".env", "s3.json"] {
         if !backup.hashes.contains_key(file) {
-            return Err("Host backup configuration is missing.".into());
+            return Err("This backup is missing your server’s settings files (.env and s3.json), so it can’t be used.".into());
         }
     }
     if !backup.image.starts_with("sha256:")
         || backup.image.len() != 71
         || !backup.image[7..].bytes().all(|b| b.is_ascii_hexdigit())
     {
-        return Err("Invalid backup helper image.".into());
+        return Err("This backup looks damaged, so it can’t be used.".into());
     }
     // Inspect volume archives before starting Docker or stopping an existing host.
     for suffix in DATA.into_iter().chain(if backup.https {
@@ -478,7 +499,7 @@ fn validate_backup(directory: &Path, backup: &Backup) -> Result<(), String> {
     }) {
         let name = format!("{suffix}.tar");
         if !backup.hashes.contains_key(&name) {
-            return Err("Incomplete host backup.".into());
+            return Err("This backup is incomplete, so it can’t be used.".into());
         }
         validate_volume_archive(&directory.join(name))?;
     }
@@ -509,21 +530,24 @@ fn portable_file(file: &str) -> bool {
         .is_some_and(|s| s.ends_with(".tar") && !s.contains(['/', '\\', ':']) && !s.contains(".."))
 }
 fn validate_volume_archive(path: &Path) -> Result<(), String> {
-    let mut archive =
-        tar::Archive::new(fs::File::open(path).map_err(|_| "Cannot read backup volume.")?);
+    let mut archive = tar::Archive::new(
+        fs::File::open(path).map_err(|_| "Hearth couldn’t read part of the backup.")?,
+    );
     let mut total = 0u64;
     let mut count = 0u64;
     for entry in archive
         .entries()
-        .map_err(|_| "Invalid backup volume archive.")?
+        .map_err(|_| "This backup looks damaged, so it can’t be used.")?
     {
-        let entry = entry.map_err(|_| "Invalid backup volume entry.")?;
-        let path = entry.path().map_err(|_| "Invalid backup volume path.")?;
+        let entry = entry.map_err(|_| "This backup looks damaged, so it can’t be used.")?;
+        let path = entry
+            .path()
+            .map_err(|_| "This backup looks damaged, so it can’t be used.")?;
         let kind = entry.header().entry_type();
         count += 1;
         total = total
             .checked_add(entry.size())
-            .ok_or("Oversized backup volume.")?;
+            .ok_or("Part of this backup is larger than expected, so it can’t be used.")?;
         if count > 1_000_000
             || total > 64 * 1024 * 1024 * 1024
             || (!kind.is_file() && !kind.is_dir())
@@ -536,7 +560,7 @@ fn validate_volume_archive(path: &Path) -> Result<(), String> {
             || path.to_string_lossy().contains(['\\', ':'])
         {
             return Err(
-                "Unsafe or oversized backup volume archive. Host data was preserved.".into(),
+                "Unsafe or oversized files were found in this backup, so it wasn’t used. Your server data is safe.".into(),
             );
         }
     }
@@ -544,7 +568,9 @@ fn validate_volume_archive(path: &Path) -> Result<(), String> {
 }
 fn restore(selection: &Selection, directory: &Path, backup: &Backup) -> Result<(), String> {
     if backup.root != selection.root || backup.https != selection.https {
-        return Err("This backup belongs to another host configuration.".into());
+        return Err(
+            "This backup is from a different server setup, so it can’t be restored here.".into(),
+        );
     }
     validate_backup(directory, backup)?;
     docker(
@@ -555,7 +581,7 @@ fn restore(selection: &Selection, directory: &Path, backup: &Backup) -> Result<(
             directory
                 .join("server-image.tar")
                 .to_str()
-                .ok_or("Backup path is unavailable.")?,
+                .ok_or("Hearth couldn’t use the backup folder’s location. Try again.")?,
         ],
         180,
     )?;
@@ -610,7 +636,9 @@ fn restore(selection: &Selection, directory: &Path, backup: &Backup) -> Result<(
         if target.exists() {
             hosting::regular(&target)?;
         }
-        fs::copy(directory.join(file), target).map_err(|_| "Cannot restore host configuration.")?;
+        fs::copy(directory.join(file), target).map_err(
+            |_| "Hearth couldn’t restore your server’s settings files (.env and s3.json).",
+        )?;
     }
     for file in backup
         .hashes
@@ -618,13 +646,17 @@ fn restore(selection: &Selection, directory: &Path, backup: &Backup) -> Result<(
         .filter_map(|file| file.strip_prefix("package/"))
     {
         let target = selection.root.join(file);
-        fs::create_dir_all(target.parent().ok_or("Invalid recovery path.")?)
-            .map_err(|_| "Cannot restore deployment files.")?;
+        fs::create_dir_all(
+            target
+                .parent()
+                .ok_or("Hearth couldn’t restore your server files from the backup.")?,
+        )
+        .map_err(|_| "Hearth couldn’t restore your server files.")?;
         if target.exists() {
             hosting::regular(&target)?;
         }
         fs::copy(directory.join("package").join(file), target)
-            .map_err(|_| "Cannot restore the signed deployment package.")?;
+            .map_err(|_| "Hearth couldn’t restore your verified server files.")?;
     }
     crate::host_media::restore(&selection.root, directory, &backup.hashes)?;
     hosting::compose(
@@ -643,7 +675,7 @@ pub fn apply(
     let data = app
         .path()
         .app_data_dir()
-        .map_err(|_| "Local backup storage is unavailable.")?;
+        .map_err(|_| "Hearth couldn’t open its backup folder on this computer. Close and reopen Hearth, then try again.")?;
     apply_with_data(&data, selection, signed, release)
 }
 pub(crate) fn apply_with_data(
@@ -670,9 +702,9 @@ pub(crate) fn apply_with_data(
             return Err(format!(
                 "{error} {}",
                 if restarted {
-                    "The previous server was restarted."
+                    "Your server was restarted on its previous version."
                 } else {
-                    "The previous server could not restart; use the host controls to retry."
+                    "Your server couldn’t restart on its previous version. Choose Start server to try again."
                 }
             ));
         }
@@ -686,12 +718,13 @@ pub(crate) fn apply_with_data(
             selection.root.join("deploy/compose.runtime.json"),
             value.to_string(),
         )
-        .map_err(|_| "Cannot set the verified server image.")?;
+        .map_err(|_| "Hearth couldn’t switch your server to the verified update.")?;
         fs::write(
             selection.root.join("deploy/host-update.json"),
-            serde_json::to_vec(signed).map_err(|_| "Cannot record the server release.")?,
+            serde_json::to_vec(signed)
+                .map_err(|_| "Hearth couldn’t save a record of the server update.")?,
         )
-        .map_err(|_| "Cannot record the server release.")?;
+        .map_err(|_| "Hearth couldn’t save a record of the server update.")?;
         hosting::compose(
             selection,
             &["up", "-d", "--no-build", "--wait", "--wait-timeout", "120"],
@@ -701,8 +734,8 @@ pub(crate) fn apply_with_data(
     })();
     if result.is_err() {
         return match restore(selection, &directory, &backup) {
-            Ok(()) => Err("The new server did not start. The previous server and its verified data backup were restored.".into()),
-            Err(_) => Err(format!("The update and automatic rollback failed. Hosting is stopped to protect its data. Keep the verified backup at {} and use Restore last backup.", directory.display())),
+            Ok(()) => Err("The updated server didn’t start, so Hearth went back: the previous server and its verified data backup were restored.".into()),
+            Err(_) => Err(format!("The update failed, and Hearth couldn’t automatically go back to the previous version. Your server is stopped to protect its data. Keep the verified backup at {} and choose Restore last backup.", directory.display())),
         };
     }
     Ok(())
@@ -714,48 +747,48 @@ pub async fn host_rollback(
 ) -> Result<String, String> {
     let lock = state.0.clone();
     tauri::async_runtime::spawn_blocking(move || {
-        let _guard = lock.lock().map_err(|_| "Host controls are busy.")?;
+        let _guard = lock.lock().map_err(|_| "Hearth’s server controls stopped responding. Close and reopen Hearth, then try again.")?;
         let selection = hosting::selected_for_recovery(&app)?;
         let data = app
             .path()
             .app_data_dir()
-            .map_err(|_| "Local backup storage is unavailable.")?;
+            .map_err(|_| "Hearth couldn’t open its backup folder on this computer. Close and reopen Hearth, then try again.")?;
         let path = data.join("last-host-backup.json");
         hosting::regular(&path)?;
         let directory: PathBuf =
-            serde_json::from_slice(&fs::read(path).map_err(|_| "No host backup is available.")?)
-                .map_err(|_| "Invalid host backup reference.")?;
+            serde_json::from_slice(&fs::read(path).map_err(|_| "There’s no server backup to restore yet.")?)
+                .map_err(|_| "Hearth’s record of your last backup is damaged, so it can’t be restored.")?;
         let canonical = directory
             .canonicalize()
-            .map_err(|_| "The host backup is missing.")?;
+            .map_err(|_| "Your last server backup is missing from this computer.")?;
         if !canonical.starts_with(
             data.join("host-backups")
                 .canonicalize()
-                .map_err(|_| "The host backup is missing.")?,
+                .map_err(|_| "Your last server backup is missing from this computer.")?,
         ) {
-            return Err("The host backup is outside app storage.".into());
+            return Err("Your last server backup isn’t in Hearth’s own storage folder, so Hearth won’t restore it.".into());
         }
         let record = canonical.join("backup.json");
         hosting::regular(&record)?;
         let backup: Backup =
-            serde_json::from_slice(&fs::read(record).map_err(|_| "Cannot read the host backup.")?)
-                .map_err(|_| "Invalid host backup record.")?;
+            serde_json::from_slice(&fs::read(record).map_err(|_| "Hearth couldn’t read the server backup.")?)
+                .map_err(|_| "This server backup looks damaged, so it can’t be used.")?;
         restore(&selection, &canonical, &backup)?;
-        Ok("Previous server and verified host data restored.".into())
+        Ok("Your previous server version and its verified data were restored.".into())
     })
     .await
-    .map_err(|_| "Host recovery is unavailable.".to_string())?
+    .map_err(|_| "Something went wrong restoring your server. Close and reopen Hearth, then try again.".to_string())?
 }
 
 fn record(directory: &Path) -> Result<Backup, String> {
     let path = directory.join("backup.json");
     hosting::regular(&path)?;
-    let bytes = fs::read(path).map_err(|_| "Cannot read the host backup.")?;
+    let bytes = fs::read(path).map_err(|_| "Hearth couldn’t read the server backup.")?;
     if bytes.len() > 131072 {
-        return Err("Host backup record is too large.".into());
+        return Err("This server backup looks damaged, so it can’t be used.".into());
     }
-    let backup: Backup =
-        serde_json::from_slice(&bytes).map_err(|_| "Invalid host backup record.")?;
+    let backup: Backup = serde_json::from_slice(&bytes)
+        .map_err(|_| "This server backup looks damaged, so it can’t be used.")?;
     validate_backup(directory, &backup)?;
     Ok(backup)
 }
@@ -773,10 +806,12 @@ fn make_backup(data: &Path, selection: &Selection) -> Result<PathBuf, String> {
     );
     match (result, restarted) {
         (Ok(directory), Ok(_)) => Ok(directory),
-        (Err(error), Ok(_)) => Err(format!("{error} The host was restarted.")),
+        (Err(error), Ok(_)) => Err(format!("{error} Your server was started again.")),
         (result, Err(_)) => Err(format!(
-            "{} The host could not restart; use Start server to retry. Data was preserved.",
-            result.err().unwrap_or_else(|| "Backup completed.".into())
+            "{} Your server couldn’t start again. Choose Start server to try. Your server data is safe.",
+            result
+                .err()
+                .unwrap_or_else(|| "The backup finished.".into())
         )),
     }
 }
@@ -787,24 +822,24 @@ pub async fn host_backup_export(
 ) -> Result<Option<String>, String> {
     let lock = state.0.clone();
     tauri::async_runtime::spawn_blocking(move || {
-        let _guard = lock.lock().map_err(|_| "Host controls are busy.")?;
+        let _guard = lock.lock().map_err(|_| "Hearth’s server controls stopped responding. Close and reopen Hearth, then try again.")?;
         let Some(folder) = app.dialog().file().set_title("Choose where to save the private server backup").blocking_pick_folder() else { return Ok(None); };
-        let destination = folder.into_path().map_err(|_| "Choose a local backup folder.")?.canonicalize().map_err(|_| "Cannot open the backup folder.")?;
+        let destination = folder.into_path().map_err(|_| "Choose a backup folder on this computer.")?.canonicalize().map_err(|_| "Hearth couldn’t open that folder. Choose another one.")?;
         let selection = hosting::selected(&app)?;
-        let data = app.path().app_data_dir().map_err(|_| "Backup storage is unavailable.")?;
+        let data = app.path().app_data_dir().map_err(|_| "Hearth couldn’t open its backup folder on this computer. Close and reopen Hearth, then try again.")?;
         let directory = make_backup(&data, &selection)?;
         let backup = record(&directory)?;
-        let destination = destination.join(format!("Hearth_Backup_{}", directory.file_name().ok_or("Invalid backup path.")?.to_string_lossy()));
-        fs::create_dir(&destination).map_err(|_| "The export folder already exists or cannot be created. Existing files were preserved.")?;
-        #[cfg(unix)] { use std::os::unix::fs::PermissionsExt; fs::set_permissions(&destination, fs::Permissions::from_mode(0o700)).map_err(|_| "Cannot protect the backup folder.")?; }
+        let destination = destination.join(format!("Hearth_Backup_{}", directory.file_name().ok_or("Hearth couldn’t save the backup to that folder. Choose another folder.")?.to_string_lossy()));
+        fs::create_dir(&destination).map_err(|_| "A backup folder with this name already exists there, or the folder couldn’t be created. Nothing was overwritten. Choose another location.")?;
+        #[cfg(unix)] { use std::os::unix::fs::PermissionsExt; fs::set_permissions(&destination, fs::Permissions::from_mode(0o700)).map_err(|_| "Hearth couldn’t make the backup folder private.")?; }
         for file in backup.hashes.keys().chain(std::iter::once(&"backup.json".to_string())) {
             let target = destination.join(file);
-            fs::create_dir_all(target.parent().ok_or("Invalid backup path.")?).map_err(|_| "Cannot create export folder.")?;
-            fs::copy(directory.join(file), &target).map_err(|_| "Cannot finish backup export. The private app backup is retained.")?;
+            fs::create_dir_all(target.parent().ok_or("Hearth couldn’t save the backup to that folder. Choose another folder.")?).map_err(|_| "Hearth couldn’t create the backup folder.")?;
+            fs::copy(directory.join(file), &target).map_err(|_| "Hearth couldn’t finish saving the backup to that folder. A private copy is still kept inside Hearth.")?;
         }
         record(&destination)?;
-        Ok(Some(format!("Verified server backup saved to {}. Keep it private: it contains server keys, credentials and encrypted history. Stop the old host before using this backup on another computer.", destination.display())))
-    }).await.map_err(|_| "Backup export is unavailable.".to_string())?
+        Ok(Some(format!("Verified server backup saved to {}. Keep it private: it contains your server’s secret keys, passwords and encrypted messages. Stop the old server before using this backup on another computer.", destination.display())))
+    }).await.map_err(|_| "Something went wrong saving the backup. Close and reopen Hearth, then try again.".to_string())?
 }
 
 #[derive(Serialize, Deserialize)]
@@ -819,23 +854,26 @@ fn fresh_restore(data: &Path, directory: &Path) -> Result<Selection, String> {
     if !backup.hashes.contains_key("helper-image.tar")
         || !backup.hashes.contains_key("package/manifest.json")
     {
-        return Err("This older backup supports local rollback only. Export a new portable backup from the original host.".into());
+        return Err("This backup is from an older version and can only undo an update on the same computer. On the original computer, use Export server backup to make a new one.".into());
     }
     let bundle = hosting::validate(&directory.join("package"))?;
     let pending_path = data.join("pending-host-restore.json");
     let record_hash = hosting::sha256(&directory.join("backup.json"))?;
     let pending = if pending_path.exists() {
         hosting::regular(&pending_path)?;
-        let pending: PendingRestore = serde_json::from_slice(
-            &fs::read(&pending_path).map_err(|_| "Cannot read restore recovery state.")?,
-        )
-        .map_err(|_| "Invalid restore recovery state.")?;
+        let pending: PendingRestore =
+            serde_json::from_slice(&fs::read(&pending_path).map_err(
+                |_| "Hearth couldn’t read the progress of an earlier restore. Try again.",
+            )?)
+            .map_err(
+                |_| "The record of an earlier unfinished restore is damaged, so Hearth stopped.",
+            )?;
         if pending.backup != directory
             || pending.record_hash != record_hash
             || pending.project != bundle.server.compose_project
             || pending.root.parent() != Some(data.join("hosts").as_path())
         {
-            return Err("Another restore is pending. Retry its original backup before importing a different server. Existing data was preserved.".into());
+            return Err("Another restore hasn’t finished. Restore that same backup again before restoring a different server. Your existing data is safe.".into());
         }
         pending
     } else {
@@ -866,7 +904,7 @@ fn fresh_restore(data: &Path, directory: &Path) -> Result<Selection, String> {
             };
             let result = hosting::command("docker", &args, directory, 20)?;
             if !String::from_utf8_lossy(&result).trim().is_empty() {
-                return Err("This computer already has data for that Hearth host. Restore onto a fresh computer; no existing containers or volumes were changed.".into());
+                return Err("This computer already has data for that Hearth server. Restore onto a computer that hasn’t hosted it before. Your existing server data on this computer was not changed.".into());
             }
         }
         let mut nonce = [0u8; 12];
@@ -875,7 +913,7 @@ fn fresh_restore(data: &Path, directory: &Path) -> Result<Selection, String> {
             .join("hosts")
             .join(format!("restored-{}", hex::encode(nonce)));
         fs::create_dir_all(root.join("deploy"))
-            .map_err(|_| "Cannot prepare fresh host storage.")?;
+            .map_err(|_| "Hearth couldn’t prepare a new server folder for the restore.")?;
         let pending = PendingRestore {
             root,
             backup: directory.to_path_buf(),
@@ -884,9 +922,10 @@ fn fresh_restore(data: &Path, directory: &Path) -> Result<Selection, String> {
         };
         fs::write(
             &pending_path,
-            serde_json::to_vec(&pending).map_err(|_| "Cannot record restore recovery state.")?,
+            serde_json::to_vec(&pending)
+                .map_err(|_| "Hearth couldn’t save the restore’s progress, so it stopped.")?,
         )
-        .map_err(|_| "Cannot record restore recovery state.")?;
+        .map_err(|_| "Hearth couldn’t save the restore’s progress, so it stopped.")?;
         pending
     };
     // Validate the signed runtime override in the candidate directory before using Docker.
@@ -900,18 +939,19 @@ fn fresh_restore(data: &Path, directory: &Path) -> Result<Selection, String> {
                 .root
                 .join(file)
                 .parent()
-                .ok_or("Invalid recovery path.")?,
+                .ok_or("Hearth couldn’t restore your server files from the backup.")?,
         )
-        .map_err(|_| "Cannot prepare media recovery.")?;
+        .map_err(|_| "Hearth couldn’t prepare to restore voice and video settings.")?;
         fs::copy(
             directory.join("package").join(file),
             pending.root.join(file),
         )
-        .map_err(|_| "Cannot prepare the signed recovery package.")?;
+        .map_err(|_| "Hearth couldn’t prepare the verified server files from the backup.")?;
     }
     for file in [".env", "s3.json"] {
-        fs::copy(directory.join(file), pending.root.join("deploy").join(file))
-            .map_err(|_| "Cannot recover the original host credentials.")?;
+        fs::copy(directory.join(file), pending.root.join("deploy").join(file)).map_err(
+            |_| "Hearth couldn’t restore your server’s original settings files (.env and s3.json).",
+        )?;
     }
     restore_file(
         &pending.root.join("deploy/compose.runtime.json"),
@@ -938,7 +978,7 @@ fn fresh_restore(data: &Path, directory: &Path) -> Result<Selection, String> {
                 directory
                     .join(file)
                     .to_str()
-                    .ok_or("Backup path is unavailable.")?,
+                    .ok_or("Hearth couldn’t use the backup folder’s location. Try again.")?,
             ],
             180,
         )?;
@@ -957,13 +997,13 @@ pub async fn host_backup_import(
 ) -> Result<Option<String>, String> {
     let lock = state.0.clone();
     tauri::async_runtime::spawn_blocking(move || {
-        let _guard = lock.lock().map_err(|_| "Host controls are busy.")?;
+        let _guard = lock.lock().map_err(|_| "Hearth’s server controls stopped responding. Close and reopen Hearth, then try again.")?;
         let Some(folder) = app.dialog().file().set_title("Choose the private Hearth backup folder").blocking_pick_folder() else { return Ok(None); };
-        let directory = folder.into_path().map_err(|_| "Choose a local backup folder.")?.canonicalize().map_err(|_| "Cannot open the backup.")?;
-        let data = app.path().app_data_dir().map_err(|_| "Host storage is unavailable.")?;
+        let directory = folder.into_path().map_err(|_| "Choose a backup folder on this computer.")?.canonicalize().map_err(|_| "Hearth couldn’t open that backup folder. Choose another one.")?;
+        let data = app.path().app_data_dir().map_err(|_| "Hearth couldn’t open its storage folder on this computer. Close and reopen Hearth, then try again.")?;
         let selection = fresh_restore(&data, &directory)?;
-        hosting::save_selection(&app, &selection).map_err(|_| "Restored host is running, but its selection could not be saved. Retry this backup to recover the selection.")?;
-        fs::remove_file(data.join("pending-host-restore.json")).map_err(|_| "Host restored. Recovery journal could not be cleared; retry before another import.")?;
-        Ok(Some("Server restored with its original keys, credentials and history. Update router forwarding for this computer and repeat the outside-network check. Keep the old host stopped.".into()))
-    }).await.map_err(|_| "Fresh host restore is unavailable.".to_string())?
+        hosting::save_selection(&app, &selection).map_err(|_| "Your restored server is running, but Hearth couldn’t remember it. Restore this backup again to fix that.")?;
+        fs::remove_file(data.join("pending-host-restore.json")).map_err(|_| "Server restored, but Hearth couldn’t clear its restore progress record. Restore this backup again before restoring a different one.")?;
+        Ok(Some("Server restored with its original keys, passwords and message history. Update your router’s port forwarding to point to this computer, then run the outside-network check again. Keep the old server stopped.".into()))
+    }).await.map_err(|_| "Something went wrong restoring the backup. Close and reopen Hearth, then try again.".to_string())?
 }

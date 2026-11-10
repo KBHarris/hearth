@@ -43,7 +43,7 @@ try{
   const wait=async id=>driver.wait(async()=>{const elements=await driver.findElements(By.id(id));return elements[0] ?? false},30000)
   const enabled=async(client,id)=>{const elements=await client.findElements(By.id(id));return elements.length>0 && await elements[0].isEnabled()}
   const activeChannel=async(client,name)=>{const headings=await client.findElements(By.css('.conversation-header strong'));return headings.length>0 && (await headings[0].getText())===`# ${name}`}
-  await driver.wait(async()=>await driver.findElements(By.css('.setup-choice')).then(items=>items.length===2),15000)
+  await driver.wait(async()=>await driver.findElements(By.css('.setup-choice')).then(items=>items.length===3),15000)
   assert.equal(await driver.executeScript('return performance.getEntriesByType("resource").filter(e=>/\\/(health|\\.well-known|api)\\b/.test(new URL(e.name).pathname)).length'),0)
   writeFileSync(join(output,'setup-welcome.png'),Buffer.from(await driver.takeScreenshot(),'base64'))
   await driver.manage().window().setRect({width:430,height:1000})
@@ -108,12 +108,15 @@ try{
   await driver.findElement(By.css('[aria-label="Manage community"]')).click();await click('Channels')
   await driver.findElement(By.css('[aria-label="Delete channel keep"]')).click()
   await driver.executeScript(()=>{window.__beforeDeleteFetch=window.fetch;window.fetch=(url,...args)=>String(url).endsWith('/delete')?Promise.reject(new Error('Disposable fixture outage')):window.__beforeDeleteFetch(url,...args)})
-  await confirm('keep');await driver.wait(()=>driver.findElements(By.css('[role="alert"]')).then(async elements=>(await Promise.all(elements.map(element=>element.getText()))).some(text=>text.includes('Could not reach'))),15000)
+  await confirm('keep');await driver.wait(()=>driver.findElements(By.css('[role="alert"]')).then(async elements=>(await Promise.all(elements.map(element=>element.getText()))).some(text=>text.includes('couldn’t reach this server'))),15000)
   assert.equal(await driver.findElement(By.id('delete-structure-name')).getAttribute('value'),'keep')
   await driver.executeScript(()=>{window.fetch=window.__beforeDeleteFetch;delete window.__beforeDeleteFetch})
   await driver.findElement(By.css('.structure-delete-confirmation button[type="button"]')).click()
   assert.equal((await driver.findElements(By.css('[data-channel-name="keep"]'))).length,1)
   checks.network_failure_preserves_confirmation_and_channel=true
+  // Deleting the whole community sits with the other owner-level actions.
+  await driver.findElement(By.xpath('//button[text()="Ownership"]')).click()
+  await driver.wait(()=>driver.findElements(By.css('.structure-delete-community button')).then(buttons=>buttons.length>0),15000)
   await driver.findElement(By.css('.structure-delete-community button')).click()
   await driver.manage().window().setRect({width:430,height:1000})
   assert.equal(await driver.findElement(By.id('delete-structure-name')).isDisplayed(),true)

@@ -12,13 +12,13 @@ export function ActivityComposer({kind,send,disabled}:{kind:'event'|'playback';s
         await send({type:'event',event:{title,description:String(data.get('description')).trim(),location:String(data.get('location')).trim(),starts_at,ends_at}})
       }else{
         const address=playbackAddress(String(data.get('url')))
-        if(!playbackEnabled(address.provider))throw new Error('Spotify playback is disabled in this release. Use a YouTube video or SoundCloud track.')
+        if(!playbackEnabled(address.provider))throw new Error('Spotify playback is not available in this version. Use a YouTube video or SoundCloud track.')
         await send({type:'playback',playback:{title,...address,position:{revision:1,playing:false,position_ms:0,sent_at:Date.now()}}})
       }
     }catch(error){setError(error instanceof Error?error.message:'The activity could not be shared.')}finally{setBusy(false)}
   }
   return <form onSubmit={event=>void publish(event)}><label>Title<input name="title" maxLength={160} required disabled={disabled||busy}/></label>
-    {kind==='event'?<><label>Description<textarea name="description" maxLength={4000} rows={4}/></label><label>Starts (your local time)<input name="start" type="datetime-local" required/></label><label>Ends (your local time)<input name="end" type="datetime-local" required/></label><label>Where to meet<input name="location" maxLength={200} placeholder="A room name or meeting place"/></label><p>Event details and responses stay encrypted. Everyone in this conversation can see RSVPs. Times use your local clock.</p></>:<><label>Media link<input name="url" type="url" required placeholder="https://…"/></label><p>YouTube videos and SoundCloud tracks are supported. Spotify playback is disabled in this release. Every person chooses whether to connect to the provider. Posting the link does not load a player or link your identity.</p></>}
-    <button className="primary-button" disabled={disabled||busy}>{kind==='event'?'Schedule event':'Share synchronized playback'}</button>{error&&<p role="alert">{error}</p>}
+    {kind==='event'?<><label>Description<textarea name="description" maxLength={4000} rows={4}/></label><label>Starts (your local time)<input name="start" type="datetime-local" required/></label><label>Ends (your local time)<input name="end" type="datetime-local" required/></label><label>Where to meet<input name="location" maxLength={200} placeholder="A room name or meeting place"/></label><p>Event details and replies are encrypted. Everyone in this conversation can see who is going. Times use your local clock.</p></>:<><label>Media link<input name="url" type="url" required placeholder="https://…"/></label><p>You can share YouTube videos and SoundCloud tracks. Spotify playback is not available in this version. Each person chooses whether to connect to YouTube or SoundCloud. Posting the link does not load a player or tell them who you are.</p></>}
+    <button className="primary-button" disabled={disabled||busy}>{kind==='event'?'Schedule event':'Share and play together'}</button>{error&&<p role="alert">{error}</p>}
   </form>
 }

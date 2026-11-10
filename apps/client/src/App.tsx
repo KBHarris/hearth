@@ -136,7 +136,7 @@ export default function App() {
       const nextUrl = normalizeServerUrl(address)
       const info = await new HearthClient(nextUrl).inspect({ signal: controller.signal })
       if (controller.signal.aborted) return
-      if (nextUrl === url && status.kind === 'ok' && info.wellKnown.server_key.toLowerCase() !== status.info.wellKnown.server_key.toLowerCase()) throw new Error('This server’s identity changed. Contact its host before reconnecting. Your current session and saved keys were preserved.')
+      if (nextUrl === url && status.kind === 'ok' && info.wellKnown.server_key.toLowerCase() !== status.info.wellKnown.server_key.toLowerCase()) throw new Error('This server’s safety code has changed, which can mean it is not the same server. Ask its host before reconnecting. You are still signed in and nothing was lost.')
       remember(nextUrl, info.wellKnown.server_name)
       setInvite(null); setWelcome(false)
       if (nextUrl !== url) setSignedIn(false)
@@ -147,26 +147,31 @@ export default function App() {
   function forgetServer() {
     setServers(previous => {
       const next = previous.filter(item => item.url !== url)
-      try { localStorage.setItem(serversKey, JSON.stringify(next)); localStorage.removeItem(storageKey) } catch { /* Storage may be disabled. */ }
+      try { localStorage.setItem(serversKey, JSON.stringify(next)); localStorage.removeItem(storageKey); localStorage.removeItem(`hearth.last-username:${url}`) } catch { /* Storage may be disabled. */ }
       return next
     })
   }
   const name = status.kind === 'ok' ? status.info.wellKnown.server_name : 'Your server'
-  return <div className="app-shell">
-    <nav className="server-rail" aria-label="Servers">
+  return <div className="app-shell" data-signed-in={signedIn}>
+    <div className="server-rail">
       <div className="rail-brand" title="Hearth"><Flame /></div>
-      <div className="rail-divider" />
-      {servers.map(server => <button key={server.url} className={`server-tile ${url === server.url ? 'selected' : ''}`}
-        aria-label={`Open server ${server.name}`} aria-current={url === server.url ? 'page' : undefined} title={server.name}
-        onClick={() => openConnection('connection', server.url)}>{server.name.slice(0, 2).toUpperCase()}</button>)}
-      {(hosted || hostLookupFailed) && !servers.some(server => server.url === hosted?.local_url) && <button className="server-tile"
-        aria-label={hosted?.local_url ? 'Open your hosted server' : 'Your host needs attention'}
-        title={hosted?.local_url ? 'Your hosted server' : 'Your host needs attention'}
-        onClick={() => hosted?.local_url ? openConnection('connection', hosted.local_url) : setPanel('host')}><Icon name="server" /></button>}
-      <button className="server-tile add-server" aria-label="Add server" title="Add server" onClick={() => openConnection('add')}><Icon name="plus" /></button>
-      {isTauri() && <button className="server-tile" aria-label="Hosting and updates" title="Hosting & updates" onClick={() => setPanel('host')}><Icon name="server" /></button>}
-      <span className="rail-bottom" title="Messages are encrypted"><Icon name="shield" /></span>
-    </nav>
+      {/* The signed-in workspace fills these with Home and the community list. */}
+      <div id="rail-home" className="rail-slot" />
+      <div id="rail-communities" className="rail-slot" />
+      <nav className="rail-servers" aria-label="Servers">
+        <div className="rail-divider" />
+        {servers.map(server => <button key={server.url} className={`rail-tile server-tile ${url === server.url ? 'selected' : ''}`}
+          aria-label={`Open server ${server.name}`} aria-current={url === server.url ? 'page' : undefined} title={`Server: ${server.name}`}
+          onClick={() => openConnection('connection', server.url)}>{server.name.slice(0, 2).toUpperCase()}</button>)}
+        {(hosted || hostLookupFailed) && !servers.some(server => server.url === hosted?.local_url) && <button className="rail-tile server-tile"
+          aria-label={hosted?.local_url ? 'Open your hosted server' : 'Your server needs attention'}
+          title={hosted?.local_url ? 'Your hosted server' : 'Your server needs attention'}
+          onClick={() => hosted?.local_url ? openConnection('connection', hosted.local_url) : setPanel('host')}><Icon name="server" /></button>}
+        <button className="rail-tile server-tile add-server" aria-label="Add server" title="Add another server" onClick={() => openConnection('add')}><Icon name="globe" /></button>
+        {isTauri() && <button className="rail-tile server-tile" aria-label="Hosting and updates" title="Hosting & updates" onClick={() => setPanel('host')}><Icon name="server" /></button>}
+        <span className="rail-bottom" title="Messages and calls are end-to-end encrypted. The server cannot read them."><Icon name="shield" /></span>
+      </nav>
+    </div>
     <main className="app-main">
       <header className="app-header"><div className="app-brand">hearth<span className="brand-dot">.</span><span className="preview-tag">PREVIEW</span>{clientVersion && <span className="client-version" aria-label="Client version">v{clientVersion}</span>}</div>
         <button className="server-connection-button" onClick={() => openConnection('connection')}><span className={`dot ${status.kind}`} />{name}<Icon name="chevron" /></button>
@@ -183,22 +188,22 @@ export default function App() {
         </section>}
     </main>
     {panel && <Modal title={panel === 'host' ? 'Hosting & updates' : panel === 'add' ? 'Add a server' : 'Server connection'} onClose={closePanel}
-      description={panel === 'connection' ? 'A server is the home for your account and communities. Enter the address shared by its host.' : undefined}>
+      description={panel === 'connection' ? 'A server is where your account and communities live. To switch, enter the address its host gave you.' : undefined}>
       {panel === 'host' ? <HostingPanel onConnect={address => openConnection('connection', address)} /> : panel === 'add' || panel === 'invite' ? <GuidedSetup key={panel + linkRevision} initialInvite={panel === 'invite' ? activeLink : ''} defaultServer={defaultUrl} signedIn={signedIn} currentServer={status.kind === 'ok' ? {url,key:status.info.wellKnown.server_key.toLowerCase()} : undefined} onConnect={finishSetup} onManageHost={isTauri()?()=>setPanel('host'):undefined} /> : <>
       <form onSubmit={event => void connect(event)} className="connection-form" aria-busy={checking}>
         <label htmlFor="server-address">Server address</label><input id="server-address" type="text" inputMode="url" autoComplete="url" spellCheck={false}
           placeholder="https://chat.example.org" value={address} required autoFocus aria-invalid={!!error} aria-describedby="address-help"
           onChange={event => { setAddress(event.target.value); setError('') }} disabled={checking} />
-        <small id="address-help">Use a domain or public IP address. Include the port if your host gave you one.</small>
-        {signedIn && <p className="notice">Switching to a different server signs you out here. Your saved keys and messages stay on this device.</p>}
+        <small id="address-help">For example chat.example.org. Add the port number if your host gave you one.</small>
+        {signedIn && <p className="notice">Switching to a different server signs you out of this one. Your account keys and saved messages stay on this device.</p>}
         {error && <p className="input-error" role="alert">{error}</p>}
         <button className="primary-button" type="submit" disabled={checking}>{checking ? 'Checking server…' : 'Connect'}</button>
       </form>
-      {panel === 'connection' && status.kind === 'ok' && <details className="connection-details"><summary>About the current server</summary>
-        <dl><div><dt>Name</dt><dd>{name}</dd></div><div><dt>Address</dt><dd>{url}</dd></div><div><dt>Version</dt><dd>{status.info.health.version}</dd></div></dl>
-        <details><summary>Server identity</summary><p>Compare this public key with your host using a trusted channel.</p><code>{status.info.wellKnown.server_key}</code></details>
+      {panel === 'connection' && status.kind === 'ok' && <section className="connection-details"><h3>The server you are on</h3>
+        <dl><div><dt>Name</dt><dd>{name}</dd></div><div><dt>Address</dt><dd>{url}</dd></div><div><dt>Version</dt><dd>{status.info.health.version}</dd></div>{clientVersion && <div><dt>This app</dt><dd>Hearth Preview v{clientVersion}</dd></div>}</dl>
+        <h3>Server safety code</h3><p>To be sure you reached the right server, ask your host to read you their code and check that it matches this one.</p><code>{status.info.wellKnown.server_key.match(/.{1,4}/g)?.join(' ')}</code>
         {servers.some(item => item.url === url) && <button type="button" onClick={forgetServer}>Forget saved address</button>}
-      </details>}
+      </section>}
       </>}
     </Modal>}
   </div>

@@ -3,8 +3,19 @@ import {join} from 'node:path'
 import {writeFileSync,readFileSync,existsSync,rmSync,mkdirSync} from 'node:fs'
 import {createHash} from 'node:crypto'
 import {Key} from 'selenium-webdriver'
+// Everyday actions live in short menus: open the named menu, then choose the action. The menu
+// is toggled until the action appears, because its contents follow live permissions and state.
+export async function chooseFromMenu(client,By,menu,action,timeout=30000){
+  const item=await client.wait(async()=>{
+    const find=()=>client.findElements(By.xpath(`//div[@role="menu"]//button[normalize-space(.)="${action}"]`))
+    let items=await find()
+    if(!items.length){const triggers=await client.findElements(By.css(`[aria-label="${menu}"]`));if(triggers.length){await triggers[0].click();items=await find()}}
+    return items[0]??false
+  },timeout,`${menu} menu should offer ${action}`)
+  await item.click()
+}
 export async function verifyTextUI({driver,buddy,By,enabled,output,checks,storage}){
-  await buddy.findElement(By.xpath('//button[normalize-space(.)="Profile & presence"]')).click()
+  await chooseFromMenu(buddy,By,'Settings','Profile & status')
   await buddy.findElement(By.id('profile-name')).sendKeys('UI Encrypted Buddy')
   await buddy.findElement(By.id('profile-bio')).sendKeys('UI private profile bio')
   await buddy.findElement(By.css('.local-profile form button')).click()
@@ -12,14 +23,14 @@ export async function verifyTextUI({driver,buddy,By,enabled,output,checks,storag
   await buddy.findElement(By.css('#presence-state option[value="idle"]')).click()
   await buddy.findElement(By.css('dialog[open] .panel-heading button')).click()
   await driver.wait(async()=>await driver.findElement(By.css('.message-log')).getText().then(text=>text.includes('UI Encrypted Buddy (@uibuddy)')&&text.includes('idle')),15000)
-  if(!await driver.findElement(By.css('.chat-workspace')).getAttribute('data-members-open').then(value=>value==='true'))await driver.findElement(By.css('[aria-label="Server Members"]')).click()
+  if(!await driver.findElement(By.css('.chat-workspace')).getAttribute('data-members-open').then(value=>value==='true'))await driver.findElement(By.css('[aria-label="Members"]')).click()
   await driver.findElement(By.css('[aria-label="View profile for uibuddy"]')).click()
   await driver.wait(async()=>await driver.findElement(By.css('.member-bio')).getText().then(text=>text.includes('UI private profile bio')),15000)
   const fingerprint=(await driver.findElement(By.css('.member-fingerprint')).getText()).replaceAll(' ','')
   assert.match(fingerprint,/^[a-f0-9]{64}$/)
   assert.ok((await driver.findElement(By.css('.member-role-list')).getText()).includes('Member'))
   await driver.executeScript("Object.defineProperty(navigator,'clipboard',{configurable:true,value:{writeText:async value=>{window.__copiedFingerprint=value}}})")
-  await driver.findElement(By.xpath('//button[text()="Copy fingerprint"]')).click()
+  await driver.findElement(By.xpath('//button[text()="Copy safety code"]')).click()
   await driver.wait(async()=>await driver.executeScript('return window.__copiedFingerprint')===fingerprint,1000)
   await driver.findElement(By.css('dialog[open] button')).sendKeys(Key.ESCAPE)
   assert.equal(await driver.executeScript('return document.activeElement.getAttribute("aria-label")'),'View profile for uibuddy')
@@ -33,12 +44,12 @@ export async function verifyTextUI({driver,buddy,By,enabled,output,checks,storag
   await buddy.wait(async()=>await buddy.findElements(By.css('.composer-preview')).then(e=>e.length===1),10000)
   await buddy.findElement(By.css('.send-message')).click()
   await driver.wait(async()=>{const previews=await driver.findElements(By.css('.message-log .link-preview'));return previews.length&&await previews.at(-1).getText().then(text=>text.includes('example.invalid')&&text.includes('private-link'))},15000)
-  await driver.findElement(By.xpath('//button[contains(.,"Privacy & blocked people")]')).click()
+  await chooseFromMenu(driver,By,'Settings','Privacy & blocked people')
   const toggle=await driver.findElement(By.xpath('//label[contains(.,"Show automatic link previews")]/input'))
   assert.equal(await toggle.isSelected(),true);await toggle.click()
   await driver.findElement(By.css('dialog[open] .panel-heading button')).click()
   assert.equal((await driver.findElements(By.css('.message-log .link-preview'))).length,0)
-  await driver.findElement(By.xpath('//button[contains(.,"Privacy & blocked people")]')).click()
+  await chooseFromMenu(driver,By,'Settings','Privacy & blocked people')
   await driver.findElement(By.xpath('//label[contains(.,"Show automatic link previews")]/input')).click()
   await driver.findElement(By.css('dialog[open] .panel-heading button')).click()
   assert.deepEqual(await driver.executeScript('return window.__previewRequests'),[])

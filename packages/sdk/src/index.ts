@@ -61,10 +61,10 @@ export function normalizeServerUrl(input: string): string {
   if (!value.includes('://') && local) url.protocol = 'http:'
   if (!['http:', 'https:'].includes(url.protocol) || url.username || url.password ||
       url.pathname !== '/' || url.search || url.hash) {
-    throw new HearthError(0, 'Use just the server address, without a path, login, or query.', 'invalid_url')
+    throw new HearthError(0, 'Enter just the server address, such as chat.example.org, with nothing after it and no username or password.', 'invalid_url')
   }
   if (url.protocol === 'http:' && !local) {
-    throw new HearthError(0, 'Use HTTPS for your server. HTTP is available for localhost development.', 'invalid_url')
+    throw new HearthError(0, 'Use an address that starts with https://. Plain http:// only works for a server on this computer.', 'invalid_url')
   }
   return url.origin
 }
@@ -87,7 +87,7 @@ export class HearthClient {
     await this.get(`/api/v1/chat/call-ready/${id}/${device}?format=5`,(value):value is null=>value===null,options,{headers:{Authorization:`Bearer ${token}`}})
   }
   callConfiguration(token:string,device:string,options?:RequestOptions):Promise<IceConfiguration>{
-    if(!/^[a-f0-9]{64}$/.test(device))throw new HearthError(0,'Invalid call device.','invalid_response')
+    if(!/^[a-f0-9]{64}$/.test(device))throw new HearthError(0,'Something went wrong talking to the server. Try again, and update Hearth if it keeps happening.','invalid_response')
     return this.get('/api/v1/chat/media/'+device,isIceConfiguration,options,{headers:{Authorization:`Bearer ${token}`}})
   }
   async groupCallReady(token:string,id:string,device:string,options?:RequestOptions):Promise<void>{
@@ -102,10 +102,10 @@ export class HearthClient {
   }
   sfuAccess(token:string,id:string,device:string,revision:number,options?:RequestOptions):Promise<SfuAccess>{
     checkedId(id);checkedId(device)
-    if(!Number.isSafeInteger(revision)||revision<1)throw new HearthError(0,'Invalid room revision.','invalid_response')
+    if(!Number.isSafeInteger(revision)||revision<1)throw new HearthError(0,'Something went wrong talking to the server. Try again, and update Hearth if it keeps happening.','invalid_response')
     return this.get(`/api/v1/chat/voice/${id}/${device}/sfu?revision=${revision}`,isSfuAccess,options,{headers:{Authorization:`Bearer ${token}`}}).then(value=>{
       const backend=new URL(this.baseUrl),local=['localhost','127.0.0.1','[::1]'].includes(backend.hostname)
-      if(!local&&new URL(value.url).protocol!=='wss:')throw new HearthError(0,'This remote server needs a public encrypted media endpoint.','invalid_response')
+      if(!local&&new URL(value.url).protocol!=='wss:')throw new HearthError(0,'Voice isn’t set up for people outside this server’s network yet. Ask your host to finish voice setup.','invalid_response')
       return local&&value.local_url?{...value,url:value.local_url}:value
     })
   }
@@ -118,7 +118,7 @@ export class HearthClient {
   constructor(baseUrl: string) {
     this.baseUrl = normalizeServerUrl(baseUrl)
   }
-  storeInviteEnvelope(token:string,body:StoreInviteEnvelope,options?:RequestOptions):Promise<null>{checkedId(body.id);if(!isInviteEnvelope(body.envelope))throw new HearthError(0,'Invalid encrypted invite.','invalid_response');return this.auth('invite-links',isEmpty,body,token,options)}
+  storeInviteEnvelope(token:string,body:StoreInviteEnvelope,options?:RequestOptions):Promise<null>{checkedId(body.id);if(!isInviteEnvelope(body.envelope))throw new HearthError(0,'Something went wrong talking to the server. Try again, and update Hearth if it keeps happening.','invalid_response');return this.auth('invite-links',isEmpty,body,token,options)}
   inviteEnvelope(id:string,options?:RequestOptions):Promise<InviteEnvelope>{checkedId(id);return this.get('/api/v1/invite-links/'+id,isInviteEnvelope,options)}
   private auth<T>(path:string,validate:(value:unknown)=>value is T,body:unknown|undefined,token:string,options?:RequestOptions):Promise<T>{return this.get('/api/v1/auth/'+path,validate,options,{method:body===undefined?'GET':'POST',headers:{Authorization:`Bearer ${token}`,...(body===undefined?{}:{'Content-Type':'application/json'})},...(body===undefined?{}:{body:JSON.stringify(body)})})}
   private community<T>(path:string,token:string,validate:(value:unknown)=>value is T,body?:unknown,options?:RequestOptions):Promise<T> {
@@ -148,7 +148,7 @@ export class HearthClient {
   reportQueue(token:string,id:string,options?:RequestOptions):Promise<QueuedReport[]>{checkedId(id);return this.community(`channels/${id}/reports`,token,isReportQueue,undefined,options)}
   resolveReport(token:string,id:string,report:string,options?:RequestOptions):Promise<null>{checkedId(id);checkedId(report);return this.community(`channels/${id}/reports/${report}/resolve`,token,isEmpty,{},options)}
   deleteAccount(token:string,value:import('./protocol.ts').AccountDeparture,options?:RequestOptions):Promise<null>{return this.auth('account/delete',isEmpty,value,token,options)}
-  accountExport(token:string,after='',options?:RequestOptions):Promise<AccountExport>{if(after&&!/^(blob|message|report):[a-f0-9]{64}$/.test(after))throw new HearthError(0,'Invalid export cursor.','invalid_response');return this.auth('account/export?after='+encodeURIComponent(after),(v):v is AccountExport=>isRecord(v)&&isAccount(v.account)&&Array.isArray(v.devices)&&v.devices.every(isDeviceEnrollment)&&Array.isArray(v.communities)&&v.communities.every(isCommunity)&&Array.isArray(v.blocks)&&v.blocks.every(isAccount)&&Array.isArray(v.records)&&v.records.length<=32&&v.records.every(r=>isRecord(r)&&typeof r.cursor==='string'&&/^(blob|message|report):[a-f0-9]{64}$/.test(r.cursor)&&'data' in r)&&(v.next===null||typeof v.next==='string'&&/^(blob|message|report):[a-f0-9]{64}$/.test(v.next)),undefined,token,options)}
+  accountExport(token:string,after='',options?:RequestOptions):Promise<AccountExport>{if(after&&!/^(blob|message|report):[a-f0-9]{64}$/.test(after))throw new HearthError(0,'Something went wrong talking to the server. Try again, and update Hearth if it keeps happening.','invalid_response');return this.auth('account/export?after='+encodeURIComponent(after),(v):v is AccountExport=>isRecord(v)&&isAccount(v.account)&&Array.isArray(v.devices)&&v.devices.every(isDeviceEnrollment)&&Array.isArray(v.communities)&&v.communities.every(isCommunity)&&Array.isArray(v.blocks)&&v.blocks.every(isAccount)&&Array.isArray(v.records)&&v.records.length<=32&&v.records.every(r=>isRecord(r)&&typeof r.cursor==='string'&&/^(blob|message|report):[a-f0-9]{64}$/.test(r.cursor)&&'data' in r)&&(v.next===null||typeof v.next==='string'&&/^(blob|message|report):[a-f0-9]{64}$/.test(v.next)),undefined,token,options)}
   pushConfiguration(token:string,options?:RequestOptions):Promise<{public_key:string}>{return this.auth('push',(v):v is {public_key:string}=>isRecord(v)&&typeof v.public_key==='string'&&/^[A-Za-z0-9_-]{87}$/.test(v.public_key),undefined,token,options)}
   subscribePush(token:string,device_key:string,subscription:PushSubscriptionJSON,options?:RequestOptions):Promise<null>{checkedId(device_key);return this.auth('push',isEmpty,{device_key,endpoint:subscription.endpoint,p256dh:subscription.keys?.p256dh,auth:subscription.keys?.auth},token,options)}
   disablePush(token:string,device_key:string,endpoint:string,options?:RequestOptions):Promise<null>{checkedId(device_key);return this.auth('push/disable',isEmpty,{device_key,endpoint},token,options)}
@@ -179,8 +179,8 @@ export class HearthClient {
   claimPackages(token:string,deviceKeys:string[],options?:RequestOptions):Promise<KeyPackageRecord[]> { deviceKeys.forEach(checkedId);return this.chat('packages/claim',token,isPackages,{device_keys:deviceKeys},options) }
   uploadCommit(token:string,id:string,body:CommitUpload,options?:RequestOptions):Promise<null> { checkedId(id);return this.chat(`conversations/${id}/commit`,token,isEmpty,body,options) }
   uploadMessage(token:string,id:string,body:MessageUpload,options?:RequestOptions):Promise<null> { checkedId(id);return this.chat(`conversations/${id}/message`,token,isEmpty,body,options) }
-  history(token:string,id:string,device:string,after:number,options?:RequestOptions):Promise<HistoryPage>{checkedId(id);checkedId(device);if(!isSequence(after))throw new HearthError(0,'Invalid history cursor.');return this.chat(`conversations/${id}/history?device=${device}&after=${after}`,token,(v):v is HistoryPage=>isRecord(v)&&Array.isArray(v.items)&&v.items.length<=128&&v.items.every(isMessageUpload)&&isSequence(v.next)&&v.next>=after,undefined,options)}
-  events(token:string,device:string,after:number,options?:RequestOptions):Promise<DeliveryEvent[]> { checkedId(device);if(!isSequence(after))throw new HearthError(0,'Invalid delivery cursor.','invalid_response');return this.chat(`events/${device}?after=${after}`,token,isEvents,undefined,options) }
+  history(token:string,id:string,device:string,after:number,options?:RequestOptions):Promise<HistoryPage>{checkedId(id);checkedId(device);if(!isSequence(after))throw new HearthError(0,'Something went wrong talking to the server. Try again, and update Hearth if it keeps happening.');return this.chat(`conversations/${id}/history?device=${device}&after=${after}`,token,(v):v is HistoryPage=>isRecord(v)&&Array.isArray(v.items)&&v.items.length<=128&&v.items.every(isMessageUpload)&&isSequence(v.next)&&v.next>=after,undefined,options)}
+  events(token:string,device:string,after:number,options?:RequestOptions):Promise<DeliveryEvent[]> { checkedId(device);if(!isSequence(after))throw new HearthError(0,'Something went wrong talking to the server. Try again, and update Hearth if it keeps happening.','invalid_response');return this.chat(`events/${device}?after=${after}`,token,isEvents,undefined,options) }
   identity(token: string, options?: RequestOptions): Promise<AccountIdentity> {
     return this.get('/api/v1/auth/identity', isAccountIdentity, options, { headers: { Authorization: `Bearer ${token}` } })
   }
@@ -238,10 +238,10 @@ export class HearthClient {
   async inspect(options?: RequestOptions): Promise<ServerInfo> {
     const [health, wellKnown] = await Promise.all([this.health(options), this.wellKnown(options)])
     if (health.protocol !== PROTOCOL_VERSION || !wellKnown.protocols.includes(PROTOCOL_VERSION)) {
-      throw new HearthError(0, `This server does not support Hearth protocol v${PROTOCOL_VERSION}. Update your client or choose another server.`, 'incompatible')
+      throw new HearthError(0, `This server doesn’t work with this version of Hearth (protocol v${PROTOCOL_VERSION}). Update Hearth or choose another server.`, 'incompatible')
     }
     if (health.status !== 'ok') {
-      throw new HearthError(0, 'This server is reachable, but its database is unavailable. Try again after the operator restores it.', 'degraded')
+      throw new HearthError(0, 'This server is online but can’t reach its data right now. Try again after the host fixes it.', 'degraded')
     }
     const setup = await this.setupStatus(options)
     return { health, wellKnown, setup }
@@ -273,31 +273,31 @@ export class HearthClient {
         cache: 'no-store',
         redirect: 'error',
       }), aborted])
-      if (!res.ok) throw new HearthError(res.status, res.status === 404 && path.includes('/invite-links/') ? 'This invite has expired or is unavailable. Ask your host for a new invite.' : res.status === 401 ? 'The setup code or authentication exchange was rejected.' :
-        res.status === 403 ? path.includes('/register/') ? 'Registration is closed, or this invite has expired or been used.' : 'This account is not allowed to perform that action.' :
+      if (!res.ok) throw new HearthError(res.status, res.status === 404 && path.includes('/invite-links/') ? 'This invite has expired or is unavailable. Ask your host for a new invite.' : res.status === 401 ? 'That was not accepted. Check what you entered and try again. If you were already signed in, sign in again.' :
+        res.status === 403 ? path.includes('/register/') ? 'This server isn’t accepting new accounts, or this invite has expired or was already used. Ask your host for a new invite.' : 'You don’t have permission to do that.' :
         res.status === 409 && path.includes('/register/') ? 'This username is already taken.' :
-        res.status === 409 && path.includes('/chat/') ? 'Encryption or delivery state changed. Refresh and retry.' :
+        res.status === 409 && path.includes('/chat/') ? 'Something changed in this conversation. Wait a moment and try again.' :
         res.status === 409 && path.includes('/communities/') ? 'A community limit was reached. Refresh and try again.' :
-        res.status === 409 ? path.includes('/device/') ? 'This account already has an identity. Link an approved device or restore your existing keys.' : 'Owner setup is already complete. Sign in with the owner account.' :
+        res.status === 409 ? path.includes('/device/') ? 'This account is already set up. Link this device from one of your approved devices, or restore your account keys from your recovery kit.' : 'Owner setup is already complete. Sign in with the owner account.' :
         res.status === 410 && path.includes('/blobs/') ? 'This file was removed from the server.' :
-        res.status === 413 && path.includes('/blobs/') ? 'The file exceeds the upload limit or this account’s storage quota.' :
+        res.status === 413 && path.includes('/blobs/') ? 'This file is too large, or your account is out of storage space on this server.' :
         res.status === 429 ? 'Too many attempts. Wait one minute and try again.' : res.status === 503 ?
         'This server is temporarily unavailable. Try again soon.' :
-        'The server could not complete the connection check. Check the address or contact its operator.')
+        'The server couldn’t complete that. Check the address and try again, or contact the server’s host.')
       let value: unknown
       try {
         value = res.status === 204 ? null : await Promise.race([res.json(), aborted])
       } catch (error) {
         if (controller.signal.aborted) throw error
-        throw new HearthError(0, 'This address did not return a valid Hearth response.', 'invalid_response')
+        throw new HearthError(0, 'The server sent a reply Hearth didn’t understand. Check the address, or update Hearth if it keeps happening.', 'invalid_response')
       }
-      if (!validate(value)) throw new HearthError(0, 'This address did not return a valid Hearth response.', 'invalid_response')
+      if (!validate(value)) throw new HearthError(0, 'The server sent a reply Hearth didn’t understand. Check the address, or update Hearth if it keeps happening.', 'invalid_response')
       return value
     } catch (error) {
       if (options.signal?.aborted) throw options.signal.reason ?? new DOMException('Cancelled', 'AbortError')
       if (timedOut) throw new HearthError(0, 'The server took too long to respond. Check the address and try again.', 'timeout')
       if (error instanceof HearthError) throw error
-      throw new HearthError(0, 'Could not reach this server. Check the address, your connection, and whether the server allows this client.', 'network')
+      throw new HearthError(0, 'Hearth couldn’t reach this server. Check the address and your internet connection, and make sure the server allows this app.', 'network')
     } finally {
       clearTimeout(timer)
       options.signal?.removeEventListener('abort', abort)
@@ -359,7 +359,7 @@ function isRegistration(value:unknown):value is RegistrationStatus { return isRe
 function isServerSettings(value:unknown):value is ServerSettings { return isRegistration(value) && typeof (value as unknown as Record<string,unknown>).server_name === 'string' && ((value as unknown as Record<string,unknown>).server_name as string).length > 0 }
 function isAccountInvite(value:unknown):value is AccountInvite { return isRecord(value) && typeof value.code === 'string' && /^[a-f0-9]{64}$/.test(value.code) && value.expires_in_seconds === 86400 }
 function isId(value:unknown):value is string { return typeof value==='string' && /^[a-f0-9]{64}$/.test(value) }
-function checkedId(value:string) { if(!isId(value))throw new HearthError(0,'Invalid encrypted delivery identifier.','invalid_response') }
+function checkedId(value:string) { if(!isId(value))throw new HearthError(0,'Something went wrong talking to the server. Try again, and update Hearth if it keeps happening.','invalid_response') }
 function isEmpty(value:unknown):value is null { return value===null }
 function isBlobUrl(value:unknown):value is BlobUrl {
   if(!isRecord(value)||typeof value.url!=='string'||value.url.length>8192||value.expires_in_seconds!==300)return false

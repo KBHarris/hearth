@@ -110,7 +110,7 @@ fn public_address(value: &str) -> Result<String, String> {
             || a >= 224
             || a == 100 && (64..=127).contains(&b)
         {
-            return Err("Use your public IPv4 address or a public DNS name.".into());
+            return Err("That address only works inside your own network. Enter your public internet address (IPv4) or a domain name instead.".into());
         }
         return Ok(value);
     }
@@ -132,7 +132,7 @@ fn public_address(value: &str) -> Result<String, String> {
         || ["localhost", "local", "internal"].contains(labels.last().unwrap_or(&""))
     {
         return Err(
-            "Enter a public IPv4 address or DNS name, without a scheme, port or path.".into(),
+            "Enter just your public internet address (IPv4) or domain name, like chat.example.org, without http://, a port number or a path.".into(),
         );
     }
     Ok(value)
@@ -143,13 +143,14 @@ fn configure_environment(selection: &Selection) -> Result<(), String> {
     }
     let path = selection.root.join("deploy/.env");
     regular(&path)?;
-    let text = fs::read_to_string(&path).map_err(|_| "Cannot read host configuration.")?;
+    let text = fs::read_to_string(&path)
+        .map_err(|_| "Hearth couldn’t read your server’s settings. Nothing was changed.")?;
     let existing = text
         .lines()
         .filter_map(|line| line.strip_prefix("HEARTH_PUBLIC_ADDRESS="))
         .collect::<Vec<_>>();
     if existing.len() > 1 {
-        return Err("Use one HEARTH_PUBLIC_ADDRESS in the host configuration; the existing file was preserved.".into());
+        return Err("Your server’s .env settings file lists HEARTH_PUBLIC_ADDRESS more than once. Keep only one HEARTH_PUBLIC_ADDRESS line. Nothing was changed.".into());
     }
     let address = public_address(
         selection
@@ -164,7 +165,8 @@ fn configure_environment(selection: &Selection) -> Result<(), String> {
         .collect::<Vec<_>>()
         .join("\n");
     updated.push_str(&format!("\nHEARTH_PUBLIC_ADDRESS={address}\n"));
-    fs::write(path, updated).map_err(|_| "Cannot save the public host address.".into())
+    fs::write(path, updated)
+        .map_err(|_| "Hearth couldn’t save your server’s public address. Try again.".into())
 }
 fn allowed_project(value: &str) -> bool {
     value == "hearth-guided-test"
@@ -217,43 +219,45 @@ pub async fn host_saved(app: tauri::AppHandle) -> Result<Option<HostStatus>, Str
         let path = selection_path(&app)?;
         if !path.exists() { return Ok(None); }
         regular(&path)?;
-        let bytes = fs::read(path).map_err(|_| "Cannot read the saved host. Open Hosting & updates to recover it.")?;
-        if bytes.len() > 16384 { return Err("Invalid saved host selection. Choose its original signed package again.".into()); }
-        let selection: Selection = serde_json::from_slice(&bytes).map_err(|_| "The saved host needs attention. Choose its original signed package again; existing data was preserved.")?;
-        let mut status = prepared_status(&selection, "Saved host found. Refresh status to check Docker.".into());
+        let bytes = fs::read(path).map_err(|_| "Hearth couldn’t read your saved server. Open Hosting & updates to fix it.")?;
+        if bytes.len() > 16384 { return Err("Your saved server details look damaged. Use Choose server files to pick its original server files again.".into()); }
+        let selection: Selection = serde_json::from_slice(&bytes).map_err(|_| "Your saved server needs attention. Use Choose server files to pick its original server files again. Your server data is safe.")?;
+        let mut status = prepared_status(&selection, "Saved server found. Choose Refresh status to check the hosting tools.".into());
         match selected_for_recovery(&app) {
             Ok(selection) => {
                 let bundle = validate_base(&selection.root)?;
                 status.local_url = Some(format!("http://localhost:{}", local_port(&selection, bundle.server.backend_port)?));
             }
-            Err(error) => { status.state = "error".into(); status.message = format!("{error} Your saved host selection was preserved. Choose its original signed package to recover it."); }
+            Err(error) => { status.state = "error".into(); status.message = format!("{error} Your saved server was kept. Use Choose server files to pick its original server files and fix it."); }
         }
         Ok(Some(status))
-    }).await.map_err(|_| "Saved host lookup is unavailable.".to_string())?
+    }).await.map_err(|_| "Hearth couldn’t look up your saved server. Close and reopen Hearth, then try again.".to_string())?
 }
 pub(crate) fn regular(path: &Path) -> Result<(), String> {
-    let meta = fs::symlink_metadata(path).map_err(|_| "A required host file is missing.")?;
+    let meta = fs::symlink_metadata(path)
+        .map_err(|_| "A file Hearth needs for your server is missing.")?;
     #[cfg(windows)]
     {
         use std::os::windows::fs::MetadataExt;
         if meta.file_attributes() & 0x400 != 0 {
-            return Err("Host files must not use reparse points.".into());
+            return Err("One of your server’s files is a link or an online-only file (for example from OneDrive), which Hearth can’t use. Move the server folder to a normal folder on this computer.".into());
         }
     }
     if !meta.is_file() || meta.is_symlink() {
-        return Err("Host files must be regular files.".into());
+        return Err("One of your server’s files is a link or folder instead of a normal file, so Hearth won’t use it. Use the original server files.".into());
     }
     Ok(())
 }
 pub(crate) fn sha256(path: &Path) -> Result<String, String> {
     regular(path)?;
-    let mut file = fs::File::open(path).map_err(|_| "Cannot read the host package.")?;
+    let mut file =
+        fs::File::open(path).map_err(|_| "Hearth couldn’t read one of your server’s files.")?;
     let mut digest = Sha256::new();
     let mut buffer = [0u8; 65536];
     loop {
         let count = file
             .read(&mut buffer)
-            .map_err(|_| "Cannot read the host package.")?;
+            .map_err(|_| "Hearth couldn’t read one of your server’s files.")?;
         if count == 0 {
             break;
         }
@@ -264,20 +268,20 @@ pub(crate) fn sha256(path: &Path) -> Result<String, String> {
 fn validate_base(root: &Path) -> Result<Bundle, String> {
     let canonical_root = root
         .canonicalize()
-        .map_err(|_| "The selected host folder is missing.")?;
+        .map_err(|_| "Hearth can’t find your server folder. It may have been moved or deleted. Use Choose server files to pick it again.")?;
     regular(&root.join("manifest.json"))?;
     let raw =
-        fs::read(root.join("manifest.json")).map_err(|_| "Cannot read the package manifest.")?;
+        fs::read(root.join("manifest.json")).map_err(|_| "These server files couldn’t be read. Download them again, or choose the original server folder.")?;
     let signature_path = root.join("manifest.json.sig");
     regular(&signature_path)?;
     let signature =
-        fs::read_to_string(signature_path).map_err(|_| "Choose a signed Hearth host package.")?;
+        fs::read_to_string(signature_path).map_err(|_| "These aren’t verified Hearth server files. Choose the folder from a Hearth server download.")?;
     crate::updates::verify_bytes(&raw, &signature)?;
     if raw.len() > 65536 {
-        return Err("Invalid package manifest.".into());
+        return Err("These server files look damaged. Download them again.".into());
     }
     let bundle: Bundle = serde_json::from_slice(&raw)
-        .map_err(|_| "Choose the extracted Hearth host package containing manifest.json.")?;
+        .map_err(|_| "These server files can’t be used. Choose the unpacked Hearth server files folder that contains manifest.json.")?;
     if !bundle.server.image_id.starts_with("sha256:")
         || bundle.server.image_id.len() != 71
         || !bundle.server.image_id[7..]
@@ -286,7 +290,7 @@ fn validate_base(root: &Path) -> Result<Bundle, String> {
         || !allowed_project(&bundle.server.compose_project)
         || bundle.server.backend_port == 0
     {
-        return Err("This host package is not supported by this client.".into());
+        return Err("These server files don’t work with this version of Hearth. Update Hearth or download the matching server files.".into());
     }
     for file in [
         "deploy/compose.yaml",
@@ -306,15 +310,15 @@ fn validate_base(root: &Path) -> Result<Bundle, String> {
         let expected = bundle
             .files
             .get(file)
-            .ok_or("Incomplete host package manifest.")?;
+            .ok_or("These server files are incomplete. Download them again.")?;
         let path = root.join(file);
         if path
             .canonicalize()
-            .map_err(|_| "Host package is incomplete.")?
+            .map_err(|_| "These server files are incomplete. Download them again.")?
             != canonical_root.join(file)
             || &sha256(&path)? != expected
         {
-            return Err("Host package files changed. Extract a fresh package; keep your existing operator configuration and volumes.".into());
+            return Err("Some server files were changed or damaged. Download fresh server files, but don’t delete your settings files (.env and s3.json) or your server data.".into());
         }
     }
     Ok(bundle)
@@ -344,7 +348,7 @@ pub(crate) fn command_env(
             && std::env::var_os("DOCKER_CONTEXT").is_none()
         {
             if !local_docker_endpoint(&endpoint) {
-                return Err("Hearth host controls require a local Docker runtime. Switch away from the remote Docker endpoint; no remote services were changed.".into());
+                return Err("Hearth can only manage a server on this computer, but Docker is set to use a different computer (DOCKER_HOST). Switch Docker back to this computer. Nothing on the other computer was changed.".into());
             }
         } else {
             let endpoint = command_raw(
@@ -360,7 +364,7 @@ pub(crate) fn command_env(
                 &[],
             )?;
             if !local_docker_endpoint(String::from_utf8_lossy(&endpoint).trim()) {
-                return Err("The selected Docker context is remote. Choose a local Docker runtime before managing this host.".into());
+                return Err("Docker is set up to control a different computer. Switch Docker back to its default context on this computer, then try again.".into());
             }
         }
     }
@@ -400,11 +404,11 @@ fn command_raw(
         use std::os::windows::process::CommandExt;
         command.creation_flags(0x08000000);
     }
-    let mut child = command.spawn().map_err(|_| format!("{program} is unavailable. Install Docker Desktop with Compose, then start Docker Desktop."))?;
+    let mut child = command.spawn().map_err(|_| format!("Hearth couldn’t find {program}. Choose Install hosting tools to install Docker Desktop, then choose Open hosting tools."))?;
     let mut output = child
         .stdout
         .take()
-        .ok_or("Could not capture host status.")?;
+        .ok_or("Hearth couldn’t read your server’s status. Choose Refresh status to try again.")?;
     let reader = std::thread::spawn(move || {
         let mut bytes = Vec::new();
         // Drain even after the capture limit so a verbose process cannot deadlock.
@@ -423,17 +427,17 @@ fn command_raw(
     loop {
         match child.try_wait() {
             Ok(Some(status)) => {
-                let bytes = reader.join().map_err(|_| "Could not read host status.")?;
+                let bytes = reader.join().map_err(|_| "Hearth couldn’t read your server’s status. Choose Refresh status to try again.")?;
                 if status.success() {
                     return Ok(bytes);
                 }
-                return Err("The host operation failed. Check that Docker Desktop is running, the selected package is configured, and its ports are available. Your host data was preserved.".into());
+                return Err("Something went wrong running your server. Make sure Docker Desktop is open, your server is set up, and its ports aren’t used by another app. Your server data is safe.".into());
             }
             Ok(None) if Instant::now() < deadline => std::thread::sleep(Duration::from_millis(100)),
             _ => {
                 let _ = child.kill();
                 let _ = child.wait();
-                return Err("The host operation timed out. Refresh its status before retrying. Your host data was preserved.".into());
+                return Err("Your server took too long to respond. Choose Refresh status before trying again. Your server data is safe.".into());
             }
         }
     }
@@ -516,8 +520,8 @@ fn compose_environment(
         environment,
     )
 }
-const MISSING_HOST_CONFIG: &str = "Existing Hearth server data was found, but this folder is missing its original .env or s3.json. Choose the original host folder, or restore both configuration files from its backup. No new passwords were generated and existing data was preserved.";
-const WRONG_DATABASE_CONFIG: &str = "The database could not verify this host folder's credentials. This can happen when a new host package is used with an older server's data. Choose the original host folder or restore its matching .env and s3.json, then retry. Existing data and passwords were preserved.";
+const MISSING_HOST_CONFIG: &str = "Hearth found existing server data, but this server folder is missing its original .env or s3.json. Choose the original server folder, or put both files back from your backup. No new passwords were created, and your server data is safe.";
+const WRONG_DATABASE_CONFIG: &str = "The database could not verify this host folder's credentials. This can happen when new server files are used with an older server’s data. Choose the original server folder, or put back its matching .env and s3.json, then try again. Your server data and passwords were not changed.";
 
 fn guard_existing_configuration(selection: &Selection) -> Result<(), String> {
     if !allowed_project(&selection.project) {
@@ -548,7 +552,8 @@ fn guard_existing_configuration(selection: &Selection) -> Result<(), String> {
 fn verify_database_configuration(selection: &Selection) -> Result<(), String> {
     let path = selection.root.join("deploy/.env");
     regular(&path)?;
-    let text = fs::read_to_string(path).map_err(|_| "Cannot read host configuration.")?;
+    let text = fs::read_to_string(path)
+        .map_err(|_| "Hearth couldn’t read your server’s settings. Nothing was changed.")?;
     let passwords = text
         .lines()
         .filter_map(|line| line.strip_prefix("POSTGRES_PASSWORD="))
@@ -590,8 +595,8 @@ pub(crate) fn selection_path(app: &tauri::AppHandle) -> Result<PathBuf, String> 
     let directory = app
         .path()
         .app_data_dir()
-        .map_err(|_| "Local app storage is unavailable.")?;
-    fs::create_dir_all(&directory).map_err(|_| "Local app storage is unavailable.")?;
+        .map_err(|_| "Hearth couldn’t open its storage folder on this computer. Close and reopen Hearth, then try again.")?;
+    fs::create_dir_all(&directory).map_err(|_| "Hearth couldn’t open its storage folder on this computer. Close and reopen Hearth, then try again.")?;
     Ok(directory.join("host-selection.json"))
 }
 pub(crate) fn save_selection(app: &tauri::AppHandle, selection: &Selection) -> Result<(), String> {
@@ -608,29 +613,32 @@ pub(crate) fn save_selection(app: &tauri::AppHandle, selection: &Selection) -> R
         .write(true)
         .create_new(true)
         .open(&temporary)
-        .map_err(|_| "Cannot save the host selection.")?;
-    file.write_all(&serde_json::to_vec(selection).map_err(|_| "Cannot save the host selection.")?)
-        .and_then(|_| file.sync_all())
-        .map_err(
-            |_| "Cannot finish saving the host selection. The previous selection was preserved.",
-        )?;
+        .map_err(|_| "Hearth couldn’t save your server choice. Try again.")?;
+    file.write_all(
+        &serde_json::to_vec(selection)
+            .map_err(|_| "Hearth couldn’t save your server choice. Try again.")?,
+    )
+    .and_then(|_| file.sync_all())
+    .map_err(
+        |_| "Hearth couldn’t finish saving your server choice. Your previous choice was kept.",
+    )?;
     drop(file);
     fs::rename(temporary, target).map_err(|_| {
-        "Cannot replace the saved host selection. The previous selection was preserved.".into()
+        "Hearth couldn’t update your saved server choice. Your previous choice was kept.".into()
     })
 }
 pub(crate) fn selected_for_recovery(app: &tauri::AppHandle) -> Result<Selection, String> {
     let path = selection_path(app)?;
     regular(&path)?;
     let mut selection: Selection =
-        serde_json::from_slice(&fs::read(path).map_err(|_| "Cannot read host selection.")?)
-            .map_err(|_| "Choose your host package again.")?;
+        serde_json::from_slice(&fs::read(path).map_err(|_| "Hearth couldn’t read your saved server choice. Use Choose server files to pick your server again.")?)
+            .map_err(|_| "Use Choose server files to pick your server files again.")?;
     selection.root = selection
         .root
         .canonicalize()
-        .map_err(|_| "The selected host package is missing.")?;
+        .map_err(|_| "Hearth can’t find your server files. They may have been moved or deleted. Use Choose server files to pick them again.")?;
     if validate_base(&selection.root)?.server.compose_project != selection.project {
-        return Err("Host selection does not match this package.".into());
+        return Err("These server files belong to a different server than the one you saved. Use Choose server files to pick the right folder.".into());
     }
     Ok(selection)
 }
@@ -651,8 +659,8 @@ fn parse_local_port(text: &str, fallback: u16) -> Result<u16, String> {
             .parse::<u16>()
             .ok()
             .filter(|port| *port != 0)
-            .ok_or_else(|| "HEARTH_PORT must be a valid TCP port in the host's .env.".into()),
-        _ => Err("Use exactly one HEARTH_PORT entry in the host's .env.".into()),
+            .ok_or_else(|| "HEARTH_PORT in your server’s .env settings file must be a port number from 1 to 65535.".into()),
+        _ => Err("Your server’s .env settings file lists HEARTH_PORT more than once. Keep only one HEARTH_PORT line.".into()),
     }
 }
 pub(crate) fn local_port(selection: &Selection, fallback: u16) -> Result<u16, String> {
@@ -662,7 +670,8 @@ pub(crate) fn local_port(selection: &Selection, fallback: u16) -> Result<u16, St
     }
     regular(&path)?;
     parse_local_port(
-        &fs::read_to_string(path).map_err(|_| "Cannot read host configuration.")?,
+        &fs::read_to_string(path)
+            .map_err(|_| "Hearth couldn’t read your server’s settings. Nothing was changed.")?,
         fallback,
     )
 }
@@ -686,9 +695,9 @@ pub(crate) fn status(selection: &Selection) -> Result<HostStatus, String> {
         }
         .into(),
         message: if healthy {
-            "Hosting services are running. Use Check server to confirm Hearth is ready."
+            "Your server is running. Choose Check server to make sure it’s ready."
         } else {
-            "Hosting services are stopped or incomplete."
+            "Your server is stopped or only partly running. Choose Start server to start it."
         }
         .into(),
         local_url: Some(format!(
@@ -707,20 +716,20 @@ pub async fn host_select(
 ) -> Result<Option<HostStatus>, String> {
     let lock = state.0.clone();
     tauri::async_runtime::spawn_blocking(move || {
-        let _guard = lock.lock().map_err(|_| "Host controls are busy.")?;
+        let _guard = lock.lock().map_err(|_| "Hearth’s server controls stopped responding. Close and reopen Hearth, then try again.")?;
         let Some(folder) = app
             .dialog()
             .file()
-            .set_title("Choose the extracted Hearth host package")
+            .set_title("Choose your unpacked Hearth server files folder")
             .blocking_pick_folder()
         else {
             return Ok(None);
         };
         let root = folder
             .into_path()
-            .map_err(|_| "Choose a local host folder.")?
+            .map_err(|_| "Choose a server folder on this computer.")?
             .canonicalize()
-            .map_err(|_| "Cannot open this folder.")?;
+            .map_err(|_| "Hearth couldn’t open this folder. Choose another folder.")?;
         let bundle = validate(&root)?;
         let public_address = public_address_input
             .filter(|v| !v.trim().is_empty())
@@ -737,13 +746,13 @@ pub async fn host_select(
             folder: Some(selection.root.to_string_lossy().into()),
             https,
             state: "selected".into(),
-            message: "Host package selected. Start it when ready.".into(),
+            message: "Server files selected. Choose Start server when you’re ready.".into(),
             local_url: None,
             public_address: selection.public_address.clone(),
         }))
     })
     .await
-    .map_err(|_| "Host controls are unavailable.".to_string())?
+    .map_err(|_| "Hearth’s server controls stopped responding. Close and reopen Hearth, then try again.".to_string())?
 }
 #[tauri::command]
 pub async fn host_control(
@@ -753,7 +762,7 @@ pub async fn host_control(
 ) -> Result<HostStatus, String> {
     let lock = state.0.clone();
     tauri::async_runtime::spawn_blocking(move || {
-        let _guard = lock.lock().map_err(|_| "Host controls are busy.")?;
+        let _guard = lock.lock().map_err(|_| "Hearth’s server controls stopped responding. Close and reopen Hearth, then try again.")?;
         let selection = selected_for_recovery(&app)?;
         if action == "status"
             && let Err(message) = crate::updates::validate_runtime(&selection.root)
@@ -780,7 +789,7 @@ pub async fn host_control(
         }
     })
     .await
-    .map_err(|_| "Host controls are unavailable.".to_string())?
+    .map_err(|_| "Hearth’s server controls stopped responding. Close and reopen Hearth, then try again.".to_string())?
 }
 pub(crate) fn control(selection: &Selection, action: &str) -> Result<HostStatus, String> {
     let bundle = validate(&selection.root)?;
@@ -834,11 +843,11 @@ pub(crate) fn control(selection: &Selection, action: &str) -> Result<HostStatus,
                     })
                     .collect::<Vec<_>>();
                 if archives.len() != 1 {
-                    return Err("The server image archive is missing from this package.".into());
+                    return Err("These server files are incomplete. Download them again.".into());
                 }
                 let (name, expected) = archives[0];
                 if &sha256(&selection.root.join(name))? != expected {
-                    return Err("The server archive checksum failed.".into());
+                    return Err("Part of these server files is damaged or was changed, so Hearth didn’t use it. Download the server files again.".into());
                 }
                 command(
                     "docker",
@@ -855,7 +864,7 @@ pub(crate) fn control(selection: &Selection, action: &str) -> Result<HostStatus,
                 selection,
                 &["up", "-d", "--no-build", "--wait", "--wait-timeout", "120"],
                 180,
-            ).map_err(|_| format!("Hearth could not finish starting. Check whether local port {} is already in use and whether Docker services are healthy, then retry. Existing data and configuration were preserved.", local_port(selection, bundle.server.backend_port).unwrap_or(bundle.server.backend_port)))?;
+            ).map_err(|_| format!("Hearth couldn’t finish starting your server. Check that port {} isn’t used by another app and that Docker Desktop is running, then try again. Your existing data and settings were kept.", local_port(selection, bundle.server.backend_port).unwrap_or(bundle.server.backend_port)))?;
         }
         "stop" => {
             // Compose stops in dependency order. Proxy, backend and storage may
@@ -863,7 +872,10 @@ pub(crate) fn control(selection: &Selection, action: &str) -> Result<HostStatus,
             compose(selection, &["stop", "--timeout", "30"], SHUTDOWN_TIMEOUT)?;
         }
         "status" => {}
-        _ => return Err("Unknown host action.".into()),
+        _ => return Err(
+            "Hearth didn’t recognize that server request. Close and reopen Hearth, then try again."
+                .into(),
+        ),
     }
     status(selection)
 }
@@ -875,12 +887,12 @@ pub async fn host_setup_code(
 ) -> Result<String, String> {
     let lock = state.0.clone();
     tauri::async_runtime::spawn_blocking(move || {
-        let _guard = lock.lock().map_err(|_| "Host controls are busy.")?;
+        let _guard = lock.lock().map_err(|_| "Hearth’s server controls stopped responding. Close and reopen Hearth, then try again.")?;
         let selection = selected(&app)?;
         setup_code(&selection)
     })
     .await
-    .map_err(|_| "Host controls are unavailable.".to_string())?
+    .map_err(|_| "Hearth’s server controls stopped responding. Close and reopen Hearth, then try again.".to_string())?
 }
 
 pub(crate) fn setup_code(selection: &Selection) -> Result<String, String> {
@@ -890,11 +902,14 @@ pub(crate) fn setup_code(selection: &Selection) -> Result<String, String> {
         20,
     )?;
     let code = String::from_utf8(output)
-        .map_err(|_| "The local setup code is unavailable.")?
+        .map_err(|_| "Hearth couldn’t get the owner setup code from your server. Make sure it’s running, then try again.")?
         .trim()
         .to_string();
     if code.len() != 64 || !code.bytes().all(|b| b.is_ascii_hexdigit()) {
-        return Err("The local setup code is unavailable. Start this host first.".into());
+        return Err(
+            "Hearth couldn’t get the owner setup code. Choose Start server first, then try again."
+                .into(),
+        );
     }
     Ok(code)
 }
@@ -908,7 +923,7 @@ pub async fn host_configure(
 ) -> Result<HostStatus, String> {
     let lock = state.0.clone();
     tauri::async_runtime::spawn_blocking(move || {
-        let _guard = lock.lock().map_err(|_| "Host controls are busy.")?;
+        let _guard = lock.lock().map_err(|_| "Hearth’s server controls stopped responding. Close and reopen Hearth, then try again.")?;
         let mut selection = selected(&app)?;
         let running = command(
             "docker",
@@ -924,7 +939,7 @@ pub async fn host_configure(
         )?;
         if !String::from_utf8_lossy(&running).trim().is_empty() {
             return Err(
-                "Stop this host before changing its public address or HTTPS settings.".into(),
+                "Choose Stop server before changing the public address or secure connection (HTTPS) settings.".into(),
             );
         }
         selection.https = https;
@@ -937,11 +952,11 @@ pub async fn host_configure(
             folder: Some(selection.root.to_string_lossy().into()),
             https,
             state: "selected".into(),
-            message: "Host settings saved. Start the server to apply them.".into(),
+            message: "Server settings saved. Choose Start server to use them.".into(),
             local_url: None,
             public_address: selection.public_address.clone(),
         })
     })
     .await
-    .map_err(|_| "Host controls are unavailable.".to_string())?
+    .map_err(|_| "Hearth’s server controls stopped responding. Close and reopen Hearth, then try again.".to_string())?
 }

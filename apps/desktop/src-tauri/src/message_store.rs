@@ -8,10 +8,10 @@ use std::{fs::OpenOptions, path::Path};
 use tauri::Manager;
 use zeroize::Zeroizing;
 const SERVICE: &str = "chat.hearth.message-store.v1";
-const ERROR: &str = "The encrypted message store is locked, damaged or changed in another window. Preserve it, unlock the system key store and sign in again.";
-const MISSING_HISTORY: &str = "The saved encryption key exists, but encrypted history is missing from this Windows profile. Keep the original profile and history files; do not reset your keys.";
-const MISSING_KEY: &str = "Encrypted history exists, but its saved encryption key is unavailable in this Windows profile. Keep the original files and sign in from the original Windows profile.";
-const KEY_STORE_UNAVAILABLE: &str = "The system key store could not be opened. Unlock your Windows session and try again. Existing encrypted history was preserved.";
+const ERROR: &str = "Your saved messages couldn’t be opened. They may be locked, damaged or changed in another Hearth window. Don’t delete them. Unlock your computer’s secure key storage and sign in again.";
+const MISSING_HISTORY: &str = "Hearth found the key for your saved messages, but the messages themselves are missing from this Windows user account. Keep your original Windows user account and message files, and don’t reset your keys.";
+const MISSING_KEY: &str = "Your saved messages are here, but the key that unlocks them isn’t available in this Windows user account. Keep the message files, and sign in from the Windows user account you used before.";
+const KEY_STORE_UNAVAILABLE: &str = "Hearth couldn’t open your computer’s secure key storage (Windows Credential Manager). Unlock Windows and try again. Your saved messages were not changed.";
 const MAX_ENVELOPE: usize = (8 * 1024 * 1024 + 41) * 2;
 #[path = "message_store_recovery.rs"]
 mod recovery;
@@ -75,7 +75,7 @@ fn store(
             revision >= 9_007_199_254_740_991 || !valid_envelope(value)
         })
     {
-        return Err("Invalid encrypted message storage request.".into());
+        return Err("Something went wrong opening your saved messages. Nothing was changed. Close and reopen Hearth, then try again.".into());
     }
     std::fs::create_dir_all(directory).map_err(|_| ERROR)?;
     let name = hex::encode(Sha256::digest(scope.as_bytes()));

@@ -33,18 +33,18 @@ export function GroupCallPanel({call,state,service,conversation,account,name,una
       <label className="call-privacy"><input type="checkbox" checked={shareAudio} disabled={state.sharing||state.sharingPending} onChange={event=>setShareAudio(event.target.checked)}/>Include computer or tab audio when sharing</label>
       <div className="call-videos">{state.participants.flatMap(person=>[person.camera&&person.cameraTrack?<figure key={person.device+'camera'}><figcaption>{name(person.account)} · Camera</figcaption><VideoTrack track={person.cameraTrack}/></figure>:null,person.sharing&&person.screenTrack?<figure key={person.device+'screen'}><figcaption>{name(person.account)} · Screen</figcaption><VideoTrack track={person.screenTrack}/></figure>:null])}</div>
       {state.participants.filter(person=>person.device!==service?.callDevice&&person.systemAudio&&person.systemAudioTrack).map(person=><AudioTrack key={person.systemAudioTrack!.id} track={person.systemAudioTrack!}/>)}
-      {state.sharing&&<p role="status">Your screen is shared with this group. {state.systemAudio?'Computer audio is included; microphone mute leaves it playing.':'Computer audio is off.'}</p>}{state.mediaNotice&&<p role="status">{state.mediaNotice}</p>}
-      <p className="muted">People can join independently, and the call stays open when someone leaves.</p>
+      {state.sharing&&<p role="status">Your screen is shared with this group. {state.systemAudio?'Computer sound is included. Muting your microphone does not mute it.':'Computer sound is off.'}</p>}{state.mediaNotice&&<p role="status">{state.mediaNotice}</p>}
+      <p className="muted">People can join at any time, and the call stays open when someone leaves.</p>
     </section>}
     {state.phase==='ended'&&<p role="status" className="call-ended">{state.message}</p>}
     {state.phase==='ended'&&state.canRejoin&&state.conversation===conversation?.id&&<button className="primary-button" disabled={busy||unavailable||!call||!service} onClick={()=>void attempt(async()=>{await call!.rejoin(await service!.callConfiguration())})}>Rejoin group call</button>}
     {error&&<p role="alert" className="input-error">{error}</p>}
     {setup&&<Modal title="Start an encrypted group call" onClose={()=>setSetup(false)} description="Your microphone starts when another person joins. The third person can join later. Camera and screen sharing stay off until you choose.">
-      {!callCapability()?<p>This runtime cannot encrypt media frames. Open Hearth in a supported browser to call.</p>:<>
-        <p>Choose one device for each person. Direct calls can reveal your network address to the other participants. Relay-only uses your server’s TURN relay for every connection.</p>
+      {!callCapability()?<p>This app or browser cannot encrypt calls. Open Hearth in a supported browser to call.</p>:<>
+        <p>Choose one device for each person. A direct call can show your IP address to the others. With Use relay only, every connection goes through your server’s relay: this hides your IP address from them but can be slightly slower.</p>
         {peers.map(id=><div key={id}><label htmlFor={'group-device-'+id}>{name(id)} · device</label><select id={'group-device-'+id} value={chosen(id)} onChange={event=>setSelected({...selected,[id]:event.target.value})}>{conversation!.members.filter(member=>member.account_id===id).map((member,index)=><option key={member.enrollment.device_key} value={member.enrollment.device_key}>Device {index+1} ({member.enrollment.device_key.slice(0,8)})</option>)}</select></div>)}
         <label className="call-privacy"><input type="checkbox" checked={relay} disabled={!canRelay} onChange={event=>setRelay(event.target.checked)}/>Use relay only</label>
-        {!canRelay&&<p className="muted">This server has no TURN relay configured. Direct connectivity depends on all three networks.</p>}
+        {!canRelay&&<p className="muted">This server has no relay set up, so the call connects directly. Whether that works depends on all three people’s networks.</p>}
         <button className="primary-button" disabled={busy||unavailable||peers.some(id=>!chosen(id))} onClick={()=>void attempt(async()=>{setSetup(false);await call!.start(conversation!.id,[service!.callDevice,...peers.map(chosen)],relay,ice)})}>Start group voice call</button>
       </>}
     </Modal>}

@@ -23,7 +23,7 @@ export class AuthCrypto {
   }
   request(operation: 'registrationStart' | 'registrationFinish' | 'loginStart' | 'loginFinish' | 'prepareIdentity' | 'commitIdentity' | 'exportRecovery' | 'restoreIdentity' | 'linkOffer' | 'linkId' | 'openMessaging' | 'messaging', password: string, response?: string, username?: string, serverId?: string): Promise<string> {
     const id = ++this.sequence
-    if(this.closed)return Promise.reject(new Error('This session is locked. Sign in again.'))
+    if(this.closed)return Promise.reject(new Error('Hearth is locked. Sign in again to continue.'))
     return new Promise((resolve, reject) => {
       const timer = setTimeout(() => this.close(), 30000)
       this.pending.set(id, { resolve, reject, timer })
@@ -33,7 +33,7 @@ export class AuthCrypto {
   close() {
     this.closed = true
     this.worker.terminate()
-    for (const request of this.pending.values()) { clearTimeout(request.timer); request.reject(new Error('Authentication was interrupted. Please try again.')) }
+    for (const request of this.pending.values()) { clearTimeout(request.timer); request.reject(new Error('Sign-in was interrupted. Try again.')) }
     this.pending.clear()
   }
   private closed = false

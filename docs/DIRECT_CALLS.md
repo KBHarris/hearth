@@ -24,7 +24,7 @@ survivor rekey; its evidence and limits are recorded there. LiveKit remains open
    Camera and screen capture require separate user actions. Screen audio is not
    included in this slice. The operating system's stop-sharing action also stops
    that capture track.
-5. Brief media-route interruptions show **Reconnecting encrypted call…** and
+5. Brief media-route interruptions show **Reconnecting…** and
    attempt recovery using the existing capture. Microphone mute, stopping an
    active camera/share and **End call** remain available during recovery.
 6. **End call**, sign-out or locking messaging stops local capture. An ended call

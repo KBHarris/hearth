@@ -4,7 +4,8 @@ use serde_json::Value;
 use std::{io::Read, time::Duration};
 
 fn enrollment_origin(input: &str, port: u16) -> Result<String, String> {
-    let url = reqwest::Url::parse(input).map_err(|_| "Use the selected local server address.")?;
+    let url = reqwest::Url::parse(input)
+        .map_err(|_| "Connect to your server’s address on this computer first.")?;
     if url.scheme() != "http"
         || !matches!(url.host_str(), Some("localhost" | "127.0.0.1" | "[::1]"))
         || url.port_or_known_default() != Some(port)
@@ -14,27 +15,32 @@ fn enrollment_origin(input: &str, port: u16) -> Result<String, String> {
         || url.query().is_some()
         || url.fragment().is_some()
     {
-        return Err("Owner setup from this computer is available only for the selected local server. Connect to its local address first.".into());
+        return Err("Owner setup from this computer works only for the selected local server (the one running on this computer). Connect to its address on this computer first.".into());
     }
     Ok(format!("http://127.0.0.1:{port}"))
 }
 fn json(client: &reqwest::blocking::Client, url: String) -> Result<Value, String> {
-    let response = client
-        .get(url)
-        .send()
-        .map_err(|_| "The local server did not respond. Start it and retry.")?;
+    let response = client.get(url).send().map_err(
+        |_| "Your server on this computer didn’t respond. Choose Start server, then try again.",
+    )?;
     if !response.status().is_success() {
-        return Err("The local server is not ready for owner setup.".into());
+        return Err(
+            "Your server isn’t ready for owner setup yet. Wait a moment, then try again.".into(),
+        );
     }
     let mut bytes = Vec::new();
     response
         .take(65537)
         .read_to_end(&mut bytes)
-        .map_err(|_| "Cannot read local server readiness.")?;
+        .map_err(|_| "Hearth couldn’t check whether your server is ready. Try again.")?;
     if bytes.len() > 65536 {
-        return Err("Invalid local server readiness response.".into());
+        return Err(
+            "Your server gave an unexpected answer. Choose Check server, then try again.".into(),
+        );
     }
-    serde_json::from_slice(&bytes).map_err(|_| "Invalid local server readiness response.".into())
+    serde_json::from_slice(&bytes).map_err(|_| {
+        "Your server gave an unexpected answer. Choose Check server, then try again.".into()
+    })
 }
 pub(crate) fn owner_code(
     selection: &Selection,
@@ -47,7 +53,7 @@ pub(crate) fn owner_code(
         hosting::local_port(selection, bundle.server.backend_port)?,
     )?;
     if server_key.len() != 64 || !server_key.bytes().all(|b| b.is_ascii_hexdigit()) {
-        return Err("Check the local server's identity before owner setup.".into());
+        return Err("Choose Check server first, then try owner setup again.".into());
     }
     let client = reqwest::blocking::Client::builder()
         .no_proxy()
@@ -55,16 +61,16 @@ pub(crate) fn owner_code(
         .connect_timeout(Duration::from_secs(3))
         .timeout(Duration::from_secs(8))
         .build()
-        .map_err(|_| "Local readiness is unavailable.")?;
+        .map_err(|_| "Hearth couldn’t check whether your server is ready. Try again.")?;
     let discovery = json(&client, format!("{origin}/.well-known/hearth"))?;
     if !discovery["server_key"]
         .as_str()
         .is_some_and(|key| key.eq_ignore_ascii_case(server_key))
     {
-        return Err("The selected local host has a different identity. Check the server again; no setup code was retrieved.".into());
+        return Err("This isn’t the server Hearth checked earlier (it has a different identity). Choose Check server again. Hearth didn’t get a setup code.".into());
     }
     if json(&client, format!("{origin}/api/v1/setup"))?["setup_complete"] != false {
-        return Err("This local server already has an owner, or its setup state is unavailable. Sign in instead.".into());
+        return Err("This server already has an owner, or Hearth couldn’t tell whether it does. Sign in instead.".into());
     }
     hosting::setup_code(selection)
 }
@@ -79,11 +85,11 @@ pub async fn host_owner_code(
     let app = window.app_handle().clone();
     let lock = state.0.clone();
     tauri::async_runtime::spawn_blocking(move || {
-        let _guard = lock.lock().map_err(|_| "Host controls are busy.")?;
+        let _guard = lock.lock().map_err(|_| "Hearth’s server controls stopped responding. Close and reopen Hearth, then try again.")?;
         owner_code(&hosting::selected(&app)?, &server, &server_key)
     })
     .await
-    .map_err(|_| "Local owner setup is unavailable.".to_string())?
+    .map_err(|_| "Hearth couldn’t get the owner setup code. Close and reopen Hearth, then try again.".to_string())?
 }
 
 use tauri::Manager;
