@@ -10,9 +10,9 @@ stage speaker consent. It also includes device switching, scheduled events,
 encrypted RSVPs and opt-in synchronized YouTube/SoundCloud playback. Spotify is
 disabled. Guided Host/Join, encrypted communities/files and governance remain included.
 
-Download the Windows [client ZIP](https://github.com/KBHarris/hearth/releases/download/v0.4.0/Hearth_Test_df97a1e_Windows_x64.zip)
-or [host package](https://github.com/KBHarris/hearth/releases/download/v0.4.0/Hearth_Host_0.4.0_Windows_x64.zip)
-from the [0.4.0 release](https://github.com/KBHarris/hearth/releases/tag/v0.4.0).
+Download the Windows [client ZIP](https://github.com/KBHarris/hearth/releases/download/v0.4.4/Hearth_Test_560499d_Windows_x64.zip)
+or [host package](https://github.com/KBHarris/hearth/releases/download/v0.4.4/Hearth_Host_0.4.4_Windows_x64.zip)
+from the [0.4.4 release](https://github.com/KBHarris/hearth/releases/tag/v0.4.4).
 Update the client first, then use **Hosting & updates** to update the existing
 server and enable voice/video hosting. Keep the original host folder, credentials,
 server keys and Docker volumes together. Desktop hosting uses Docker; Node.js is

@@ -1,5 +1,37 @@
 # Progress
 
+**Simpler interface released and installed, 2026-11-09:**
+[Preview 0.4.4](https://github.com/KBHarris/hearth/releases/tag/v0.4.4) is published
+from frozen source `560499d`, and both the Windows client and the original selected
+server run it. The client is redesigned around a familiar layout (Home and community
+tiles on the rail, channels in the sidebar, one Settings menu, hover message buttons,
+a composer "+" menu, Enter to send). Every expandable section is replaced by tabs or
+plain sections, and user-visible wording is rewritten in plain language across the
+components, messaging, calls, the SDK and the desktop backend. In `crypto/`, `media/`,
+the SDK and Rust only string literals changed; an independent review of the diff found
+no logic change. Sign-in now states clearly when a username or password is wrong and
+remembers the last username per server. Dialog focus no longer escapes past collapsed
+or hidden sections.
+
+Local validation on the frozen source: `npm run verify` (159 client, 49 SDK and 15
+deployment tests), workspace and desktop Rust format/clippy/tests, and the three real
+browser suites pass (12 setup checks, 6 deletion checks and all 42 two-client checks).
+All 16 packaged upgrade checks pass, and all 13 published files match
+`SHA256SUMS.txt`. The actual server update completed its backup and kept the account,
+server name, signing identity, community and migration 32; public HTTPS answers.
+[Sanitized evidence](evidence/preview-0.4.4-publication-upgrade-2026-11-09.json).
+
+Two operational findings. The reported sign-in failure was a username that does not
+exist on the server, not a fault; the new sign-in message covers it. The Windows client
+had been installed from inside a packaged tool, so Windows redirected its program files
+into that tool's private cache; it is now installed at the real
+`%LOCALAPPDATA%\Hearth Preview` by running the installer outside any package, and the
+shortcuts point there. Release tooling must be run from an unpackaged shell: packaged
+shells redirect new `%LOCALAPPDATA%` folders, and Git Bash `tar` cannot write the host
+archive (`prepare-release.mjs` needs Windows `tar`). The installer build needs
+`HEARTH_BUILD_COMMIT` set to the frozen commit. Normal sign-in on 0.4.4 by the owner,
+a clean buddy-PC install, two-household reachability and physical devices remain manual.
+
 **Deletion update released and installed, 2026-10-27:**
 [Preview 0.4.3](https://github.com/KBHarris/hearth/releases/tag/v0.4.3) is published,
 and both the Windows client and original selected server run frozen source

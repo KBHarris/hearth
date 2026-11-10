@@ -1,0 +1,63 @@
+{
+  "recordedAt": "2026-11-09",
+  "release": "https://github.com/KBHarris/hearth/releases/tag/v0.4.4",
+  "version": "0.4.4",
+  "sourceCommit": "560499de04a2c5d798cd21580ec111f2a55b3cbd",
+  "bundleValidation": {
+    "outcome": "pass",
+    "checks": {
+      "all_manifest_hashes_match": true,
+      "host_secrets_absent_from_distribution": true,
+      "friend_zip_contains_only_installer_guide_and_checksum": true,
+      "loaded_server_archive_matches_pinned_image": true,
+      "fresh_server_health_discovery_and_owner_bootstrap_pass": true,
+      "all_current_migrations_applied_to_fresh_data": true,
+      "storage_rejects_anonymous_requests": true,
+      "server_restart_preserves_signing_identity": true,
+      "actual_nsis_upgrade_installs_successfully": true,
+      "upgraded_native_binary_matches_version_and_source": true,
+      "visible_client_version_matches_installed_binary": true,
+      "existing_os_invites_still_require_review_after_cold_start": true,
+      "existing_os_invites_still_reach_the_running_instance": true,
+      "existing_host_remains_running_without_restart_or_data_reset": true,
+      "installed_host_reappears_with_empty_browser_server_storage": true,
+      "native_profiles_and_host_configuration_are_preserved": true
+    },
+    "runtime": "in-place Windows Preview NSIS upgrade / isolated system WebView2; existing native profiles preserved"
+  },
+  "localValidation": {
+    "npm_verify": "pass",
+    "rust_fmt_clippy_test_workspace_and_desktop": "pass",
+    "verify_setup_ui_checks": 12,
+    "verify_community_deletion_ui_checks": 6,
+    "verify_community_ui_phase3_checks": 42
+  },
+  "publication": {
+    "assets": 14,
+    "sha256sums_entries_verified_from_public_download": 13,
+    "latest_json_version": "0.4.4",
+    "server_json_version": "0.4.4"
+  },
+  "installedClient": {
+    "version": "0.4.4",
+    "location": "%LOCALAPPDATA%\\Hearth Preview (installed outside any app package)",
+    "launchedBy": "explorer.exe"
+  },
+  "hostedServerUpdate": {
+    "method": "in-app Update hosted server",
+    "imageRevision": "560499de04a2c5d798cd21580ec111f2a55b3cbd",
+    "healthy": true,
+    "accountsPreserved": 1,
+    "communitiesPreserved": 1,
+    "serverNamePreserved": true,
+    "serverKeyUnchanged": true,
+    "latestMigration": 32,
+    "publicHttps": 200
+  },
+  "humanPending": [
+    "owner sign-in on 0.4.4 with the real account",
+    "clean buddy-PC installation and two-house reachability",
+    "actual Windows SmartScreen experience on the buddy PC",
+    "physical audio/video devices"
+  ]
+}
